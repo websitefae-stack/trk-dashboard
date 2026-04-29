@@ -1,0 +1,27 @@
+{% include "dashboard/templates/includes/head/session_worker_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/session_worker_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Session Worker Dashboard</h1>
+          <p class="dashboard-page-subtitle">Welcome to your session worker dashboard.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-list">
+          <a href="/session_worker_db/clients">Clients</a>
+          <a href="/session_worker_db/contacts">Contacts</a>
+          <a href="/session_worker_db/calendar">Calendar</a>
+          <a href="/session_worker_db/notifications">Notifications</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
