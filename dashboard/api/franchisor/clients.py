@@ -1,47 +1,57 @@
 import frappe
 from frappe import _
 from dashboard.api.shared.clients import normalize_client_row
+from dashboard.api.coach.clients import get_coach_record
 
 
-def get_franchisor_display_name():
+CLIENT_DOCTYPE = "Client"
+
+
+def require_logged_in_user():
     if frappe.session.user == "Guest":
         frappe.throw(_("Login required"), frappe.PermissionError)
 
+    return frappe.session.user
+
+
+def get_franchisor_display_name():
+    require_logged_in_user()
     return frappe.get_cached_value("User", frappe.session.user, "full_name") or frappe.session.user
 
 
 def get_my_coach_name():
-    if not frappe.db.exists("DocType", "Coach"):
-        return ""
-
-    candidate_fields = ["user", "coach_user", "linked_user", "email", "coach_email", "user_id"]
-
-    for fieldname in candidate_fields:
-        if not frappe.db.has_column("Coach", fieldname):
-            continue
-
-        coach = frappe.db.get_value(
-            "Coach",
-            {fieldname: frappe.session.user},
-            ["name", "coach_name"],
-            as_dict=True,
-        )
-
-        if coach:
-            return coach.get("name") or ""
-
-    return ""
+    coach = get_coach_record()
+    return coach.get("name") if coach else ""
 
 
-@frappe.whitelist()
-def get_clients():
-    if frappe.session.user == "Guest":
-        frappe.throw(_("Login required"), frappe.PermissionError)
+def get_client_scope_filters(scope="my"):
+    scope = (scope or "my").lower()
+
+    if scope == "all":
+        return {}
 
     my_coach = get_my_coach_name()
 
-    clients = frappe.get_all(
-        "Client",
+    if not my_coach:
+        return {"name": ["in", []]}
+
+    meta = frappe.get_meta(CLIENT_DOCTYPE)
+
+    if meta.has_field("primary_coach"):
+        return {"primary_coach": my_coach}
+
+    return {"name": ["in", []]}
+
+
+@frappe.whitelist()
+def get_clients(scope="my"):
+    require_logged_in_user()
+
+    my_coach = get_my_coach_name()
+
+    rows = frappe.get_all(
+        CLIENT_DOCTYPE,
+        filters=get_client_scope_filters(scope),
         fields=[
             "name",
             "name1",
@@ -53,19 +63,21 @@ def get_clients():
             "status",
             "client_type",
             "primary_coach",
+            "attending_coach",
             "session_worker",
         ],
         order_by="full_name asc",
-        limit_page_length=1000,
+        limit_page_length=5000,
     )
 
-    rows = []
-    for client in clients:
-        row = normalize_client_row(client)
-        row["scope"] = "My" if my_coach and row.get("primary_coach") == my_coach else "All"
-        rows.append(row)
+    result = []
 
-    return rows
+    for row in rows:
+        item = normalize_client_row(row)
+        item["scope"] = "My" if my_coach and item.get("primary_coach") == my_coach else "All"
+        result.append(item)
+
+    return result
 
 
 def get_session_workers():
@@ -90,3 +102,15 @@ def get_coaches():
         order_by="coach_name asc",
         limit_page_length=500,
     )
+
+
+def get_client_types():
+    meta = frappe.get_meta(CLIENT_DOCTYPE)
+
+    if meta.has_field("client_type"):
+        df = meta.get_field("client_type")
+
+        if df.fieldtype == "Select" and df.options:
+            return [x.strip() for x in df.options.split("\n") if x.strip()]
+
+    return ["Kid", "Teen", "Adult", "Uni Student", "School/Company"]
