@@ -1,0 +1,95 @@
+{% include "dashboard/templates/includes/head/shared_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Contacts</h1>
+          <p class="dashboard-page-subtitle">
+            {% if show_all %}
+              All contacts on the system
+            {% else %}
+              Contacts linked to franchisor clients
+            {% endif %}
+          </p>
+        </div>
+
+        <div class="dashboard-page-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="addContact" data-url="/franchisor_db/contact_details?new=1">
+            Add Contact
+          </button>
+        </div>
+      </div>
+
+      <div class="dashboard-card contacts-filter-row franchisor-contacts-filter-row">
+        <div class="dashboard-filter-field dashboard-filter-search">
+          <label for="contactSearch">Search contacts</label>
+          <input id="contactSearch" type="text" class="dashboard-input" placeholder="Search by name, mobile, email, coach or client">
+        </div>
+
+        <button type="button" class="dashboard-btn dashboard-btn-primary contacts-refresh-btn" id="refreshContacts">
+          Refresh
+        </button>
+
+        <label class="dashboard-checkbox-label franchisor-show-all-toggle">
+          <input type="checkbox" id="showAllContacts" {% if show_all %}checked{% endif %}>
+          View all contacts
+        </label>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Contact List</div>
+          <div class="dashboard-table-count" id="contactCount">{{ contacts|length }} contacts</div>
+        </div>
+
+        {% if contacts %}
+          <div class="dashboard-table-wrap">
+            <table class="dashboard-table dashboard-contacts-table dashboard-franchisor-contacts-table">
+              <thead>
+                <tr>
+                  <th>Contact Name</th>
+                  <th>Mobile</th>
+                  <th>Email</th>
+                  <th>Linked Clients</th>
+                  <th>Coach</th>
+                </tr>
+              </thead>
+
+              <tbody id="contactTable">
+                {% for c in contacts %}
+                  <tr
+                    class="dashboard-contact-row"
+                    data-name="{{ (c.display_name or '')|lower }}"
+                    data-email="{{ (c.email_id or '')|lower }}"
+                    data-mobile="{{ (c.mobile_no or '')|lower }}"
+                    data-linked-clients="{{ (c.linked_client_text or '')|lower }}"
+                    data-coach="{{ (c.coach_name or '')|lower }}"
+                  >
+                    <td>
+                      <a class="dashboard-client-name-link" href="/franchisor_db/contact_details?name={{ c.name }}">
+                        {{ c.display_name or c.name }}
+                      </a>
+                      <div class="dashboard-client-sub">{{ c.mobile_no or "No mobile number" }}</div>
+                    </td>
+                    <td>{{ c.mobile_no or "—" }}</td>
+                    <td>{{ c.email_id or "—" }}</td>
+                    <td>{{ c.linked_client_text or "—" }}</td>
+                    <td>{{ c.coach_name or "—" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="dashboard-empty">No contacts found.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
