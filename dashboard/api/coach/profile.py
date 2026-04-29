@@ -5,7 +5,7 @@ from frappe import _
 COACH_DOCTYPE = "Coach"
 CHANGE_REQUEST_DOCTYPE = "Change Request"
 
-OFFICE_EMAIL = "office@theresilientpeople.co.uk"
+OFFICE_EMAIL = "office@theresilientpeople.uk"
 ASHLEY_USER = "ashley@theresilientkid.co.uk"
 
 
