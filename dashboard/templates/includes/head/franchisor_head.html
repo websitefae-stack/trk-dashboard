@@ -1,52 +1,70 @@
 {% include "dashboard/templates/includes/head/shared_head.html" %}
 
 {% set path = frappe.request.path if frappe and frappe.request else "" %}
+{% set clean_path = path.rstrip("/") %}
 
-<!-- Franchisor CSS -->
 <link rel="stylesheet" href="/assets/dashboard/css/franchisor/franchisor.css?v=1">
 
-<!-- Franchisor JS -->
-
-{% if path == "/franchisor_db" or path == "/franchisor_db/" %}
+{% if clean_path == "/franchisor_db" %}
 <script src="/assets/dashboard/js/franchisor/dashboard_home.js?v=1"></script>
 {% endif %}
 
-{% if path == "/franchisor_db/franchisees" %}
-<script src="/assets/dashboard/js/franchisor/franchisees.js?v=1"></script>
+{% if path.startswith("/franchisor_db/client_details") %}
+<script src="/assets/dashboard/js/franchisor/client_details.js?v=1"></script>
 {% endif %}
 
-{% if path == "/franchisor_db/franchisee_details" %}
-<script src="/assets/dashboard/js/franchisor/franchisee_details.js?v=1"></script>
+{% if path.startswith("/franchisor_db/clients") %}
+<script src="/assets/dashboard/js/franchisor/clients.js?v=1"></script>
 {% endif %}
 
-{% if path == "/franchisor_db/session_workers" %}
-<script src="/assets/dashboard/js/franchisor/session_workers.js?v=1"></script>
-{% endif %}
-
-{% if path == "/franchisor_db/coaches" %}
+{% if path.startswith("/franchisor_db/coaches") %}
 <script src="/assets/dashboard/js/franchisor/coaches.js?v=1"></script>
 {% endif %}
 
-{% if path == "/franchisor_db/onboarding" %}
-<script src="/assets/dashboard/js/franchisor/onboarding.js?v=1"></script>
+{% if path.startswith("/franchisor_db/compliance") %}
+<script src="/assets/dashboard/js/franchisor/compliance.js?v=1"></script>
 {% endif %}
 
-{% if path == "/franchisor_db/franchise_fees" %}
+{% if path.startswith("/franchisor_db/franchise_fees") %}
 <script src="/assets/dashboard/js/franchisor/franchise_fees.js?v=1"></script>
 {% endif %}
 
-{% if path == "/franchisor_db/marketing_fees" %}
+{% if path.startswith("/franchisor_db/franchisee_details") %}
+<script src="/assets/dashboard/js/franchisor/franchisee_details.js?v=1"></script>
+{% endif %}
+
+{% if path.startswith("/franchisor_db/franchisees") %}
+<script src="/assets/dashboard/js/franchisor/franchisees.js?v=1"></script>
+{% endif %}
+
+{% if path.startswith("/franchisor_db/invoices") %}
+<script src="/assets/dashboard/js/franchisor/invoices.js?v=1"></script>
+{% endif %}
+
+{% if path.startswith("/franchisor_db/marketing_fees") %}
 <script src="/assets/dashboard/js/franchisor/marketing_fees.js?v=1"></script>
 {% endif %}
 
-{% if path == "/franchisor_db/reports" %}
+{% if path.startswith("/franchisor_db/notification_details") %}
+<script src="/assets/dashboard/js/franchisor/notification_details.js?v=1"></script>
+{% endif %}
+
+{% if path.startswith("/franchisor_db/notifications") %}
+<script src="/assets/dashboard/js/franchisor/notifications.js?v=1"></script>
+{% endif %}
+
+{% if path.startswith("/franchisor_db/onboarding") %}
+<script src="/assets/dashboard/js/franchisor/onboarding.js?v=1"></script>
+{% endif %}
+
+{% if path.startswith("/franchisor_db/reports") %}
 <script src="/assets/dashboard/js/franchisor/reports.js?v=1"></script>
 {% endif %}
 
-{% if path == "/franchisor_db/settings" %}
-<script src="/assets/dashboard/js/franchisor/settings.js?v=1"></script>
+{% if path.startswith("/franchisor_db/session_workers") %}
+<script src="/assets/dashboard/js/franchisor/session_workers.js?v=1"></script>
 {% endif %}
 
-{% if path == "/franchisor_db/notifications" %}
-<script src="/assets/dashboard/js/franchisor/notifications.js?v=1"></script>
+{% if path.startswith("/franchisor_db/settings") %}
+<script src="/assets/dashboard/js/franchisor/settings.js?v=1"></script>
 {% endif %}
