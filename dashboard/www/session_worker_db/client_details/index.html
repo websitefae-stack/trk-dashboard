@@ -1,0 +1,341 @@
+{% include "dashboard/templates/includes/head/session_worker_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/session_worker_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">{{ client_title or "Client Details" }}</h1>
+          <p class="dashboard-page-subtitle">Client details and session worker actions</p>
+        </div>
+
+        <div class="dashboard-detail-actions dashboard-detail-actions-compact">
+          <a href="/session_worker_db/clients" class="dashboard-btn dashboard-btn-secondary">
+            Back
+          </a>
+
+          <button
+            type="button"
+            class="dashboard-btn dashboard-btn-light"
+            onclick="document.querySelector('[data-tab-target=\'client-change-tab\']').click()"
+          >
+            Request Change
+          </button>
+        </div>
+      </div>
+
+      <div class="dashboard-card dashboard-client-detail-card">
+        <input type="hidden" id="clientDocname" value="{{ client_docname }}">
+        <input type="hidden" id="csrfToken" value="{{ frappe.session.csrf_token or '' }}">
+
+        <div class="dashboard-tabs">
+          <button type="button" class="dashboard-tab-btn is-active" data-tab-target="client-details-tab">Details</button>
+
+          <button type="button" class="dashboard-tab-btn" data-tab-target="client-admin-tab">
+            <span class="desktop-tab-label">Administration</span>
+            <span class="mobile-tab-label">Admin</span>
+          </button>
+
+          <button type="button" class="dashboard-tab-btn" data-tab-target="client-contacts-tab">Contacts</button>
+          <button type="button" class="dashboard-tab-btn" data-tab-target="client-notes-tab">Notes</button>
+          <button type="button" class="dashboard-tab-btn" data-tab-target="client-change-tab">Change Request</button>
+          <button type="button" class="dashboard-tab-btn" data-tab-target="client-appointments-tab">Appointments</button>
+        </div>
+
+        <form id="clientDetailsForm" class="dashboard-detail-form" onsubmit="return false;">
+
+          <div class="dashboard-tab-panel is-active" id="client-details-tab">
+            <div class="dashboard-detail-section">
+              <div class="dashboard-detail-section-head">
+                <h2 class="dashboard-detail-section-title">Profile</h2>
+              </div>
+
+              <div class="dashboard-detail-grid dashboard-detail-grid-2">
+                <div class="dashboard-detail-field">
+                  <label for="client_full_name">Full Name</label>
+                  <input type="text" class="dashboard-input" id="client_full_name" value="{{ client.full_name or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="client_preferred_name">Preferred Name</label>
+                  <input type="text" class="dashboard-input" id="client_preferred_name" value="{{ client.preferred_name or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="client_mobile">Mobile</label>
+                  <input type="text" class="dashboard-input" id="client_mobile" value="{{ client.mobile or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="client_email">Email</label>
+                  <input type="text" class="dashboard-input" id="client_email" value="{{ client.email or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="client_address">Address</label>
+                  <input type="text" class="dashboard-input" id="client_address" value="{{ client.address or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="client_city">City</label>
+                  <input type="text" class="dashboard-input" id="client_city" value="{{ client.city or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="client_zip_code">Postal Code</label>
+                  <input type="text" class="dashboard-input" id="client_zip_code" value="{{ client.zip_code or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="client_date_of_birth">Date of Birth</label>
+                  <input type="text" class="dashboard-input" id="client_date_of_birth" value="{{ client.date_of_birth or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="client_age">Age</label>
+                  <input type="text" class="dashboard-input" id="client_age" value="{{ client.age or '' }}" readonly>
+                </div>
+              </div>
+            </div>
+
+            <div class="dashboard-detail-section">
+              <div class="dashboard-detail-section-head">
+                <h2 class="dashboard-detail-section-title">Identity</h2>
+              </div>
+
+              <div class="dashboard-detail-grid dashboard-detail-grid-3">
+                <div class="dashboard-detail-field">
+                  <label for="client_sex">Sex</label>
+                  <input type="text" class="dashboard-input" id="client_sex" value="{{ client.sex or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="client_gender_identity">Gender Identity</label>
+                  <input type="text" class="dashboard-input" id="client_gender_identity" value="{{ client.gender_identity or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="client_pronouns">Pronouns</label>
+                  <input type="text" class="dashboard-input" id="client_pronouns" value="{{ client.pronouns or '' }}" readonly>
+                </div>
+              </div>
+            </div>
+
+            <div class="dashboard-detail-section">
+              <div class="dashboard-detail-section-head">
+                <h2 class="dashboard-detail-section-title">Medical</h2>
+              </div>
+
+              <div class="dashboard-detail-grid dashboard-detail-grid-2">
+                <div class="dashboard-detail-field">
+                  <label for="client_neurodiverse_status">Neurodiverse Status</label>
+                  <input type="text" class="dashboard-input" id="client_neurodiverse_status" value="{{ client.neurodiverse_status or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field dashboard-detail-field-full">
+                  <label for="client_neurodiverse_information">Neurodiverse Information</label>
+                  <textarea class="dashboard-textarea" id="client_neurodiverse_information" readonly>{{ client.neurodiverse_information or '' }}</textarea>
+                </div>
+
+                <div class="dashboard-detail-field dashboard-detail-field-full">
+                  <label for="client_allergies">Allergies</label>
+                  <textarea class="dashboard-textarea" id="client_allergies" readonly>{{ client.allergies or '' }}</textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="dashboard-detail-section">
+              <div class="dashboard-detail-section-head">
+                <h2 class="dashboard-detail-section-title">Comments</h2>
+              </div>
+
+              <div class="dashboard-detail-grid dashboard-detail-grid-1">
+                <div class="dashboard-detail-field dashboard-detail-field-full">
+                  <label for="client_comments">Comments</label>
+                  <textarea class="dashboard-textarea" id="client_comments" readonly>{{ client.comments or '' }}</textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="dashboard-tab-panel" id="client-admin-tab">
+            <div class="dashboard-detail-section">
+              <div class="dashboard-detail-section-head">
+                <h2 class="dashboard-detail-section-title">Administration</h2>
+              </div>
+
+              <div class="dashboard-detail-grid dashboard-detail-grid-2">
+                <div class="dashboard-detail-field">
+                  <label for="client_status">Status</label>
+                  <input type="text" class="dashboard-input" id="client_status" value="{{ client.status or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="client_client_type">Client Type</label>
+                  <input type="text" class="dashboard-input" id="client_client_type" value="{{ client.client_type or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="client_primary_coach">Primary Coach</label>
+                  <input type="text" class="dashboard-input" id="client_primary_coach" value="{{ client.primary_coach or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="client_company">Company</label>
+                  <input type="text" class="dashboard-input" id="client_company" value="{{ client.company or '' }}" readonly>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="dashboard-tab-panel" id="client-contacts-tab">
+            <div class="dashboard-detail-section">
+              <div class="dashboard-detail-section-head">
+                <h2 class="dashboard-detail-section-title">Client Contacts</h2>
+              </div>
+
+              <div class="dashboard-table-wrap">
+                <table class="dashboard-table dashboard-client-contact-table">
+                  <thead>
+                    <tr>
+                      <th>Contact Name</th>
+                      <th>Mobile</th>
+                      <th>Email</th>
+                      <th>Company</th>
+                      <th class="dashboard-action-col">Action</th>
+                    </tr>
+                  </thead>
+
+                  <tbody id="clientContactsTableBody">
+                    <tr>
+                      <td colspan="5" class="dashboard-empty">Loading contacts...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="dashboard-tab-panel" id="client-notes-tab">
+            <div class="dashboard-detail-section">
+              <div class="dashboard-detail-section-head">
+                <h2 class="dashboard-detail-section-title">Session Notes</h2>
+              </div>
+
+              <div class="dashboard-detail-grid dashboard-detail-grid-1">
+                <div class="dashboard-detail-field dashboard-detail-field-full">
+                  <label for="newClientNoteText">Add Note</label>
+                  <textarea class="dashboard-textarea" id="newClientNoteText" placeholder="Add a session note here"></textarea>
+                  <div class="dashboard-help">Notes will be added to the client record and visible to the coach dashboard.</div>
+                </div>
+              </div>
+
+              <div class="dashboard-detail-actions" style="margin-top: 16px;">
+                <button type="button" class="dashboard-btn dashboard-btn-primary" id="addClientNote">Add Note</button>
+              </div>
+
+              <div class="dashboard-table-wrap" style="margin-top: 20px;">
+                <table class="dashboard-table client-notes-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th class="dashboard-note-user-cell">User</th>
+                      <th>Note</th>
+                    </tr>
+                  </thead>
+
+                  <tbody id="clientNotesTableBody">
+                    <tr>
+                      <td colspan="3" class="dashboard-empty">Loading notes...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="dashboard-tab-panel" id="client-change-tab">
+            <div class="dashboard-detail-section">
+              <div class="dashboard-detail-section-head">
+                <h2 class="dashboard-detail-section-title">Request a Change</h2>
+              </div>
+
+              <div class="dashboard-notice">
+                Session workers cannot edit the main client fields directly. Use this form to send a change request to the primary coach.
+              </div>
+
+              <div class="dashboard-detail-grid dashboard-detail-grid-2" style="margin-top: 20px;">
+                <div class="dashboard-detail-field">
+                  <label for="changeRequestType">Request Type</label>
+                  <select class="dashboard-select" id="changeRequestType">
+                    <option value=""></option>
+                    <option value="Personal Details">Personal Details</option>
+                    <option value="Contact Details">Contact Details</option>
+                    <option value="Medical Details">Medical Details</option>
+                    <option value="Administration">Administration</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="changeRequestSection">Requested Section</label>
+                  <input type="text" class="dashboard-input" id="changeRequestSection" placeholder="Example: Address or Medical Information">
+                </div>
+
+                <div class="dashboard-detail-field dashboard-detail-field-full">
+                  <label for="changeRequestText">Requested Change</label>
+                  <textarea class="dashboard-textarea" id="changeRequestText" placeholder="Describe the requested change clearly"></textarea>
+                </div>
+
+                <div class="dashboard-detail-field dashboard-detail-field-full">
+                  <label for="changeRequestReason">Reason</label>
+                  <textarea class="dashboard-textarea" id="changeRequestReason" placeholder="Optional reason or context"></textarea>
+                </div>
+              </div>
+
+              <div class="dashboard-detail-actions" style="margin-top: 16px;">
+                <button type="button" class="dashboard-btn dashboard-btn-primary" id="submitChangeRequest">
+                  Submit Change Request
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="dashboard-tab-panel" id="client-appointments-tab">
+            <div class="dashboard-detail-section client-appointments-section">
+              <div class="dashboard-detail-section-head">
+                <h2 class="dashboard-detail-section-title">Appointments</h2>
+              </div>
+
+              <div class="dashboard-table-wrap client-appointments-table-wrap">
+                <table class="dashboard-table client-appointments-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Start</th>
+                      <th>Type</th>
+                      <th>Status</th>
+                      <th>Location</th>
+                      <th class="dashboard-action-col">Action</th>
+                    </tr>
+                  </thead>
+
+                  <tbody id="clientAppointmentsTableBody">
+                    <tr>
+                      <td colspan="6" class="dashboard-empty">Loading appointments...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
