@@ -1,1 +1,53 @@
+/* =========================================================
+   RESET / BASE
+========================================================= */
 
+* {
+  box-sizing: border-box;
+}
+
+html {
+  max-width: 100%;
+  overflow-x: hidden;
+  font-size: 100%;
+}
+
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+  margin: 0;
+  background: #F2F8F8;
+  color: #434B49;
+  font-family: 'Comfortaa', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-top: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: #434B49;
+  font-weight: 700;
+}
+
+a {
+  color: #00A19E;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #007274;
+}
