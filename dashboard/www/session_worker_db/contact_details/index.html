@@ -1,0 +1,176 @@
+{% include "dashboard/templates/includes/head/session_worker_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/session_worker_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">{{ contact_display_name }}</h1>
+          <p class="dashboard-page-subtitle">Readonly contact details for session workers</p>
+        </div>
+      </div>
+
+      <div class="dashboard-card dashboard-client-detail-card">
+        <form id="contactDetailsForm" class="dashboard-detail-form" onsubmit="return false;">
+          <input type="hidden" id="csrfToken" value="{{ frappe.session.csrf_token or '' }}">
+          <input type="hidden" id="contactDocname" value="{{ contact_docname }}">
+
+          <div class="dashboard-tabs dashboard-contact-detail-tabs">
+            <button type="button" class="dashboard-tab-btn is-active" data-tab-target="contact-details-tab">Details</button>
+            <button type="button" class="dashboard-tab-btn" data-tab-target="contact-linked-clients-tab">Linked Clients</button>
+            <button type="button" class="dashboard-tab-btn" data-tab-target="contact-change-tab">Change Request</button>
+            <button type="button" class="dashboard-tab-btn" id="refreshContactDetails">Refresh</button>
+            <a href="/session_worker_db/contacts" class="dashboard-tab-btn contact-back-btn">Back</a>
+          </div>
+
+          <div class="dashboard-tab-panel is-active" id="contact-details-tab">
+            <section class="dashboard-detail-section">
+              <div class="dashboard-detail-section-head">
+                <h2 class="dashboard-detail-section-title">Contact Details</h2>
+              </div>
+
+              <div class="dashboard-detail-grid dashboard-detail-grid-2">
+                <div class="dashboard-detail-field">
+                  <label>First Name</label>
+                  <input class="dashboard-input" value="{{ contact.first_name or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label>Last Name</label>
+                  <input class="dashboard-input" value="{{ contact.last_name or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label>Email Address</label>
+                  <input class="dashboard-input" value="{{ contact.email_id or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label>Mobile No</label>
+                  <input class="dashboard-input" value="{{ contact.mobile_no or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label>Designation</label>
+                  <input class="dashboard-input" value="{{ contact.designation or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label>Company Name</label>
+                  <input class="dashboard-input" value="{{ contact.company_name or '' }}" readonly>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="dashboard-tab-panel" id="contact-linked-clients-tab">
+            <section class="dashboard-detail-section">
+              <div class="dashboard-detail-section-head">
+                <h2 class="dashboard-detail-section-title">Linked Clients</h2>
+              </div>
+
+              <div class="dashboard-table-wrap">
+                <table class="dashboard-table dashboard-contact-linked-client-table">
+                  <thead>
+                    <tr>
+                      <th>Client Name</th>
+                      <th>Status</th>
+                      <th>Type</th>
+                      <th>Primary Coach</th>
+                      <th>Relationship</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% if linked_clients %}
+                      {% for client in linked_clients %}
+                        <tr>
+                          <td>
+                            <a class="dashboard-inline-link" href="/session_worker_db/client_details?name={{ client.name }}">
+                              {{ client.display_name }}
+                            </a>
+                          </td>
+                          <td>{{ client.status or "—" }}</td>
+                          <td>{{ client.client_type or "—" }}</td>
+                          <td>{{ client.primary_coach_display or client.primary_coach or "—" }}</td>
+                          <td>
+                            {% if client.is_billing_client and client.is_general_linked %}
+                              Billing + Client Contact
+                            {% elif client.is_billing_client %}
+                              Billing Contact
+                            {% else %}
+                              Client Contact
+                            {% endif %}
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    {% else %}
+                      <tr>
+                        <td colspan="5" class="dashboard-empty">No linked clients found.</td>
+                      </tr>
+                    {% endif %}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div class="dashboard-tab-panel" id="contact-change-tab">
+            <section class="dashboard-detail-section">
+              <div class="dashboard-detail-section-head">
+                <h2 class="dashboard-detail-section-title">Request a Contact Change</h2>
+              </div>
+
+              <div class="dashboard-notice">
+                Session workers cannot edit contact details directly. Send a change request to the primary coach.
+              </div>
+
+              <div class="dashboard-detail-grid dashboard-detail-grid-2" style="margin-top: 20px;">
+                <div class="dashboard-detail-field">
+                  <label for="changeRequestClient">Client</label>
+                  <select class="dashboard-select" id="changeRequestClient">
+                    {% for client in linked_clients %}
+                      <option value="{{ client.name }}">{{ client.display_name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="changeRequestType">Request Type</label>
+                  <select class="dashboard-select" id="changeRequestType">
+                    <option value="Contact Details">Contact Details</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="changeRequestSection">Requested Section</label>
+                  <input class="dashboard-input" id="changeRequestSection" placeholder="Example: Mobile number">
+                </div>
+
+                <div class="dashboard-detail-field dashboard-detail-field-full">
+                  <label for="changeRequestText">Requested Change</label>
+                  <textarea class="dashboard-textarea" id="changeRequestText" placeholder="Describe the requested change"></textarea>
+                </div>
+
+                <div class="dashboard-detail-field dashboard-detail-field-full">
+                  <label for="changeRequestReason">Reason</label>
+                  <textarea class="dashboard-textarea" id="changeRequestReason" placeholder="Optional reason"></textarea>
+                </div>
+              </div>
+
+              <div class="dashboard-detail-actions" style="margin-top: 16px;">
+                <button type="button" class="dashboard-btn dashboard-btn-primary" id="submitContactChangeRequest">
+                  Submit Change Request
+                </button>
+              </div>
+            </section>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
