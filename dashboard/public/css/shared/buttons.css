@@ -96,3 +96,31 @@
   padding: 7px 12px;
   font-size: 12px;
 }
+
+.dashboard-btn-secondary,
+.client-refresh-btn,
+.contacts-refresh-btn,
+.notification-refresh-btn,
+#refreshClients {
+  background: #007274;
+  color: #FFFFFF;
+  border-color: #007274;
+}
+
+.dashboard-btn-secondary:hover,
+.client-refresh-btn:hover,
+.contacts-refresh-btn:hover,
+.notification-refresh-btn:hover,
+#refreshClients:hover {
+  background: #005f61;
+  color: #FFFFFF;
+  border-color: #005f61;
+}
+
+.client-refresh-btn,
+#refreshClients {
+  min-height: 44px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 700;
+}
