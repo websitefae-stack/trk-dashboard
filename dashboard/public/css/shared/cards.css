@@ -1,1 +1,142 @@
+/* =========================================================
+   CARDS / PANELS / LISTS / SUMMARY
+========================================================= */
 
+.dashboard-card {
+  padding: 20px;
+  background: #FFFFFF;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(67, 75, 73, 0.08);
+}
+
+.dashboard-summary-grid,
+.dashboard-summary-grid-billing {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.dashboard-summary-card {
+  padding: 20px;
+  background: #FFFFFF;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(67, 75, 73, 0.08);
+}
+
+.dashboard-summary-label {
+  margin-bottom: 10px;
+  color: #839898;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.dashboard-summary-value {
+  color: #434B49;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.dashboard-summary-sub {
+  margin-top: 10px;
+  color: #839898;
+  font-size: 13px;
+}
+
+.dashboard-panel-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+
+.dashboard-placeholder {
+  padding: 24px;
+  border: 1px dashed #D9E6E6;
+  border-radius: 12px;
+  background: #fbfefe;
+  color: #839898;
+}
+
+.dashboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dashboard-list a {
+  display: block;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #F2F8F8;
+  color: #434B49;
+  font-weight: 700;
+}
+
+.dashboard-list a:hover {
+  background: #ebf7f7;
+  color: #007274;
+}
+
+.dashboard-notice {
+  padding: 14px 16px;
+  border: 1px solid #D9E6E6;
+  border-radius: 10px;
+  background: #f8fbfb;
+  color: #5d6c69;
+}
+
+.dashboard-upcoming-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dashboard-upcoming-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid #D9E6E6;
+  border-radius: 12px;
+  background: #fbfefe;
+}
+
+.dashboard-upcoming-main {
+  min-width: 0;
+}
+
+.dashboard-upcoming-title {
+  margin-bottom: 6px;
+  color: #434B49;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.dashboard-upcoming-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #839898;
+  font-size: 13px;
+}
+
+.dashboard-upcoming-actions {
+  flex-shrink: 0;
+}
+
+.dashboard-html-block {
+  min-height: 60px;
+  padding: 14px;
+  border: 1px solid #D9E6E6;
+  border-radius: 8px;
+  background: #fbfcfc;
+}
+
+.dashboard-attachment-preview {
+  margin-top: 8px;
+  font-size: 13px;
+}
