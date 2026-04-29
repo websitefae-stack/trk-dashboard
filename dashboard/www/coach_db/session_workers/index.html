@@ -1,0 +1,60 @@
+{% include "dashboard/templates/includes/head/coach_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Session Workers</h1>
+          <p class="dashboard-page-subtitle">Session Workers linked to you.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Session Worker List</div>
+          <div class="dashboard-table-count">{{ session_workers|length }} session workers</div>
+        </div>
+
+        {% if session_workers %}
+          <div class="dashboard-table-wrap">
+            <table class="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Location</th>
+                  <th class="dashboard-text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for sw in session_workers %}
+                  <tr>
+                    <td>{{ sw.sw_name or sw.name }}</td>
+                    <td>{{ sw.sw_email or "—" }}</td>
+                    <td>{{ sw.phone or "—" }}</td>
+                    <td>{{ sw.location or "—" }}</td>
+                    <td class="dashboard-text-right">
+                      <a class="dashboard-link-btn" href="{{ session_worker_detail_base_url }}?name={{ sw.name }}">
+                        View / Edit
+                      </a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="dashboard-empty">No linked Session Workers found.</div>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+</div>
