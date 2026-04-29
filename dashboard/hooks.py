@@ -2,21 +2,33 @@ app_name = "dashboard"
 app_title = "The Resilient Dashboard"
 app_publisher = "The Resilient Kid"
 app_description = "Multi-role dashboard system for Session Workers, Coaches, and Franchisors"
-app_email = "support@theresilientkid.co.uk"
+app_email = "support@theresilientkid.uk"
 app_license = "MIT"
 
-# Includes in <head>
-# app_include_css = "/assets/dashboard/css/dashboard.css"
-# app_include_js = "/assets/dashboard/js/dashboard.js"
+web_include_css = [
+    "/assets/dashboard/css/shared/reset.css",
+    "/assets/dashboard/css/shared/layout.css",
+    "/assets/dashboard/css/shared/topbar.css",
+    "/assets/dashboard/css/shared/navigation.css",
+    "/assets/dashboard/css/shared/buttons.css",
+    "/assets/dashboard/css/shared/cards.css",
+    "/assets/dashboard/css/shared/forms.css",
+    "/assets/dashboard/css/shared/tables.css",
+    "/assets/dashboard/css/shared/badges.css",
+    "/assets/dashboard/css/shared/details.css",
+    "/assets/dashboard/css/shared/notifications.css",
+    "/assets/dashboard/css/shared/mobile.css",
+]
 
-# Website context
+web_include_js = [
+    "/assets/dashboard/js/shared/dashboard_sidebar.js",
+]
+
 website_context = {
     "favicon": "/assets/dashboard/images/favicon.png",
     "splash_image": "/assets/dashboard/images/logo.png",
 }
 
-# Website route rules can be added later if required
 website_route_rules = []
 
-# Fixtures can be added later for roles/custom fields/workspaces
 fixtures = []
