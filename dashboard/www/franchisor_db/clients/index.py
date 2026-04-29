@@ -20,7 +20,7 @@ def get_context(context):
     context.dashboard_user_name = get_franchisor_display_name()
     context.dashboard_notifications_url = "/franchisor_db/notifications"
 
-    context.clients = get_clients(scope="my")
+    context.clients = get_clients()
     context.client_types = get_client_types()
     context.coaches = get_coaches()
     context.session_workers = get_session_workers()
