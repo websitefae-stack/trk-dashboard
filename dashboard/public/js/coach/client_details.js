@@ -59,10 +59,6 @@
     }
   }
 
-  /* =========================
-     EDIT MODE
-  ========================= */
-
   function setFieldState(field, editing) {
     const readOnly = field.dataset.metaReadonly === "1";
 
@@ -85,7 +81,6 @@
     });
 
     const btn = el("editClient");
-
     if (!btn) return;
 
     if (isSaving) {
@@ -123,10 +118,15 @@
     applyEditMode();
 
     try {
-      await apiPost("dashboard.api.coach.client_details.save_client", {
+      const result = await apiPost("dashboard.api.coach.client_details.save_client", {
         docname: getClientName(),
         data: JSON.stringify(collectData())
       });
+
+      if (result && result.name && !getClientName()) {
+        window.location.href = `/coach_db/client_details?name=${encodeURIComponent(result.name)}`;
+        return;
+      }
 
       editMode = false;
       showSuccess("Client saved");
@@ -137,19 +137,6 @@
     isSaving = false;
     applyEditMode();
   }
-
-  function toggleEdit() {
-    if (!editMode) {
-      editMode = true;
-      applyEditMode();
-    } else {
-      saveClient();
-    }
-  }
-
-  /* =========================
-     NOTES
-  ========================= */
 
   async function addNote() {
     if (isAddingNote) return;
@@ -171,7 +158,6 @@
 
       el("newClientNoteText").value = "";
       showSuccess("Note added");
-
       window.location.reload();
     } catch (e) {
       showError(e.message);
@@ -179,10 +165,6 @@
 
     isAddingNote = false;
   }
-
-  /* =========================
-     TABS
-  ========================= */
 
   function activateTab(id) {
     qsa(".dashboard-tab-btn").forEach((btn) => {
@@ -202,39 +184,38 @@
     });
   }
 
-  /* =========================
-     APPOINTMENTS CLEANUP
-  ========================= */
-
-  function cleanAppointments() {
-    qsa(".dashboard-client-appointment-row").forEach((row) => {
-      const status = (row.dataset.appointmentStatus || "").toLowerCase();
-
-      if (status.includes("cancel")) {
-        row.remove();
-      }
-    });
-  }
-
-  /* =========================
-     INIT
-  ========================= */
-
   function init() {
     if (!el("clientDetailsForm")) return;
 
     applyEditMode();
     initTabs();
-    cleanAppointments();
 
     el("editClient")?.addEventListener("click", (e) => {
       e.preventDefault();
-      toggleEdit();
+
+      if (!editMode) {
+        editMode = true;
+        applyEditMode();
+      } else {
+        saveClient();
+      }
     });
 
     el("addClientNote")?.addEventListener("click", (e) => {
       e.preventDefault();
       addNote();
+    });
+
+    el("createClientInvoice")?.addEventListener("click", (e) => {
+      e.preventDefault();
+
+      const client = getClientName();
+      if (!client) {
+        showError("Client not found.");
+        return;
+      }
+
+      window.location.href = `/coach_db/invoice_details?new=1&client=${encodeURIComponent(client)}`;
     });
   }
 
