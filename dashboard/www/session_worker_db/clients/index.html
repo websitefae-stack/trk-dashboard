@@ -1,0 +1,136 @@
+{% include "trk_session_worker_dashboard/templates/includes/dashboard_head.html" %}
+
+<div class="dashboard-page">
+  {% include "trk_session_worker_dashboard/templates/includes/dashboard_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "trk_session_worker_dashboard/templates/includes/dashboard_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Clients</h1>
+          <p class="dashboard-page-subtitle">Assigned clients for session work</p>
+        </div>
+      </div>
+
+      <!-- FILTERS -->
+      <div class="dashboard-card" id="clientFilterPanel">
+        <div class="dashboard-filter-bar">
+
+          <div class="dashboard-filter-field">
+            <label>Search</label>
+            <input type="text" id="clientSearch" class="dashboard-input" placeholder="Search clients">
+          </div>
+
+          <div class="dashboard-filter-field">
+            <label>Client Type</label>
+            <select id="clientTypeFilter" class="dashboard-select">
+              <option value="All">All</option>
+              {% for t in client_types %}
+                <option value="{{ t }}">{{ t }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="dashboard-filter-field">
+            <label>Status</label>
+            <select id="statusFilter" class="dashboard-select">
+              <option value="All">All</option>
+              <option value="Active">Active</option>
+              <option value="On Hold">On Hold</option>
+              <option value="Archived">Archived</option>
+            </select>
+          </div>
+
+          <button id="refreshClients" class="dashboard-btn dashboard-btn-refresh">
+            Refresh
+          </button>
+
+        </div>
+      </div>
+
+      <!-- TABLE -->
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Client List</div>
+          <div class="dashboard-table-count" id="clientCount">{{ clients|length }} clients</div>
+        </div>
+
+        {% if clients and clients|length %}
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Mobile</th>
+                <th>Email</th>
+                <th>Coach</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th class="dashboard-client-action-col">Action</th>
+              </tr>
+            </thead>
+
+            <tbody id="clientTable">
+              {% for c in clients %}
+              <tr class="dashboard-client-row"
+                  data-name="{{ c.display_name|lower }}"
+                  data-preferred="{{ c.preferred_name|lower }}"
+                  data-email="{{ c.email|lower }}"
+                  data-mobile="{{ c.mobile|lower }}"
+                  data-status="{{ c.status }}"
+                  data-type="{{ c.client_type }}"
+                  data-coach="{{ c.primary_coach|lower }}"
+                  data-session-worker="{{ c.session_worker|lower }}">
+
+                <td>
+                  <div class="dashboard-client-cell">
+                    <div class="dashboard-client-main">
+                      <a class="dashboard-client-name-link"
+                         href="{{ client_detail_base_url }}?name={{ c.name }}">
+                        {{ c.display_name }}
+                      </a>
+
+                      <div class="dashboard-client-type-mobile">
+                        {{ c.client_type }}
+                      </div>
+                    </div>
+                  </div>
+                </td>
+
+                <td>{{ c.mobile or "—" }}</td>
+                <td>{{ c.email or "—" }}</td>
+                <td>{{ c.primary_coach or "—" }}</td>
+                <td>{{ c.client_type }}</td>
+
+                <td>
+                  <span class="dashboard-badge
+                    {% if c.status == 'Active' %}dashboard-status-active
+                    {% elif c.status == 'On Hold' %}dashboard-status-onhold
+                    {% else %}dashboard-status-archived{% endif %}">
+                    {{ c.status }}
+                  </span>
+                </td>
+
+                <td class="dashboard-client-action-cell dashboard-text-right">
+                  <a class="dashboard-link-btn"
+                     href="{{ client_detail_base_url }}?name={{ c.name }}">
+                    View
+                  </a>
+                </td>
+
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+          <div class="dashboard-empty">No clients found.</div>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+</div>
