@@ -1,0 +1,30 @@
+{% include "dashboard/templates/includes/head/coach_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Coach Dashboard</h1>
+          <p class="dashboard-page-subtitle">Welcome to your coach dashboard.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-list">
+          <a href="/coach_db/clients">Clients</a>
+          <a href="/coach_db/contacts">Contacts</a>
+          <a href="/coach_db/leads">Leads</a>
+          <a href="/coach_db/jobs">Jobs</a>
+          <a href="/coach_db/invoices">Invoices</a>
+          <a href="/coach_db/calendar">Calendar</a>
+          <a href="/coach_db/notifications">Notifications</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
