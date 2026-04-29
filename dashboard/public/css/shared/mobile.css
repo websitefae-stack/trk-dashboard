@@ -543,3 +543,110 @@
     font-size: 11px;
   }
 }
+
+/* =========================================================
+   CLIENTS MOBILE FILTERS - ALWAYS OPEN
+========================================================= */
+
+@media (max-width: 640px) {
+  #openClientSearch,
+  #toggleClientSearch,
+  .client-filter-header {
+    display: none !important;
+  }
+
+  .client-filter-panel,
+  .dashboard-client-filter-card.client-filter-panel {
+    display: block !important;
+    margin-bottom: 18px;
+  }
+
+  .client-filter-panel.is-open,
+  .dashboard-client-filter-card.client-filter-panel.is-open {
+    display: block !important;
+  }
+
+  .client-filter-row,
+  .dashboard-client-filter-body.client-filter-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-items: end;
+  }
+
+  .client-filter-row .dashboard-filter-field:first-child,
+  .dashboard-client-filter-body.client-filter-row .dashboard-filter-field:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .client-filter-row .client-refresh-btn,
+  .client-filter-row #refreshClients {
+    width: 100%;
+  }
+}
+
+/* =========================================================
+   CLIENTS MOBILE TABLE - CONSISTENT LOOK
+========================================================= */
+
+@media (max-width: 640px) {
+  .dashboard-client-table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  .dashboard-client-table th:nth-child(2),
+  .dashboard-client-table td:nth-child(2),
+  .dashboard-client-table th:nth-child(3),
+  .dashboard-client-table td:nth-child(3),
+  .dashboard-client-table th:nth-child(4),
+  .dashboard-client-table td:nth-child(4),
+  .dashboard-client-table th:nth-child(5),
+  .dashboard-client-table td:nth-child(5),
+  .dashboard-client-table th:nth-child(6),
+  .dashboard-client-table td:nth-child(6),
+  .dashboard-client-table th:nth-child(7),
+  .dashboard-client-table td:nth-child(7),
+  .dashboard-client-table th:nth-child(8),
+  .dashboard-client-table td:nth-child(8),
+  .dashboard-client-table .dashboard-action-col,
+  .dashboard-client-table .dashboard-action-cell {
+    display: none !important;
+  }
+
+  .dashboard-client-table th:nth-child(1),
+  .dashboard-client-table td:nth-child(1) {
+    display: table-cell !important;
+    width: 100% !important;
+  }
+
+  .dashboard-client-table td:nth-child(1) {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .dashboard-client-type-mobile {
+    display: inline-flex !important;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    margin-top: 0;
+    color: #839898;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .dashboard-client-type-mobile::before {
+    content: "TYPE";
+    color: #839898;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+  }
+}
