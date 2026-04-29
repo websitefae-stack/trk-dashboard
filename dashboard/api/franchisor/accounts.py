@@ -113,10 +113,16 @@ def update_coach(coach_name):
     doc = ensure_franchisor_can_access_coach(coach_name)
 
     for fieldname in COACH_FIELDS:
-        if doc.meta.has_field(fieldname):
+        if not doc.meta.has_field(fieldname):
+            continue
+    
+        if fieldname == "coach_name":
+            value = frappe.form_dict.get("coach_name_field")
+        else:
             value = frappe.form_dict.get(fieldname)
-            if value is not None:
-                doc.set(fieldname, value)
+    
+        if value is not None:
+            doc.set(fieldname, value)
 
     doc.save(ignore_permissions=True)
     frappe.db.commit()
