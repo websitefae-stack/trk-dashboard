@@ -75,3 +75,24 @@
   pointer-events: none;
   opacity: 0.65;
 }
+
+/* =========================================================
+   SECONDARY / UTILITY BUTTONS
+========================================================= */
+
+.dashboard-btn-secondary {
+  min-height: 38px;
+  background: #007274;
+  color: #FFFFFF;
+}
+
+.dashboard-btn-secondary:hover {
+  background: #005f61;
+  color: #FFFFFF;
+}
+
+.dashboard-detail-actions-compact .dashboard-btn {
+  min-height: 36px;
+  padding: 7px 12px;
+  font-size: 12px;
+}
