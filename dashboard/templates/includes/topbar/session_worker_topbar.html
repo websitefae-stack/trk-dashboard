@@ -1,0 +1,23 @@
+<div class="dashboard-topbar">
+    <div class="dashboard-topbar-main">
+
+        <div class="dashboard-topbar-welcome">
+            Welcome{% if session_worker_name %}, 
+            <span class="dashboard-topbar-name">{{ session_worker_name }}</span>
+            {% else %}
+            <span class="dashboard-topbar-name">{{ frappe.session.user }}</span>
+            {% endif %}
+        </div>
+
+        <div class="dashboard-topbar-actions">
+            <a href="/session_worker_db/notifications"
+               class="dashboard-topbar-notification-link"
+               title="Notifications"
+               aria-label="Notifications">
+                <span class="dashboard-nav-icon">🔔</span>
+                <span class="dashboard-notification-badge js-notification-badge" style="display:none;">0</span>
+            </a>
+        </div>
+
+    </div>
+</div>
