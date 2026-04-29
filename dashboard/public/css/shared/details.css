@@ -162,49 +162,103 @@
 }
 
 /* =========================================================
-   DETAIL PAGES / TABS / DETAIL GRIDS
+   DETAIL PAGE POLISH / TABS / MOBILE DETAIL LAYOUT
 ========================================================= */
 
-.dashboard-tabs {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+.dashboard-tabs-card {
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 
-.dashboard-tab-btn {
-  border: 1px solid var(--dashboard-border, #e5e7eb);
-  background: #fff;
-  color: inherit;
-  border-radius: 999px;
-  padding: 10px 16px;
-  cursor: pointer;
-  font: inherit;
-  transition: all 0.2s ease;
-}
-
-.dashboard-tab-btn:hover {
-  background: #f9fafb;
-}
-
-.dashboard-tab-btn.is-active {
-  background: var(--dashboard-primary, #111827);
-  color: #fff;
-  border-color: var(--dashboard-primary, #111827);
+.dashboard-tabs-card .dashboard-tabs {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 .dashboard-tab-panel {
   margin-top: 20px;
 }
 
-/* Mobile tabs stacked */
+.dashboard-tab-btn {
+  font-weight: 700;
+}
+
+.dashboard-tab-btn.is-active {
+  box-shadow: 0 8px 18px rgba(0, 161, 158, 0.14);
+}
+
+.dashboard-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
 @media (max-width: 768px) {
-  .dashboard-tabs {
-    display: grid;
-    grid-template-columns: 1fr;
+  .dashboard-tabs-card {
+    position: static;
   }
 
-  .dashboard-tab-btn {
+  .dashboard-tabs-card .dashboard-tabs {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .dashboard-tabs-card .dashboard-tab-btn {
     width: 100%;
-    text-align: left;
+    min-height: 42px;
+    border-radius: 12px;
+    text-align: center;
+  }
+
+  .dashboard-page-header {
+    gap: 14px;
+  }
+
+  .dashboard-page-actions {
+    width: 100%;
+  }
+
+  .dashboard-page-actions .dashboard-btn,
+  .dashboard-page-actions .dashboard-link-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .dashboard-detail-grid,
+  .dashboard-detail-grid-2,
+  .dashboard-detail-grid-3,
+  .dashboard-detail-grid-4 {
+    grid-template-columns: 1fr !important;
+  }
+
+  .dashboard-detail-field-full {
+    grid-column: auto !important;
+  }
+
+  .dashboard-detail-actions,
+  .dashboard-edit-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .dashboard-detail-actions .dashboard-btn,
+  .dashboard-detail-actions .dashboard-link-btn,
+  .dashboard-edit-actions .dashboard-btn,
+  .dashboard-edit-actions .dashboard-link-btn {
+    width: 100%;
+  }
+
+  .dashboard-table-header {
+    gap: 12px;
+  }
+
+  .dashboard-table-header .dashboard-btn,
+  .dashboard-table-header .dashboard-link-btn {
+    width: 100%;
   }
 }
