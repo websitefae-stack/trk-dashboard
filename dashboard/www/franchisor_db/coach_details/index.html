@@ -20,7 +20,7 @@
       </div>
 
       <div class="dashboard-card">
-        <form id="franchisorCoachForm">
+        <form id="franchisorCoachForm" class="dashboard-edit-locked">
           <input type="hidden" name="coach_name" value="{{ coach.name }}">
 
           <div class="dashboard-detail-grid dashboard-detail-grid-2">
@@ -77,8 +77,10 @@
 
           </div>
 
-          <div class="dashboard-detail-actions" style="margin-top:20px;">
-            <button class="dashboard-btn dashboard-btn-primary" type="submit">Save Changes</button>
+          <div class="dashboard-detail-actions dashboard-edit-actions" style="margin-top:20px;">
+            <button class="dashboard-btn dashboard-btn-primary" type="button" id="editDetailsBtn">Edit</button>
+            <button class="dashboard-btn dashboard-btn-primary js-save-edit-btn" type="submit" style="display:none;">Save Changes</button>
+            <button class="dashboard-btn dashboard-btn-light js-cancel-edit-btn" type="button" id="cancelDetailsEditBtn" style="display:none;">Cancel</button>
             <span class="dashboard-help" id="franchisorCoachMessage"></span>
           </div>
         </form>
