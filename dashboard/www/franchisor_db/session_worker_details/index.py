@@ -1,13 +1,18 @@
 import frappe
 from frappe import _
 
+from dashboard.api.shared.permissions import (
+    redirect_if_wrong_dashboard,
+    ensure_franchisor_can_access_session_worker,
+)
 from dashboard.api.franchisor.clients import get_franchisor_display_name
-from dashboard.api.shared.permissions import ensure_franchisor_can_access_session_worker
 
 
 def get_context(context):
     if frappe.session.user == "Guest":
         frappe.throw(_("Login required"), frappe.PermissionError)
+
+    redirect_if_wrong_dashboard("franchisor")
 
     session_worker_name = frappe.form_dict.get("name")
     if not session_worker_name:
