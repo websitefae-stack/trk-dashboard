@@ -1,0 +1,46 @@
+{% include "dashboard/templates/includes/head/coach_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title" id="contactPageTitle">
+            {% if is_new %}New Contact{% else %}{{ contact_display_name }}{% endif %}
+          </h1>
+          <p class="dashboard-page-subtitle">Contact details and billing context</p>
+        </div>
+
+        <div class="dashboard-detail-actions dashboard-detail-actions-compact">
+          <a href="/coach_db/contacts" class="dashboard-btn dashboard-btn-secondary">Back</a>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="refreshContactDetails">Refresh</button>
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="editContact">
+            {% if is_new %}Save Contact{% else %}Edit Contact{% endif %}
+          </button>
+        </div>
+      </div>
+
+      <div class="dashboard-card dashboard-client-detail-card">
+        <form id="contactDetailsForm" class="dashboard-detail-form" onsubmit="return false;">
+          <input type="hidden" id="csrfToken" value="{{ frappe.session.csrf_token or '' }}">
+          <input type="hidden" id="contactDocname" value="{{ contact_docname }}">
+          <input type="hidden" id="contactIsNew" value="{{ is_new or 0 }}">
+          <input type="hidden" id="contactBaseUrl" value="/coach_db">
+          <input type="hidden" id="saveContactMethod" value="dashboard.api.coach.contact_details.save_contact">
+
+          <div class="dashboard-tabs dashboard-contact-detail-tabs">
+            <button type="button" class="dashboard-tab-btn is-active" data-tab-target="contact-details-tab">Details</button>
+            <button type="button" class="dashboard-tab-btn" data-tab-target="contact-linked-clients-tab">Linked Clients</button>
+            <button type="button" class="dashboard-tab-btn" data-tab-target="contact-billing-tab">Billing / Invoices</button>
+          </div>
+
+          {% include "dashboard/www/coach_db/contact_details/contact_body.html" %}
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
