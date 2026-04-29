@@ -1,6 +1,5 @@
 import frappe
 from frappe import _
-
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
 from dashboard.api.coach.client_details import (
     get_client_context_data,
@@ -17,9 +16,8 @@ def get_context(context):
     context.no_cache = 1
     context.page_title = "Client Details"
     context.active_page = "clients"
-
-    context.dashboard_user_name = get_coach_name()
     context.dashboard_notifications_url = "/coach_db/notifications"
+    context.dashboard_user_name = get_coach_name()
 
     client_name = frappe.form_dict.get("name")
     is_new = frappe.form_dict.get("new")
@@ -28,6 +26,7 @@ def get_context(context):
         client_name=client_name,
         is_new=bool(is_new),
         base_url="/coach_db",
+        enforce_access=True,
     )
 
     for key, value in data.items():
