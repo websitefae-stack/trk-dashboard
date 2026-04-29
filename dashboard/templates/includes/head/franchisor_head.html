@@ -37,6 +37,10 @@
 <script src="/assets/dashboard/js/franchisor/franchisees.js?v=1"></script>
 {% endif %}
 
+{% if path.startswith("/franchisor_db/invoice_details") %}
+<script src="/assets/dashboard/js/franchisor/invoice_details.js?v=1"></script>
+{% endif %}
+
 {% if path.startswith("/franchisor_db/invoices") %}
 <script src="/assets/dashboard/js/franchisor/invoices.js?v=1"></script>
 {% endif %}
