@@ -106,7 +106,7 @@
                       <a class="dashboard-inline-link dashboard-client-name-link" href="/session_worker_db/client_details?name={{ c.name | urlencode }}">
                         {{ display_name }}
                       </a>
-                      <div class="dashboard-client-type-mobile">{{ row_status }}</div>
+                      <span class="dashboard-client-type-mobile">{{ row_type }}</span>
                     </td>
 
                     <td>{{ c.mobile or "—" }}</td>
