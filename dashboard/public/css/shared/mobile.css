@@ -496,15 +496,6 @@
     width: 100%;
   }
 
-  .client-filter-panel {
-    display: none;
-  }
-
-  .client-filter-panel.is-open {
-    display: grid;
-  }
-}
-
 @media (max-width: 860px) {
   .dashboard-page-actions.dashboard-client-top-actions {
     display: grid;
