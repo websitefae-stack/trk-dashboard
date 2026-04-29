@@ -504,3 +504,42 @@
     display: grid;
   }
 }
+
+@media (max-width: 860px) {
+  .dashboard-page-actions.dashboard-client-top-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .dashboard-page-actions.dashboard-client-top-actions #openClientSearch {
+    grid-column: 1 / -1;
+  }
+
+  .dashboard-page-actions.dashboard-client-top-actions #refreshClients,
+  .dashboard-page-actions.dashboard-client-top-actions #addClient {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-detail-actions-compact {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .dashboard-detail-actions-compact .dashboard-btn,
+  .dashboard-detail-actions-compact .dashboard-link-btn {
+    width: 100%;
+  }
+
+  .dashboard-table-date {
+    font-size: 12px;
+  }
+
+  .dashboard-table-time {
+    font-size: 11px;
+  }
+}
