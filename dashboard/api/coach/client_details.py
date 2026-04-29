@@ -1,7 +1,10 @@
 import json
 import frappe
 from frappe import _
-from dashboard.api.coach.clients import get_coach_display_name
+from dashboard.api.coach.clients import (
+    ensure_coach_client_access,
+    get_coach_display_name,
+)
 from dashboard.api.shared.client_details import add_client_note as shared_add_client_note
 
 
@@ -29,43 +32,41 @@ LAYOUT = [
                 "title": "Profile",
                 "columns": 2,
                 "fields": [
-                    {"label": "Full Name", "column": 1},
-                    {"label": "Preferred Name", "column": 2},
-                    {"label": "Name", "column": 1},
-                    {"label": "Last Name", "column": 2},
-                    {"label": "Mobile", "column": 1},
-                    {"label": "Email", "column": 2},
-                    {"label": "Address", "column": 1},
-                    {"label": "City", "column": 2},
-                    {"label": "Zip Code", "column": 1},
-                    {"label": "Date Of Birth", "column": 2},
-                    {"label": "Age", "column": 1},
+                    {"label": "Full Name"},
+                    {"label": "Preferred Name"},
+                    {"label": "Mobile"},
+                    {"label": "Email"},
+                    {"label": "Address"},
+                    {"label": "City"},
+                    {"label": "Zip Code"},
+                    {"label": "Date Of Birth"},
+                    {"label": "Age"},
                 ],
             },
             {
                 "title": "Identity",
                 "columns": 3,
                 "fields": [
-                    {"label": "Sex", "column": 1},
-                    {"label": "Gender Identity", "column": 2},
-                    {"label": "Pronouns", "column": 3},
+                    {"label": "Sex"},
+                    {"label": "Gender Identity"},
+                    {"label": "Pronouns"},
                 ],
             },
             {
                 "title": "Medical",
                 "columns": 2,
                 "fields": [
-                    {"label": "Neurodiverse Status", "column": 1},
-                    {"label": "Neurodiverse Information", "column": 2, "full_width": True},
-                    {"label": "Allergies", "column": 1, "full_width": True},
+                    {"label": "Neurodiverse Status"},
+                    {"label": "Neurodiverse Information", "full_width": True},
+                    {"label": "Allergies", "full_width": True},
                 ],
             },
             {
                 "title": "Comments",
                 "columns": 1,
                 "fields": [
-                    {"label": "Additional Comments", "column": 1, "full_width": True},
-                    {"label": "Comments", "column": 1, "full_width": True},
+                    {"label": "Additional Comments", "full_width": True},
+                    {"label": "Comments", "full_width": True},
                 ],
             },
         ],
@@ -77,13 +78,14 @@ LAYOUT = [
                 "title": "Admin",
                 "columns": 2,
                 "fields": [
-                    {"label": "Status", "column": 1},
-                    {"label": "Client Type", "column": 2},
-                    {"label": "Primary Coach", "column": 1},
-                    {"label": "Session Worker", "column": 2},
-                    {"label": "Coach Banking Details", "column": 1},
-                    {"label": "Pricelist", "column": 2},
-                    {"label": "Company", "column": 1},
+                    {"label": "Status"},
+                    {"label": "Client Type"},
+                    {"label": "Primary Coach"},
+                    {"label": "Attending Coach"},
+                    {"label": "Session Worker"},
+                    {"label": "Coach Banking Details"},
+                    {"label": "Pricelist"},
+                    {"label": "Company"},
                 ],
             },
         ],
@@ -137,7 +139,6 @@ def build_field(df, doc, config):
         "is_select": df.fieldtype == "Select",
         "is_link": df.fieldtype == "Link",
         "is_full_width": bool(config.get("full_width")) or df.fieldtype in TEXTAREA_TYPES,
-        "column": config.get("column", 1),
     }
 
 
@@ -241,22 +242,6 @@ def find_contact_for_customer(customer_name):
     if contact:
         return contact
 
-    contacts = frappe.get_all(
-        "Contact",
-        fields=["name", "full_name", "first_name", "last_name", "email_id", "mobile_no", "phone"],
-        limit_page_length=1000,
-    )
-
-    for contact_row in contacts:
-        try:
-            contact_doc = frappe.get_doc("Contact", contact_row.name)
-        except Exception:
-            continue
-
-        for link in contact_doc.get("links") or []:
-            if link.get("link_doctype") == "Customer" and link.get("link_name") == customer_name:
-                return contact_row
-
     return None
 
 
@@ -352,7 +337,7 @@ def status_is_cancelled(status):
         "canceled",
         "cancelled by client",
         "cancelled by coach",
-        "no show",
+        "cancelled by session worker",
     }
 
 
@@ -386,18 +371,6 @@ def get_client_appointments(client_name, calendar_detail_base_url="/coach_db/cal
         "linked_event",
     ]
 
-    optional_fields = [
-        "coach",
-        "primary_coach",
-        "attending_coach",
-        "assigned_coach",
-        "session_worker",
-    ]
-
-    for fieldname in optional_fields:
-        if frappe.db.has_column("Client Appointment", fieldname):
-            fields.append(fieldname)
-
     rows = frappe.get_all(
         "Client Appointment",
         filters={"client": client_name},
@@ -409,7 +382,7 @@ def get_client_appointments(client_name, calendar_detail_base_url="/coach_db/cal
     result = []
 
     for row in rows:
-        status = row.get("status") or "—"
+        status = row.get("status") or ""
 
         if status_is_cancelled(status):
             continue
@@ -426,6 +399,13 @@ def get_client_appointments(client_name, calendar_detail_base_url="/coach_db/cal
         result.append(row)
 
     return result
+
+
+def whole_number(value):
+    try:
+        return int(float(value or 0))
+    except Exception:
+        return 0
 
 
 def get_package_balance_date(row):
@@ -471,8 +451,15 @@ def get_package_balances(client_name):
     )
 
     for row in rows:
-        purchased = float(row.get("qty_purchased") or 0)
-        booked = float(row.get("qty_booked") or 0)
+        purchased = whole_number(row.get("qty_purchased"))
+        booked = whole_number(row.get("qty_booked"))
+        used = whole_number(row.get("qty_used"))
+        available = whole_number(row.get("qty_available"))
+
+        row["qty_purchased"] = purchased
+        row["qty_booked"] = booked
+        row["qty_used"] = used
+        row["qty_available"] = available
         row["appointments_to_add"] = max(purchased - booked, 0)
         row["display_date"] = get_package_balance_date(row)
 
@@ -508,29 +495,20 @@ def get_link_options(doctype, txt=None, limit_page_length=200):
     if not doctype:
         return []
 
-    try:
-        limit_page_length = int(limit_page_length or 200)
-    except Exception:
-        limit_page_length = 200
-
-    limit_page_length = min(max(limit_page_length, 1), 1000)
-
-    filters = {}
-    if txt:
-        filters["name"] = ["like", f"%{txt}%"]
-
     return frappe.get_list(
         doctype,
-        filters=filters,
         fields=["name"],
         order_by="name asc",
-        limit_page_length=limit_page_length,
+        limit_page_length=int(limit_page_length or 200),
     )
 
 
 @frappe.whitelist()
 def save_client(docname=None, data=None):
     require_logged_in_user()
+
+    if docname:
+        ensure_coach_client_access(docname)
 
     payload = json.loads(data) if isinstance(data, str) else (data or {})
 
@@ -575,11 +553,15 @@ def save_client(docname=None, data=None):
 
 @frappe.whitelist()
 def add_client_note(client_name, note_text):
+    ensure_coach_client_access(client_name)
     return shared_add_client_note(client_name=client_name, note_text=note_text)
 
 
-def get_client_context_data(client_name=None, is_new=False, base_url="/coach_db"):
+def get_client_context_data(client_name=None, is_new=False, base_url="/coach_db", enforce_access=True):
     require_logged_in_user()
+
+    if client_name and not is_new and enforce_access:
+        ensure_coach_client_access(client_name)
 
     if client_name and not is_new:
         doc = frappe.get_doc("Client", client_name)
@@ -597,7 +579,10 @@ def get_client_context_data(client_name=None, is_new=False, base_url="/coach_db"
         "billing_contact": get_billing_contact(doc, f"{base_url}/contact_details"),
         "client_contacts": get_client_contacts(doc, f"{base_url}/contact_details"),
         "session_notes": get_session_notes(doc),
-        "client_appointments": get_client_appointments(doc.name if is_existing_client else "", f"{base_url}/calendar_details"),
+        "client_appointments": get_client_appointments(
+            doc.name if is_existing_client else "",
+            f"{base_url}/calendar_details",
+        ),
         "package_balances": get_package_balances(doc.name if is_existing_client else ""),
         "client_invoices": get_client_invoices(doc.name if is_existing_client else ""),
         "travel_charged": int(doc.get("travel_charged") or 0),
