@@ -1,1 +1,162 @@
+/* =========================================================
+   DETAIL PAGES / TABS / DETAIL GRIDS
+========================================================= */
 
+.dashboard-detail-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.dashboard-client-detail-card {
+  padding: 24px;
+}
+
+.dashboard-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.dashboard-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 24px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #D9E6E6;
+}
+
+.dashboard-tab-btn,
+.dashboard-client-detail-tab-btn {
+  appearance: none;
+  padding: 10px 16px;
+  border: 1px solid #D9E6E6;
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: #434B49;
+  font-family: 'Comfortaa', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.dashboard-tab-btn:hover,
+.dashboard-client-detail-tab-btn:hover {
+  border-color: #007274;
+  background: #f8fbfb;
+  color: #007274;
+}
+
+.dashboard-tab-btn.is-active,
+.dashboard-client-detail-tab-btn.is-active {
+  border-color: #00A19E;
+  background: #00A19E;
+  color: #FFFFFF;
+}
+
+.dashboard-tab-panel {
+  display: none;
+}
+
+.dashboard-tab-panel.is-active {
+  display: block;
+}
+
+.dashboard-detail-section {
+  padding: 20px;
+  border: 1px solid #D9E6E6;
+  border-radius: 18px;
+  background: #FFFFFF;
+}
+
+.dashboard-detail-section + .dashboard-detail-section {
+  margin-top: 18px;
+}
+
+.dashboard-detail-section-head {
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #D9E6E6;
+}
+
+.dashboard-detail-section-title {
+  margin: 0;
+  color: #434B49;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.dashboard-detail-grid {
+  display: grid;
+  align-items: start;
+  gap: 20px 16px;
+}
+
+.dashboard-detail-grid-1 {
+  grid-template-columns: 1fr;
+}
+
+.dashboard-detail-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dashboard-detail-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dashboard-detail-grid-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dashboard-detail-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dashboard-detail-field-full {
+  grid-column: 1 / -1;
+}
+
+.dashboard-detail-field label,
+.dashboard-table-label {
+  margin-bottom: 8px;
+  color: #839898;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.dashboard-required {
+  margin-left: 4px;
+  color: #E94763;
+}
+
+.dashboard-tab-label-short,
+.mobile-tab-label {
+  display: none;
+}
+
+.contact-details-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+}
+
+.contact-details-tabs .dashboard-tab-btn {
+  flex: 1 1 0;
+  width: 100%;
+  min-height: 38px;
+  justify-content: center;
+  padding: 9px 12px;
+  font-size: 12px;
+  text-align: center;
+  white-space: nowrap;
+}
