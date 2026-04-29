@@ -76,3 +76,44 @@ def ensure_franchisor_can_access_session_worker(session_worker_name):
 def ensure_franchisor_can_access_coach(coach_name):
     ensure_office_user()
     return frappe.get_doc(COACH_DOCTYPE, coach_name)
+
+def get_current_user_dashboard_type():
+    ensure_logged_in()
+
+    if frappe.db.exists("Session Worker", {"user": frappe.session.user}):
+        return "session_worker"
+
+    if frappe.db.exists("Session Worker", {"sw_email": frappe.session.user}):
+        return "session_worker"
+
+    if frappe.db.exists("Coach", {"user": frappe.session.user}):
+        return "coach"
+
+    if frappe.db.exists("Coach", {"coach_email": frappe.session.user}):
+        return "coach"
+
+    if is_office_user():
+        return "franchisor"
+
+    return "unknown"
+
+
+def redirect_if_wrong_dashboard(expected):
+    current = get_current_user_dashboard_type()
+
+    if current == expected:
+        return
+
+    if current == "session_worker":
+        frappe.local.flags.redirect_location = "/session_worker_db"
+        raise frappe.Redirect
+
+    if current == "coach":
+        frappe.local.flags.redirect_location = "/coach_db"
+        raise frappe.Redirect
+
+    if current == "franchisor":
+        frappe.local.flags.redirect_location = "/franchisor_db"
+        raise frappe.Redirect
+
+    frappe.throw(_("You are not allowed to access this dashboard."), frappe.PermissionError)
