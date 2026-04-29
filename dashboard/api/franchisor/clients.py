@@ -34,20 +34,14 @@ def get_my_coach_name():
 
 
 @frappe.whitelist()
-def get_clients(scope="my"):
+def get_clients():
     if frappe.session.user == "Guest":
         frappe.throw(_("Login required"), frappe.PermissionError)
 
-    filters = {}
-
-    if scope == "my":
-        my_coach = get_my_coach_name()
-        if my_coach:
-            filters["primary_coach"] = my_coach
+    my_coach = get_my_coach_name()
 
     clients = frappe.get_all(
         "Client",
-        filters=filters,
         fields=[
             "name",
             "name1",
@@ -65,7 +59,13 @@ def get_clients(scope="my"):
         limit_page_length=1000,
     )
 
-    return [normalize_client_row(c) for c in clients]
+    rows = []
+    for client in clients:
+        row = normalize_client_row(client)
+        row["scope"] = "My" if my_coach and row.get("primary_coach") == my_coach else "All"
+        rows.append(row)
+
+    return rows
 
 
 def get_session_workers():
