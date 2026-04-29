@@ -8,7 +8,7 @@ from dashboard.api.shared.notifications import create_trk_notification
 SESSION_WORKER_DOCTYPE = "Session Worker"
 CHANGE_REQUEST_DOCTYPE = "Change Request"
 
-OFFICE_USER = "office@theresilientpeople.co.uk"
+OFFICE_USER = "office@theresilientpeople.uk"
 
 
 LEGAL_TABLE_CONFIG = {
