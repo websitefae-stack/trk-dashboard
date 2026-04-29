@@ -1,13 +1,12 @@
 import frappe
 from frappe import _
-
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
 from dashboard.api.coach.clients import (
     get_clients,
+    get_client_types,
     get_coach_display_name,
     get_session_workers,
 )
-from dashboard.api.shared.clients import get_client_types
 
 
 def get_context(context):
@@ -19,13 +18,9 @@ def get_context(context):
     context.no_cache = 1
     context.page_title = "Clients"
     context.active_page = "clients"
-
-    context.dashboard_user_name = get_coach_display_name()
     context.dashboard_notifications_url = "/coach_db/notifications"
+    context.dashboard_user_name = get_coach_display_name()
 
     context.clients = get_clients()
     context.client_types = get_client_types()
     context.session_workers = get_session_workers()
-
-    context.client_detail_base_url = "/coach_db/client_details"
-    context.add_client_url = "/coach_db/client_details"
