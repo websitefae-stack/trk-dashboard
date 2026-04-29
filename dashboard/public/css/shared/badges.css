@@ -1,1 +1,95 @@
+/* =========================================================
+   BADGES / STATUS / PRIORITY
+========================================================= */
 
+.dashboard-badge,
+.dashboard-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dashboard-status-active,
+.dashboard-status-read {
+  background: rgba(37, 141, 59, 0.12);
+  color: #258D3B;
+}
+
+.dashboard-status-unread,
+.dashboard-status-onhold {
+  background: rgba(255, 132, 56, 0.15);
+  color: #FF8438;
+}
+
+.dashboard-status-archived {
+  background: rgba(131, 152, 152, 0.16);
+  color: #839898;
+}
+
+.dashboard-priority-dot {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+.dashboard-priority-low,
+.dashboard-priority-normal {
+  background: #258D3B;
+}
+
+.dashboard-priority-med,
+.dashboard-priority-medium {
+  background: #FF8438;
+}
+
+.dashboard-priority-high,
+.dashboard-priority-urgent {
+  background: #E94763;
+}
+
+/* Brand / service badges */
+
+.badge-trk {
+  background: #E94763;
+  color: #FFFFFF;
+}
+
+.badge-trp {
+  background: #FF8438;
+  color: #434B49;
+}
+
+.badge-trs {
+  background: #5FE07C;
+  color: #434B49;
+}
+
+.badge-trt {
+  background: #D5DA39;
+  color: #434B49;
+}
+
+/* Brand / service border indicators */
+
+.service-trk {
+  border-left: 4px solid #E94763;
+}
+
+.service-trp {
+  border-left: 4px solid #FF8438;
+}
+
+.service-trs {
+  border-left: 4px solid #5FE07C;
+}
+
+.service-trt {
+  border-left: 4px solid #D5DA39;
+}
