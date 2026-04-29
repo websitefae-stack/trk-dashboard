@@ -8,6 +8,7 @@ from dashboard.api.shared.client_details import (
 )
 from trk_session_worker_dashboard.api.clients import (
     _ensure_client_access,
+    get_client_appointments as old_get_client_appointments,
     get_session_worker_display_name,
 )
 
@@ -24,6 +25,7 @@ def ensure_client_access(client_name):
 @frappe.whitelist()
 def get_client_contacts(client_name):
     ensure_client_access(client_name)
+
     return shared_get_client_contacts(
         client_name=client_name,
         contact_detail_base_url="/session_worker_db/contact_details",
@@ -33,18 +35,36 @@ def get_client_contacts(client_name):
 @frappe.whitelist()
 def get_client_notes(client_name):
     ensure_client_access(client_name)
+
     return shared_get_client_notes(client_name)
 
 
 @frappe.whitelist()
 def add_client_note(client_name, note_text, session_date=None, session_type=None):
     ensure_client_access(client_name)
+
     return shared_add_client_note(
         client_name=client_name,
         note_text=note_text,
         session_date=session_date,
         session_type=session_type,
     )
+
+
+@frappe.whitelist()
+def get_client_appointments(client_name):
+    ensure_client_access(client_name)
+
+    appointments = old_get_client_appointments(client_name)
+
+    for appointment in appointments:
+        if appointment.get("record_url"):
+            appointment["record_url"] = appointment["record_url"].replace(
+                "/session_dashboard/",
+                "/session_worker_db/",
+            )
+
+    return appointments
 
 
 def get_client_for_context(client_name):
