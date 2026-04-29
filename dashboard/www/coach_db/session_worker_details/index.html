@@ -1,0 +1,144 @@
+{% include "dashboard/templates/includes/head/coach_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">{{ session_worker.sw_name or session_worker.name }}</h1>
+          <p class="dashboard-page-subtitle">Edit linked Session Worker profile, banking, and rates.</p>
+        </div>
+
+        <div class="dashboard-page-actions">
+          <a href="/coach_db/session_workers" class="dashboard-btn dashboard-btn-light">Back</a>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <form id="coachSessionWorkerForm" enctype="multipart/form-data">
+          <input type="hidden" name="session_worker_name" value="{{ session_worker.name }}">
+
+          <div class="dashboard-detail-grid dashboard-detail-grid-2">
+
+            <div class="dashboard-detail-field">
+              <label>Full Name</label>
+              <input class="dashboard-input" value="{{ session_worker.sw_name or '' }}" readonly>
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Email</label>
+              <input class="dashboard-input" value="{{ session_worker.sw_email or '' }}" readonly>
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>First Name</label>
+              <input class="dashboard-input" name="first_name" value="{{ session_worker.first_name or '' }}">
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Middle Name</label>
+              <input class="dashboard-input" name="middle_name" value="{{ session_worker.middle_name or '' }}">
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Last Name</label>
+              <input class="dashboard-input" name="last_name" value="{{ session_worker.last_name or '' }}">
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Phone</label>
+              <input class="dashboard-input" name="phone" value="{{ session_worker.phone or '' }}">
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Gender</label>
+              <input class="dashboard-input" name="gender" value="{{ session_worker.gender or '' }}">
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Location</label>
+              <input class="dashboard-input" name="location" value="{{ session_worker.location or '' }}">
+            </div>
+
+            <div class="dashboard-detail-field dashboard-detail-field-full">
+              <label>Bio</label>
+              <textarea class="dashboard-textarea" name="bio">{{ session_worker.bio or '' }}</textarea>
+            </div>
+
+            <div class="dashboard-detail-field dashboard-detail-field-full">
+              <label>Interest</label>
+              <textarea class="dashboard-textarea" name="interest">{{ session_worker.interest or '' }}</textarea>
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Bank Name</label>
+              <input class="dashboard-input" name="bank_name" value="{{ session_worker.bank_name or '' }}">
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Account Holder Name</label>
+              <input class="dashboard-input" name="account_holder_name" value="{{ session_worker.account_holder_name or '' }}">
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Account Number</label>
+              <input class="dashboard-input" name="account_number" value="{{ session_worker.account_number or '' }}">
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Sort Code</label>
+              <input class="dashboard-input" name="sort_code" value="{{ session_worker.sort_code or '' }}">
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>1 on 1 Session Rate</label>
+              <input class="dashboard-input" name="1_on_1_session_rate" value="{{ session_worker.get('1_on_1_session_rate') or '' }}">
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Group Session Rate</label>
+              <input class="dashboard-input" name="group_session_rate" value="{{ session_worker.group_session_rate or '' }}">
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Workshop Session Rate</label>
+              <input class="dashboard-input" name="workshop_session_rate" value="{{ session_worker.workshop_session_rate or '' }}">
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Travel Rate Per Mile</label>
+              <input class="dashboard-input" name="travel_rate_per_mile" value="{{ session_worker.travel_rate_per_mile or '' }}">
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Invoice Frequency</label>
+              <select class="dashboard-input" name="invoice_frequency">
+                <option value=""></option>
+                <option value="Weekly" {% if session_worker.invoice_frequency == "Weekly" %}selected{% endif %}>Weekly</option>
+                <option value="Bi-Weekly" {% if session_worker.invoice_frequency == "Bi-Weekly" %}selected{% endif %}>Bi-Weekly</option>
+                <option value="Monthly" {% if session_worker.invoice_frequency == "Monthly" %}selected{% endif %}>Monthly</option>
+              </select>
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Invoice Cycle Start Date</label>
+              <input class="dashboard-input" type="date" name="invoice_cycle_start_date" value="{{ session_worker.invoice_cycle_start_date or '' }}">
+            </div>
+
+          </div>
+
+          <div class="dashboard-detail-actions" style="margin-top:20px;">
+            <button class="dashboard-btn dashboard-btn-primary" type="submit">Save Changes</button>
+            <span class="dashboard-help" id="coachSessionWorkerMessage"></span>
+          </div>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</div>
