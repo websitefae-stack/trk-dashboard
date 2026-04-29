@@ -2,15 +2,15 @@
     <div class="dashboard-topbar-main">
 
         <div class="dashboard-topbar-welcome">
-            Welcome{% if session_worker_name %}, 
-            <span class="dashboard-topbar-name">{{ session_worker_name }}</span>
+            Welcome{% if dashboard_user_name %}, 
+            <span class="dashboard-topbar-name">{{ dashboard_user_name }}</span>
             {% else %}
             <span class="dashboard-topbar-name">{{ frappe.session.user }}</span>
             {% endif %}
         </div>
 
         <div class="dashboard-topbar-actions">
-            <a href="/session_worker_db/notifications"
+            <a href="{{ dashboard_notifications_url }}"
                class="dashboard-topbar-notification-link"
                title="Notifications"
                aria-label="Notifications">
