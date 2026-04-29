@@ -7,56 +7,53 @@
     {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
 
     <div class="dashboard-container">
-
       <div class="dashboard-page-header">
         <div>
           <h1 class="dashboard-page-title">Clients</h1>
           <p class="dashboard-page-subtitle">Franchisor client overview</p>
         </div>
 
-        <div class="dashboard-page-actions client-mobile-actions">
-          <button type="button"
-                  class="dashboard-btn dashboard-btn-primary"
-                  id="addClient"
-                  data-add-client-url="{{ add_client_url }}">
-            + Add Client
-          </button>
+        <div class="dashboard-page-actions dashboard-client-top-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="openClientSearch">Search</button>
+          <button type="button" class="dashboard-btn dashboard-btn-secondary" id="refreshClients">Refresh</button>
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="addClient">+ Add Client</button>
         </div>
       </div>
 
-      <div class="dashboard-card" id="clientFilterPanel">
-        <div class="dashboard-filter-bar">
+      <div class="dashboard-card dashboard-client-filter-card client-filter-panel" id="clientFilterPanel">
+        <div class="client-filter-header">
+          <strong>Filters</strong>
+          <button type="button" id="closeClientSearch" class="client-filter-close">✕</button>
+        </div>
 
+        <div class="dashboard-client-filter-body client-filter-row">
           <div class="dashboard-filter-field">
-            <label for="clientSearch">Search</label>
-            <input type="text"
-                   id="clientSearch"
-                   class="dashboard-input"
-                   placeholder="Search clients">
-          </div>
-
-          <div class="dashboard-filter-field">
-            <label for="clientScopeFilter">Client Scope</label>
-            <select id="clientScopeFilter" class="dashboard-select">
-              <option value="My">My Clients</option>
-              <option value="All">All Clients</option>
+            <label for="clientScopeFilter">View</label>
+            <select class="dashboard-select" id="clientScopeFilter">
+              <option value="My" {% if client_scope != "all" %}selected{% endif %}>My clients</option>
+              <option value="All" {% if client_scope == "all" %}selected{% endif %}>All clients</option>
             </select>
           </div>
 
           <div class="dashboard-filter-field">
+            <label for="clientSearch">Search</label>
+            <input type="text" class="dashboard-input" id="clientSearch" placeholder="Search clients">
+          </div>
+
+          <div class="dashboard-filter-field">
             <label for="clientTypeFilter">Client Type</label>
-            <select id="clientTypeFilter" class="dashboard-select">
-              <option value="All">All</option>
-              {% for t in client_types %}
-                <option value="{{ t }}">{{ t }}</option>
+            <select class="dashboard-select" id="clientTypeFilter">
+              <option value="All">All types</option>
+              {% for type in client_types %}
+                <option value="{{ type }}">{{ type }}</option>
               {% endfor %}
             </select>
           </div>
 
           <div class="dashboard-filter-field">
             <label for="statusFilter">Status</label>
-            <select id="statusFilter" class="dashboard-select">
-              <option value="All">All</option>
+            <select class="dashboard-select" id="statusFilter">
+              <option value="All">All statuses</option>
               <option value="Active">Active</option>
               <option value="On Hold">On Hold</option>
               <option value="Archived">Archived</option>
@@ -65,8 +62,8 @@
 
           <div class="dashboard-filter-field">
             <label for="sessionWorkerFilter">Session Worker</label>
-            <select id="sessionWorkerFilter" class="dashboard-select">
-              <option value="All">All</option>
+            <select class="dashboard-select" id="sessionWorkerFilter">
+              <option value="All">All session workers</option>
               {% for sw in session_workers %}
                 <option value="{{ sw.name }}">{{ sw.name }}</option>
               {% endfor %}
@@ -75,93 +72,76 @@
 
           <div class="dashboard-filter-field">
             <label for="coachFilter">Coach</label>
-            <select id="coachFilter" class="dashboard-select">
-              <option value="All">All</option>
+            <select class="dashboard-select" id="coachFilter">
+              <option value="All">All coaches</option>
               {% for coach in coaches %}
                 <option value="{{ coach.name }}">{{ coach.coach_name or coach.name }}</option>
               {% endfor %}
             </select>
           </div>
-
-          <button type="button"
-                  id="refreshClients"
-                  class="dashboard-btn dashboard-btn-refresh">
-            Refresh
-          </button>
-
         </div>
       </div>
 
-      <div class="dashboard-card">
+      <div class="dashboard-card dashboard-client-list-card">
         <div class="dashboard-table-header">
           <div class="dashboard-table-title">Client List</div>
           <div class="dashboard-table-count" id="clientCount">{{ clients|length }} clients</div>
         </div>
 
-        {% if clients and clients|length %}
+        {% if clients %}
           <div class="dashboard-table-wrap">
             <table class="dashboard-table dashboard-client-table">
               <thead>
                 <tr>
-                  <th>Client</th>
+                  <th>Client Name</th>
                   <th>Mobile</th>
                   <th>Email</th>
                   <th>Session Worker</th>
                   <th>Coach</th>
                   <th>Type</th>
                   <th>Status</th>
-                  <th class="dashboard-client-action-col dashboard-text-right">Action</th>
+                  <th class="dashboard-action-col">Action</th>
                 </tr>
               </thead>
 
               <tbody id="clientTable">
                 {% for c in clients %}
-                  <tr class="dashboard-client-row"
-                      data-name="{{ c.display_name|lower }}"
-                      data-preferred="{{ c.preferred_name|lower }}"
-                      data-email="{{ c.email|lower }}"
-                      data-mobile="{{ c.mobile|lower }}"
-                      data-status="{{ c.status }}"
-                      data-type="{{ c.client_type }}"
-                      data-coach="{{ c.primary_coach }}"
-                      data-session-worker="{{ c.session_worker }}"
-                      data-scope="My">
+                  {% set display_name = c.display_name or c.full_name or c.name %}
+                  {% set row_status = c.status or "Archived" %}
+                  {% set row_type = c.client_type or "Not set" %}
+                  {% set session_worker = c.session_worker or "Not set" %}
+                  {% set coach_name = c.primary_coach or c.attending_coach or "Not set" %}
 
+                  <tr
+                    class="dashboard-client-row"
+                    data-name="{{ display_name|lower }}"
+                    data-preferred="{{ (c.preferred_name or '')|lower }}"
+                    data-email="{{ (c.email or '')|lower }}"
+                    data-mobile="{{ (c.mobile or '')|lower }}"
+                    data-status="{{ row_status }}"
+                    data-type="{{ row_type }}"
+                    data-session-worker="{{ session_worker }}"
+                    data-coach="{{ coach_name }}"
+                    data-scope="{{ c.scope or 'All' }}"
+                  >
                     <td>
-                      <div class="dashboard-client-cell">
-                        <div class="dashboard-client-main">
-                          <a class="dashboard-client-name-link"
-                             href="{{ client_detail_base_url }}?name={{ c.name }}">
-                            {{ c.display_name }}
-                          </a>
-
-                          <div class="dashboard-client-type-mobile">
-                            {{ c.client_type }}
-                          </div>
-                        </div>
-                      </div>
+                      <a class="dashboard-inline-link dashboard-client-name-link" href="/franchisor_db/client_details?name={{ c.name | urlencode }}">
+                        {{ display_name }}
+                      </a>
+                      <span class="dashboard-client-type-mobile">{{ row_type }}</span>
                     </td>
-
                     <td>{{ c.mobile or "—" }}</td>
                     <td>{{ c.email or "—" }}</td>
-                    <td>{{ c.session_worker or "—" }}</td>
-                    <td>{{ c.primary_coach or "—" }}</td>
-                    <td>{{ c.client_type }}</td>
-
+                    <td>{{ session_worker }}</td>
+                    <td>{{ coach_name }}</td>
+                    <td>{{ row_type }}</td>
                     <td>
-                      <span class="dashboard-badge
-                        {% if c.status == 'Active' %}dashboard-status-active
-                        {% elif c.status == 'On Hold' %}dashboard-status-onhold
-                        {% else %}dashboard-status-archived{% endif %}">
-                        {{ c.status }}
+                      <span class="dashboard-badge {% if row_status == 'Active' %}dashboard-status-active{% elif row_status == 'On Hold' %}dashboard-status-onhold{% else %}dashboard-status-archived{% endif %}">
+                        {{ row_status }}
                       </span>
                     </td>
-
-                    <td class="dashboard-client-action-cell dashboard-text-right">
-                      <a class="dashboard-link-btn"
-                         href="{{ client_detail_base_url }}?name={{ c.name }}">
-                        View
-                      </a>
+                    <td class="dashboard-action-cell">
+                      <a class="dashboard-link-btn" href="/franchisor_db/client_details?name={{ c.name | urlencode }}">View</a>
                     </td>
                   </tr>
                 {% endfor %}
@@ -172,7 +152,6 @@
           <div class="dashboard-empty">No clients found.</div>
         {% endif %}
       </div>
-
     </div>
   </div>
 </div>
