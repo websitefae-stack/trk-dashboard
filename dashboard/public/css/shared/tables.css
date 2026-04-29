@@ -447,3 +447,46 @@ table:has(#clientNotesTableBody) thead th:nth-child(3),
     display: none;
   }
 }
+
+.dashboard-client-name-link {
+  color: #434B49;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.dashboard-client-name-link:hover {
+  color: #007274;
+  text-decoration: underline;
+}
+
+.dashboard-btn-refresh {
+  min-height: 44px;
+  background: #007274;
+  color: #FFFFFF;
+}
+
+.dashboard-btn-refresh:hover {
+  background: #005f61;
+  color: #FFFFFF;
+}
+
+@media (max-width: 640px) {
+  .dashboard-client-action-col,
+  .dashboard-client-action-cell {
+    display: none;
+  }
+
+  .dashboard-client-type-mobile {
+    display: block;
+    margin-top: 4px;
+    color: #839898;
+    font-size: 12px;
+    font-weight: 700;
+  }
+}
+
+@media (min-width: 641px) {
+  .dashboard-client-type-mobile {
+    display: none;
+  }
+}
