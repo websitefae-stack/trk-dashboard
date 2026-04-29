@@ -679,3 +679,193 @@ table:has(#clientNotesTableBody) thead th:nth-child(3),
     width: 32%;
   }
 }
+
+/* Client list mobile: client + type/status only, no action button */
+@media (max-width: 640px) {
+  .dashboard-client-table th:nth-child(2),
+  .dashboard-client-table td:nth-child(2),
+  .dashboard-client-table th:nth-child(3),
+  .dashboard-client-table td:nth-child(3),
+  .dashboard-client-table th:nth-child(4),
+  .dashboard-client-table td:nth-child(4),
+  .dashboard-client-table th:nth-child(5),
+  .dashboard-client-table td:nth-child(5),
+  .dashboard-client-table th:nth-child(6),
+  .dashboard-client-table td:nth-child(6),
+  .dashboard-client-table .dashboard-action-col,
+  .dashboard-client-table .dashboard-action-cell {
+    display: none !important;
+  }
+
+  .dashboard-client-table th:nth-child(1),
+  .dashboard-client-table td:nth-child(1) {
+    width: 100% !important;
+  }
+
+  .dashboard-client-table td:nth-child(1) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .dashboard-client-type-mobile {
+    display: inline-flex !important;
+    margin-top: 0;
+    color: #839898;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: right;
+    white-space: nowrap;
+  }
+}
+
+/* Action column alignment desktop */
+.dashboard-action-col,
+.dashboard-action-cell {
+  width: 110px;
+  text-align: center !important;
+}
+
+.dashboard-action-cell .dashboard-link-btn {
+  margin: 0 auto;
+}
+
+/* Date/time display */
+.dashboard-table-date {
+  font-weight: 700;
+  color: #434B49;
+}
+
+.dashboard-table-time {
+  margin-top: 3px;
+  color: #839898;
+  font-size: 12px;
+}
+
+/* Billing contact mobile: only contact + mobile */
+@media (max-width: 640px) {
+  .dashboard-billing-contact-table {
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  .dashboard-billing-contact-table th:nth-child(3),
+  .dashboard-billing-contact-table td:nth-child(3),
+  .dashboard-billing-contact-table th:nth-child(4),
+  .dashboard-billing-contact-table td:nth-child(4),
+  .dashboard-billing-contact-table .dashboard-action-col,
+  .dashboard-billing-contact-table .dashboard-action-cell {
+    display: none !important;
+  }
+
+  .dashboard-billing-contact-table th:nth-child(1),
+  .dashboard-billing-contact-table td:nth-child(1) {
+    width: 65%;
+  }
+
+  .dashboard-billing-contact-table th:nth-child(2),
+  .dashboard-billing-contact-table td:nth-child(2) {
+    width: 35%;
+  }
+}
+
+/* Linked contacts mobile: only contact + mobile */
+@media (max-width: 640px) {
+  .dashboard-linked-contacts-table {
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  .dashboard-linked-contacts-table th:nth-child(3),
+  .dashboard-linked-contacts-table td:nth-child(3),
+  .dashboard-linked-contacts-table th:nth-child(4),
+  .dashboard-linked-contacts-table td:nth-child(4),
+  .dashboard-linked-contacts-table .dashboard-action-col,
+  .dashboard-linked-contacts-table .dashboard-action-cell {
+    display: none !important;
+  }
+
+  .dashboard-linked-contacts-table th:nth-child(1),
+  .dashboard-linked-contacts-table td:nth-child(1) {
+    width: 65%;
+  }
+
+  .dashboard-linked-contacts-table th:nth-child(2),
+  .dashboard-linked-contacts-table td:nth-child(2) {
+    width: 35%;
+  }
+}
+
+/* Session pack summary mobile: date, booked, used, available, to add */
+@media (max-width: 640px) {
+  .dashboard-client-pack-table th:nth-child(2),
+  .dashboard-client-pack-table td:nth-child(2),
+  .dashboard-client-pack-table th:nth-child(3),
+  .dashboard-client-pack-table td:nth-child(3),
+  .dashboard-client-pack-table th:nth-child(4),
+  .dashboard-client-pack-table td:nth-child(4),
+  .dashboard-client-pack-table th:nth-child(9),
+  .dashboard-client-pack-table td:nth-child(9) {
+    display: none !important;
+  }
+
+  .dashboard-client-pack-table th:nth-child(1),
+  .dashboard-client-pack-table td:nth-child(1) {
+    width: 28%;
+  }
+
+  .dashboard-client-pack-table th:nth-child(5),
+  .dashboard-client-pack-table td:nth-child(5),
+  .dashboard-client-pack-table th:nth-child(6),
+  .dashboard-client-pack-table td:nth-child(6),
+  .dashboard-client-pack-table th:nth-child(7),
+  .dashboard-client-pack-table td:nth-child(7),
+  .dashboard-client-pack-table th:nth-child(8),
+  .dashboard-client-pack-table td:nth-child(8) {
+    width: 18%;
+    text-align: center;
+  }
+}
+
+/* Appointments mobile: no action, no cancelled */
+@media (max-width: 640px) {
+  .dashboard-client-appointment-row[data-appointment-status*="cancel"] {
+    display: none !important;
+  }
+
+  .dashboard-client-appointment-table .dashboard-action-col,
+  .dashboard-client-appointment-table .dashboard-action-cell {
+    display: none !important;
+  }
+
+  .dashboard-client-appointment-table th:nth-child(1),
+  .dashboard-client-appointment-table td:nth-child(1) {
+    width: 38%;
+  }
+
+  .dashboard-client-appointment-table th:nth-child(2),
+  .dashboard-client-appointment-table td:nth-child(2) {
+    width: 34%;
+  }
+
+  .dashboard-client-appointment-table th:nth-child(3),
+  .dashboard-client-appointment-table td:nth-child(3) {
+    width: 28%;
+  }
+
+  .dashboard-client-appointment-table th:nth-child(4),
+  .dashboard-client-appointment-table td:nth-child(4) {
+    display: none !important;
+  }
+}
+
+/* Invoices mobile: hide due date and action */
+@media (max-width: 640px) {
+  .dashboard-client-invoice-table th:nth-child(3),
+  .dashboard-client-invoice-table td:nth-child(3),
+  .dashboard-client-invoice-table .dashboard-action-col,
+  .dashboard-client-invoice-table .dashboard-action-cell {
+    display: none !important;
+  }
+}
