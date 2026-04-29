@@ -17,13 +17,7 @@
 
     if (
       event.target.closest(".dashboard-sidebar-close") ||
-      event.target.closest(".dashboard-sidebar-overlay")
-    ) {
-      closeMenu();
-      return;
-    }
-
-    if (
+      event.target.closest(".dashboard-sidebar-overlay") ||
       event.target.closest(".dashboard-sidebar a") ||
       event.target.closest(".dashboard-sidebar button")
     ) {
