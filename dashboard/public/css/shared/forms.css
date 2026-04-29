@@ -1,1 +1,142 @@
+/* =========================================================
+   FORMS / FILTERS / INPUTS
+========================================================= */
 
+.dashboard-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.5fr) repeat(3, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.dashboard-filter-field,
+.dashboard-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dashboard-filter-field label,
+.dashboard-detail-field label,
+.dashboard-table-label {
+  color: #839898;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.dashboard-input,
+.dashboard-select,
+.dashboard-textarea {
+  width: 100%;
+  border: 1px solid #D9E6E6;
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: #434B49;
+  font-family: 'Comfortaa', sans-serif;
+  font-size: 14px;
+}
+
+.dashboard-input,
+.dashboard-select {
+  min-height: 44px;
+  padding: 10px 14px;
+}
+
+.dashboard-textarea {
+  min-height: 120px;
+  padding: 10px 14px;
+  resize: vertical;
+}
+
+.dashboard-input:focus,
+.dashboard-select:focus,
+.dashboard-textarea:focus {
+  outline: none;
+  border-color: #007274;
+  box-shadow: 0 0 0 3px rgba(0, 114, 116, 0.08);
+}
+
+.dashboard-input[readonly],
+.dashboard-select[disabled],
+.dashboard-textarea[readonly] {
+  border-color: #d6e3e3;
+  background: #f3f7f7;
+  color: #434B49;
+  cursor: not-allowed;
+  opacity: 1;
+  -webkit-text-fill-color: #434B49;
+}
+
+.dashboard-checkbox-wrap {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.dashboard-checkbox-wrap input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #00A19E;
+}
+
+.dashboard-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #434B49;
+  font-weight: 500;
+}
+
+.dashboard-help {
+  margin-top: 8px;
+  color: #839898;
+  font-size: 12px;
+}
+
+.contacts-filter-row,
+.notification-filter-row {
+  display: grid;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 20px;
+}
+
+.contacts-filter-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.notification-filter-row,
+.dashboard-notification-filter-row {
+  grid-template-columns: minmax(0, 1.4fr) minmax(120px, 0.8fr) auto;
+}
+
+.client-filter-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) minmax(150px, 0.8fr) minmax(150px, 0.8fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.client-filter-panel,
+.dashboard-notification-filter-card {
+  margin-bottom: 20px;
+}
+
+.client-filter-bar {
+  margin-bottom: 0;
+}
+
+.client-refresh-btn,
+.contacts-refresh-btn,
+.notification-refresh-btn {
+  min-height: 44px;
+}
+
+.dashboard-client-filter-header,
+.dashboard-client-filter-close,
+.client-filter-header {
+  display: none;
+}
