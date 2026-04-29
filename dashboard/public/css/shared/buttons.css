@@ -1,1 +1,77 @@
+/* =========================================================
+   BUTTONS / LINKS
+========================================================= */
 
+.dashboard-btn,
+.dashboard-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-family: 'Comfortaa', sans-serif;
+  font-size: 13px;
+  line-height: 1.2;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.dashboard-btn {
+  border: 0;
+}
+
+.dashboard-btn-primary {
+  background: #00A19E;
+  color: #FFFFFF;
+}
+
+.dashboard-btn-primary:hover {
+  background: #007274;
+  color: #FFFFFF;
+}
+
+.dashboard-btn-light,
+.dashboard-link-btn {
+  background: #FFFFFF;
+  color: #434B49;
+  border: 1px solid #D9E6E6;
+}
+
+.dashboard-btn-light:hover,
+.dashboard-link-btn:hover {
+  border-color: #007274;
+  color: #007274;
+}
+
+.dashboard-btn-compact {
+  min-height: 36px;
+  padding: 0 11px;
+  font-size: 13px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.dashboard-inline-link {
+  color: #00A19E;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.dashboard-inline-link:hover {
+  color: #007274;
+  text-decoration: underline;
+}
+
+.dashboard-table .dashboard-link-btn {
+  white-space: nowrap;
+}
+
+/* Disabled link behaviour during edit modes */
+
+.client-edit-mode .dashboard-inline-link,
+.contact-edit-mode .dashboard-inline-link,
+.dashboard-detail-edit-mode .dashboard-inline-link {
+  pointer-events: none;
+  opacity: 0.65;
+}
