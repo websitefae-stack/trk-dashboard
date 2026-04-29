@@ -9,7 +9,28 @@
 
   function isCancelledAppointment(row) {
     const status = String(row.ui_status || row.status || "").trim().toLowerCase();
-    return status === "cancelled" || status === "canceled";
+    return status.includes("cancel");
+  }
+
+  function openChangeRequest() {
+    const modal = api.el("changeRequestModal");
+    const tabButton = document.querySelector("[data-tab-target='client-change-tab']");
+
+    if (modal) {
+      modal.classList.add("is-open");
+      document.body.classList.add("dashboard-modal-open");
+      return;
+    }
+
+    if (tabButton) tabButton.click();
+  }
+
+  function closeChangeRequest() {
+    const modal = api.el("changeRequestModal");
+    if (!modal) return;
+
+    modal.classList.remove("is-open");
+    document.body.classList.remove("dashboard-modal-open");
   }
 
   async function loadClientContacts() {
@@ -29,9 +50,6 @@
             <a class="dashboard-inline-link" href="${api.escapeHtml(row.link)}">
               ${api.escapeHtml(row.display_name || "—")}
             </a>
-            <div class="dashboard-client-type-mobile">
-              ${api.escapeHtml(row.mobile || "—")}
-            </div>
           </td>
           <td>${api.escapeHtml(row.mobile || "—")}</td>
           <td>${api.escapeHtml(row.email || "—")}</td>
@@ -44,7 +62,6 @@
 
       api.renderSimpleTable("clientContactsTableBody", rows, "No linked contacts found.", 5);
     } catch (error) {
-      console.error("Could not load client contacts", error);
       api.renderSimpleTable("clientContactsTableBody", [], error.message || "Could not load contacts.", 5);
     }
   }
@@ -70,7 +87,6 @@
 
       api.renderSimpleTable("clientNotesTableBody", rows, "No notes found.", 3);
     } catch (error) {
-      console.error("Could not load client notes", error);
       api.renderSimpleTable("clientNotesTableBody", [], error.message || "Could not load notes.", 3);
     }
   }
@@ -89,13 +105,14 @@
       const visibleAppointments = (result.message || []).filter((row) => !isCancelledAppointment(row));
 
       const rows = visibleAppointments.map((row) => {
-        const startTime = api.formatStartTime(row.time || "");
         const link = api.escapeHtml(row.record_url || "#");
 
         return `
           <tr>
-            <td>${api.formatDate(row.date)}</td>
-            <td class="client-appointment-time-mobile">${startTime}</td>
+            <td>
+              <div class="dashboard-table-date">${api.formatDate(row.date)}</div>
+              <div class="dashboard-table-time">${api.escapeHtml(row.time || "")}</div>
+            </td>
             <td>
               <a class="dashboard-inline-link" href="${link}">
                 ${api.escapeHtml(row.appointment_type || "—")}
@@ -110,10 +127,9 @@
         `;
       });
 
-      api.renderSimpleTable("clientAppointmentsTableBody", rows, "No appointments found.", 6);
+      api.renderSimpleTable("clientAppointmentsTableBody", rows, "No appointments found.", 5);
     } catch (error) {
-      console.error("Could not load client appointments", error);
-      api.renderSimpleTable("clientAppointmentsTableBody", [], error.message || "Could not load appointments.", 6);
+      api.renderSimpleTable("clientAppointmentsTableBody", [], error.message || "Could not load appointments.", 5);
     }
   }
 
@@ -122,11 +138,6 @@
 
     const clientName = api.el("clientDocname")?.value || "";
     const noteText = api.el("newClientNoteText")?.value || "";
-
-    if (!clientName) {
-      api.showError("Client could not be identified.");
-      return;
-    }
 
     if (!noteText.trim()) {
       api.showError("Please enter a note.");
@@ -147,18 +158,13 @@
         note_text: noteText
       });
 
-      if (api.el("newClientNoteText")) {
-        api.el("newClientNoteText").value = "";
-      }
-
+      api.el("newClientNoteText").value = "";
       await loadClientNotes();
       api.showSuccess("Note added");
     } catch (error) {
-      console.error("Add note failed", error);
-      api.showError(error.message || "There was a problem with the request.");
+      api.showError(error.message || "There was a problem adding the note.");
     } finally {
       state.addingNote = false;
-
       if (button) {
         button.disabled = false;
         button.textContent = "Add Note";
@@ -174,11 +180,6 @@
     const requestedSection = api.el("changeRequestSection")?.value || "";
     const requestedChange = api.el("changeRequestText")?.value || "";
     const reason = api.el("changeRequestReason")?.value || "";
-
-    if (!clientName) {
-      api.showError("Client could not be identified.");
-      return;
-    }
 
     if (!requestedChange.trim()) {
       api.showError("Please enter the requested change.");
@@ -202,18 +203,17 @@
         reason: reason
       });
 
-      if (api.el("changeRequestType")) api.el("changeRequestType").value = "";
-      if (api.el("changeRequestSection")) api.el("changeRequestSection").value = "";
-      if (api.el("changeRequestText")) api.el("changeRequestText").value = "";
-      if (api.el("changeRequestReason")) api.el("changeRequestReason").value = "";
+      ["changeRequestType", "changeRequestSection", "changeRequestText", "changeRequestReason"].forEach((id) => {
+        const field = api.el(id);
+        if (field) field.value = "";
+      });
 
+      closeChangeRequest();
       api.showSuccess("Change request submitted");
     } catch (error) {
-      console.error("Change request failed", error);
       api.showError(error.message || "There was a problem submitting the change request.");
     } finally {
       state.submittingChangeRequest = false;
-
       if (button) {
         button.disabled = false;
         button.textContent = "Submit Change Request";
@@ -222,32 +222,18 @@
   }
 
   function initActions() {
-    const form = api.el("clientDetailsForm");
+    api.el("requestChangeButton")?.addEventListener("click", openChangeRequest);
+    api.el("closeChangeRequestModal")?.addEventListener("click", closeChangeRequest);
 
-    if (form && form.dataset.boundSubmitBlock !== "1") {
-      form.dataset.boundSubmitBlock = "1";
-      form.addEventListener("submit", function (event) {
-        event.preventDefault();
-      });
-    }
+    api.el("addClientNote")?.addEventListener("click", function (event) {
+      event.preventDefault();
+      addClientNote();
+    });
 
-    const addNoteButton = api.el("addClientNote");
-    if (addNoteButton && addNoteButton.dataset.boundClick !== "1") {
-      addNoteButton.dataset.boundClick = "1";
-      addNoteButton.addEventListener("click", function (event) {
-        event.preventDefault();
-        addClientNote();
-      });
-    }
-
-    const changeRequestButton = api.el("submitChangeRequest");
-    if (changeRequestButton && changeRequestButton.dataset.boundClick !== "1") {
-      changeRequestButton.dataset.boundClick = "1";
-      changeRequestButton.addEventListener("click", function (event) {
-        event.preventDefault();
-        submitChangeRequest();
-      });
-    }
+    api.el("submitChangeRequest")?.addEventListener("click", function (event) {
+      event.preventDefault();
+      submitChangeRequest();
+    });
   }
 
   function init() {
@@ -259,23 +245,15 @@
     document.addEventListener("trk-dashboard-tab-active", function (event) {
       const targetId = event.detail && event.detail.targetId;
 
-      if (targetId === "client-contacts-tab") {
-        loadClientContacts();
-      }
-
-      if (targetId === "client-notes-tab") {
-        loadClientNotes();
-      }
-
-      if (targetId === "client-appointments-tab") {
-        loadClientAppointments();
-      }
+      if (targetId === "client-contacts-tab") loadClientContacts();
+      if (targetId === "client-notes-tab") loadClientNotes();
+      if (targetId === "client-appointments-tab") loadClientAppointments();
     });
+
+    loadClientContacts();
+    loadClientNotes();
+    loadClientAppointments();
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
+  document.addEventListener("DOMContentLoaded", init);
 })();
