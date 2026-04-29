@@ -1,10 +1,10 @@
-{% include "dashboard/templates/includes/head/shared_head.html" %}
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
 
 <div class="dashboard-page">
-  {% include "dashboard/templates/includes/franchisor_sidebar.html" %}
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
 
   <div class="dashboard-main">
-    {% include "dashboard/templates/includes/shared_topbar.html" %}
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
 
     <div class="dashboard-container">
       <div class="dashboard-page-header">
@@ -29,7 +29,12 @@
       <div class="dashboard-card contacts-filter-row franchisor-contacts-filter-row">
         <div class="dashboard-filter-field dashboard-filter-search">
           <label for="contactSearch">Search contacts</label>
-          <input id="contactSearch" type="text" class="dashboard-input" placeholder="Search by name, mobile, email, coach or client">
+          <input
+            id="contactSearch"
+            type="text"
+            class="dashboard-input"
+            placeholder="Search by name, mobile, email, coach or client"
+          >
         </div>
 
         <button type="button" class="dashboard-btn dashboard-btn-primary contacts-refresh-btn" id="refreshContacts">
