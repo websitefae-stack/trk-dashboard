@@ -1,0 +1,513 @@
+{% include "dashboard/templates/includes/head/coach_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">{{ client_title }}</h1>
+          <p class="dashboard-page-subtitle">Client details and editable fields</p>
+        </div>
+
+        <div class="dashboard-detail-actions dashboard-detail-actions-compact">
+          <a href="/coach_db/clients" class="dashboard-btn dashboard-btn-secondary">Back</a>
+
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="createClientInvoice">
+            Create Invoice
+          </button>
+
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="editClient">
+            Edit Client
+          </button>
+        </div>
+      </div>
+
+      <div class="dashboard-card dashboard-client-detail-card">
+        <input type="hidden" id="clientDocname" value="{{ client_docname }}">
+        <input type="hidden" id="csrfToken" value="{{ frappe.session.csrf_token or '' }}">
+
+        <div class="dashboard-tabs dashboard-client-detail-tabs">
+          {% for tab in tabs %}
+            <button
+              type="button"
+              class="dashboard-tab-btn dashboard-client-detail-tab-btn {% if loop.first %}is-active{% endif %}"
+              data-tab-target="tab-{{ loop.index }}"
+            >
+              <span class="dashboard-tab-label-full">{{ tab.label }}</span>
+              <span class="dashboard-tab-label-short">
+                {% if tab.label == "Administration" %}Admin{% else %}{{ tab.label }}{% endif %}
+              </span>
+            </button>
+          {% endfor %}
+        </div>
+
+        <form id="clientDetailsForm" class="dashboard-detail-form" onsubmit="return false;">
+          {% for tab in tabs %}
+            <div class="dashboard-tab-panel {% if loop.first %}is-active{% endif %}" id="tab-{{ loop.index }}">
+
+              {% if tab.custom == "contacts" %}
+                <div class="dashboard-detail-section">
+                  <div class="dashboard-detail-section-head">
+                    <h2 class="dashboard-detail-section-title">Billing Contact</h2>
+                  </div>
+
+                  {% if billing_contact %}
+                    <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
+                      <table class="dashboard-table dashboard-client-contact-table">
+                        <thead>
+                          <tr>
+                            <th>Contact Name</th>
+                            <th>Mobile</th>
+                            <th>Email</th>
+                            <th>Relationship</th>
+                            <th class="dashboard-action-col">Action</th>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          <tr>
+                            <td>
+                              {% if billing_contact.link %}
+                                <a class="dashboard-inline-link" href="{{ billing_contact.link }}">
+                                  {{ billing_contact.display_name }}
+                                </a>
+                              {% else %}
+                                {{ billing_contact.display_name }}
+                              {% endif %}
+
+                              <div class="dashboard-client-type-mobile">
+                                {{ billing_contact.phone or "—" }}
+                              </div>
+                            </td>
+                            <td>{{ billing_contact.phone or "—" }}</td>
+                            <td>{{ billing_contact.email or "—" }}</td>
+                            <td>{{ billing_contact.relationship or "—" }}</td>
+                            <td class="dashboard-action-cell">
+                              {% if billing_contact.link %}
+                                <a class="dashboard-link-btn" href="{{ billing_contact.link }}">View</a>
+                              {% else %}
+                                —
+                              {% endif %}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  {% else %}
+                    <div class="dashboard-empty">No billing contact set.</div>
+                  {% endif %}
+                </div>
+
+                <div class="dashboard-detail-section">
+                  <div class="dashboard-detail-section-head">
+                    <h2 class="dashboard-detail-section-title">Client Contacts</h2>
+                  </div>
+
+                  <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
+                    <table class="dashboard-table dashboard-client-contact-table">
+                      <thead>
+                        <tr>
+                          <th>Contact Name</th>
+                          <th>Mobile</th>
+                          <th>Email</th>
+                          <th>Company</th>
+                          <th class="dashboard-action-col">Action</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {% if client_contacts %}
+                          {% for contact in client_contacts %}
+                            <tr>
+                              <td>
+                                {% if contact.link %}
+                                  <a class="dashboard-inline-link" href="{{ contact.link }}">
+                                    {{ contact.contact_name or "—" }}
+                                  </a>
+                                {% else %}
+                                  {{ contact.contact_name or "—" }}
+                                {% endif %}
+
+                                <div class="dashboard-client-type-mobile">
+                                  {{ contact.phone or "—" }}
+                                </div>
+                              </td>
+                              <td>{{ contact.phone or "—" }}</td>
+                              <td>{{ contact.email or "—" }}</td>
+                              <td>{{ contact.company or "—" }}</td>
+                              <td class="dashboard-action-cell">
+                                {% if contact.link %}
+                                  <a class="dashboard-link-btn" href="{{ contact.link }}">View</a>
+                                {% else %}
+                                  —
+                                {% endif %}
+                              </td>
+                            </tr>
+                          {% endfor %}
+                        {% else %}
+                          <tr>
+                            <td colspan="5" class="dashboard-empty">No contacts found.</td>
+                          </tr>
+                        {% endif %}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              {% elif tab.custom == "notes" %}
+                <div class="dashboard-detail-section">
+                  <div class="dashboard-detail-section-head">
+                    <h2 class="dashboard-detail-section-title">Add Note</h2>
+                  </div>
+
+                  <div class="dashboard-detail-field">
+                    <label for="newClientNoteText">Note</label>
+                    <textarea id="newClientNoteText" class="dashboard-textarea" placeholder="Write a client note"></textarea>
+                  </div>
+
+                  <div class="dashboard-detail-actions" style="margin-top: 14px;">
+                    <button type="button" class="dashboard-btn dashboard-btn-primary" id="addClientNote">
+                      Add Note
+                    </button>
+                  </div>
+                </div>
+
+                <div class="dashboard-detail-section">
+                  <div class="dashboard-detail-section-head">
+                    <h2 class="dashboard-detail-section-title">Session Notes</h2>
+                  </div>
+
+                  <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
+                    <table class="dashboard-table dashboard-client-notes-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th class="dashboard-note-user-cell">User</th>
+                          <th>Notes</th>
+                        </tr>
+                      </thead>
+
+                      <tbody id="clientNotesTableBody">
+                        {% if session_notes %}
+                          {% for note in session_notes %}
+                            <tr>
+                              <td>{{ frappe.format(note.session_date, {"fieldtype": "Date"}) if note.session_date else "—" }}</td>
+                              <td class="dashboard-note-user-cell">{{ note.user_full_name or note.user or "—" }}</td>
+                              <td>{{ note.notes or "—" }}</td>
+                            </tr>
+                          {% endfor %}
+                        {% else %}
+                          <tr>
+                            <td colspan="3" class="dashboard-empty">No notes found.</td>
+                          </tr>
+                        {% endif %}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              {% elif tab.custom == "appointments" %}
+                <div class="dashboard-detail-section">
+                  <div class="dashboard-detail-section-head">
+                    <h2 class="dashboard-detail-section-title">Session Pack Summary</h2>
+                  </div>
+
+                  <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
+                    <table class="dashboard-table dashboard-client-pack-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Package Balance</th>
+                          <th>Service Item</th>
+                          <th>Purchased</th>
+                          <th>Booked</th>
+                          <th>Used</th>
+                          <th>Available</th>
+                          <th>To Add</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {% if package_balances %}
+                          {% for balance in package_balances %}
+                            <tr>
+                              <td>{{ frappe.format(balance.display_date, {"fieldtype": "Date"}) if balance.display_date else "—" }}</td>
+                              <td>{{ balance.name }}</td>
+                              <td>{{ balance.service_item or "—" }}</td>
+                              <td>{{ balance.qty_purchased or 0 }}</td>
+                              <td>{{ balance.qty_booked or 0 }}</td>
+                              <td>{{ balance.qty_used or 0 }}</td>
+                              <td>{{ balance.qty_available or 0 }}</td>
+                              <td>{{ balance.appointments_to_add or 0 }}</td>
+                              <td>{{ balance.status or "—" }}</td>
+                            </tr>
+                          {% endfor %}
+                        {% else %}
+                          <tr>
+                            <td colspan="9" class="dashboard-empty">No session packs found.</td>
+                          </tr>
+                        {% endif %}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div class="dashboard-detail-section">
+                  <div class="dashboard-detail-section-head">
+                    <h2 class="dashboard-detail-section-title">Appointments</h2>
+                  </div>
+
+                  <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
+                    <table class="dashboard-table dashboard-client-appointment-table">
+                      <thead>
+                        <tr>
+                          <th>Date / Time</th>
+                          <th>Type</th>
+                          <th>Status</th>
+                          <th>Progress</th>
+                          <th class="dashboard-action-col">Action</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {% if client_appointments %}
+                          {% for appointment in client_appointments %}
+                            <tr class="dashboard-client-appointment-row"
+                                data-appointment-status="{{ (appointment.display_status or appointment.status or '')|lower }}">
+                              <td>
+                                {{ frappe.format(appointment.appointment_start, {"fieldtype": "Date"}) if appointment.appointment_start else "—" }}
+                                <br>
+                                {{ frappe.format(appointment.appointment_start, {"fieldtype": "Time"}) if appointment.appointment_start else "" }}
+                              </td>
+                              <td>
+                                {% if appointment.view_link %}
+                                  <a class="dashboard-inline-link" href="{{ appointment.view_link }}">
+                                    {{ appointment.item_display_name or appointment.item or "—" }}
+                                  </a>
+                                {% else %}
+                                  {{ appointment.item_display_name or appointment.item or "—" }}
+                                {% endif %}
+                              </td>
+                              <td>{{ appointment.display_status or appointment.status or "—" }}</td>
+                              <td>{{ appointment.display_progress or "" }}</td>
+                              <td class="dashboard-action-cell">
+                                {% if appointment.view_link %}
+                                  <a class="dashboard-link-btn" href="{{ appointment.view_link }}">View</a>
+                                {% else %}
+                                  —
+                                {% endif %}
+                              </td>
+                            </tr>
+                          {% endfor %}
+                        {% else %}
+                          <tr>
+                            <td colspan="5" class="dashboard-empty">No appointments found.</td>
+                          </tr>
+                        {% endif %}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              {% elif tab.custom == "billing" %}
+                <div class="dashboard-detail-section">
+                  <div class="dashboard-detail-section-head">
+                    <h2 class="dashboard-detail-section-title">Travel Billing</h2>
+                  </div>
+
+                  <div class="dashboard-detail-grid dashboard-detail-grid-2 dashboard-travel-billing-grid">
+                    <div class="dashboard-detail-field">
+                      <label for="clientTravelCharged">Travel Charged</label>
+                      <div class="dashboard-checkbox-wrap">
+                        <input
+                          type="checkbox"
+                          class="dashboard-checkbox"
+                          id="clientTravelCharged"
+                          data-client-field="1"
+                          data-fieldname="travel_charged"
+                          data-fieldtype="Check"
+                          data-meta-readonly="0"
+                          {% if travel_charged %}checked{% endif %}
+                          disabled
+                        >
+                      </div>
+                    </div>
+
+                    <div class="dashboard-detail-field">
+                      <label for="clientTravelMilesOneWay">Travel Miles One Way</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        class="dashboard-input"
+                        id="clientTravelMilesOneWay"
+                        value="{{ travel_miles_one_way or 0 }}"
+                        data-client-field="1"
+                        data-fieldname="travel_miles_one_way"
+                        data-fieldtype="Float"
+                        data-meta-readonly="0"
+                        readonly
+                      >
+                    </div>
+                  </div>
+                </div>
+
+                <div class="dashboard-detail-section">
+                  <div class="dashboard-detail-section-head">
+                    <h2 class="dashboard-detail-section-title">Invoices</h2>
+                  </div>
+
+                  <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
+                    <table class="dashboard-table dashboard-client-invoice-table">
+                      <thead>
+                        <tr>
+                          <th>Invoice</th>
+                          <th>Date</th>
+                          <th>Due Date</th>
+                          <th>Status</th>
+                          <th>Total</th>
+                          <th>Owed</th>
+                          <th class="dashboard-action-col">Action</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {% if client_invoices %}
+                          {% for invoice in client_invoices %}
+                            <tr>
+                              <td>
+                                <a class="dashboard-inline-link" href="/coach_db/invoice_details?name={{ invoice.name }}">
+                                  {{ invoice.name }}
+                                </a>
+                              </td>
+                              <td>{{ frappe.format(invoice.posting_date, {"fieldtype": "Date"}) if invoice.posting_date else "—" }}</td>
+                              <td>{{ frappe.format(invoice.due_date, {"fieldtype": "Date"}) if invoice.due_date else "—" }}</td>
+                              <td>{{ invoice.status or "—" }}</td>
+                              <td>{{ frappe.format_value(invoice.grand_total or 0, {"fieldtype": "Currency"}) }}</td>
+                              <td>{{ frappe.format_value(invoice.outstanding_amount or 0, {"fieldtype": "Currency"}) }}</td>
+                              <td class="dashboard-action-cell">
+                                <a class="dashboard-link-btn" href="/coach_db/invoice_details?name={{ invoice.name }}">View</a>
+                              </td>
+                            </tr>
+                          {% endfor %}
+                        {% else %}
+                          <tr>
+                            <td colspan="7" class="dashboard-empty">No invoices found.</td>
+                          </tr>
+                        {% endif %}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              {% else %}
+                {% for section in tab.sections %}
+                  <div class="dashboard-detail-section">
+                    {% if section.title %}
+                      <div class="dashboard-detail-section-head">
+                        <h2 class="dashboard-detail-section-title">{{ section.title }}</h2>
+                      </div>
+                    {% endif %}
+
+                    {% if section.fields %}
+                      <div class="dashboard-detail-grid dashboard-detail-grid-{{ section.columns }}">
+                        {% for item in section.fields %}
+                          <div class="dashboard-detail-field {% if item.is_full_width %}dashboard-detail-field-full{% endif %}">
+                            <label for="field_{{ item.fieldname }}">{{ item.label }}</label>
+
+                            {% if item.is_check %}
+                              <div class="dashboard-checkbox-wrap">
+                                <input
+                                  type="checkbox"
+                                  class="dashboard-checkbox"
+                                  id="field_{{ item.fieldname }}"
+                                  data-client-field="1"
+                                  data-fieldname="{{ item.fieldname }}"
+                                  data-fieldtype="{{ item.fieldtype }}"
+                                  data-meta-readonly="{{ item.read_only }}"
+                                  {% if item.value %}checked{% endif %}
+                                  disabled
+                                >
+                              </div>
+
+                            {% elif item.is_link %}
+                              <select
+                                class="dashboard-select"
+                                id="field_{{ item.fieldname }}"
+                                data-client-field="1"
+                                data-fieldname="{{ item.fieldname }}"
+                                data-fieldtype="{{ item.fieldtype }}"
+                                data-link-doctype="{{ item.options }}"
+                                data-current-value="{{ item.value }}"
+                                data-meta-readonly="{{ item.read_only }}"
+                                disabled
+                              >
+                                <option value=""></option>
+                                {% if item.value %}
+                                  <option value="{{ item.value }}" selected>{{ item.value }}</option>
+                                {% endif %}
+                              </select>
+
+                            {% elif item.is_select %}
+                              <select
+                                class="dashboard-select"
+                                id="field_{{ item.fieldname }}"
+                                data-client-field="1"
+                                data-fieldname="{{ item.fieldname }}"
+                                data-fieldtype="{{ item.fieldtype }}"
+                                data-meta-readonly="{{ item.read_only }}"
+                                disabled
+                              >
+                                <option value=""></option>
+                                {% for option in (item.options or "").split("\n") %}
+                                  {% if option.strip() %}
+                                    <option value="{{ option }}" {% if (item.value|string) == option %}selected{% endif %}>{{ option }}</option>
+                                  {% endif %}
+                                {% endfor %}
+                              </select>
+
+                            {% elif item.is_textarea %}
+                              <textarea
+                                class="dashboard-textarea"
+                                id="field_{{ item.fieldname }}"
+                                data-client-field="1"
+                                data-fieldname="{{ item.fieldname }}"
+                                data-fieldtype="{{ item.fieldtype }}"
+                                data-meta-readonly="{{ item.read_only }}"
+                                readonly
+                              >{{ item.value }}</textarea>
+
+                            {% else %}
+                              <input
+                                type="{% if item.fieldtype == 'Date' %}date{% elif item.fieldtype == 'Datetime' %}datetime-local{% elif item.fieldtype == 'Time' %}time{% elif item.fieldtype == 'Email' %}email{% elif item.fieldtype == 'Phone' %}tel{% elif item.fieldtype in ['Int', 'Float', 'Currency', 'Percent'] %}number{% else %}text{% endif %}"
+                                class="dashboard-input"
+                                id="field_{{ item.fieldname }}"
+                                value="{{ item.value }}"
+                                data-client-field="1"
+                                data-fieldname="{{ item.fieldname }}"
+                                data-fieldtype="{{ item.fieldtype }}"
+                                data-meta-readonly="{{ item.read_only }}"
+                                readonly
+                              >
+                            {% endif %}
+                          </div>
+                        {% endfor %}
+                      </div>
+                    {% else %}
+                      <div class="dashboard-empty">This section will be configured later.</div>
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              {% endif %}
+
+            </div>
+          {% endfor %}
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
