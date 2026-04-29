@@ -1,0 +1,52 @@
+{% include "dashboard/templates/includes/head/shared_head.html" %}
+
+{% set path = frappe.request.path if frappe and frappe.request else "" %}
+
+<!-- Session Worker CSS -->
+<link rel="stylesheet" href="/assets/dashboard/css/session_worker/session_worker.css?v=1">
+
+{% if path == "/session_worker_db/calendar" %}
+<link rel="stylesheet" href="/assets/dashboard/css/session_worker/calendar.css?v=1">
+{% endif %}
+
+<!-- Session Worker JS -->
+
+{% if path == "/session_worker_db" or path == "/session_worker_db/" %}
+<script src="/assets/dashboard/js/session_worker/dashboard_home.js?v=1"></script>
+{% endif %}
+
+{% if path == "/session_worker_db/clients" %}
+<script src="/assets/dashboard/js/session_worker/clients.js?v=1"></script>
+{% endif %}
+
+{% if path == "/session_worker_db/client_details" %}
+<script src="/assets/dashboard/js/session_worker/client_details.js?v=1"></script>
+{% endif %}
+
+{% if path == "/session_worker_db/contacts" %}
+<script src="/assets/dashboard/js/session_worker/contacts.js?v=1"></script>
+{% endif %}
+
+{% if path == "/session_worker_db/contact_details" %}
+<script src="/assets/dashboard/js/session_worker/contact_details.js?v=1"></script>
+{% endif %}
+
+{% if path == "/session_worker_db/notifications" %}
+<script src="/assets/dashboard/js/session_worker/notifications.js?v=1"></script>
+{% endif %}
+
+{% if path == "/session_worker_db/notification_details" %}
+<script src="/assets/dashboard/js/session_worker/notification_details.js?v=1"></script>
+{% endif %}
+
+{% if path == "/session_worker_db/calendar" %}
+<script src="/assets/dashboard/js/session_worker/calendar.js?v=1"></script>
+{% endif %}
+
+{% if path == "/session_worker_db/calendar_details" %}
+<script src="/assets/dashboard/js/session_worker/calendar_details.js?v=1"></script>
+{% endif %}
+
+{% if path == "/session_worker_db/profile" %}
+<script src="/assets/dashboard/js/session_worker/profile.js?v=1"></script>
+{% endif %}
