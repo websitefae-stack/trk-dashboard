@@ -1,0 +1,65 @@
+{% include "dashboard/templates/includes/head/coach_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <h1>My Profile</h1>
+        <button class="dashboard-btn dashboard-btn-primary" id="editProfileBtn">Edit Profile</button>
+      </div>
+
+      <div class="dashboard-tabs">
+        <button class="dashboard-tab-btn is-active" data-tab="profile">Profile</button>
+        <button class="dashboard-tab-btn" data-tab="billing">Banking</button>
+      </div>
+
+      <!-- PROFILE -->
+      <div class="dashboard-tab-panel is-active" data-tab-panel="profile">
+        <div class="dashboard-card">
+          <form id="coachProfileForm">
+
+            <label>Name</label>
+            <input value="{{ coach.coach_name }}" readonly>
+
+            <label>Email</label>
+            <input value="{{ coach.coach_email }}" readonly>
+
+            <label>Bio</label>
+            <textarea name="bio" class="js-edit" readonly>{{ coach.bio or '' }}</textarea>
+
+            <button type="submit" class="dashboard-btn" style="display:none;" id="saveBtn">Save</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- BANKING -->
+      <div class="dashboard-tab-panel" data-tab-panel="billing" style="display:none;">
+        <div class="dashboard-card">
+
+          <h3>Bank Account</h3>
+
+          {% if bank_account %}
+            <p>{{ bank_account.bank_account_no }}</p>
+            <p>{{ bank_account.bank }}</p>
+          {% else %}
+            <p>No bank account linked.</p>
+          {% endif %}
+
+          <button class="dashboard-btn" id="requestBankingChangeBtn">Request Change</button>
+
+          <form id="bankingForm" style="display:none;">
+            <textarea name="new_banking_details" required></textarea>
+            <button type="submit">Submit</button>
+          </form>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
