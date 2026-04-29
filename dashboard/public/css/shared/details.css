@@ -160,3 +160,51 @@
   text-align: center;
   white-space: nowrap;
 }
+
+/* =========================================================
+   DETAIL PAGES / TABS / DETAIL GRIDS
+========================================================= */
+
+.dashboard-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dashboard-tab-btn {
+  border: 1px solid var(--dashboard-border, #e5e7eb);
+  background: #fff;
+  color: inherit;
+  border-radius: 999px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font: inherit;
+  transition: all 0.2s ease;
+}
+
+.dashboard-tab-btn:hover {
+  background: #f9fafb;
+}
+
+.dashboard-tab-btn.is-active {
+  background: var(--dashboard-primary, #111827);
+  color: #fff;
+  border-color: var(--dashboard-primary, #111827);
+}
+
+.dashboard-tab-panel {
+  margin-top: 20px;
+}
+
+/* Mobile tabs stacked */
+@media (max-width: 768px) {
+  .dashboard-tabs {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-tab-btn {
+    width: 100%;
+    text-align: left;
+  }
+}
