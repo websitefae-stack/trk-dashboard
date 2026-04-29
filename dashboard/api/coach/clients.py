@@ -62,38 +62,59 @@ def get_current_coach_name():
     return coach.get("name") if coach else ""
 
 
-def get_allowed_client_filters_for_coach():
+def get_coach_client_or_filters():
     coach_name = get_current_coach_name()
 
     if not coach_name:
-        return {"name": ["in", []]}
+        return [["Client", "name", "=", "__no_client__"]]
 
-    client_meta = frappe.get_meta(CLIENT_DOCTYPE)
-
+    meta = frappe.get_meta(CLIENT_DOCTYPE)
     or_filters = []
 
-    if client_meta.has_field("primary_coach"):
+    if meta.has_field("primary_coach"):
         or_filters.append(["Client", "primary_coach", "=", coach_name])
 
-    if client_meta.has_field("attending_coach"):
+    if meta.has_field("attending_coach"):
         or_filters.append(["Client", "attending_coach", "=", coach_name])
 
     if not or_filters:
-        return {"name": ["in", []]}
+        return [["Client", "name", "=", "__no_client__"]]
 
     return or_filters
+
+
+def get_allowed_client_names_for_coach():
+    require_logged_in_user()
+
+    rows = frappe.get_all(
+        CLIENT_DOCTYPE,
+        or_filters=get_coach_client_or_filters(),
+        pluck="name",
+        limit_page_length=5000,
+    )
+
+    return rows or []
+
+
+def ensure_coach_client_access(client_name):
+    require_logged_in_user()
+
+    if not client_name:
+        frappe.throw(_("Client is required."))
+
+    allowed = set(get_allowed_client_names_for_coach())
+
+    if client_name not in allowed:
+        frappe.throw(_("You do not have permission to access this client."), frappe.PermissionError)
 
 
 @frappe.whitelist()
 def get_clients():
     require_logged_in_user()
 
-    or_filters = get_allowed_client_filters_for_coach()
-
     clients = frappe.get_all(
         CLIENT_DOCTYPE,
-        or_filters=or_filters if isinstance(or_filters, list) else None,
-        filters=or_filters if isinstance(or_filters, dict) else None,
+        or_filters=get_coach_client_or_filters(),
         fields=[
             "name",
             "name1",
@@ -128,7 +149,12 @@ def get_session_workers():
 
 
 def get_client_types():
-    if frappe.db.exists("DocType", "Client Type"):
-        return frappe.get_all("Client Type", pluck="name", order_by="name asc")
+    meta = frappe.get_meta(CLIENT_DOCTYPE)
+
+    if meta.has_field("client_type"):
+        df = meta.get_field("client_type")
+
+        if df.fieldtype == "Select" and df.options:
+            return [x.strip() for x in df.options.split("\n") if x.strip()]
 
     return ["Kid", "Teen", "Adult", "Uni Student", "School/Company"]
