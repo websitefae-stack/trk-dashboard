@@ -57,7 +57,7 @@
 
                   {% if billing_contact %}
                     <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
-                      <table class="dashboard-table dashboard-client-contact-table">
+                      <table class="dashboard-table dashboard-billing-contact-table">
                         <thead>
                           <tr>
                             <th>Contact Name</th>
@@ -108,7 +108,7 @@
                   </div>
 
                   <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
-                    <table class="dashboard-table dashboard-client-contact-table">
+                    <table class="dashboard-table dashboard-linked-contacts-table">
                       <thead>
                         <tr>
                           <th>Contact Name</th>
@@ -239,11 +239,11 @@
                               <td>{{ frappe.format(balance.display_date, {"fieldtype": "Date"}) if balance.display_date else "—" }}</td>
                               <td>{{ balance.name }}</td>
                               <td>{{ balance.service_item or "—" }}</td>
-                              <td>{{ balance.qty_purchased or 0 }}</td>
-                              <td>{{ balance.qty_booked or 0 }}</td>
-                              <td>{{ balance.qty_used or 0 }}</td>
-                              <td>{{ balance.qty_available or 0 }}</td>
-                              <td>{{ balance.appointments_to_add or 0 }}</td>
+                              <td>{{ (balance.qty_purchased or 0)|int }}</td>
+                              <td>{{ (balance.qty_booked or 0)|int }}</td>
+                              <td>{{ (balance.qty_used or 0)|int }}</td>
+                              <td>{{ (balance.qty_available or 0)|int }}</td>
+                              <td>{{ (balance.appointments_to_add or 0)|int }}</td>
                               <td>{{ balance.status or "—" }}</td>
                             </tr>
                           {% endfor %}
@@ -280,9 +280,12 @@
                             <tr class="dashboard-client-appointment-row"
                                 data-appointment-status="{{ (appointment.display_status or appointment.status or '')|lower }}">
                               <td>
-                                {{ frappe.format(appointment.appointment_start, {"fieldtype": "Date"}) if appointment.appointment_start else "—" }}
-                                <br>
-                                {{ frappe.format(appointment.appointment_start, {"fieldtype": "Time"}) if appointment.appointment_start else "" }}
+                                <div class="dashboard-table-date">
+                                  {{ frappe.format(appointment.appointment_start, {"fieldtype": "Date"}) if appointment.appointment_start else "—" }}
+                                </div>
+                                <div class="dashboard-table-time">
+                                  {{ frappe.format(appointment.appointment_start, {"fieldtype": "Time"}) if appointment.appointment_start else "" }}
+                                </div>
                               </td>
                               <td>
                                 {% if appointment.view_link %}
