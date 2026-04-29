@@ -1,37 +1,45 @@
 (function () {
-    function openSidebar() {
-        document.body.classList.add("dashboard-sidebar-open");
+  "use strict";
+
+  function openDashboardMenu() {
+    document.body.classList.add("dashboard-menu-open");
+  }
+
+  function closeDashboardMenu() {
+    document.body.classList.remove("dashboard-menu-open");
+  }
+
+  document.addEventListener("click", function (event) {
+    if (event.target.closest(".dashboard-menu-toggle")) {
+      openDashboardMenu();
+      return;
     }
 
-    function closeSidebar() {
-        document.body.classList.remove("dashboard-sidebar-open");
+    if (
+      event.target.closest(".dashboard-sidebar-close") ||
+      event.target.closest(".dashboard-sidebar-overlay")
+    ) {
+      closeDashboardMenu();
+      return;
     }
 
-    document.addEventListener("click", function (event) {
-        if (event.target.closest(".dashboard-menu-toggle")) {
-            openSidebar();
-            return;
-        }
+    if (
+      event.target.closest(".dashboard-sidebar .dashboard-nav a") &&
+      window.innerWidth <= 860
+    ) {
+      closeDashboardMenu();
+    }
+  });
 
-        if (
-            event.target.closest(".dashboard-sidebar-close") ||
-            event.target.closest(".dashboard-sidebar-overlay")
-        ) {
-            closeSidebar();
-            return;
-        }
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") {
+      closeDashboardMenu();
+    }
+  });
 
-        if (
-            event.target.closest(".dashboard-sidebar .dashboard-nav a") &&
-            window.innerWidth <= 768
-        ) {
-            closeSidebar();
-        }
-    });
-
-    document.addEventListener("keydown", function (event) {
-        if (event.key === "Escape") {
-            closeSidebar();
-        }
-    });
+  window.addEventListener("resize", function () {
+    if (window.innerWidth > 860) {
+      closeDashboardMenu();
+    }
+  });
 })();
