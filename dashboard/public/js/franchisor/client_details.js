@@ -81,7 +81,6 @@
     });
 
     const btn = el("editClient");
-
     if (!btn) return;
 
     if (isSaving) {
@@ -119,10 +118,15 @@
     applyEditMode();
 
     try {
-      await apiPost("dashboard.api.franchisor.client_details.save_client", {
+      const result = await apiPost("dashboard.api.franchisor.client_details.save_client", {
         docname: getClientName(),
         data: JSON.stringify(collectData())
       });
+
+      if (result && result.name && !getClientName()) {
+        window.location.href = `/franchisor_db/client_details?name=${encodeURIComponent(result.name)}`;
+        return;
+      }
 
       editMode = false;
       showSuccess("Client saved");
@@ -132,15 +136,6 @@
 
     isSaving = false;
     applyEditMode();
-  }
-
-  function toggleEdit() {
-    if (!editMode) {
-      editMode = true;
-      applyEditMode();
-    } else {
-      saveClient();
-    }
   }
 
   async function addNote() {
@@ -197,7 +192,13 @@
 
     el("editClient")?.addEventListener("click", (e) => {
       e.preventDefault();
-      toggleEdit();
+
+      if (!editMode) {
+        editMode = true;
+        applyEditMode();
+      } else {
+        saveClient();
+      }
     });
 
     el("addClientNote")?.addEventListener("click", (e) => {
