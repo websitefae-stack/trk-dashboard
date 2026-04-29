@@ -490,3 +490,33 @@ table:has(#clientNotesTableBody) thead th:nth-child(3),
     display: none;
   }
 }
+
+/* =========================================================
+   ACTION COLUMN ALIGNMENT / MOBILE CLEANUP
+========================================================= */
+
+.dashboard-action-col,
+.dashboard-action-cell {
+  text-align: center;
+}
+
+.dashboard-action-cell .dashboard-link-btn {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 74px;
+}
+
+.dashboard-note-user-cell {
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .dashboard-action-col,
+  .dashboard-action-cell {
+    display: none;
+  }
+
+  .dashboard-note-user-cell {
+    display: none;
+  }
+}
