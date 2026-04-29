@@ -1,0 +1,12 @@
+include README.md
+include license.txt
+recursive-include dashboard *.py
+recursive-include dashboard *.json
+recursive-include dashboard *.html
+recursive-include dashboard *.js
+recursive-include dashboard *.css
+recursive-include dashboard *.svg
+recursive-include dashboard *.png
+recursive-include dashboard *.jpg
+recursive-include dashboard *.jpeg
+recursive-include dashboard *.ico
