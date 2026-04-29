@@ -604,3 +604,78 @@ table:has(#clientNotesTableBody) thead th:nth-child(3),
     width: 35%;
   }
 }
+
+/* =========================================================
+   CONTACT DETAILS TABLES / TABS
+========================================================= */
+
+.dashboard-contact-detail-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dashboard-contact-linked-client-table,
+.dashboard-contact-billing-table,
+.dashboard-contact-invoice-table {
+  min-width: 980px;
+}
+
+.dashboard-contact-linked-client-table .dashboard-action-col,
+.dashboard-contact-linked-client-table .dashboard-action-cell,
+.dashboard-contact-invoice-table .dashboard-action-col,
+.dashboard-contact-invoice-table .dashboard-action-cell {
+  text-align: center;
+}
+
+.dashboard-contact-linked-client-table .dashboard-link-btn,
+.dashboard-contact-invoice-table .dashboard-link-btn {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 74px;
+}
+
+@media (max-width: 640px) {
+  .dashboard-contact-detail-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 8px;
+    padding-bottom: 8px;
+  }
+
+  .dashboard-contact-detail-tabs .dashboard-tab-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .dashboard-contact-linked-client-table {
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  .dashboard-contact-linked-client-table th:nth-child(3),
+  .dashboard-contact-linked-client-table td:nth-child(3),
+  .dashboard-contact-linked-client-table th:nth-child(4),
+  .dashboard-contact-linked-client-table td:nth-child(4),
+  .dashboard-contact-linked-client-table th:nth-child(5),
+  .dashboard-contact-linked-client-table td:nth-child(5),
+  .dashboard-contact-linked-client-table th:nth-child(6),
+  .dashboard-contact-linked-client-table td:nth-child(6),
+  .dashboard-contact-linked-client-table th:nth-child(7),
+  .dashboard-contact-linked-client-table td:nth-child(7),
+  .dashboard-contact-linked-client-table th:nth-child(8),
+  .dashboard-contact-linked-client-table td:nth-child(8) {
+    display: none;
+  }
+
+  .dashboard-contact-linked-client-table th:nth-child(1),
+  .dashboard-contact-linked-client-table td:nth-child(1) {
+    width: 68%;
+  }
+
+  .dashboard-contact-linked-client-table th:nth-child(2),
+  .dashboard-contact-linked-client-table td:nth-child(2) {
+    width: 32%;
+  }
+}
