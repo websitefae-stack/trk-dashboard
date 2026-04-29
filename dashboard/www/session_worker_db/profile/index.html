@@ -1,0 +1,249 @@
+{% include "dashboard/templates/includes/head/session_worker_head.html" %}
+
+<div class="dashboard-page" id="sessionWorkerProfilePage">
+  {% include "dashboard/templates/includes/sidebar/session_worker_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">My Profile</h1>
+          <p class="dashboard-page-subtitle">View your profile, legal documents, and billing details.</p>
+        </div>
+
+        <div class="dashboard-page-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="editProfileBtn">
+            Edit Profile
+          </button>
+        </div>
+      </div>
+
+      <div class="dashboard-card dashboard-tabs-card">
+        <div class="dashboard-tabs">
+          <button type="button" class="dashboard-tab-btn is-active" data-tab="profile">Profile</button>
+          <button type="button" class="dashboard-tab-btn" data-tab="legal">Legal Details</button>
+          <button type="button" class="dashboard-tab-btn" data-tab="billing">Billing & Banking</button>
+        </div>
+      </div>
+
+      <div class="dashboard-tab-panel is-active" data-tab-panel="profile">
+        <div class="dashboard-card">
+          <h3>Personal Information</h3>
+
+          <form id="sessionWorkerProfileForm" enctype="multipart/form-data">
+            <div class="dashboard-detail-grid dashboard-detail-grid-2">
+
+              <div class="dashboard-detail-field">
+                <label>Full Name</label>
+                <input class="dashboard-input" value="{{ session_worker.sw_name or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>User</label>
+                <input class="dashboard-input" value="{{ session_worker.user or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Email</label>
+                <input class="dashboard-input" value="{{ session_worker.sw_email or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>First Name</label>
+                <input class="dashboard-input js-profile-editable" name="first_name" value="{{ session_worker.first_name or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Middle Name</label>
+                <input class="dashboard-input js-profile-editable" name="middle_name" value="{{ session_worker.middle_name or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Last Name</label>
+                <input class="dashboard-input js-profile-editable" name="last_name" value="{{ session_worker.last_name or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Birth Date</label>
+                <input class="dashboard-input" value="{{ session_worker.birth_date or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Gender</label>
+                <input class="dashboard-input js-profile-editable" name="gender" value="{{ session_worker.gender or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Phone</label>
+                <input class="dashboard-input js-profile-editable" name="phone" value="{{ session_worker.phone or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Location</label>
+                <input class="dashboard-input js-profile-editable" name="location" value="{{ session_worker.location or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full">
+                <label>Linked Coaches</label>
+                <div class="dashboard-html-block">
+                  {% if linked_coaches %}
+                    {% for coach in linked_coaches %}
+                      <span class="dashboard-badge">{{ coach.coach_name }}</span>
+                    {% endfor %}
+                  {% else %}
+                    No active linked coaches.
+                  {% endif %}
+                </div>
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full">
+                <label>Current Photo</label>
+                {% if session_worker.photo %}
+                  <div class="dashboard-html-block">
+                    <img src="{{ session_worker.photo }}" alt="Profile photo" style="max-width:120px;border-radius:12px;display:block;margin-bottom:10px;">
+                    <a class="dashboard-inline-link" href="{{ session_worker.photo }}" target="_blank">View photo</a>
+                  </div>
+                {% else %}
+                  <div class="dashboard-html-block">No photo uploaded.</div>
+                {% endif %}
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full js-profile-photo-wrap" style="display:none;">
+                <label>Upload New Photo</label>
+                <input class="dashboard-input js-profile-editable-file" type="file" name="photo" accept="image/*" disabled>
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full">
+                <label>Bio</label>
+                <textarea class="dashboard-textarea js-profile-editable" name="bio" readonly>{{ session_worker.bio or '' }}</textarea>
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full">
+                <label>Interest</label>
+                <textarea class="dashboard-textarea js-profile-editable" name="interest" readonly>{{ session_worker.interest or '' }}</textarea>
+              </div>
+
+            </div>
+
+            <div class="dashboard-detail-actions js-profile-save-actions" style="margin-top:20px; display:none;">
+              <button class="dashboard-btn dashboard-btn-primary" type="submit">Save Changes</button>
+              <button class="dashboard-btn dashboard-btn-light" type="button" id="cancelProfileEditBtn">Cancel</button>
+              <span class="dashboard-help" id="sessionWorkerProfileMessage"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="dashboard-tab-panel" data-tab-panel="legal" style="display:none;">
+        {% include "dashboard/www/session_worker_db/profile/legal_section.html" ignore missing %}
+      </div>
+
+      <div class="dashboard-tab-panel" data-tab-panel="billing" style="display:none;">
+        <div class="dashboard-card" style="margin-bottom:20px;">
+          <h3>Billing Rates</h3>
+          <p class="dashboard-page-subtitle">Rates are managed by your coach or franchisor.</p>
+
+          <div class="dashboard-detail-grid dashboard-detail-grid-2">
+            <div class="dashboard-detail-field">
+              <label>1 on 1 Session Rate</label>
+              <input class="dashboard-input" value="{{ session_worker.get('1_on_1_session_rate') or '' }}" readonly>
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Group Session Rate</label>
+              <input class="dashboard-input" value="{{ session_worker.group_session_rate or '' }}" readonly>
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Workshop Session Rate</label>
+              <input class="dashboard-input" value="{{ session_worker.workshop_session_rate or '' }}" readonly>
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Travel Rate Per Mile</label>
+              <input class="dashboard-input" value="{{ session_worker.travel_rate_per_mile or '' }}" readonly>
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Invoice Frequency</label>
+              <input class="dashboard-input" value="{{ session_worker.invoice_frequency or '' }}" readonly>
+            </div>
+
+            {% if show_invoice_cycle_start_date %}
+            <div class="dashboard-detail-field">
+              <label>Invoice Cycle Start Date</label>
+              <input class="dashboard-input" value="{{ session_worker.invoice_cycle_start_date or '' }}" readonly>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="dashboard-card">
+          <div class="dashboard-table-header">
+            <div>
+              <h3>Banking Details</h3>
+              <p class="dashboard-page-subtitle">Banking changes must be requested and reviewed by the office.</p>
+            </div>
+            <button type="button" class="dashboard-btn dashboard-btn-primary" id="requestBankingChangeBtn">
+              Request Banking Change
+            </button>
+          </div>
+
+          <div class="dashboard-detail-grid dashboard-detail-grid-2">
+            <div class="dashboard-detail-field">
+              <label>Bank Name</label>
+              <input class="dashboard-input" value="{{ session_worker.bank_name or '' }}" readonly>
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Account Holder Name</label>
+              <input class="dashboard-input" value="{{ session_worker.account_holder_name or '' }}" readonly>
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Account Number</label>
+              <input class="dashboard-input" value="{{ session_worker.account_number or '' }}" readonly>
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label>Sort Code</label>
+              <input class="dashboard-input" value="{{ session_worker.sort_code or '' }}" readonly>
+            </div>
+          </div>
+
+          <div id="bankingChangeRequestPanel" class="dashboard-detail-section" style="display:none; margin-top:22px;">
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">Request Banking Change</h2>
+            </div>
+
+            <form id="bankingChangeRequestForm">
+              <div class="dashboard-detail-grid dashboard-detail-grid-2">
+                <div class="dashboard-detail-field dashboard-detail-field-full">
+                  <label>New Banking Details</label>
+                  <textarea class="dashboard-textarea" name="new_banking_details" rows="5" required
+                    placeholder="Enter the new bank name, account holder, account number, and sort code."></textarea>
+                </div>
+
+                <div class="dashboard-detail-field dashboard-detail-field-full">
+                  <label>Reason</label>
+                  <textarea class="dashboard-textarea" name="banking_change_reason" rows="3"
+                    placeholder="Optional reason for this banking change."></textarea>
+                </div>
+              </div>
+
+              <div class="dashboard-detail-actions" style="margin-top:18px;">
+                <button class="dashboard-btn dashboard-btn-primary" type="submit">Submit Request</button>
+                <button class="dashboard-btn dashboard-btn-light" type="button" id="cancelBankingChangeBtn">Cancel</button>
+                <span class="dashboard-help" id="bankingChangeRequestMessage"></span>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
