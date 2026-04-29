@@ -1,0 +1,247 @@
+import json
+import frappe
+from frappe import _
+
+from dashboard.api.shared.contacts import (
+    ensure_logged_in,
+    ensure_contact_access,
+    get_current_coach_name,
+    get_current_session_worker_name,
+    is_franchisor_user,
+)
+
+
+EDITABLE_CONTACT_FIELDS = [
+    "first_name",
+    "last_name",
+    "email_id",
+    "mobile_no",
+    "designation",
+    "company_name",
+]
+
+
+def parse_payload(value):
+    if isinstance(value, str):
+        return json.loads(value) if value else {}
+    return value or {}
+
+
+def contact_display_name(contact):
+    return (
+        contact.get("full_name")
+        or " ".join(filter(None, [contact.get("first_name"), contact.get("last_name")])).strip()
+        or contact.get("company_name")
+        or contact.get("name")
+        or "Contact Details"
+    )
+
+
+def client_display_name(client):
+    return (
+        client.get("full_name")
+        or " ".join(filter(None, [client.get("name1"), client.get("last_name")])).strip()
+        or client.get("name")
+    )
+
+
+def coach_display_name(coach):
+    if coach and frappe.db.exists("Coach", coach):
+        return frappe.db.get_value("Coach", coach, "coach_name") or coach
+    return coach or ""
+
+
+def get_contact_customer_names(contact):
+    customers = set()
+
+    if contact.get("custom_customer"):
+        customers.add(contact.get("custom_customer"))
+
+    for link in contact.get("links") or []:
+        if link.get("link_doctype") == "Customer" and link.get("link_name"):
+            customers.add(link.get("link_name"))
+
+    return customers
+
+
+def get_linked_clients(contact, scope):
+    if not contact or not contact.name:
+        return []
+
+    contact_customers = get_contact_customer_names(contact)
+
+    clients = frappe.get_all(
+        "Client",
+        fields=[
+            "name",
+            "full_name",
+            "name1",
+            "last_name",
+            "status",
+            "client_type",
+            "primary_coach",
+            "attending_coach",
+            "session_worker",
+            "billing_contact",
+            "pricelist",
+            "banking",
+        ],
+        order_by="full_name asc, name1 asc, last_name asc",
+        limit_page_length=5000,
+    )
+
+    current_coach = get_current_coach_name()
+    current_sw = get_current_session_worker_name()
+    rows = []
+
+    for client in clients:
+        is_general_linked = 0
+        is_billing_client = 0
+
+        if client.get("billing_contact") and client.get("billing_contact") in contact_customers:
+            is_billing_client = 1
+
+        try:
+            client_doc = frappe.get_doc("Client", client.name)
+        except Exception:
+            continue
+
+        for row in client_doc.get("client_contacts") or []:
+            if row.get("contact") == contact.name:
+                is_general_linked = 1
+                break
+
+        if not is_general_linked and not is_billing_client:
+            continue
+
+        if scope == "session_worker" and client.get("session_worker") != current_sw:
+            continue
+
+        if scope == "coach":
+            if client.get("primary_coach") != current_coach and client.get("attending_coach") != current_coach:
+                continue
+
+        if scope == "franchisor" and not is_franchisor_user():
+            continue
+
+        rows.append({
+            "name": client.name,
+            "display_name": client_display_name(client),
+            "status": client.get("status") or "",
+            "client_type": client.get("client_type") or "",
+            "primary_coach": client.get("primary_coach") or "",
+            "primary_coach_display": coach_display_name(client.get("primary_coach")),
+            "attending_coach": client.get("attending_coach") or "",
+            "attending_coach_display": coach_display_name(client.get("attending_coach")),
+            "session_worker": client.get("session_worker") or "",
+            "is_general_linked": is_general_linked,
+            "is_billing_client": is_billing_client,
+            "default_price_list": client.get("pricelist") or "",
+            "default_bank_account": client.get("banking") or "",
+        })
+
+    return rows
+
+
+def get_contact_invoices(linked_clients):
+    billing_clients = [row["name"] for row in linked_clients if row.get("is_billing_client")]
+
+    if not billing_clients:
+        return []
+
+    invoices = frappe.get_all(
+        "Sales Invoice",
+        filters={"custom_client": ["in", billing_clients]},
+        fields=[
+            "name",
+            "custom_client",
+            "posting_date",
+            "due_date",
+            "status",
+            "grand_total",
+            "outstanding_amount",
+            "docstatus",
+        ],
+        order_by="posting_date desc, creation desc",
+        limit_page_length=500,
+    )
+
+    client_map = {row["name"]: row["display_name"] for row in linked_clients}
+
+    return [{
+        "name": row.name,
+        "client": row.custom_client,
+        "client_display": client_map.get(row.custom_client) or row.custom_client,
+        "posting_date": row.posting_date,
+        "due_date": row.due_date,
+        "status": row.status,
+        "grand_total": row.grand_total,
+        "outstanding_amount": row.outstanding_amount,
+        "docstatus": row.docstatus,
+    } for row in invoices]
+
+
+def get_contact_context(scope, contact_name=None, is_new=False):
+    ensure_logged_in()
+
+    if is_new:
+        if scope == "session_worker":
+            frappe.throw(_("Session workers cannot create contacts."), frappe.PermissionError)
+
+        contact = frappe.new_doc("Contact")
+        linked_clients = []
+
+        return {
+            "contact": contact.as_dict(),
+            "contact_docname": "",
+            "contact_display_name": "New Contact",
+            "is_new": 1,
+            "linked_clients": linked_clients,
+            "contact_invoices": [],
+        }
+
+    if not contact_name:
+        frappe.throw(_("Contact not found."))
+
+    ensure_contact_access(contact_name, scope)
+
+    contact = frappe.get_doc("Contact", contact_name)
+    linked_clients = get_linked_clients(contact, scope)
+
+    return {
+        "contact": contact.as_dict(),
+        "contact_docname": contact.name,
+        "contact_display_name": contact_display_name(contact),
+        "is_new": 0,
+        "linked_clients": linked_clients,
+        "contact_invoices": get_contact_invoices(linked_clients),
+    }
+
+
+def save_contact_for_scope(scope, docname=None, data=None):
+    ensure_logged_in()
+
+    if scope == "session_worker":
+        frappe.throw(_("Session workers cannot edit contacts."), frappe.PermissionError)
+
+    payload = parse_payload(data)
+
+    if docname:
+        ensure_contact_access(docname, scope)
+        contact = frappe.get_doc("Contact", docname)
+    else:
+        contact = frappe.new_doc("Contact")
+
+    for fieldname in EDITABLE_CONTACT_FIELDS:
+        if fieldname in payload:
+            contact.set(fieldname, payload.get(fieldname))
+
+    if not (contact.get("first_name") or contact.get("company_name")):
+        frappe.throw(_("Please enter at least a First Name or Company Name."))
+
+    contact.save(ignore_permissions=True)
+
+    return {
+        "name": contact.name,
+        "display_name": contact_display_name(contact),
+    }
