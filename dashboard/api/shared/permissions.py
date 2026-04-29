@@ -28,7 +28,7 @@ def get_current_coach():
 def is_office_user():
     return frappe.session.user in {
         "ashley@theresilientkid.co.uk",
-        "office@theresilientpeople.co.uk",
+        "office@theresilientpeople.uk",
         "hq@theresilientkid.co.uk",
     }
 
@@ -80,6 +80,9 @@ def ensure_franchisor_can_access_coach(coach_name):
 def get_current_user_dashboard_type():
     ensure_logged_in()
 
+    if is_office_user():
+        return "franchisor"
+
     if frappe.db.exists("Session Worker", {"user": frappe.session.user}):
         return "session_worker"
 
@@ -91,9 +94,6 @@ def get_current_user_dashboard_type():
 
     if frappe.db.exists("Coach", {"coach_email": frappe.session.user}):
         return "coach"
-
-    if is_office_user():
-        return "franchisor"
 
     return "unknown"
 
