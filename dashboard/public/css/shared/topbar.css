@@ -1,1 +1,180 @@
+/* =========================================================
+   TOPBAR / ACCOUNT MENU
+========================================================= */
 
+.dashboard-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  background: #FFFFFF;
+  border-bottom: 1px solid #D9E6E6;
+}
+
+.dashboard-topbar-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 64px;
+  padding: 0 24px;
+}
+
+.dashboard-topbar-welcome {
+  color: #434B49;
+  font-size: 14px;
+}
+
+.dashboard-topbar-name {
+  color: #434B49;
+  font-weight: 700;
+}
+
+.dashboard-topbar-title {
+  color: #434B49;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.dashboard-topbar-actions {
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.dashboard-account {
+  position: relative;
+  margin-left: 0;
+}
+
+.dashboard-account-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #D9E6E6;
+  border-radius: 999px;
+  background: #FFFFFF;
+  color: #434B49;
+  font-family: 'Comfortaa', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dashboard-account-btn:hover,
+.dashboard-account-btn.is-open {
+  border-color: #00A19E;
+  background: #F2F8F8;
+  color: #007274;
+}
+
+.dashboard-account-caret {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.dashboard-account-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  display: none;
+  min-width: 190px;
+  padding: 8px;
+  border: 1px solid #D9E6E6;
+  border-radius: 12px;
+  background: #FFFFFF;
+  box-shadow: 0 8px 24px rgba(67, 75, 73, 0.14);
+}
+
+.dashboard-account-menu.is-open {
+  display: block;
+}
+
+.dashboard-account-menu a,
+.dashboard-account-menu-btn {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #434B49;
+  font-family: 'Comfortaa', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.dashboard-account-menu a {
+  text-decoration: none;
+}
+
+.dashboard-account-menu-btn {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.dashboard-account-menu a:hover,
+.dashboard-account-menu-btn:hover {
+  background: #F2F8F8;
+  color: #007274;
+}
+
+@media (max-width: 860px) {
+  .dashboard-topbar-main {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    height: auto;
+    min-height: 64px;
+    padding: 14px 16px 10px;
+  }
+
+  .dashboard-topbar-title {
+    font-size: 13px;
+  }
+
+  .dashboard-account {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .dashboard-account-btn {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .dashboard-account-menu {
+    right: auto;
+    left: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-topbar-main {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    height: 48px;
+    min-height: 48px;
+    padding: 0 16px;
+  }
+
+  .dashboard-topbar-welcome {
+    font-size: 14px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .dashboard-topbar-actions {
+    width: auto;
+    margin-left: auto;
+  }
+}
