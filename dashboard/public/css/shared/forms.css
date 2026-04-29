@@ -140,3 +140,24 @@
 .client-filter-header {
   display: none;
 }
+
+/* =========================================================
+   LOCKED / EDIT MODE FORM STATES
+========================================================= */
+
+.dashboard-edit-locked .dashboard-input:not([type="hidden"]),
+.dashboard-edit-locked .dashboard-select,
+.dashboard-edit-locked .dashboard-textarea {
+  background: #f3f7f7;
+}
+
+.dashboard-input:disabled,
+.dashboard-select:disabled,
+.dashboard-textarea:disabled {
+  border-color: #d6e3e3;
+  background: #f3f7f7;
+  color: #434B49;
+  cursor: not-allowed;
+  opacity: 1;
+  -webkit-text-fill-color: #434B49;
+}
