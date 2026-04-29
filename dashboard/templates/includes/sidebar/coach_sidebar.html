@@ -1,9 +1,6 @@
 <header class="dashboard-mobile-header">
     <div class="dashboard-mobile-header-row">
-        <button class="dashboard-menu-toggle" type="button" aria-label="Open menu">
-            ☰
-        </button>
-
+        <button class="dashboard-menu-toggle" type="button" aria-label="Open menu">☰</button>
         <div class="dashboard-mobile-brand">Coach Dashboard</div>
     </div>
 </header>
@@ -13,10 +10,7 @@
 <aside class="dashboard-sidebar">
     <div class="dashboard-sidebar-header">
         <div class="dashboard-logo">Coach Dashboard</div>
-
-        <button class="dashboard-sidebar-close" type="button" aria-label="Close menu">
-            ×
-        </button>
+        <button class="dashboard-sidebar-close" type="button" aria-label="Close menu">×</button>
     </div>
 
     <nav class="dashboard-nav">
@@ -25,8 +19,7 @@
             <span>Dashboard</span>
         </a>
 
-        <a href="/coach_db/notifications"
-           class="dashboard-nav-notification-link {% if active_page == 'notifications' %}is-active{% endif %}">
+        <a href="/coach_db/notifications" class="dashboard-nav-notification-link {% if active_page == 'notifications' %}is-active{% endif %}">
             <span class="dashboard-nav-icon">🔔</span>
             <span>Notifications</span>
             <span class="dashboard-notification-badge js-notification-badge" style="display:none;">0</span>
@@ -35,6 +28,11 @@
         <a href="/coach_db/clients" class="{% if active_page == 'clients' %}is-active{% endif %}">
             <span class="dashboard-nav-icon">👥</span>
             <span>Clients</span>
+        </a>
+
+        <a href="/coach_db/session_workers" class="{% if active_page == 'session_workers' %}is-active{% endif %}">
+            <span class="dashboard-nav-icon">🧑‍🏫</span>
+            <span>Session Workers</span>
         </a>
 
         <a href="/coach_db/contacts" class="{% if active_page == 'contacts' %}is-active{% endif %}">
@@ -69,7 +67,7 @@
 
         <a href="/coach_db/profile" class="{% if active_page == 'profile' %}is-active{% endif %}">
             <span class="dashboard-nav-icon">⚙️</span>
-            <span>Account</span>
+            <span>Profile</span>
         </a>
 
         <button type="button" id="dashboardLogoutBtn" class="dashboard-sidebar-logout">
