@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 
+from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
 
 def get_context(context):
     if frappe.session.user == "Guest":
