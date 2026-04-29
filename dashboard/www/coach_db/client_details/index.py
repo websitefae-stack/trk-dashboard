@@ -1,5 +1,7 @@
 import frappe
 from frappe import _
+
+from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
 from dashboard.api.coach.client_details import (
     get_client_context_data,
     get_coach_name,
@@ -9,6 +11,8 @@ from dashboard.api.coach.client_details import (
 def get_context(context):
     if frappe.session.user == "Guest":
         frappe.throw(_("Login required"), frappe.PermissionError)
+
+    redirect_if_wrong_dashboard("coach")
 
     context.no_cache = 1
     context.page_title = "Client Details"
