@@ -41,7 +41,6 @@ LAYOUT = [
                     {"label": "Address"},
                     {"label": "City"},
                     {"label": "Zip Code"},
-                    
                 ],
             },
             {
@@ -49,7 +48,7 @@ LAYOUT = [
                 "columns": 3,
                 "fields": [
                     {"label": "Sex"},
-                    {"label": "Gender"},
+                    {"label": "Gender Identity", "display_label": "Gender"},
                     {"label": "Pronouns"},
                 ],
             },
@@ -118,13 +117,24 @@ def field_meta_lookup(meta):
 def build_field(df, doc, config):
     value = doc.get(df.fieldname)
 
+    force_editable = df.fieldname in {
+        "full_name",
+        "gender_identity",
+        "company",
+        "primary_coach",
+        "attending_coach",
+        "session_worker",
+        "pricelist",
+        "billing_contact",
+    }
+
     return {
         "fieldname": df.fieldname,
-        "label": df.label or df.fieldname.replace("_", " ").title(),
+        "label": config.get("display_label") or df.label or df.fieldname.replace("_", " ").title(),
         "fieldtype": df.fieldtype,
         "options": df.options or "",
         "reqd": int(df.reqd or 0),
-        "read_only": int(df.read_only or 0),
+        "read_only": 0 if force_editable else int(df.read_only or 0),
         "description": df.description or "",
         "value": value if value is not None else "",
         "is_textarea": df.fieldtype in TEXTAREA_TYPES,
@@ -235,7 +245,107 @@ def find_contact_for_customer(customer_name):
     if contact:
         return contact
 
+    linked_contact = frappe.get_all(
+        "Dynamic Link",
+        filters={
+            "parenttype": "Contact",
+            "link_doctype": "Customer",
+            "link_name": customer_name,
+        },
+        pluck="parent",
+        limit_page_length=1,
+    )
+
+    if linked_contact:
+        return frappe.db.get_value(
+            "Contact",
+            linked_contact[0],
+            ["name", "full_name", "first_name", "last_name", "email_id", "mobile_no", "phone"],
+            as_dict=True,
+        )
+
     return None
+
+
+def get_or_create_contact_for_customer(customer_name):
+    if not customer_name:
+        return None
+
+    existing = find_contact_for_customer(customer_name)
+    if existing:
+        return existing
+
+    customer = frappe.db.get_value(
+        "Customer",
+        customer_name,
+        ["name", "customer_name", "email_id", "mobile_no", "phone"],
+        as_dict=True,
+    )
+
+    if not customer:
+        return None
+
+    contact = frappe.new_doc("Contact")
+    contact.first_name = customer.get("customer_name") or customer.get("name")
+
+    if contact.meta.has_field("email_id"):
+        contact.email_id = customer.get("email_id") or ""
+
+    if contact.meta.has_field("mobile_no"):
+        contact.mobile_no = customer.get("mobile_no") or customer.get("phone") or ""
+
+    if contact.meta.has_field("custom_customer"):
+        contact.custom_customer = customer_name
+
+    contact.append("links", {
+        "link_doctype": "Customer",
+        "link_name": customer_name,
+    })
+
+    contact.insert(ignore_permissions=True)
+
+    return frappe.db.get_value(
+        "Contact",
+        contact.name,
+        ["name", "full_name", "first_name", "last_name", "email_id", "mobile_no", "phone"],
+        as_dict=True,
+    )
+
+
+def sync_billing_contact_to_client_contacts(doc):
+    customer_name = doc.get("billing_contact")
+    if not customer_name:
+        return
+
+    contact = get_or_create_contact_for_customer(customer_name)
+    if not contact:
+        return
+
+    contact_name = contact.get("name")
+    if not contact_name:
+        return
+
+    for row in doc.get("client_contacts") or []:
+        if row.get("contact") == contact_name:
+            return
+
+    child = doc.append("client_contacts", {})
+
+    if child.meta.has_field("contact"):
+        child.contact = contact_name
+
+    if child.meta.has_field("contact_name"):
+        child.contact_name = (
+            contact.get("full_name")
+            or " ".join(filter(None, [contact.get("first_name"), contact.get("last_name")])).strip()
+            or contact_name
+        )
+
+    if child.meta.has_field("phone"):
+        child.phone = contact.get("mobile_no") or contact.get("phone") or ""
+
+    if child.meta.has_field("email_id"):
+        child.email_id = contact.get("email_id") or ""
 
 
 def get_billing_contact(doc, contact_detail_base_url="/coach_db/contact_details"):
@@ -244,7 +354,7 @@ def get_billing_contact(doc, contact_detail_base_url="/coach_db/contact_details"
     if not customer_name:
         return None
 
-    contact = find_contact_for_customer(customer_name)
+    contact = get_or_create_contact_for_customer(customer_name)
 
     if contact:
         display_name = (
@@ -512,12 +622,23 @@ def save_client(docname=None, data=None):
 
     meta = frappe.get_meta("Client")
 
+    always_editable_fields = {
+        "full_name",
+        "gender_identity",
+        "company",
+        "primary_coach",
+        "attending_coach",
+        "session_worker",
+        "pricelist",
+        "billing_contact",
+    }
+
     editable_fields = {
         df.fieldname: df
         for df in meta.fields
         if df.fieldname
         and not df.hidden
-        and not df.read_only
+        and (not df.read_only or df.fieldname in always_editable_fields)
         and df.fieldtype not in SKIP_FIELDTYPES
     }
 
@@ -537,6 +658,8 @@ def save_client(docname=None, data=None):
             value = int(float(value or 0))
 
         doc.set(fieldname, value)
+
+    sync_billing_contact_to_client_contacts(doc)
 
     doc.save(ignore_permissions=True)
     frappe.db.commit()
