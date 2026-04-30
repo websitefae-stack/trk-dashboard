@@ -448,13 +448,15 @@ table:has(#clientNotesTableBody) thead th:nth-child(3),
   }
 }
 
-.dashboard-client-name-link {
-  color: #434B49;
+.dashboard-client-name-link,
+.dashboard-contact-name-link {
+  color: #00A19E;
   font-weight: 700;
   text-decoration: none;
 }
 
-.dashboard-client-name-link:hover {
+.dashboard-client-name-link:hover,
+.dashboard-contact-name-link:hover {
   color: #007274;
   text-decoration: underline;
 }
