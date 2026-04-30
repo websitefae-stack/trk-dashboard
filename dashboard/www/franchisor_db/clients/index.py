@@ -25,6 +25,11 @@ def get_context(context):
 
     context.client_scope = frappe.form_dict.get("scope") or "my"
     context.my_coach_name = get_my_coach_name()
+    context.my_coach_display_name = frappe.db.get_value(
+        "Coach",
+        context.my_coach_name,
+        "coach_name",
+    ) or "My clients"
     context.clients = get_clients(scope=context.client_scope)
     context.client_types = get_client_types()
     context.session_workers = get_session_workers()
