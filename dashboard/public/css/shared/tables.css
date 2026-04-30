@@ -561,10 +561,6 @@ table:has(#clientNotesTableBody) thead th:nth-child(3),
   width: 18%;
 }
 
-.franchisor-contacts-filter-row {
-  grid-template-columns: minmax(0, 1fr) auto auto;
-}
-
 .franchisor-show-all-toggle {
   min-height: 44px;
   white-space: nowrap;
