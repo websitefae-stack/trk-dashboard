@@ -322,6 +322,11 @@ def get_contacts_for_scope(scope, show_all=False, coach_scope="my"):
             "linked_clients": linked_clients,
             "linked_client_text": ", ".join([c["display_name"] for c in linked_clients]),
             "coach_name": ", ".join(coach_names),
+            "session_worker_name": ", ".join(sorted({
+                c.get("session_worker")
+                for c in linked_clients
+                if c.get("session_worker")
+            })),
         })
 
     return dedupe_contacts_prefer_customer(rows)
