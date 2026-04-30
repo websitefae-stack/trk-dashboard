@@ -810,7 +810,7 @@ table:has(#clientNotesTableBody) thead th:nth-child(3),
 
   .dashboard-client-pack-table th:nth-child(1),
   .dashboard-client-pack-table td:nth-child(1) {
-    width: 28%;
+    width: 22%;
   }
 
   .dashboard-client-pack-table th:nth-child(5),
@@ -821,7 +821,7 @@ table:has(#clientNotesTableBody) thead th:nth-child(3),
   .dashboard-client-pack-table td:nth-child(7),
   .dashboard-client-pack-table th:nth-child(8),
   .dashboard-client-pack-table td:nth-child(8) {
-    width: 18%;
+    width: 19.5%;
     text-align: center;
   }
 }
