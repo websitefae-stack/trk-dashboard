@@ -26,10 +26,22 @@
       row.dataset.company || "",
       row.dataset.designation || "",
       row.dataset.linkedClients || "",
-      row.dataset.coach || ""
+      row.dataset.coach || "",
+      row.dataset.sessionWorker || ""
     ].join(" ").toLowerCase();
 
-    return !search || haystack.includes(search);
+    const sessionWorkerFilter = el("contactSessionWorkerFilter")?.value || "All";
+
+      if (search && !haystack.includes(search)) return false;
+      
+      if (
+        sessionWorkerFilter !== "All" &&
+        (row.dataset.sessionWorker || "") !== sessionWorkerFilter
+      ) {
+        return false;
+      }
+      
+      return true;
   }
 
   function renderFilters() {
@@ -45,10 +57,10 @@
   function init() {
     if (!el("contactTable") && !el("refreshContacts")) return;
 
-    const searchField = el("contactSearch");
-    if (searchField) {
-      searchField.addEventListener("input", renderFilters);
-    }
+    const sessionWorkerField = el("contactSessionWorkerFilter");
+    if (sessionWorkerField) {
+      sessionWorkerField.addEventListener("change", renderFilters);
+    }  
 
     const refreshBtn = el("refreshContacts");
     if (refreshBtn) {
