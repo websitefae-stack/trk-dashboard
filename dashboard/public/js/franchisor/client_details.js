@@ -1,6 +1,7 @@
 (function () {
   let editMode = false;
   let isSaving = false;
+  let isAddingNote = false;
 
   function el(id) {
     return document.getElementById(id);
@@ -12,6 +13,11 @@
 
   function getClientName() {
     return el("clientDocname")?.value || "";
+  }
+
+  function isNewClientPage() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("new") === "1" || !getClientName();
   }
 
   function getCsrfToken() {
@@ -111,26 +117,8 @@
     return data;
   }
 
-  async function saveClient() {
-    if (isSaving) return;
-
-    isSaving = true;
-    applyEditMode();
-
-    try {
-      await apiPost("dashboard.api.franchisor.client_details.save_client", {
-        docname: getClientName(),
-        data: JSON.stringify(collectData())
-      });
-
-      editMode = false;
-      showSuccess("Client saved");
-    } catch (e) {
-      showError(e.message);
-    }
-
-    isSaving = false;
-    applyEditMode();
+  function getOptionLabel(row) {
+    return row.franchisor_name || row.sw_name || row.customer_name || row.item_name || row.name || "";
   }
 
   async function loadLinkOptions(select) {
@@ -165,7 +153,7 @@
 
         const option = document.createElement("option");
         option.value = value;
-        option.textContent = value;
+        option.textContent = getOptionLabel(row);
 
         if (value === currentValue) {
           option.selected = true;
@@ -193,7 +181,66 @@
       select.addEventListener("touchstart", function () {
         loadLinkOptions(select);
       });
+
+      if (isNewClientPage()) {
+        loadLinkOptions(select);
+      }
     });
+  }
+
+  async function saveClient() {
+    if (isSaving) return;
+
+    isSaving = true;
+    applyEditMode();
+
+    try {
+      const result = await apiPost("dashboard.api.franchisor.client_details.save_client", {
+        docname: getClientName(),
+        data: JSON.stringify(collectData())
+      });
+
+      if (result && result.name && !getClientName()) {
+        window.location.href = `/franchisor_db/client_details?name=${encodeURIComponent(result.name)}`;
+        return;
+      }
+
+      editMode = false;
+      showSuccess("Client saved");
+    } catch (e) {
+      showError(e.message);
+    }
+
+    isSaving = false;
+    applyEditMode();
+  }
+
+  async function addNote() {
+    if (isAddingNote) return;
+
+    const text = el("newClientNoteText")?.value || "";
+
+    if (!text.trim()) {
+      showError("Enter a note");
+      return;
+    }
+
+    isAddingNote = true;
+
+    try {
+      await apiPost("dashboard.api.franchisor.client_details.add_client_note", {
+        client_name: getClientName(),
+        note_text: text
+      });
+
+      el("newClientNoteText").value = "";
+      showSuccess("Note added");
+      window.location.reload();
+    } catch (e) {
+      showError(e.message);
+    }
+
+    isAddingNote = false;
   }
 
   function activateTab(id) {
@@ -204,6 +251,12 @@
     qsa(".dashboard-tab-panel").forEach((panel) => {
       panel.classList.toggle("is-active", panel.id === id);
     });
+
+    try {
+      sessionStorage.setItem("franchisor_client_details_active_tab", id);
+    } catch (e) {
+      console.warn("Could not save active tab", e);
+    }
   }
 
   function initTabs() {
@@ -212,10 +265,28 @@
         activateTab(btn.dataset.tabTarget);
       });
     });
+
+    let savedTab = "";
+
+    try {
+      savedTab = sessionStorage.getItem("franchisor_client_details_active_tab") || "";
+    } catch (e) {
+      savedTab = "";
+    }
+
+    const savedButton = savedTab
+      ? qsa(".dashboard-tab-btn").find((btn) => btn.dataset.tabTarget === savedTab)
+      : null;
+
+    if (savedButton && !isNewClientPage()) {
+      activateTab(savedTab);
+    }
   }
 
   function init() {
     if (!el("clientDetailsForm")) return;
+
+    editMode = isNewClientPage();
 
     applyEditMode();
     initTabs();
@@ -230,6 +301,23 @@
       } else {
         saveClient();
       }
+    });
+
+    el("addClientNote")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      addNote();
+    });
+
+    el("createClientInvoice")?.addEventListener("click", (e) => {
+      e.preventDefault();
+
+      const client = getClientName();
+      if (!client) {
+        showError("Please save the client before creating an invoice.");
+        return;
+      }
+
+      window.location.href = `/franchisor_db/invoice_details?new=1&client=${encodeURIComponent(client)}`;
     });
   }
 
