@@ -25,11 +25,11 @@
           <strong>Filters</strong>
           <button type="button" id="closeClientSearch" class="client-filter-close">✕</button>
         </div>
-
-        <div class="dashboard-filter-field dashboard-filter-search">
-          <label for="clientSearch">Search Client Name</label>
-          <input type="text" class="dashboard-input" id="clientSearch" placeholder="Search by client name">
+      
+        <div class="dashboard-client-filter-body client-filter-row">
+          <!-- all filter fields go here -->
         </div>
+      </div>
       
         <div class="dashboard-filter-field dashboard-filter-coach">
           <label for="clientScopeFilter">Coach</label>
@@ -75,7 +75,6 @@
           </select>
         </div>
       </div>
-      </div>
       <div class="dashboard-card dashboard-client-list-card">
         <div class="dashboard-table-header">
           <div class="dashboard-table-title">Client List</div>
@@ -119,7 +118,7 @@
                     data-scope="{{ c.scope or 'All' }}"
                   >
                     <td>
-                      <a class="dashboard-inline-link dashboard-client-name-link" href="YOUR_EXISTING_LINK">
+                      <a class="dashboard-inline-link dashboard-client-name-link" href="/franchisor_db/client_details?name={{ c.name | urlencode }}">
                         {{ display_name }}
                       </a>
                     </td>
