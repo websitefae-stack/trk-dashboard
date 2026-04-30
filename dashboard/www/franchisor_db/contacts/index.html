@@ -93,6 +93,7 @@
                     data-mobile="{{ (c.mobile_no or '')|lower }}"
                     data-linked-clients="{{ (c.linked_client_text or '')|lower }}"
                     data-coach="{{ (c.coach_name or '')|lower }}"
+                    data-session-worker="{{ c.session_worker_name or '' }}"
                   >
                     <td>
                       <a class="dashboard-client-name-link" href="/franchisor_db/contact_details?name={{ c.name }}">
