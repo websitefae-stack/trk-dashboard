@@ -23,22 +23,24 @@ def get_my_coach_name():
     coach = get_coach_record()
     return coach.get("name") if coach else ""
 
+    
+    scope = (scope or "my").strip()
 
-def get_client_scope_filters(scope="my"):
-    scope = (scope or "my").lower()
-
-    if scope == "all":
+    if scope.lower() == "all":
         return {}
 
-    my_coach = get_my_coach_name()
+    if scope.lower() == "my":
+        coach_name = get_my_coach_name()
+    else:
+        coach_name = scope
 
-    if not my_coach:
+    if not coach_name:
         return {"name": ["in", []]}
 
     meta = frappe.get_meta(CLIENT_DOCTYPE)
 
     if meta.has_field("primary_coach"):
-        return {"primary_coach": my_coach}
+        return {"primary_coach": coach_name}
 
     return {"name": ["in", []]}
 
@@ -74,7 +76,7 @@ def get_clients(scope="my"):
 
     for row in rows:
         item = normalize_client_row(row)
-        item["scope"] = "My" if my_coach and item.get("primary_coach") == my_coach else "All"
+        item["scope"] = item.get("primary_coach") or "All"
         result.append(item)
 
     return result
