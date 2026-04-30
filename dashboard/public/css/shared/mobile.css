@@ -307,10 +307,6 @@
     align-items: end;
   }
 
-  .client-filter-row .dashboard-filter-field:nth-child(2) {
-    display: none;
-  }
-
   .client-filter-row .dashboard-input,
   .client-filter-row .dashboard-select {
     min-height: 40px;
