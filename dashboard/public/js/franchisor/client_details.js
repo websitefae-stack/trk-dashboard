@@ -1,7 +1,6 @@
 (function () {
   let editMode = false;
   let isSaving = false;
-  let isAddingNote = false;
 
   function el(id) {
     return document.getElementById(id);
@@ -91,6 +90,7 @@
       btn.disabled = false;
     }
 
+    btn.classList.toggle("is-save-mode", editMode);
     document.body.classList.toggle("client-edit-mode", editMode);
   }
 
@@ -118,15 +118,10 @@
     applyEditMode();
 
     try {
-      const result = await apiPost("dashboard.api.franchisor.client_details.save_client", {
+      await apiPost("dashboard.api.franchisor.client_details.save_client", {
         docname: getClientName(),
         data: JSON.stringify(collectData())
       });
-
-      if (result && result.name && !getClientName()) {
-        window.location.href = `/franchisor_db/client_details?name=${encodeURIComponent(result.name)}`;
-        return;
-      }
 
       editMode = false;
       showSuccess("Client saved");
@@ -138,48 +133,77 @@
     applyEditMode();
   }
 
-  async function addNote() {
-    if (isAddingNote) return;
+  async function loadLinkOptions(select) {
+    if (!select || select.dataset.optionsLoaded === "1") return;
 
-    const text = el("newClientNoteText")?.value || "";
+    const doctype = select.dataset.linkDoctype;
+    if (!doctype) return;
 
-    if (!text.trim()) {
-      showError("Enter a note");
-      return;
-    }
-
-    isAddingNote = true;
+    const currentValue = select.dataset.currentValue || select.value || "";
 
     try {
-      await apiPost("dashboard.api.franchisor.client_details.add_client_note", {
-        client_name: getClientName(),
-        note_text: text
+      const options = await apiPost("dashboard.api.franchisor.client_details.get_link_options", {
+        doctype: doctype,
+        limit_page_length: 500
       });
 
-      el("newClientNoteText").value = "";
-      showSuccess("Note added");
-      window.location.reload();
-    } catch (e) {
-      showError(e.message);
-    }
+      const values = Array.isArray(options) ? options : [];
 
-    isAddingNote = false;
+      select.innerHTML = '<option value=""></option>';
+
+      if (currentValue && !values.some((row) => row.name === currentValue)) {
+        const option = document.createElement("option");
+        option.value = currentValue;
+        option.textContent = currentValue;
+        option.selected = true;
+        select.appendChild(option);
+      }
+
+      values.forEach((row) => {
+        const value = row.name || "";
+        if (!value) return;
+
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+
+        if (value === currentValue) {
+          option.selected = true;
+        }
+
+        select.appendChild(option);
+      });
+
+      select.dataset.optionsLoaded = "1";
+    } catch (e) {
+      console.warn("Could not load options for " + doctype, e);
+    }
+  }
+
+  function initLinkOptions() {
+    qsa("select[data-link-doctype]").forEach((select) => {
+      select.addEventListener("focus", function () {
+        loadLinkOptions(select);
+      });
+
+      select.addEventListener("mousedown", function () {
+        loadLinkOptions(select);
+      });
+
+      select.addEventListener("touchstart", function () {
+        loadLinkOptions(select);
+      });
+    });
   }
 
   function activateTab(id) {
     qsa(".dashboard-tab-btn").forEach((btn) => {
       btn.classList.toggle("is-active", btn.dataset.tabTarget === id);
     });
-  
+
     qsa(".dashboard-tab-panel").forEach((panel) => {
       panel.classList.toggle("is-active", panel.id === id);
     });
-  
-    try {
-      sessionStorage.setItem("franchisor_client_details_active_tab", id);
-    } catch (e) {
-      console.warn("Could not save active tab", e);
-    }
   }
 
   function initTabs() {
@@ -188,22 +212,6 @@
         activateTab(btn.dataset.tabTarget);
       });
     });
-  
-    let savedTab = "";
-  
-    try {
-      savedTab = sessionStorage.getItem("franchisor_client_details_active_tab") || "";
-    } catch (e) {
-      savedTab = "";
-    }
-  
-    const savedButton = savedTab
-      ? qsa(".dashboard-tab-btn").find((btn) => btn.dataset.tabTarget === savedTab)
-      : null;
-  
-    if (savedButton) {
-      activateTab(savedTab);
-    }
   }
 
   function init() {
@@ -211,6 +219,7 @@
 
     applyEditMode();
     initTabs();
+    initLinkOptions();
 
     el("editClient")?.addEventListener("click", (e) => {
       e.preventDefault();
@@ -221,23 +230,6 @@
       } else {
         saveClient();
       }
-    });
-
-    el("addClientNote")?.addEventListener("click", (e) => {
-      e.preventDefault();
-      addNote();
-    });
-
-    el("createClientInvoice")?.addEventListener("click", (e) => {
-      e.preventDefault();
-
-      const client = getClientName();
-      if (!client) {
-        showError("Client not found.");
-        return;
-      }
-
-      window.location.href = `/franchisor_db/invoice_details?new=1&client=${encodeURIComponent(client)}`;
     });
   }
 
