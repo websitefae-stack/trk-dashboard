@@ -222,8 +222,25 @@
   }
 
   function initActions() {
-    api.el("requestChangeButton")?.addEventListener("click", openChangeRequest);
-    api.el("closeChangeRequestModal")?.addEventListener("click", closeChangeRequest);
+    api.el("requestChangeButton")?.addEventListener("click", function (event) {
+    event.preventDefault();
+    openChangeRequest();
+  });
+  
+  api.el("closeChangeRequestModal")?.addEventListener("click", function (event) {
+    event.preventDefault();
+    closeChangeRequest();
+  });
+  
+  api.el("closeChangeRequestModalFooter")?.addEventListener("click", function (event) {
+    event.preventDefault();
+    closeChangeRequest();
+  });
+  
+  api.el("refreshClientAppointments")?.addEventListener("click", function (event) {
+    event.preventDefault();
+    loadClientAppointments();
+  });
 
     api.el("addClientNote")?.addEventListener("click", function (event) {
       event.preventDefault();
