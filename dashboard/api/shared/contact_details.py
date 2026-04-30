@@ -189,14 +189,13 @@ def get_contact_context(scope, contact_name=None, is_new=False):
             frappe.throw(_("Session workers cannot create contacts."), frappe.PermissionError)
 
         contact = frappe.new_doc("Contact")
-        linked_clients = []
 
         return {
             "contact": contact.as_dict(),
             "contact_docname": "",
             "contact_display_name": "New Contact",
             "is_new": 1,
-            "linked_clients": linked_clients,
+            "linked_clients": [],
             "contact_invoices": [],
         }
 
@@ -209,6 +208,15 @@ def get_contact_context(scope, contact_name=None, is_new=False):
     if scope == "session_worker":
         if not linked_clients:
             frappe.throw(_("You do not have permission to access this contact."), frappe.PermissionError)
+
+    elif scope == "coach":
+        if not linked_clients:
+            frappe.throw(_("You do not have permission to access this contact."), frappe.PermissionError)
+
+    elif scope == "franchisor":
+        if not is_franchisor_user():
+            frappe.throw(_("You do not have permission to access this contact."), frappe.PermissionError)
+
     else:
         ensure_contact_access(contact_name, scope)
 
