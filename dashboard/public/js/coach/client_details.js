@@ -98,6 +98,10 @@
 
     btn.classList.toggle("is-save-mode", editMode);
     document.body.classList.toggle("client-edit-mode", editMode);
+
+    if (editMode) {
+      loadAllLinkOptions();
+    }
   }
 
   function collectData() {
@@ -107,22 +111,28 @@
       const name = field.dataset.fieldname;
       if (!name) return;
 
-      if (field.type === "checkbox") {
-        data[name] = field.checked ? 1 : 0;
-      } else {
-        data[name] = field.value;
-      }
+      data[name] = field.type === "checkbox" ? (field.checked ? 1 : 0) : field.value;
     });
 
     return data;
   }
 
   function getOptionLabel(row) {
-    return row.coach_name || row.sw_name || row.customer_name || row.item_name || row.name || "";
+    return (
+      row.coach_name ||
+      row.sw_name ||
+      row.session_worker_name ||
+      row.full_name ||
+      row.customer_name ||
+      row.item_name ||
+      row.title ||
+      row.name ||
+      ""
+    );
   }
 
   async function loadLinkOptions(select) {
-    if (!select || select.dataset.optionsLoaded === "1") return;
+    if (!select) return;
 
     const doctype = select.dataset.linkDoctype;
     if (!doctype) return;
@@ -132,7 +142,7 @@
     try {
       const options = await apiPost("dashboard.api.coach.client_details.get_link_options", {
         doctype: doctype,
-        limit_page_length: 500
+        limit_page_length: 1000
       });
 
       const values = Array.isArray(options) ? options : [];
@@ -140,11 +150,11 @@
       select.innerHTML = '<option value=""></option>';
 
       if (currentValue && !values.some((row) => row.name === currentValue)) {
-        const option = document.createElement("option");
-        option.value = currentValue;
-        option.textContent = currentValue;
-        option.selected = true;
-        select.appendChild(option);
+        const currentOption = document.createElement("option");
+        currentOption.value = currentValue;
+        currentOption.textContent = currentValue;
+        currentOption.selected = true;
+        select.appendChild(currentOption);
       }
 
       values.forEach((row) => {
@@ -168,6 +178,12 @@
     }
   }
 
+  function loadAllLinkOptions() {
+    qsa("select[data-link-doctype]").forEach((select) => {
+      loadLinkOptions(select);
+    });
+  }
+
   function initLinkOptions() {
     qsa("select[data-link-doctype]").forEach((select) => {
       select.addEventListener("focus", function () {
@@ -181,15 +197,59 @@
       select.addEventListener("touchstart", function () {
         loadLinkOptions(select);
       });
-
-      if (isNewClientPage()) {
-        loadLinkOptions(select);
-      }
     });
+
+    if (isNewClientPage()) {
+      loadAllLinkOptions();
+    }
+  }
+
+  function getField(fieldname) {
+    return document.querySelector(`[data-fieldname="${fieldname}"]`);
+  }
+
+  function updateNewClientFullName() {
+    if (!isNewClientPage()) return;
+
+    const fullNameField = getField("full_name");
+    if (!fullNameField) return;
+
+    const first =
+      getField("name1")?.value ||
+      getField("first_name")?.value ||
+      "";
+
+    const middle = getField("middle_name")?.value || "";
+    const last = getField("last_name")?.value || "";
+
+    const fullName = [first, middle, last]
+      .map((part) => String(part || "").trim())
+      .filter(Boolean)
+      .join(" ");
+
+    fullNameField.value = fullName;
+  }
+
+  function initFullNameBuilder() {
+    if (!isNewClientPage()) return;
+
+    ["name1", "first_name", "middle_name", "last_name"].forEach((fieldname) => {
+      const field = getField(fieldname);
+      if (!field) return;
+
+      field.addEventListener("input", updateNewClientFullName);
+      field.addEventListener("change", updateNewClientFullName);
+    });
+
+    updateNewClientFullName();
   }
 
   async function saveClient() {
     if (isSaving) return;
+
+    if (isNewClientPage()) {
+      updateNewClientFullName();
+    }
 
     isSaving = true;
     applyEditMode();
@@ -291,6 +351,7 @@
     applyEditMode();
     initTabs();
     initLinkOptions();
+    initFullNameBuilder();
 
     el("editClient")?.addEventListener("click", (e) => {
       e.preventDefault();
