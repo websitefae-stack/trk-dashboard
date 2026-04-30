@@ -203,10 +203,14 @@ def get_contact_context(scope, contact_name=None, is_new=False):
     if not contact_name:
         frappe.throw(_("Contact not found."))
 
-    ensure_contact_access(contact_name, scope)
-
     contact = frappe.get_doc("Contact", contact_name)
     linked_clients = get_linked_clients(contact, scope)
+
+    if scope == "session_worker":
+        if not linked_clients:
+            frappe.throw(_("You do not have permission to access this contact."), frappe.PermissionError)
+    else:
+        ensure_contact_access(contact_name, scope)
 
     return {
         "contact": contact.as_dict(),
