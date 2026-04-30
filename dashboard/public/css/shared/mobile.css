@@ -780,3 +780,47 @@
     text-align: right;
   }
 }
+
+@media (max-width: 640px) {
+  .client-appointments-table,
+  .dashboard-client-appointment-table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  .client-appointments-table th:nth-child(1),
+  .client-appointments-table td:nth-child(1),
+  .dashboard-client-appointment-table th:nth-child(1),
+  .dashboard-client-appointment-table td:nth-child(1) {
+    display: table-cell !important;
+    width: 42% !important;
+  }
+
+  .client-appointments-table th:nth-child(2),
+  .client-appointments-table td:nth-child(2),
+  .dashboard-client-appointment-table th:nth-child(2),
+  .dashboard-client-appointment-table td:nth-child(2) {
+    display: table-cell !important;
+    width: 33% !important;
+  }
+
+  .client-appointments-table th:nth-child(3),
+  .client-appointments-table td:nth-child(3),
+  .dashboard-client-appointment-table th:nth-child(3),
+  .dashboard-client-appointment-table td:nth-child(3) {
+    display: table-cell !important;
+    width: 25% !important;
+  }
+
+  .client-appointments-table th:nth-child(4),
+  .client-appointments-table td:nth-child(4),
+  .client-appointments-table .dashboard-action-col,
+  .client-appointments-table .dashboard-action-cell,
+  .dashboard-client-appointment-table th:nth-child(4),
+  .dashboard-client-appointment-table td:nth-child(4),
+  .dashboard-client-appointment-table .dashboard-action-col,
+  .dashboard-client-appointment-table .dashboard-action-cell {
+    display: none !important;
+  }
+}
