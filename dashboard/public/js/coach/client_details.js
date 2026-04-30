@@ -91,6 +91,7 @@
       btn.disabled = false;
     }
 
+    btn.classList.toggle("is-save-mode", editMode);
     document.body.classList.toggle("client-edit-mode", editMode);
   }
 
@@ -170,11 +171,11 @@
     qsa(".dashboard-tab-btn").forEach((btn) => {
       btn.classList.toggle("is-active", btn.dataset.tabTarget === id);
     });
-  
+
     qsa(".dashboard-tab-panel").forEach((panel) => {
       panel.classList.toggle("is-active", panel.id === id);
     });
-  
+
     try {
       sessionStorage.setItem("coach_client_details_active_tab", id);
     } catch (e) {
@@ -188,29 +189,93 @@
         activateTab(btn.dataset.tabTarget);
       });
     });
-  
+
     let savedTab = "";
-  
+
     try {
       savedTab = sessionStorage.getItem("coach_client_details_active_tab") || "";
     } catch (e) {
       savedTab = "";
     }
-  
+
     const savedButton = savedTab
       ? qsa(".dashboard-tab-btn").find((btn) => btn.dataset.tabTarget === savedTab)
       : null;
-  
+
     if (savedButton) {
       activateTab(savedTab);
     }
-  }}
+  }
+
+  async function loadLinkOptions(select) {
+    if (!select || select.dataset.optionsLoaded === "1") return;
+
+    const doctype = select.dataset.linkDoctype;
+    if (!doctype) return;
+
+    const currentValue = select.dataset.currentValue || select.value || "";
+
+    try {
+      const options = await apiPost("dashboard.api.coach.client_details.get_link_options", {
+        doctype: doctype,
+        limit_page_length: 500
+      });
+
+      const values = Array.isArray(options) ? options : [];
+
+      select.innerHTML = '<option value=""></option>';
+
+      if (currentValue && !values.some((row) => row.name === currentValue)) {
+        const option = document.createElement("option");
+        option.value = currentValue;
+        option.textContent = currentValue;
+        option.selected = true;
+        select.appendChild(option);
+      }
+
+      values.forEach((row) => {
+        const value = row.name || "";
+        if (!value) return;
+
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+
+        if (value === currentValue) {
+          option.selected = true;
+        }
+
+        select.appendChild(option);
+      });
+
+      select.dataset.optionsLoaded = "1";
+    } catch (e) {
+      console.warn("Could not load options for " + doctype, e);
+    }
+  }
+
+  function initLinkOptions() {
+    qsa("select[data-link-doctype]").forEach((select) => {
+      select.addEventListener("focus", function () {
+        loadLinkOptions(select);
+      });
+
+      select.addEventListener("mousedown", function () {
+        loadLinkOptions(select);
+      });
+
+      select.addEventListener("touchstart", function () {
+        loadLinkOptions(select);
+      });
+    });
+  }
 
   function init() {
     if (!el("clientDetailsForm")) return;
 
     applyEditMode();
     initTabs();
+    initLinkOptions();
 
     el("editClient")?.addEventListener("click", (e) => {
       e.preventDefault();
