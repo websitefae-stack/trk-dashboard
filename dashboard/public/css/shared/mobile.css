@@ -729,3 +729,58 @@
     display: none !important;
   }
 }
+
+@media (max-width: 640px) {
+  .dashboard-contact-top-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .dashboard-contact-top-actions .dashboard-btn {
+    width: 100%;
+  }
+
+  .franchisor-contacts-filter-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .franchisor-contacts-filter-row .dashboard-filter-search {
+    grid-column: 1 / -1;
+  }
+
+  .dashboard-contacts-table,
+  .dashboard-franchisor-contacts-table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  .dashboard-contacts-table th,
+  .dashboard-contacts-table td,
+  .dashboard-franchisor-contacts-table th,
+  .dashboard-franchisor-contacts-table td {
+    display: none !important;
+  }
+
+  .dashboard-contacts-table th:nth-child(1),
+  .dashboard-contacts-table td:nth-child(1),
+  .dashboard-franchisor-contacts-table th:nth-child(1),
+  .dashboard-franchisor-contacts-table td:nth-child(1) {
+    display: table-cell !important;
+    width: 58% !important;
+    text-align: left;
+  }
+
+  .dashboard-contacts-table th:nth-child(2),
+  .dashboard-contacts-table td:nth-child(2),
+  .dashboard-franchisor-contacts-table th:nth-child(2),
+  .dashboard-franchisor-contacts-table td:nth-child(2) {
+    display: table-cell !important;
+    width: 42% !important;
+    text-align: right;
+  }
+}
