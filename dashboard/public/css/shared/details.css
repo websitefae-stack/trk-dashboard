@@ -352,3 +352,13 @@ body.dashboard-modal-open {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+#editClient.is-save-mode {
+  background: #AC455C;
+  color: #FFFFFF;
+}
+
+#editClient.is-save-mode:hover {
+  background: #94384d;
+  color: #FFFFFF;
+}
