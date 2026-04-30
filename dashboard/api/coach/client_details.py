@@ -23,6 +23,23 @@ SKIP_FIELDTYPES = {
     "Table MultiSelect",
 }
 
+FORCE_EDITABLE_FIELDS = {
+    "full_name",
+    "name1",
+    "first_name",
+    "last_name",
+    "gender",
+    "gender_identity",
+    "sex",
+    "company",
+    "primary_coach",
+    "attending_coach",
+    "session_worker",
+    "pricelist",
+    "price_list",
+    "billing_contact",
+}
+
 
 LAYOUT = [
     {
@@ -32,33 +49,33 @@ LAYOUT = [
                 "title": "Profile",
                 "columns": 2,
                 "fields": [
-                    {"label": "Full Name"},
-                    {"label": "Preferred Name"},
-                    {"label": "Mobile"},
-                    {"label": "Email"},
-                    {"label": "Date Of Birth"},
-                    {"label": "Age"},
-                    {"label": "Address"},
-                    {"label": "City"},
-                    {"label": "Zip Code"},
+                    {"label": "Full Name", "candidates": ["full_name"]},
+                    {"label": "Preferred Name", "candidates": ["preferred_name"]},
+                    {"label": "Mobile", "candidates": ["mobile", "phone"]},
+                    {"label": "Email", "candidates": ["email", "email_id"]},
+                    {"label": "Date Of Birth", "candidates": ["date_of_birth", "birth_date", "dob"]},
+                    {"label": "Age", "candidates": ["age"]},
+                    {"label": "Address", "candidates": ["address"]},
+                    {"label": "City", "candidates": ["city"]},
+                    {"label": "Zip Code", "candidates": ["zip_code", "postcode", "postal_code"]},
                 ],
             },
             {
                 "title": "Identity",
                 "columns": 3,
                 "fields": [
-                    {"label": "Sex"},
-                    {"label": "Gender Identity", "display_label": "Gender"},
-                    {"label": "Pronouns"},
+                    {"label": "Sex", "candidates": ["sex"]},
+                    {"label": "Gender Identity", "display_label": "Gender", "candidates": ["gender_identity", "gender"]},
+                    {"label": "Pronouns", "candidates": ["pronouns"]},
                 ],
             },
             {
                 "title": "Medical",
                 "columns": 2,
                 "fields": [
-                    {"label": "Neurodiverse Status"},
-                    {"label": "Neurodiverse Information", "full_width": True},
-                    {"label": "Allergies", "full_width": True},
+                    {"label": "Neurodiverse Status", "candidates": ["neurodiverse_status"]},
+                    {"label": "Neurodiverse Information", "candidates": ["neurodiverse_information"], "full_width": True},
+                    {"label": "Allergies", "candidates": ["allergies"], "full_width": True},
                 ],
             },
         ],
@@ -70,14 +87,15 @@ LAYOUT = [
                 "title": "Admin",
                 "columns": 2,
                 "fields": [
-                    {"label": "Status"},
-                    {"label": "Client Type"},
-                    {"label": "Primary Coach"},
-                    {"label": "Attending Coach"},
-                    {"label": "Session Worker"},
-                    {"label": "Coach Banking Details"},
-                    {"label": "Pricelist"},
-                    {"label": "Company"},
+                    {"label": "Status", "candidates": ["status"]},
+                    {"label": "Client Type", "candidates": ["client_type"]},
+                    {"label": "Primary Coach", "candidates": ["primary_coach"]},
+                    {"label": "Attending Coach", "candidates": ["attending_coach"]},
+                    {"label": "Session Worker", "candidates": ["session_worker"]},
+                    {"label": "Billing Contact", "candidates": ["billing_contact"]},
+                    {"label": "Coach Banking Details", "candidates": ["coach_banking_details"]},
+                    {"label": "Pricelist", "candidates": ["pricelist", "price_list"]},
+                    {"label": "Company", "candidates": ["company"]},
                 ],
             },
         ],
@@ -114,19 +132,24 @@ def field_meta_lookup(meta):
     return by_label, by_fieldname
 
 
+def find_field(field_cfg, by_label, by_fieldname):
+    for fieldname in field_cfg.get("candidates") or []:
+        if fieldname in by_fieldname:
+            return by_fieldname[fieldname]
+
+    if field_cfg.get("fieldname"):
+        return by_fieldname.get(field_cfg["fieldname"])
+
+    if field_cfg.get("label"):
+        return by_label.get(normalize(field_cfg["label"]))
+
+    return None
+
+
 def build_field(df, doc, config):
     value = doc.get(df.fieldname)
 
-    force_editable = df.fieldname in {
-        "full_name",
-        "gender_identity",
-        "company",
-        "primary_coach",
-        "attending_coach",
-        "session_worker",
-        "pricelist",
-        "billing_contact",
-    }
+    force_editable = df.fieldname in FORCE_EDITABLE_FIELDS
 
     return {
         "fieldname": df.fieldname,
@@ -172,12 +195,7 @@ def build_tabs(doc):
             used_fieldnames = set()
 
             for field_cfg in sec_cfg.get("fields", []):
-                df = None
-
-                if field_cfg.get("fieldname"):
-                    df = by_fieldname.get(field_cfg["fieldname"])
-                elif field_cfg.get("label"):
-                    df = by_label.get(normalize(field_cfg["label"]))
+                df = find_field(field_cfg, by_label, by_fieldname)
 
                 if not df or df.hidden or df.fieldname in used_fieldnames:
                     continue
@@ -275,15 +293,15 @@ def get_or_create_contact_for_customer(customer_name):
     if existing:
         return existing
 
+    if not frappe.db.exists("Customer", customer_name):
+        return None
+
     customer = frappe.db.get_value(
         "Customer",
         customer_name,
         ["name", "customer_name", "email_id", "mobile_no", "phone"],
         as_dict=True,
     )
-
-    if not customer:
-        return None
 
     contact = frappe.new_doc("Contact")
     contact.first_name = customer.get("customer_name") or customer.get("name")
@@ -315,6 +333,9 @@ def get_or_create_contact_for_customer(customer_name):
 def sync_billing_contact_to_client_contacts(doc):
     customer_name = doc.get("billing_contact")
     if not customer_name:
+        return
+
+    if not doc.meta.has_field("client_contacts"):
         return
 
     contact = get_or_create_contact_for_customer(customer_name)
@@ -459,25 +480,23 @@ def get_client_appointments(client_name, calendar_detail_base_url="/coach_db/cal
     if not client_name or not frappe.db.exists("DocType", "Client Appointment"):
         return []
 
-    fields = [
-        "name",
-        "appointment_start",
-        "appointment_end",
-        "item",
-        "status",
-        "client_package",
-        "client_package_balance",
-        "session_number",
-        "total_sessions",
-        "progress_text",
-        "booking_warning",
-        "linked_event",
-    ]
-
     rows = frappe.get_all(
         "Client Appointment",
         filters={"client": client_name},
-        fields=fields,
+        fields=[
+            "name",
+            "appointment_start",
+            "appointment_end",
+            "item",
+            "status",
+            "client_package",
+            "client_package_balance",
+            "session_number",
+            "total_sessions",
+            "progress_text",
+            "booking_warning",
+            "linked_event",
+        ],
         order_by="appointment_start desc, creation desc",
         limit_page_length=200,
     )
@@ -591,6 +610,26 @@ def get_client_invoices(client_name):
     )
 
 
+def set_name_parts_from_full_name(doc, full_name):
+    full_name = (full_name or "").strip()
+
+    if not full_name:
+        return
+
+    parts = full_name.split()
+    first = parts[0]
+    last = " ".join(parts[1:]) if len(parts) > 1 else ""
+
+    if doc.meta.has_field("name1"):
+        doc.name1 = first
+
+    if doc.meta.has_field("first_name"):
+        doc.first_name = first
+
+    if doc.meta.has_field("last_name"):
+        doc.last_name = last
+
+
 @frappe.whitelist()
 def get_link_options(doctype, txt=None, limit_page_length=200):
     require_logged_in_user()
@@ -598,12 +637,38 @@ def get_link_options(doctype, txt=None, limit_page_length=200):
     if not doctype:
         return []
 
-    return frappe.get_list(
+    txt = (txt or "").strip()
+
+    filters = {}
+
+    fields = ["name"]
+
+    if doctype == "Coach" and frappe.db.exists("DocType", "Coach"):
+        if frappe.get_meta("Coach").has_field("coach_name"):
+            fields.append("coach_name")
+
+    if doctype == "Session Worker" and frappe.db.exists("DocType", "Session Worker"):
+        if frappe.get_meta("Session Worker").has_field("sw_name"):
+            fields.append("sw_name")
+
+    rows = frappe.get_list(
         doctype,
-        fields=["name"],
+        filters=filters,
+        fields=fields,
         order_by="name asc",
-        limit_page_length=int(limit_page_length or 200),
+        limit_page_length=int(limit_page_length or 500),
     )
+
+    if txt:
+        txt_lower = txt.lower()
+        rows = [
+            row for row in rows
+            if txt_lower in (row.get("name") or "").lower()
+            or txt_lower in (row.get("coach_name") or "").lower()
+            or txt_lower in (row.get("sw_name") or "").lower()
+        ]
+
+    return rows
 
 
 @frappe.whitelist()
@@ -622,23 +687,12 @@ def save_client(docname=None, data=None):
 
     meta = frappe.get_meta("Client")
 
-    always_editable_fields = {
-        "full_name",
-        "gender_identity",
-        "company",
-        "primary_coach",
-        "attending_coach",
-        "session_worker",
-        "pricelist",
-        "billing_contact",
-    }
-
     editable_fields = {
         df.fieldname: df
         for df in meta.fields
         if df.fieldname
         and not df.hidden
-        and (not df.read_only or df.fieldname in always_editable_fields)
+        and (not df.read_only or df.fieldname in FORCE_EDITABLE_FIELDS)
         and df.fieldtype not in SKIP_FIELDTYPES
     }
 
@@ -658,6 +712,9 @@ def save_client(docname=None, data=None):
             value = int(float(value or 0))
 
         doc.set(fieldname, value)
+
+    if "full_name" in payload:
+        set_name_parts_from_full_name(doc, payload.get("full_name"))
 
     sync_billing_contact_to_client_contacts(doc)
 
