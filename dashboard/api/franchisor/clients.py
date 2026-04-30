@@ -23,7 +23,8 @@ def get_my_coach_name():
     coach = get_coach_record()
     return coach.get("name") if coach else ""
 
-    
+
+def get_client_scope_filters(scope="my"):
     scope = (scope or "my").strip()
 
     if scope.lower() == "all":
@@ -48,8 +49,6 @@ def get_my_coach_name():
 @frappe.whitelist()
 def get_clients(scope="my"):
     require_logged_in_user()
-
-    my_coach = get_my_coach_name()
 
     rows = frappe.get_all(
         CLIENT_DOCTYPE,
