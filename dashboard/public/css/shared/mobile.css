@@ -866,3 +866,19 @@
     display: none !important;
   }
 }
+
+@media (max-width: 640px) {
+  .client-appointments-table.dashboard-client-appointment-table td {
+    padding: 8px 6px !important;
+    font-size: 12px;
+    line-height: 1.25;
+  }
+
+  .client-appointments-table.dashboard-client-appointment-table .dashboard-table-date {
+    font-size: 12px;
+  }
+
+  .client-appointments-table.dashboard-client-appointment-table .dashboard-table-time {
+    font-size: 11px;
+  }
+}
