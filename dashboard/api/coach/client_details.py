@@ -48,7 +48,7 @@ LAYOUT = [
                 "columns": 3,
                 "fields": [
                     {"label": "Sex"},
-                    {"label": "Gender Identity"},
+                    {"label": "Gender"},
                     {"label": "Pronouns"},
                 ],
             },
