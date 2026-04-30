@@ -170,10 +170,16 @@
     qsa(".dashboard-tab-btn").forEach((btn) => {
       btn.classList.toggle("is-active", btn.dataset.tabTarget === id);
     });
-
+  
     qsa(".dashboard-tab-panel").forEach((panel) => {
       panel.classList.toggle("is-active", panel.id === id);
     });
+  
+    try {
+      sessionStorage.setItem("coach_client_details_active_tab", id);
+    } catch (e) {
+      console.warn("Could not save active tab", e);
+    }
   }
 
   function initTabs() {
@@ -182,7 +188,23 @@
         activateTab(btn.dataset.tabTarget);
       });
     });
-  }
+  
+    let savedTab = "";
+  
+    try {
+      savedTab = sessionStorage.getItem("coach_client_details_active_tab") || "";
+    } catch (e) {
+      savedTab = "";
+    }
+  
+    const savedButton = savedTab
+      ? qsa(".dashboard-tab-btn").find((btn) => btn.dataset.tabTarget === savedTab)
+      : null;
+  
+    if (savedButton) {
+      activateTab(savedTab);
+    }
+  }}
 
   function init() {
     if (!el("clientDetailsForm")) return;
