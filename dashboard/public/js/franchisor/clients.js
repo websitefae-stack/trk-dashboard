@@ -27,7 +27,6 @@
     const type = getValue("clientTypeFilter", getValue("typeFilter", "All")) || "All";
     const sessionWorker = getValue("sessionWorkerFilter", getValue("swFilter", "All")) || "All";
     const coach = getValue("coachFilter", "All") || "All";
-    const scope = getValue("clientScopeFilter", "My") || "My";
 
     const haystack = [
       row.dataset.name || "",
@@ -41,7 +40,6 @@
       row.dataset.coach || ""
     ].join(" ").toLowerCase();
 
-    if (scope !== "All" && row.dataset.scope !== "My") return false;
     if (search && !haystack.includes(search)) return false;
     if (status !== "All" && status !== "" && row.dataset.status !== status) return false;
     if (type !== "All" && type !== "" && row.dataset.type !== type) return false;
@@ -116,8 +114,7 @@
       "typeFilter",
       "sessionWorkerFilter",
       "swFilter",
-      "coachFilter",
-      "clientScopeFilter"
+      "coachFilter"
     ].forEach((id) => {
       const field = el(id);
       if (!field) return;
