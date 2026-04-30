@@ -105,27 +105,31 @@
       const visibleAppointments = (result.message || []).filter((row) => !isCancelledAppointment(row));
 
       const rows = visibleAppointments.map((row) => {
-        const link = api.escapeHtml(row.record_url || "#");
-
-        return `
-          <tr>
-            <td>
-              <div class="dashboard-table-date">${api.formatDate(row.date)}</div>
-              <div class="dashboard-table-time">${api.escapeHtml(row.time || "")}</div>
-            </td>
-            <td>
-              <a class="dashboard-inline-link" href="${link}">
-                ${api.escapeHtml(row.appointment_type || "—")}
-              </a>
-            </td>
-            <td>${api.escapeHtml(row.ui_status || row.status || "—")}</td>
-            <td>${api.escapeHtml(row.location || "—")}</td>
-            <td class="dashboard-action-cell">
-              <a class="dashboard-link-btn" href="${link}">View</a>
-            </td>
-          </tr>
-        `;
-      });
+      const link = api.escapeHtml(row.record_url || "#");
+      const status = api.escapeHtml(row.ui_status || row.status || "—");
+    
+      return `
+        <tr
+          class="dashboard-client-appointment-row"
+          data-appointment-status="${status.toLowerCase()}"
+        >
+          <td>
+            <div class="dashboard-table-date">${api.formatDate(row.date)}</div>
+            <div class="dashboard-table-time">${api.escapeHtml(row.time || "")}</div>
+          </td>
+          <td>
+            <a class="dashboard-inline-link" href="${link}">
+              ${api.escapeHtml(row.appointment_type || "—")}
+            </a>
+          </td>
+          <td>${status}</td>
+          <td>${api.escapeHtml(row.location || "—")}</td>
+          <td class="dashboard-action-cell">
+            <a class="dashboard-link-btn" href="${link}">View</a>
+          </td>
+        </tr>
+      `;
+    });
 
       api.renderSimpleTable("clientAppointmentsTableBody", rows, "No appointments found.", 5);
     } catch (error) {
@@ -265,6 +269,10 @@
       if (targetId === "client-contacts-tab") loadClientContacts();
       if (targetId === "client-notes-tab") loadClientNotes();
       if (targetId === "client-appointments-tab") loadClientAppointments();
+
+      window.addEventListener("pageshow", function () {
+        loadClientAppointments();
+});
     });
 
     loadClientContacts();
