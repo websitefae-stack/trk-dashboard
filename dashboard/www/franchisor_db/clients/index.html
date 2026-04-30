@@ -26,56 +26,55 @@
           <button type="button" id="closeClientSearch" class="client-filter-close">✕</button>
         </div>
 
-        <div class="dashboard-client-filter-body client-filter-row">
-          <div class="dashboard-filter-field dashboard-filter-search">
-            <label for="clientSearch">Search Client Name</label>
-            <input type="text" class="dashboard-input" id="clientSearch" placeholder="Search by client name">
-          </div>
-        
-          <div class="dashboard-filter-field dashboard-filter-view">
-            <label for="clientScopeFilter">View</label>
-            <select class="dashboard-select" id="clientScopeFilter">
-              <option value="my" {% if client_scope == "my" %}selected{% endif %}>My clients</option>
-              <option value="all" {% if client_scope == "all" %}selected{% endif %}>All clients</option>
-            
-              {% for coach in coaches %}
-                <option value="{{ coach.name }}" {% if client_scope == coach.name %}selected{% endif %}>
-                  {{ coach.coach_name or coach.name }}
-                </option>
-              {% endfor %}
-            </select>
-          </div>
-        
-          <div class="dashboard-filter-field">
-            <label for="sessionWorkerFilter">Session Worker</label>
-            <select class="dashboard-select" id="sessionWorkerFilter">
-              <option value="All">All session workers</option>
-              {% for sw in session_workers %}
-                <option value="{{ sw.name }}">{{ sw.name }}</option>
-              {% endfor %}
-            </select>
-          </div>
-        
-          <div class="dashboard-filter-field">
-            <label for="clientTypeFilter">Client Type</label>
-            <select class="dashboard-select" id="clientTypeFilter">
-              <option value="All">All types</option>
-              {% for type in client_types %}
-                <option value="{{ type }}">{{ type }}</option>
-              {% endfor %}
-            </select>
-          </div>
-        
-          <div class="dashboard-filter-field">
-            <label for="statusFilter">Status</label>
-            <select class="dashboard-select" id="statusFilter">
-              <option value="All">All statuses</option>
-              <option value="Active">Active</option>
-              <option value="On Hold">On Hold</option>
-              <option value="Archived">Archived</option>
-            </select>
-          </div>
+        <div class="dashboard-filter-field dashboard-filter-search">
+          <label for="clientSearch">Search Client Name</label>
+          <input type="text" class="dashboard-input" id="clientSearch" placeholder="Search by client name">
         </div>
+      
+        <div class="dashboard-filter-field dashboard-filter-coach">
+          <label for="clientScopeFilter">Coach</label>
+          <select class="dashboard-select" id="clientScopeFilter">
+            <option value="my" {% if client_scope == "my" %}selected{% endif %}>Ashley Costello</option>
+            <option value="all" {% if client_scope == "all" %}selected{% endif %}>All clients</option>
+      
+            {% for coach in coaches %}
+              <option value="{{ coach.name }}" {% if client_scope == coach.name %}selected{% endif %}>
+                {{ coach.coach_name or coach.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      
+        <div class="dashboard-filter-field">
+          <label for="sessionWorkerFilter">Session Worker</label>
+          <select class="dashboard-select" id="sessionWorkerFilter">
+            <option value="All">All session workers</option>
+            {% for sw in session_workers %}
+              <option value="{{ sw.name }}">{{ sw.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      
+        <div class="dashboard-filter-field">
+          <label for="clientTypeFilter">Client Type</label>
+          <select class="dashboard-select" id="clientTypeFilter">
+            <option value="All">All types</option>
+            {% for type in client_types %}
+              <option value="{{ type }}">{{ type }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      
+        <div class="dashboard-filter-field">
+          <label for="statusFilter">Status</label>
+          <select class="dashboard-select" id="statusFilter">
+            <option value="All">All statuses</option>
+            <option value="Active">Active</option>
+            <option value="On Hold">On Hold</option>
+            <option value="Archived">Archived</option>
+          </select>
+        </div>
+      </div>
       </div>
       <div class="dashboard-card dashboard-client-list-card">
         <div class="dashboard-table-header">
@@ -120,19 +119,9 @@
                     data-scope="{{ c.scope or 'All' }}"
                   >
                     <td>
-                      <a class="dashboard-inline-link dashboard-client-name-link" href="/franchisor_db/client_details?name={{ c.name | urlencode }}">
+                      <a class="dashboard-inline-link dashboard-client-name-link" href="YOUR_EXISTING_LINK">
                         {{ display_name }}
                       </a>
-                      <span class="dashboard-client-mobile-meta">
-                        <span>
-                          <span class="dashboard-client-mobile-heading">Type</span>
-                          <span>{{ row_type }}</span>
-                        </span>
-                        <span>
-                          <span class="dashboard-client-mobile-heading">Status</span>
-                          <span>{{ row_status }}</span>
-                        </span>
-                      </span>
                     </td>
                     <td>{{ c.mobile or "—" }}</td>
                     <td>{{ c.email or "—" }}</td>
