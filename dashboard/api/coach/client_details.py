@@ -24,10 +24,11 @@ SKIP_FIELDTYPES = {
 }
 
 FORCE_EDITABLE_FIELDS = {
-    "full_name",
     "name1",
     "first_name",
+    "middle_name",
     "last_name",
+    "preferred_name",
     "gender",
     "gender_identity",
     "sex",
@@ -50,6 +51,9 @@ LAYOUT = [
                 "columns": 2,
                 "fields": [
                     {"label": "Full Name", "candidates": ["full_name"]},
+                    {"label": "First Name", "candidates": ["name1", "first_name"]},
+                    {"label": "Middle Name", "candidates": ["middle_name"]},
+                    {"label": "Last Name", "candidates": ["last_name"]},
                     {"label": "Preferred Name", "candidates": ["preferred_name"]},
                     {"label": "Mobile", "candidates": ["mobile", "phone"]},
                     {"label": "Email", "candidates": ["email", "email_id"]},
@@ -146,10 +150,15 @@ def find_field(field_cfg, by_label, by_fieldname):
     return None
 
 
-def build_field(df, doc, config):
+def build_field(df, doc, config, is_new=False):
     value = doc.get(df.fieldname)
 
     force_editable = df.fieldname in FORCE_EDITABLE_FIELDS
+
+    if df.fieldname == "full_name":
+        read_only = 0 if is_new else 1
+    else:
+        read_only = 0 if force_editable else int(df.read_only or 0)
 
     return {
         "fieldname": df.fieldname,
@@ -157,7 +166,7 @@ def build_field(df, doc, config):
         "fieldtype": df.fieldtype,
         "options": df.options or "",
         "reqd": int(df.reqd or 0),
-        "read_only": 0 if force_editable else int(df.read_only or 0),
+        "read_only": read_only,
         "description": df.description or "",
         "value": value if value is not None else "",
         "is_textarea": df.fieldtype in TEXTAREA_TYPES,
@@ -168,7 +177,7 @@ def build_field(df, doc, config):
     }
 
 
-def build_tabs(doc):
+def build_tabs(doc, is_new=False):
     meta = frappe.get_meta("Client")
     by_label, by_fieldname = field_meta_lookup(meta)
 
@@ -194,20 +203,55 @@ def build_tabs(doc):
 
             used_fieldnames = set()
 
-            for field_cfg in sec_cfg.get("fields", []):
+            for field_cfg in sec_cfg.get("fields") or []:
                 df = find_field(field_cfg, by_label, by_fieldname)
 
                 if not df or df.hidden or df.fieldname in used_fieldnames:
                     continue
 
                 used_fieldnames.add(df.fieldname)
-                section["fields"].append(build_field(df, doc, field_cfg))
+                section["fields"].append(build_field(df, doc, field_cfg, is_new=is_new))
 
             tab["sections"].append(section)
 
         tabs.append(tab)
 
     return tabs
+
+
+def get_display_name_from_parts(first_name="", middle_name="", last_name=""):
+    return " ".join(
+        part.strip()
+        for part in [first_name or "", middle_name or "", last_name or ""]
+        if part and part.strip()
+    )
+
+
+def get_first_name_value(payload):
+    return payload.get("name1") or payload.get("first_name") or ""
+
+
+def set_full_name_from_parts(doc, payload):
+    first_name = get_first_name_value(payload)
+    middle_name = payload.get("middle_name") or ""
+    last_name = payload.get("last_name") or ""
+
+    full_name = get_display_name_from_parts(first_name, middle_name, last_name)
+
+    if full_name and doc.meta.has_field("full_name"):
+        doc.full_name = full_name
+
+    if first_name:
+        if doc.meta.has_field("name1"):
+            doc.name1 = first_name
+        if doc.meta.has_field("first_name"):
+            doc.first_name = first_name
+
+    if middle_name and doc.meta.has_field("middle_name"):
+        doc.middle_name = middle_name
+
+    if last_name and doc.meta.has_field("last_name"):
+        doc.last_name = last_name
 
 
 def get_contact_data(contact_name):
@@ -455,7 +499,7 @@ def get_session_notes(doc):
     return notes
 
 
-def status_is_cancelled(status):
+def is_cancelled_status(status):
     return normalize(status) in {
         "cancelled",
         "canceled",
@@ -463,6 +507,114 @@ def status_is_cancelled(status):
         "cancelled by coach",
         "cancelled by session worker",
     }
+
+
+def is_open_appointment_status(status):
+    value = normalize(status)
+
+    if not value:
+        return False
+
+    if is_cancelled_status(value):
+        return False
+
+    return value in {
+        "open",
+        "scheduled",
+        "booked",
+    }
+
+
+def get_effective_event_session_type(event_row):
+    value = (event_row.get("custom_session_type") or "").strip()
+
+    if value:
+        return value
+
+    template_name = (event_row.get("custom_appointment_type") or "").strip()
+
+    if template_name and frappe.db.exists("Appointment Template", template_name):
+        template_doc = frappe.get_doc("Appointment Template", template_name)
+
+        for fieldname in ["appointment_type", "title", "template_name", "name"]:
+            template_value = (template_doc.get(fieldname) or "").strip()
+            if template_value:
+                return template_value
+
+    return event_row.get("subject") or "General"
+
+
+def get_event_status(event_row):
+    for fieldname in [
+        "custom_appointment_status",
+        "appointment_status",
+        "status",
+    ]:
+        value = event_row.get(fieldname)
+        if value:
+            return value
+
+    return "Open"
+
+
+def get_event_client_appointments(client_name, calendar_detail_base_url="/coach_db/calendar_details"):
+    if not frappe.db.exists("DocType", "Event"):
+        return None
+
+    event_meta = frappe.get_meta("Event")
+
+    if not event_meta.has_field("custom_client"):
+        return None
+
+    fields = [
+        "name",
+        "subject",
+        "starts_on",
+        "ends_on",
+        "location",
+        "status",
+    ]
+
+    optional_fields = [
+        "custom_client",
+        "custom_session_type",
+        "custom_appointment_type",
+        "custom_appointment_status",
+        "custom_billing_type",
+        "custom_travel_charged",
+        "appointment_status",
+    ]
+
+    for fieldname in optional_fields:
+        if event_meta.has_field(fieldname):
+            fields.append(fieldname)
+
+    rows = frappe.get_all(
+        "Event",
+        filters={"custom_client": client_name},
+        fields=fields,
+        order_by="starts_on desc",
+        limit_page_length=500,
+    )
+
+    result = []
+
+    for row in rows:
+        raw_status = get_event_status(row)
+
+        if not is_open_appointment_status(raw_status):
+            continue
+
+        row["appointment_start"] = row.get("starts_on")
+        row["appointment_end"] = row.get("ends_on")
+        row["display_status"] = raw_status
+        row["display_progress"] = ""
+        row["item_display_name"] = get_effective_event_session_type(row)
+        row["item"] = row["item_display_name"]
+        row["view_link"] = f"{calendar_detail_base_url}?event={row.get('name')}"
+        result.append(row)
+
+    return result
 
 
 def get_item_display_name(item_code):
@@ -476,7 +628,7 @@ def get_item_display_name(item_code):
     return item_code
 
 
-def get_client_appointments(client_name, calendar_detail_base_url="/coach_db/calendar_details"):
+def get_client_appointment_rows(client_name, calendar_detail_base_url="/coach_db/calendar_details"):
     if not client_name or not frappe.db.exists("DocType", "Client Appointment"):
         return []
 
@@ -506,11 +658,11 @@ def get_client_appointments(client_name, calendar_detail_base_url="/coach_db/cal
     for row in rows:
         status = row.get("status") or ""
 
-        if status_is_cancelled(status):
+        if not is_open_appointment_status(status):
             continue
 
         row["display_status"] = status
-        row["display_progress"] = row.get("progress_text") or "—"
+        row["display_progress"] = row.get("progress_text") or ""
         row["item_display_name"] = get_item_display_name(row.get("item"))
         row["view_link"] = (
             f"{calendar_detail_base_url}?event={row.get('linked_event')}"
@@ -521,6 +673,17 @@ def get_client_appointments(client_name, calendar_detail_base_url="/coach_db/cal
         result.append(row)
 
     return result
+
+
+def get_client_appointments(client_name, calendar_detail_base_url="/coach_db/calendar_details"):
+    if not client_name:
+        return []
+
+    event_rows = get_event_client_appointments(client_name, calendar_detail_base_url)
+    if event_rows is not None:
+        return event_rows
+
+    return get_client_appointment_rows(client_name, calendar_detail_base_url)
 
 
 def whole_number(value):
@@ -610,65 +773,56 @@ def get_client_invoices(client_name):
     )
 
 
-def set_name_parts_from_full_name(doc, full_name):
-    full_name = (full_name or "").strip()
+def get_link_display_fields(doctype):
+    if not frappe.db.exists("DocType", doctype):
+        return ["name"]
 
-    if not full_name:
-        return
+    meta = frappe.get_meta(doctype)
+    fields = ["name"]
 
-    parts = full_name.split()
-    first = parts[0]
-    last = " ".join(parts[1:]) if len(parts) > 1 else ""
+    for fieldname in [
+        "coach_name",
+        "sw_name",
+        "session_worker_name",
+        "full_name",
+        "customer_name",
+        "item_name",
+        "title",
+    ]:
+        if meta.has_field(fieldname):
+            fields.append(fieldname)
 
-    if doc.meta.has_field("name1"):
-        doc.name1 = first
-
-    if doc.meta.has_field("first_name"):
-        doc.first_name = first
-
-    if doc.meta.has_field("last_name"):
-        doc.last_name = last
+    return fields
 
 
 @frappe.whitelist()
-def get_link_options(doctype, txt=None, limit_page_length=200):
+def get_link_options(doctype, txt=None, limit_page_length=500):
     require_logged_in_user()
 
-    if not doctype:
+    if not doctype or not frappe.db.exists("DocType", doctype):
         return []
 
-    txt = (txt or "").strip()
+    txt = (txt or "").strip().lower()
+    fields = get_link_display_fields(doctype)
 
-    filters = {}
-
-    fields = ["name"]
-
-    if doctype == "Coach" and frappe.db.exists("DocType", "Coach"):
-        if frappe.get_meta("Coach").has_field("coach_name"):
-            fields.append("coach_name")
-
-    if doctype == "Session Worker" and frappe.db.exists("DocType", "Session Worker"):
-        if frappe.get_meta("Session Worker").has_field("sw_name"):
-            fields.append("sw_name")
-
-    rows = frappe.get_list(
+    rows = frappe.get_all(
         doctype,
-        filters=filters,
         fields=fields,
         order_by="name asc",
         limit_page_length=int(limit_page_length or 500),
     )
 
-    if txt:
-        txt_lower = txt.lower()
-        rows = [
-            row for row in rows
-            if txt_lower in (row.get("name") or "").lower()
-            or txt_lower in (row.get("coach_name") or "").lower()
-            or txt_lower in (row.get("sw_name") or "").lower()
-        ]
+    if not txt:
+        return rows
 
-    return rows
+    filtered = []
+
+    for row in rows:
+        haystack = " ".join(str(row.get(field) or "") for field in fields).lower()
+        if txt in haystack:
+            filtered.append(row)
+
+    return filtered
 
 
 @frappe.whitelist()
@@ -679,6 +833,7 @@ def save_client(docname=None, data=None):
         ensure_coach_client_access(docname)
 
     payload = json.loads(data) if isinstance(data, str) else (data or {})
+    is_new_client = not bool(docname)
 
     if docname:
         doc = frappe.get_doc("Client", docname)
@@ -692,12 +847,15 @@ def save_client(docname=None, data=None):
         for df in meta.fields
         if df.fieldname
         and not df.hidden
-        and (not df.read_only or df.fieldname in FORCE_EDITABLE_FIELDS)
+        and (not df.read_only or df.fieldname in FORCE_EDITABLE_FIELDS or (is_new_client and df.fieldname == "full_name"))
         and df.fieldtype not in SKIP_FIELDTYPES
     }
 
     for fieldname, df in editable_fields.items():
         if fieldname not in payload:
+            continue
+
+        if fieldname == "full_name" and not is_new_client:
             continue
 
         value = payload.get(fieldname)
@@ -713,8 +871,8 @@ def save_client(docname=None, data=None):
 
         doc.set(fieldname, value)
 
-    if "full_name" in payload:
-        set_name_parts_from_full_name(doc, payload.get("full_name"))
+    if is_new_client:
+        set_full_name_from_parts(doc, payload)
 
     sync_billing_contact_to_client_contacts(doc)
 
@@ -748,7 +906,7 @@ def get_client_context_data(client_name=None, is_new=False, base_url="/coach_db"
     return {
         "client_docname": doc.name if is_existing_client else "",
         "client_title": title,
-        "tabs": build_tabs(doc),
+        "tabs": build_tabs(doc, is_new=bool(is_new or not is_existing_client)),
         "billing_contact": get_billing_contact(doc, f"{base_url}/contact_details"),
         "client_contacts": get_client_contacts(doc, f"{base_url}/contact_details"),
         "session_notes": get_session_notes(doc),
