@@ -701,6 +701,11 @@
     table-layout: fixed;
   }
 
+  .dashboard-client-table th,
+  .dashboard-client-table td {
+    display: none !important;
+  }
+
   .dashboard-client-table th:nth-child(1),
   .dashboard-client-table td:nth-child(1) {
     display: table-cell !important;
@@ -708,32 +713,19 @@
     text-align: left;
   }
 
-  .dashboard-client-table th:nth-child(5),
-  .dashboard-client-table td:nth-child(5),
-  .dashboard-client-table th:nth-child(6),
-  .dashboard-client-table td:nth-child(6) {
+  .dashboard-client-table th:nth-last-child(3),
+  .dashboard-client-table td:nth-last-child(3),
+  .dashboard-client-table th:nth-last-child(2),
+  .dashboard-client-table td:nth-last-child(2) {
     display: table-cell !important;
     width: 25% !important;
     text-align: right;
   }
 
-  .dashboard-client-table th:nth-child(2),
-  .dashboard-client-table td:nth-child(2),
-  .dashboard-client-table th:nth-child(3),
-  .dashboard-client-table td:nth-child(3),
-  .dashboard-client-table th:nth-child(4),
-  .dashboard-client-table td:nth-child(4),
-  .dashboard-client-table th:nth-child(7),
-  .dashboard-client-table td:nth-child(7),
-  .dashboard-client-table th:nth-child(8),
-  .dashboard-client-table td:nth-child(8),
-  .dashboard-client-table .dashboard-action-col,
-  .dashboard-client-table .dashboard-action-cell {
-    display: none !important;
-  }
-
   .dashboard-client-mobile-meta,
-  .dashboard-client-type-mobile {
+  .dashboard-client-type-mobile,
+  .dashboard-action-col,
+  .dashboard-action-cell {
     display: none !important;
   }
 }
