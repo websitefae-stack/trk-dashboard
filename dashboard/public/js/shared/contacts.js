@@ -56,7 +56,11 @@
 
   function init() {
     if (!el("contactTable") && !el("refreshContacts")) return;
-
+    const searchField = el("contactSearch");
+    if (searchField) {
+      searchField.addEventListener("input", renderFilters);
+    }
+    
     const sessionWorkerField = el("contactSessionWorkerFilter");
     if (sessionWorkerField) {
       sessionWorkerField.addEventListener("change", renderFilters);
