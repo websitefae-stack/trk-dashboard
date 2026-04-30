@@ -7,6 +7,7 @@ from dashboard.api.franchisor.clients import (
     get_coaches,
     get_franchisor_display_name,
     get_session_workers,
+    get_my_coach_name,
 )
 
 
@@ -23,6 +24,7 @@ def get_context(context):
     context.dashboard_user_name = get_franchisor_display_name()
 
     context.client_scope = frappe.form_dict.get("scope") or "my"
+    context.my_coach_name = get_my_coach_name()
     context.clients = get_clients(scope=context.client_scope)
     context.client_types = get_client_types()
     context.session_workers = get_session_workers()
