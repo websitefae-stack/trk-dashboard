@@ -45,6 +45,7 @@
                   <th>Mobile</th>
                   <th>Email</th>
                   <th>Linked Clients</th>
+                  <th class="dashboard-action-col">Action</th>
                 </tr>
               </thead>
 
@@ -65,6 +66,9 @@
                     <td>{{ c.mobile_no or "—" }}</td>
                     <td>{{ c.email_id or "—" }}</td>
                     <td>{{ c.linked_client_text or "—" }}</td>
+                    <td class="dashboard-action-cell">
+                      <a class="dashboard-link-btn" href="/session_worker_db/contact_details?name={{ c.name }}">View</a>
+                    </td>
                   </tr>
                 {% endfor %}
               </tbody>
