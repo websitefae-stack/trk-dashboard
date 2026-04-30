@@ -107,18 +107,14 @@
       const name = field.dataset.fieldname;
       if (!name) return;
 
-      if (field.type === "checkbox") {
-        data[name] = field.checked ? 1 : 0;
-      } else {
-        data[name] = field.value;
-      }
+      data[name] = field.type === "checkbox" ? (field.checked ? 1 : 0) : field.value;
     });
 
     return data;
   }
 
   function getOptionLabel(row) {
-    return row.franchisor_name || row.sw_name || row.customer_name || row.item_name || row.name || "";
+    return row.coach_name || row.sw_name || row.customer_name || row.item_name || row.name || "";
   }
 
   async function loadLinkOptions(select) {
