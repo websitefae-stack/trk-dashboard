@@ -124,3 +124,21 @@
   font-size: 14px;
   font-weight: 700;
 }
+
+/* =========================================================
+   EDIT MODE BUTTON (RED SAVE STATE)
+========================================================= */
+
+.client-edit-mode #editClient,
+.dashboard-btn.is-save-mode {
+  background: #AC455C !important;
+  border-color: #AC455C !important;
+  color: #FFFFFF !important;
+}
+
+.client-edit-mode #editClient:hover,
+.dashboard-btn.is-save-mode:hover {
+  background: #922f45 !important;
+  border-color: #922f45 !important;
+  color: #FFFFFF !important;
+}
