@@ -65,19 +65,15 @@
       });
     }
 
-    const showAllToggle = el("showAllContacts");
-    if (showAllToggle) {
-      showAllToggle.addEventListener("change", function () {
-        const url = new URL(window.location.href);
-        if (showAllToggle.checked) {
-          url.searchParams.set("show_all", "1");
-        } else {
-          url.searchParams.delete("show_all");
-        }
-        window.location.href = url.toString();
+    const contactScopeFilter = el("contactScopeFilter");
+    if (contactScopeFilter) {
+      contactScopeFilter.addEventListener("change", function () {
+        const scope = encodeURIComponent(contactScopeFilter.value || "my");
+        window.location.href = `/franchisor_db/contacts?contact_scope=${scope}`;
       });
     }
 
+    renderFilters();
     updateContactCount();
   }
 
