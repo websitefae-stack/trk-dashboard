@@ -21,6 +21,7 @@
             Add Contact
           </button>
         </div>
+      </div>
 
       <div class="dashboard-card contacts-filter-row">
         <div class="dashboard-filter-field dashboard-filter-search">
@@ -32,10 +33,6 @@
             placeholder="Search by name, mobile, email or client"
           >
         </div>
-
-        <button type="button" class="dashboard-btn dashboard-btn-primary contacts-refresh-btn" id="refreshContacts">
-          Refresh
-        </button>
       </div>
 
       <div class="dashboard-card">
@@ -53,6 +50,7 @@
                   <th>Mobile</th>
                   <th>Email</th>
                   <th>Linked Clients</th>
+                  <th class="dashboard-action-col">Action</th>
                 </tr>
               </thead>
 
@@ -73,6 +71,9 @@
                     <td>{{ c.mobile_no or "—" }}</td>
                     <td>{{ c.email_id or "—" }}</td>
                     <td>{{ c.linked_client_text or "—" }}</td>
+                    <td class="dashboard-action-cell">
+                      <a class="dashboard-link-btn" href="/coach_db/contact_details?name={{ c.name }}">View</a>
+                    </td>
                   </tr>
                 {% endfor %}
               </tbody>
