@@ -35,8 +35,14 @@
           <div class="dashboard-filter-field dashboard-filter-view">
             <label for="clientScopeFilter">View</label>
             <select class="dashboard-select" id="clientScopeFilter">
-              <option value="My" {% if client_scope != "all" %}selected{% endif %}>My clients</option>
-              <option value="All" {% if client_scope == "all" %}selected{% endif %}>All clients</option>
+              <option value="my" {% if client_scope == "my" %}selected{% endif %}>My clients</option>
+              <option value="all" {% if client_scope == "all" %}selected{% endif %}>All clients</option>
+            
+              {% for coach in coaches %}
+                <option value="{{ coach.name }}" {% if client_scope == coach.name %}selected{% endif %}>
+                  {{ coach.coach_name or coach.name }}
+                </option>
+              {% endfor %}
             </select>
           </div>
         
