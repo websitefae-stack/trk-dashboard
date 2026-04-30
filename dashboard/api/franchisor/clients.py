@@ -38,12 +38,11 @@ def get_client_scope_filters(scope="my"):
     if not coach_name:
         return {"name": ["in", []]}
 
-    meta = frappe.get_meta(CLIENT_DOCTYPE)
-
-    if meta.has_field("primary_coach"):
-        return {"primary_coach": coach_name}
-
-    return {"name": ["in", []]}
+    return [
+        [CLIENT_DOCTYPE, "primary_coach", "=", coach_name],
+        "or",
+        [CLIENT_DOCTYPE, "attending_coach", "=", coach_name],
+    ]
 
 
 @frappe.whitelist()
