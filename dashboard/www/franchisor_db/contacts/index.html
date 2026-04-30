@@ -53,16 +53,16 @@
             {% endfor %}
           </select>
         </div>
-      </div>
 
-      <div class="dashboard-filter-field">
-        <label for="contactSessionWorkerFilter">Session Worker</label>
-        <select class="dashboard-select" id="contactSessionWorkerFilter">
-          <option value="All">All session workers</option>
-          {% for sw in session_workers %}
-            <option value="{{ sw.name }}">{{ sw.name }}</option>
-          {% endfor %}
-        </select>
+        <div class="dashboard-filter-field">
+          <label for="contactSessionWorkerFilter">Session Worker</label>
+          <select class="dashboard-select" id="contactSessionWorkerFilter">
+            <option value="All">All session workers</option>
+            {% for sw in session_workers %}
+              <option value="{{ sw.name }}">{{ sw.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
       </div>
             
       <div class="dashboard-card">
