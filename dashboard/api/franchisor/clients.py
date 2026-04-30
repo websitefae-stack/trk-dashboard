@@ -38,10 +38,28 @@ def get_client_scope_filters(scope="my"):
     if not coach_name:
         return {"name": ["in", []]}
 
+    coach_doc = frappe.db.get_value(
+        "Coach",
+        coach_name,
+        ["name", "coach_name"],
+        as_dict=True,
+    )
+
+    coach_values = {coach_name}
+
+    if coach_doc:
+        if coach_doc.get("name"):
+            coach_values.add(coach_doc.get("name"))
+
+        if coach_doc.get("coach_name"):
+            coach_values.add(coach_doc.get("coach_name"))
+
+    coach_values = list(coach_values)
+
     return [
-        [CLIENT_DOCTYPE, "primary_coach", "=", coach_name],
+        [CLIENT_DOCTYPE, "primary_coach", "in", coach_values],
         "or",
-        [CLIENT_DOCTYPE, "attending_coach", "=", coach_name],
+        [CLIENT_DOCTYPE, "attending_coach", "in", coach_values],
     ]
 
 
