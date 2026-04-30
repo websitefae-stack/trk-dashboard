@@ -36,11 +36,12 @@ LAYOUT = [
                     {"label": "Preferred Name"},
                     {"label": "Mobile"},
                     {"label": "Email"},
+                    {"label": "Date Of Birth"},
+                    {"label": "Age"},
                     {"label": "Address"},
                     {"label": "City"},
                     {"label": "Zip Code"},
-                    {"label": "Date Of Birth"},
-                    {"label": "Age"},
+                    
                 ],
             },
             {
@@ -59,14 +60,6 @@ LAYOUT = [
                     {"label": "Neurodiverse Status"},
                     {"label": "Neurodiverse Information", "full_width": True},
                     {"label": "Allergies", "full_width": True},
-                ],
-            },
-            {
-                "title": "Comments",
-                "columns": 1,
-                "fields": [
-                    {"label": "Additional Comments", "full_width": True},
-                    {"label": "Comments", "full_width": True},
                 ],
             },
         ],
