@@ -8,8 +8,15 @@
   if (!api) return;
 
   function isCancelledAppointment(row) {
-    const status = String(row.ui_status || row.status || "").trim().toLowerCase();
-    return status.includes("cancel");
+    const status = String(row.ui_status || row.status || "")
+      .trim()
+      .toLowerCase();
+  
+    return (
+      status.includes("cancel") ||
+      status === "cancelled" ||
+      status === "canceled"
+    );
   }
 
   function openChangeRequest() {
@@ -102,7 +109,13 @@
         client_name: clientName
       });
 
-      const visibleAppointments = (result.message || []).filter((row) => !isCancelledAppointment(row));
+      const visibleAppointments = (result.message || [])
+      .filter((row) => !isCancelledAppointment(row))
+      .sort((a, b) => {
+        const da = new Date(a.date || "");
+        const db = new Date(b.date || "");
+        return db - da; // newest first
+      });
 
       const rows = visibleAppointments.map((row) => {
       const link = api.escapeHtml(row.record_url || "#");
@@ -131,7 +144,12 @@
       `;
     });
 
-      api.renderSimpleTable("clientAppointmentsTableBody", rows, "No appointments found.", 5);
+      api.renderSimpleTable(
+        "clientAppointmentsTableBody",
+        rows,
+        visibleAppointments.length ? "" : "No appointments found.",
+        5
+      );
     } catch (error) {
       api.renderSimpleTable("clientAppointmentsTableBody", [], error.message || "Could not load appointments.", 5);
     }
