@@ -15,6 +15,11 @@
     return el("clientDocname")?.value || "";
   }
 
+  function isNewClientPage() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("new") === "1" || !getClientName();
+  }
+
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
     if (meta) return meta.content;
@@ -112,6 +117,77 @@
     return data;
   }
 
+  function getOptionLabel(row) {
+    return row.coach_name || row.sw_name || row.customer_name || row.item_name || row.name || "";
+  }
+
+  async function loadLinkOptions(select) {
+    if (!select || select.dataset.optionsLoaded === "1") return;
+
+    const doctype = select.dataset.linkDoctype;
+    if (!doctype) return;
+
+    const currentValue = select.dataset.currentValue || select.value || "";
+
+    try {
+      const options = await apiPost("dashboard.api.coach.client_details.get_link_options", {
+        doctype: doctype,
+        limit_page_length: 500
+      });
+
+      const values = Array.isArray(options) ? options : [];
+
+      select.innerHTML = '<option value=""></option>';
+
+      if (currentValue && !values.some((row) => row.name === currentValue)) {
+        const option = document.createElement("option");
+        option.value = currentValue;
+        option.textContent = currentValue;
+        option.selected = true;
+        select.appendChild(option);
+      }
+
+      values.forEach((row) => {
+        const value = row.name || "";
+        if (!value) return;
+
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = getOptionLabel(row);
+
+        if (value === currentValue) {
+          option.selected = true;
+        }
+
+        select.appendChild(option);
+      });
+
+      select.dataset.optionsLoaded = "1";
+    } catch (e) {
+      console.warn("Could not load options for " + doctype, e);
+    }
+  }
+
+  function initLinkOptions() {
+    qsa("select[data-link-doctype]").forEach((select) => {
+      select.addEventListener("focus", function () {
+        loadLinkOptions(select);
+      });
+
+      select.addEventListener("mousedown", function () {
+        loadLinkOptions(select);
+      });
+
+      select.addEventListener("touchstart", function () {
+        loadLinkOptions(select);
+      });
+
+      if (isNewClientPage()) {
+        loadLinkOptions(select);
+      }
+    });
+  }
+
   async function saveClient() {
     if (isSaving) return;
 
@@ -202,76 +278,15 @@
       ? qsa(".dashboard-tab-btn").find((btn) => btn.dataset.tabTarget === savedTab)
       : null;
 
-    if (savedButton) {
+    if (savedButton && !isNewClientPage()) {
       activateTab(savedTab);
     }
   }
 
-  async function loadLinkOptions(select) {
-    if (!select || select.dataset.optionsLoaded === "1") return;
-
-    const doctype = select.dataset.linkDoctype;
-    if (!doctype) return;
-
-    const currentValue = select.dataset.currentValue || select.value || "";
-
-    try {
-      const options = await apiPost("dashboard.api.coach.client_details.get_link_options", {
-        doctype: doctype,
-        limit_page_length: 500
-      });
-
-      const values = Array.isArray(options) ? options : [];
-
-      select.innerHTML = '<option value=""></option>';
-
-      if (currentValue && !values.some((row) => row.name === currentValue)) {
-        const option = document.createElement("option");
-        option.value = currentValue;
-        option.textContent = currentValue;
-        option.selected = true;
-        select.appendChild(option);
-      }
-
-      values.forEach((row) => {
-        const value = row.name || "";
-        if (!value) return;
-
-        const option = document.createElement("option");
-        option.value = value;
-        option.textContent = value;
-
-        if (value === currentValue) {
-          option.selected = true;
-        }
-
-        select.appendChild(option);
-      });
-
-      select.dataset.optionsLoaded = "1";
-    } catch (e) {
-      console.warn("Could not load options for " + doctype, e);
-    }
-  }
-
-  function initLinkOptions() {
-    qsa("select[data-link-doctype]").forEach((select) => {
-      select.addEventListener("focus", function () {
-        loadLinkOptions(select);
-      });
-
-      select.addEventListener("mousedown", function () {
-        loadLinkOptions(select);
-      });
-
-      select.addEventListener("touchstart", function () {
-        loadLinkOptions(select);
-      });
-    });
-  }
-
   function init() {
     if (!el("clientDetailsForm")) return;
+
+    editMode = isNewClientPage();
 
     applyEditMode();
     initTabs();
@@ -298,7 +313,7 @@
 
       const client = getClientName();
       if (!client) {
-        showError("Client not found.");
+        showError("Please save the client before creating an invoice.");
         return;
       }
 
