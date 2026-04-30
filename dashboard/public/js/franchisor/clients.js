@@ -101,6 +101,14 @@
   function init() {
     if (!el("clientTable") && !document.querySelector(".dashboard-client-row")) return;
 
+    const scopeField = el("clientScopeFilter");
+      if (scopeField) {
+        scopeField.addEventListener("change", function () {
+          const scope = encodeURIComponent(scopeField.value || "my");
+          window.location.href = `/franchisor_db/clients?scope=${scope}`;
+        });
+      }
+          
     [
       "clientSearch",
       "statusFilter",
