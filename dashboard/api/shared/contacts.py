@@ -12,8 +12,6 @@ FRANCHISOR_EMAILS = {
     "hq@theresilientkid.co.uk",
 }
 
-ASHLEY_COACH_NAME = "Ashley Costello"
-
 
 def ensure_logged_in():
     if frappe.session.user == "Guest":
@@ -70,7 +68,7 @@ def get_contact_from_customer(customer_name):
         return ""
 
     contact = frappe.db.get_value(
-        "Contact",
+        CONTACT_DOCTYPE,
         {"custom_customer": customer_name},
         "name",
     )
@@ -81,7 +79,7 @@ def get_contact_from_customer(customer_name):
     links = frappe.get_all(
         "Dynamic Link",
         filters={
-            "parenttype": "Contact",
+            "parenttype": CONTACT_DOCTYPE,
             "link_doctype": "Customer",
             "link_name": customer_name,
         },
@@ -92,7 +90,7 @@ def get_contact_from_customer(customer_name):
     return links[0] if links else ""
 
 
-def get_allowed_clients(scope):
+def get_allowed_clients(scope, coach_scope="my"):
     ensure_logged_in()
 
     fields = [
@@ -142,16 +140,28 @@ def get_allowed_clients(scope):
         if not is_franchisor_user():
             frappe.throw(_("You do not have permission to access the Franchisor Dashboard."), frappe.PermissionError)
 
+        coach_scope = (coach_scope or "my").strip()
+
+        if coach_scope.lower() == "all":
+            filters = {}
+        else:
+            coach_name = get_current_coach_name() if coach_scope.lower() == "my" else coach_scope
+
+            if not coach_name:
+                return []
+
+            filters = [
+                [CLIENT_DOCTYPE, "primary_coach", "=", coach_name],
+                "or",
+                [CLIENT_DOCTYPE, "attending_coach", "=", coach_name],
+            ]
+
         return frappe.get_all(
             CLIENT_DOCTYPE,
-            filters=[
-                [CLIENT_DOCTYPE, "primary_coach", "=", ASHLEY_COACH_NAME],
-                "or",
-                [CLIENT_DOCTYPE, "attending_coach", "=", ASHLEY_COACH_NAME],
-            ],
+            filters=filters,
             fields=fields,
             order_by="full_name asc, name1 asc, last_name asc",
-            limit_page_length=5000,
+            limit_page_length=10000,
         )
 
     return []
@@ -213,7 +223,28 @@ def get_linked_clients_for_contact(contact_name, clients):
     return linked_clients
 
 
-def get_contacts_for_scope(scope, show_all=False):
+def dedupe_contacts_prefer_customer(rows):
+    by_key = {}
+
+    for row in rows:
+        key = (row.get("email_id") or "").strip().lower() or row.get("name")
+
+        existing = by_key.get(key)
+
+        if not existing:
+            by_key[key] = row
+            continue
+
+        existing_is_customer = bool(existing.get("custom_customer") or existing.get("is_billing_contact"))
+        row_is_customer = bool(row.get("custom_customer") or row.get("is_billing_contact"))
+
+        if row_is_customer and not existing_is_customer:
+            by_key[key] = row
+
+    return sorted(by_key.values(), key=lambda x: (x.get("display_name") or "").lower())
+
+
+def get_contacts_for_scope(scope, show_all=False, coach_scope="my"):
     ensure_logged_in()
 
     if scope == "franchisor" and show_all:
@@ -238,7 +269,7 @@ def get_contacts_for_scope(scope, show_all=False):
             limit_page_length=10000,
         )
     else:
-        allowed_clients = get_allowed_clients(scope)
+        allowed_clients = get_allowed_clients(scope, coach_scope=coach_scope)
         contact_names = get_contact_names_from_clients(allowed_clients, include_billing_contact=True)
 
         if not contact_names:
@@ -293,7 +324,7 @@ def get_contacts_for_scope(scope, show_all=False):
             "coach_name": ", ".join(coach_names),
         })
 
-    return rows
+    return dedupe_contacts_prefer_customer(rows)
 
 
 def ensure_contact_access(contact_name, scope):
