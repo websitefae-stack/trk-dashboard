@@ -66,7 +66,7 @@
                     data-linked-clients="{{ (c.linked_client_text or '')|lower }}"
                   >
                     <td>
-                      <a class="dashboard-client-name-link" href="/coach_db/contact_details?name={{ c.name }}">
+                      <a class="dashboard-client-name-link dashboard-contact-name-link" href="/coach_db/contact_details?name={{ c.name }}">
                         {{ c.display_name or c.name }}
                       </a>
                     </td>
