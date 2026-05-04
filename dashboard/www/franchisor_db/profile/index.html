@@ -164,7 +164,6 @@
                   <th>Date Received</th>
                   <th>Expiry Date</th>
                   <th>DBS Number</th>
-                  <th>Insurer Name</th>
                   <th>File</th>
                 </tr>
               </thead>
@@ -176,12 +175,11 @@
                       <td>{{ row.date_received or "—" }}</td>
                       <td>{{ row.expiry_date or "—" }}</td>
                       <td>{{ row.dbs_number or "—" }}</td>
-                      <td>—</td>
                       <td>{% if row.dbs_file %}<a class="dashboard-inline-link" href="{{ row.dbs_file }}" target="_blank">View</a>{% else %}—{% endif %}</td>
                     </tr>
                   {% endfor %}
                 {% else %}
-                  <tr><td colspan="6" class="dashboard-empty">No DBS records found.</td></tr>
+                  <tr><td colspan="5" class="dashboard-empty">No DBS records found.</td></tr>
                 {% endif %}
               </tbody>
             </table>
@@ -231,7 +229,6 @@
                   <th>Date Received</th>
                   <th>Expiry Date</th>
                   <th>Update Service Number</th>
-                  <th>Insurer Name</th>
                   <th>File</th>
                 </tr>
               </thead>
@@ -243,12 +240,11 @@
                       <td>{{ row.date_received or "—" }}</td>
                       <td>{{ row.expiry_date or "—" }}</td>
                       <td>{{ row.dbs_number or "—" }}</td>
-                      <td>—</td>
                       <td>{% if row.update_service_file %}<a class="dashboard-inline-link" href="{{ row.update_service_file }}" target="_blank">View</a>{% else %}—{% endif %}</td>
                     </tr>
                   {% endfor %}
                 {% else %}
-                  <tr><td colspan="6" class="dashboard-empty">No DBS Update Service records found.</td></tr>
+                  <tr><td colspan="5" class="dashboard-empty">No DBS Update Service records found.</td></tr>
                 {% endif %}
               </tbody>
             </table>
