@@ -927,3 +927,110 @@
     grid-template-columns: 1fr 1fr !important;
   }
 }
+
+@media (max-width: 640px) {
+  .dashboard-detail-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .dashboard-detail-actions .dashboard-btn,
+  .dashboard-detail-actions .dashboard-link-btn {
+    flex: 1 1 0;
+    width: auto !important;
+  }
+
+  .dashboard-detail-actions:has(.legal-toggle-btn) {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .legal-toggle-btn {
+    width: 100% !important;
+  }
+
+  #sessionWorkerProfilePage .dashboard-tab-panel[data-tab-panel="billing"] .dashboard-detail-grid-2:first-of-type {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .profile-dbs-table th:nth-child(2),
+  .profile-dbs-table td:nth-child(2),
+  .profile-dbs-table th:nth-child(5),
+  .profile-dbs-table td:nth-child(5),
+  .profile-dbs-update-table th:nth-child(2),
+  .profile-dbs-update-table td:nth-child(2),
+  .profile-dbs-update-table th:nth-child(5),
+  .profile-dbs-update-table td:nth-child(5),
+  .profile-insurance-table th:nth-child(2),
+  .profile-insurance-table td:nth-child(2),
+  .profile-insurance-table th:nth-child(5),
+  .profile-insurance-table td:nth-child(5),
+  .profile-insurance-table th:nth-child(6),
+  .profile-insurance-table td:nth-child(6),
+  .profile-indemnity-table th:nth-child(2),
+  .profile-indemnity-table td:nth-child(2),
+  .profile-indemnity-table th:nth-child(5),
+  .profile-indemnity-table td:nth-child(5),
+  .profile-indemnity-table th:nth-child(6),
+  .profile-indemnity-table td:nth-child(6) {
+    display: none !important;
+  }
+
+  .profile-dbs-table,
+  .profile-dbs-update-table,
+  .profile-insurance-table,
+  .profile-indemnity-table {
+    min-width: 0 !important;
+    table-layout: fixed;
+  }
+
+  .profile-dbs-table th,
+  .profile-dbs-table td,
+  .profile-dbs-update-table th,
+  .profile-dbs-update-table td,
+  .profile-insurance-table th,
+  .profile-insurance-table td,
+  .profile-indemnity-table th,
+  .profile-indemnity-table td {
+    display: none;
+  }
+
+  .profile-dbs-table th:nth-child(1),
+  .profile-dbs-table td:nth-child(1),
+  .profile-dbs-update-table th:nth-child(1),
+  .profile-dbs-update-table td:nth-child(1),
+  .profile-insurance-table th:nth-child(1),
+  .profile-insurance-table td:nth-child(1),
+  .profile-indemnity-table th:nth-child(1),
+  .profile-indemnity-table td:nth-child(1) {
+    display: table-cell !important;
+    width: 30%;
+  }
+
+  .profile-dbs-table th:nth-child(3),
+  .profile-dbs-table td:nth-child(3),
+  .profile-dbs-update-table th:nth-child(3),
+  .profile-dbs-update-table td:nth-child(3),
+  .profile-insurance-table th:nth-child(3),
+  .profile-insurance-table td:nth-child(3),
+  .profile-indemnity-table th:nth-child(3),
+  .profile-indemnity-table td:nth-child(3) {
+    display: table-cell !important;
+    width: 35%;
+  }
+
+  .profile-dbs-table th:nth-child(4),
+  .profile-dbs-table td:nth-child(4),
+  .profile-dbs-update-table th:nth-child(4),
+  .profile-dbs-update-table td:nth-child(4),
+  .profile-insurance-table th:nth-child(4),
+  .profile-insurance-table td:nth-child(4),
+  .profile-indemnity-table th:nth-child(4),
+  .profile-indemnity-table td:nth-child(4) {
+    display: table-cell !important;
+    width: 35%;
+  }
+}
