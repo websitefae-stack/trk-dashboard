@@ -867,3 +867,16 @@ table:has(#clientNotesTableBody) thead th:nth-child(3),
     display: none !important;
   }
 }
+
+/* Appointment location: desktop only */
+.dashboard-appointment-location-col,
+.dashboard-appointment-location-cell {
+  display: table-cell;
+}
+
+@media (max-width: 640px) {
+  .dashboard-appointment-location-col,
+  .dashboard-appointment-location-cell {
+    display: none !important;
+  }
+}
