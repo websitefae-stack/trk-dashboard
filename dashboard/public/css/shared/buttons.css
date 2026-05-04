@@ -146,3 +146,17 @@
   border-color: #922f45 !important;
   color: #FFFFFF !important;
 }
+
+@media (max-width: 640px) {
+  #editProfileBtn.is-save-mode {
+    background: #AC455C !important;
+    border-color: #AC455C !important;
+    color: #FFFFFF !important;
+  }
+
+  #editProfileBtn.is-save-mode:hover {
+    background: #922f45 !important;
+    border-color: #922f45 !important;
+    color: #FFFFFF !important;
+  }
+}
