@@ -1034,3 +1034,117 @@
     width: 35%;
   }
 }
+
+   /* =========================================================
+   PROFILE MOBILE FIXES
+========================================================= */
+
+@media (max-width: 640px) {
+  .profile-legal-add-actions {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .profile-legal-add-actions .legal-toggle-btn {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+    font-size: 10px !important;
+    white-space: normal !important;
+  }
+
+  .dashboard-table-header {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+  }
+
+  .dashboard-table-header > div {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  .dashboard-table-header > .dashboard-btn {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    white-space: normal !important;
+  }
+
+  #editProfileBtn.is-save-mode {
+    background: #AC455C !important;
+    border-color: #AC455C !important;
+    color: #FFFFFF !important;
+  }
+
+  #editProfileBtn.is-save-mode:hover {
+    background: #922f45 !important;
+    border-color: #922f45 !important;
+    color: #FFFFFF !important;
+  }
+
+  #sessionWorkerProfilePage .dashboard-tab-panel[data-tab-panel="billing"] > .dashboard-card:first-child .dashboard-detail-grid-2 {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+
+  .profile-dbs-table,
+  .profile-dbs-update-table,
+  .profile-insurance-table,
+  .profile-indemnity-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed !important;
+  }
+
+  .profile-dbs-table th,
+  .profile-dbs-table td,
+  .profile-dbs-update-table th,
+  .profile-dbs-update-table td,
+  .profile-insurance-table th,
+  .profile-insurance-table td,
+  .profile-indemnity-table th,
+  .profile-indemnity-table td {
+    display: none !important;
+  }
+
+  .profile-dbs-table th:nth-child(1),
+  .profile-dbs-table td:nth-child(1),
+  .profile-dbs-update-table th:nth-child(1),
+  .profile-dbs-update-table td:nth-child(1),
+  .profile-insurance-table th:nth-child(1),
+  .profile-insurance-table td:nth-child(1),
+  .profile-indemnity-table th:nth-child(1),
+  .profile-indemnity-table td:nth-child(1) {
+    display: table-cell !important;
+    width: 30% !important;
+  }
+
+  .profile-dbs-table th:nth-child(3),
+  .profile-dbs-table td:nth-child(3),
+  .profile-dbs-update-table th:nth-child(3),
+  .profile-dbs-update-table td:nth-child(3),
+  .profile-insurance-table th:nth-child(3),
+  .profile-insurance-table td:nth-child(3),
+  .profile-indemnity-table th:nth-child(3),
+  .profile-indemnity-table td:nth-child(3) {
+    display: table-cell !important;
+    width: 35% !important;
+  }
+
+  .profile-dbs-table th:nth-child(4),
+  .profile-dbs-table td:nth-child(4),
+  .profile-dbs-update-table th:nth-child(4),
+  .profile-dbs-update-table td:nth-child(4),
+  .profile-insurance-table th:nth-child(4),
+  .profile-insurance-table td:nth-child(4),
+  .profile-indemnity-table th:nth-child(4),
+  .profile-indemnity-table td:nth-child(4) {
+    display: table-cell !important;
+    width: 35% !important;
+  }
+}
