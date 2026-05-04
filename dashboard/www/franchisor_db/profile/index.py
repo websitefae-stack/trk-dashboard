@@ -11,13 +11,15 @@ def get_context(context):
 
     redirect_if_wrong_dashboard("franchisor")
 
-    coach = get_coach_doc()  # franchisor uses Coach doctype
+    coach = get_coach_doc()
+    user_doc = frappe.get_doc("User", frappe.session.user)
 
     context.no_cache = 1
-    context.page_title = "Franchisor Profile"
+    context.page_title = "My Profile"
     context.active_page = "profile"
 
     context.coach = coach
+    context.user_doc = user_doc
     context.dashboard_user_name = get_coach_display_name()
     context.dashboard_notifications_url = "/franchisor_db/notifications"
 
