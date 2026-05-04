@@ -648,6 +648,7 @@ def get_client_appointment_rows(client_name, calendar_detail_base_url="/coach_db
             "progress_text",
             "booking_warning",
             "linked_event",
+            "location",
         ],
         order_by="appointment_start desc, creation desc",
         limit_page_length=200,
