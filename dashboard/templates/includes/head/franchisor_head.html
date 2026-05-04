@@ -57,6 +57,14 @@
 <script src="/assets/dashboard/js/franchisor/notification_details.js?v=1"></script>
 {% endif %}
 
+{% if path.startswith("/franchisor_db/calendar") %}
+<script src="/assets/dashboard/js/franchisor/calendar.js?v=1"></script>
+{% endif %}
+
+{% if path.startswith("/franchisor_db/calendar_details") %}
+<script src="/assets/dashboard/js/franchisor/calendar_details.js?v=1"></script>
+{% endif %}
+
 {% if path.startswith("/franchisor_db/notifications") %}
 <script src="/assets/dashboard/js/franchisor/notifications.js?v=1"></script>
 {% endif %}
