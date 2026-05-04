@@ -12,6 +12,11 @@
           <h1 class="dashboard-page-title">{{ contact_display_name }}</h1>
           <p class="dashboard-page-subtitle">Readonly contact details for session workers</p>
         </div>
+      
+        <div class="dashboard-detail-actions dashboard-detail-actions-compact">
+          <a href="/session_worker_db/contacts" class="dashboard-btn dashboard-btn-secondary">Back</a>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="refreshContactDetails">Refresh</button>
+        </div>
       </div>
 
       <div class="dashboard-card dashboard-client-detail-card">
@@ -23,8 +28,6 @@
             <button type="button" class="dashboard-tab-btn is-active" data-tab-target="contact-details-tab">Details</button>
             <button type="button" class="dashboard-tab-btn" data-tab-target="contact-linked-clients-tab">Linked Clients</button>
             <button type="button" class="dashboard-tab-btn" data-tab-target="contact-change-tab">Change Request</button>
-            <button type="button" class="dashboard-tab-btn" id="refreshContactDetails">Refresh</button>
-            <a href="/session_worker_db/contacts" class="dashboard-tab-btn contact-back-btn">Back</a>
           </div>
 
           <div class="dashboard-tab-panel is-active" id="contact-details-tab">
