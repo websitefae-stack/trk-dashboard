@@ -5,8 +5,22 @@
 
 <link rel="stylesheet" href="/assets/dashboard/css/franchisor/franchisor.css?v=1">
 
+{% if clean_path == "/franchisor_db/calendar" or clean_path == "/franchisor_db/calendar_details" %}
+<link rel="stylesheet" href="/assets/dashboard/css/shared/calendar.css?v=1">
+{% endif %}
+
 {% if clean_path == "/franchisor_db" %}
 <script src="/assets/dashboard/js/franchisor/dashboard_home.js?v=1"></script>
+{% endif %}
+
+{% if path.startswith("/franchisor_db/calendar_details") %}
+<script src="/assets/dashboard/js/franchisor/calendar_details.js?v=1"></script>
+<script src="/assets/dashboard/js/shared/calendar_details.js?v=1"></script>
+{% endif %}
+
+{% if path.startswith("/franchisor_db/calendar") and not path.startswith("/franchisor_db/calendar_details") %}
+<script src="/assets/dashboard/js/franchisor/calendar.js?v=1"></script>
+<script src="/assets/dashboard/js/shared/calendar.js?v=1"></script>
 {% endif %}
 
 {% if path.startswith("/franchisor_db/profile") %}
@@ -55,14 +69,6 @@
 
 {% if path.startswith("/franchisor_db/notification_details") %}
 <script src="/assets/dashboard/js/franchisor/notification_details.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/franchisor_db/calendar") %}
-<script src="/assets/dashboard/js/franchisor/calendar.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/franchisor_db/calendar_details") %}
-<script src="/assets/dashboard/js/franchisor/calendar_details.js?v=1"></script>
 {% endif %}
 
 {% if path.startswith("/franchisor_db/notifications") %}
