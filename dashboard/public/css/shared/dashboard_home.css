@@ -1,0 +1,29 @@
+.dashboard-home-two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.dashboard-home-panel {
+  height: 100%;
+}
+
+.dashboard-home-panel .dashboard-table-wrap {
+  margin-top: 0;
+}
+
+.dashboard-home-panel .dashboard-table {
+  width: 100%;
+}
+
+.dashboard-home-panel .dashboard-table th,
+.dashboard-home-panel .dashboard-table td {
+  vertical-align: top;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-home-two-column {
+    grid-template-columns: 1fr;
+  }
+}
