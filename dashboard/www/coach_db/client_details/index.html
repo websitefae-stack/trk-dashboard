@@ -282,6 +282,7 @@
                           <th>Type</th>
                           <th>Status</th>
                           <th>Progress</th>
+                          <th class="dashboard-appointment-location-col">Location</th>
                           <th class="dashboard-action-col">Action</th>
                         </tr>
                       </thead>
@@ -310,6 +311,7 @@
                               </td>
                               <td>{{ appointment.display_status or appointment.status or "—" }}</td>
                               <td>{{ appointment.display_progress or "" }}</td>
+                              <td class="dashboard-appointment-location-cell">{{ appointment.location or "—" }}</td>
                               <td class="dashboard-action-cell">
                                 {% if appointment.view_link %}
                                   <a class="dashboard-link-btn" href="{{ appointment.view_link }}">View</a>
@@ -321,7 +323,7 @@
                           {% endfor %}
                         {% else %}
                           <tr>
-                            <td colspan="5" class="dashboard-empty">No appointments found.</td>
+                            <td colspan="6" class="dashboard-empty">No appointments found.</td>
                           </tr>
                         {% endif %}
                       </tbody>
