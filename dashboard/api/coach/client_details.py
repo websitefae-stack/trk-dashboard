@@ -557,6 +557,44 @@ def get_event_status(event_row):
     return "Open"
 
 
+def map_event_status_to_ui(raw_status):
+    mapping = {
+        "Scheduled": "Booked",
+        "Open": "Booked",
+        "Booked": "Booked",
+        "Draft": "Booked",
+        "Attended": "Attended",
+        "Completed": "Attended",
+        "Cancelled": "Cancelled",
+        "Canceled": "Cancelled",
+        "No Show": "No Show",
+        "Closed": "No Show",
+    }
+
+    return mapping.get((raw_status or "").strip(), raw_status or "Booked")
+
+
+def get_progress_text(progress_text=None, session_number=None, total_sessions=None):
+    progress_text = (progress_text or "").strip()
+
+    if progress_text:
+        if progress_text.lower().startswith("session "):
+            return progress_text
+        return f"Session {progress_text}"
+
+    try:
+        session_number = int(session_number or 0)
+        total_sessions = int(total_sessions or 0)
+    except Exception:
+        session_number = 0
+        total_sessions = 0
+
+    if session_number and total_sessions:
+        return f"Session {session_number}/{total_sessions}"
+
+    return "—"
+
+
 def get_event_client_appointments(client_name, calendar_detail_base_url="/coach_db/calendar_details"):
     if not frappe.db.exists("DocType", "Event"):
         return None
@@ -583,6 +621,10 @@ def get_event_client_appointments(client_name, calendar_detail_base_url="/coach_
         "custom_billing_type",
         "custom_travel_charged",
         "appointment_status",
+        "custom_session_number",
+        "custom_total_sessions",
+        "custom_progress_text",
+        "custom_booking_warning",
     ]
 
     for fieldname in optional_fields:
@@ -607,8 +649,12 @@ def get_event_client_appointments(client_name, calendar_detail_base_url="/coach_
 
         row["appointment_start"] = row.get("starts_on")
         row["appointment_end"] = row.get("ends_on")
-        row["display_status"] = raw_status
-        row["display_progress"] = ""
+        row["display_status"] = map_event_status_to_ui(raw_status)
+        row["display_progress"] = get_progress_text(
+            row.get("custom_progress_text"),
+            row.get("custom_session_number"),
+            row.get("custom_total_sessions"),
+        )
         row["item_display_name"] = get_effective_event_session_type(row)
         row["item"] = row["item_display_name"]
         row["view_link"] = f"{calendar_detail_base_url}?event={row.get('name')}"
@@ -662,8 +708,12 @@ def get_client_appointment_rows(client_name, calendar_detail_base_url="/coach_db
         if not is_open_appointment_status(status):
             continue
 
-        row["display_status"] = status
-        row["display_progress"] = row.get("progress_text") or ""
+        row["display_status"] = map_event_status_to_ui(status)
+        row["display_progress"] = get_progress_text(
+            row.get("progress_text"),
+            row.get("session_number"),
+            row.get("total_sessions"),
+        )
         row["item_display_name"] = get_item_display_name(row.get("item"))
         row["view_link"] = (
             f"{calendar_detail_base_url}?event={row.get('linked_event')}"
