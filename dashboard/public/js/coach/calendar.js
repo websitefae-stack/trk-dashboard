@@ -2,23 +2,32 @@
   "use strict";
 
   const privateEvents = new Set();
+  const STORAGE_KEY = "trkCoachCalendarFor";
 
-  function getUrlSelectedCalendarFor() {
+  function getSelectedCalendarFor() {
     const params = new URLSearchParams(window.location.search);
-    return params.get("calendar_for") || "";
+    const fromUrl = params.get("calendar_for") || params.get("selected_calendar_for") || params.get("selected_worker");
+
+    if (fromUrl) return fromUrl;
+
+    const field = document.getElementById("trkCoachCalendarWorkerSelect");
+    if (field && field.value) return field.value;
+
+    return window.localStorage.getItem(STORAGE_KEY) || "";
   }
 
-  function setUrlSelectedCalendarFor(value) {
+  function setSelectedCalendarFor(value) {
+    if (value) {
+      window.localStorage.setItem(STORAGE_KEY, value);
+    } else {
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
+
     const params = new URLSearchParams(window.location.search);
     params.set("calendar_for", value || "__coach_me__");
 
     const newUrl = window.location.pathname + "?" + params.toString();
-    window.history.replaceState({}, "", newUrl);
-  }
-
-  function getSelectedWorker() {
-    const field = document.getElementById("trkCoachCalendarWorkerSelect");
-    return field && field.value ? field.value : getUrlSelectedCalendarFor();
+    window.location.href = newUrl;
   }
 
   const originalFetch = window.fetch;
@@ -33,10 +42,12 @@
       );
 
       if (url.indexOf("get_calendar_bootstrap") !== -1) {
-        const selectedWorker = getSelectedWorker();
-        if (selectedWorker) {
+        const selectedCalendarFor = getSelectedCalendarFor();
+
+        if (selectedCalendarFor) {
           const parsed = new URL(url, window.location.origin);
-          parsed.searchParams.set("selected_worker", selectedWorker);
+          parsed.searchParams.set("selected_calendar_for", selectedCalendarFor);
+          parsed.searchParams.set("selected_worker", selectedCalendarFor);
           url = parsed.toString();
         }
       }
@@ -61,9 +72,11 @@
             });
           }
 
-          if (Array.isArray(message.session_workers)) {
-            renderSessionWorkerOptions(message.session_workers, message.selected_worker || "");
-          }
+          const options = Array.isArray(message.calendar_for_options)
+            ? message.calendar_for_options
+            : (Array.isArray(message.session_workers) ? message.session_workers : []);
+
+          renderCalendarForOptions(options, message.selected_calendar_for || message.selected_worker || "__coach_me__");
         }).catch(function () {});
       } catch (error) {}
 
@@ -71,28 +84,58 @@
     });
   };
 
-  function renderSessionWorkerOptions(rows, selectedWorker) {
+  function renderCalendarForOptions(rows, selectedValue) {
     const select = document.getElementById("trkCoachCalendarWorkerSelect");
     if (!select) return;
-
-    const urlSelected = getUrlSelectedCalendarFor();
-    const finalSelected = selectedWorker || urlSelected || "__coach_me__";
 
     let html = "";
 
     rows.forEach(function (row) {
       const value = escapeHtml(row.value || "");
       const label = escapeHtml(row.label || row.value || "");
-      const selected = finalSelected === row.value ? " selected" : "";
+      const selected = selectedValue === row.value ? " selected" : "";
 
       html += '<option value="' + value + '"' + selected + ">" + label + "</option>";
     });
 
-    select.innerHTML = html || '<option value="">No calendars found</option>';
+    select.innerHTML = html || '<option value="__coach_me__">Me</option>';
+  }
 
-    if (finalSelected) {
-      select.value = finalSelected;
-      setUrlSelectedCalendarFor(finalSelected);
+  function removePrivateActions() {
+    const body = document.getElementById("trkCalendarDetailsBody");
+    if (!body) return;
+
+    const editButton = body.querySelector("[data-calendar-action='edit-session']");
+    const noteButton = body.querySelector("[data-calendar-action='add-note']");
+    const eventName = editButton ? editButton.getAttribute("data-event") : "";
+
+    if (!eventName || !privateEvents.has(eventName)) return;
+
+    if (editButton) editButton.remove();
+    if (noteButton) noteButton.remove();
+
+    const openLink = body.querySelector("a[href*='calendar_details']");
+    if (openLink) openLink.remove();
+
+    if (!body.querySelector(".trk-coach-private-event-notice")) {
+      const notice = document.createElement("div");
+      notice.className = "dashboard-notice trk-coach-private-event-notice";
+      notice.style.marginTop = "14px";
+      notice.textContent = "This appointment belongs to another coach. Details are hidden.";
+      body.appendChild(notice);
+    }
+  }
+
+  function rewriteCoachLinks() {
+    document.querySelectorAll("a[href*='/session_worker_db/calendar_details']").forEach(function (link) {
+      link.href = link.href.replace("/session_worker_db/calendar_details", "/coach_db/calendar_details");
+    });
+  }
+
+  function renameCalendarForLabel() {
+    const label = document.querySelector("label[for='trkCoachCalendarWorkerSelect']");
+    if (label) {
+      label.textContent = "View Calendar For";
     }
   }
 
@@ -106,18 +149,25 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
+    renameCalendarForLabel();
+
     const select = document.getElementById("trkCoachCalendarWorkerSelect");
 
     if (select) {
-      const urlSelected = getUrlSelectedCalendarFor();
-      if (urlSelected) {
-        select.innerHTML = '<option value="' + escapeHtml(urlSelected) + '" selected>Loading...</option>';
-      }
-
       select.addEventListener("change", function () {
-        setUrlSelectedCalendarFor(this.value || "__coach_me__");
-        window.location.reload();
+        setSelectedCalendarFor(this.value || "__coach_me__");
       });
     }
+
+    const observer = new MutationObserver(function () {
+      removePrivateActions();
+      rewriteCoachLinks();
+      renameCalendarForLabel();
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
   });
 })();
