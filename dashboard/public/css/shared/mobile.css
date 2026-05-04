@@ -1148,3 +1148,72 @@
     width: 35% !important;
   }
 }
+
+/* =========================================================
+   PROFILE BUTTONS - MOBILE INLINE FIX
+========================================================= */
+
+@media (max-width: 640px) {
+  #sessionWorkerProfilePage .profile-legal-add-actions,
+  #coachProfilePage .profile-legal-add-actions,
+  #franchisorProfilePage .profile-legal-add-actions {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  #sessionWorkerProfilePage .profile-legal-add-actions .dashboard-btn,
+  #coachProfilePage .profile-legal-add-actions .dashboard-btn,
+  #franchisorProfilePage .profile-legal-add-actions .dashboard-btn {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 7px 4px !important;
+    font-size: 10px !important;
+    white-space: normal !important;
+    line-height: 1.2 !important;
+  }
+
+  #sessionWorkerProfilePage .dashboard-table-header,
+  #coachProfilePage .dashboard-table-header,
+  #franchisorProfilePage .dashboard-table-header {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+  }
+
+  #sessionWorkerProfilePage .dashboard-table-header > div,
+  #coachProfilePage .dashboard-table-header > div,
+  #franchisorProfilePage .dashboard-table-header > div {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  #sessionWorkerProfilePage .dashboard-table-header > .dashboard-btn,
+  #coachProfilePage .dashboard-table-header > .dashboard-btn,
+  #franchisorProfilePage .dashboard-table-header > .dashboard-btn {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: 48% !important;
+    white-space: normal !important;
+  }
+
+  #sessionWorkerProfilePage .dashboard-detail-actions,
+  #coachProfilePage .dashboard-detail-actions,
+  #franchisorProfilePage .dashboard-detail-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+  }
+
+  #sessionWorkerProfilePage .dashboard-detail-actions .dashboard-btn,
+  #coachProfilePage .dashboard-detail-actions .dashboard-btn,
+  #franchisorProfilePage .dashboard-detail-actions .dashboard-btn {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+}
