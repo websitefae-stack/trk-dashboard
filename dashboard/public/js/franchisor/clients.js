@@ -24,9 +24,8 @@
   function clientMatches(row) {
     const search = (getValue("clientSearch", "") || "").trim().toLowerCase();
     const status = getValue("statusFilter", "All") || "All";
-    const type = getValue("clientTypeFilter", getValue("typeFilter", "All")) || "All";
-    const sessionWorker = getValue("sessionWorkerFilter", getValue("swFilter", "All")) || "All";
-    const coach = getValue("coachFilter", "All") || "All";
+    const type = getValue("clientTypeFilter", "All") || "All";
+    const sessionWorker = getValue("sessionWorkerFilter", "All") || "All";
 
     const haystack = [
       row.dataset.name || "",
@@ -36,7 +35,6 @@
       row.dataset.type || "",
       row.dataset.status || "",
       row.dataset.sessionWorker || "",
-      row.dataset.sw || "",
       row.dataset.coach || ""
     ].join(" ").toLowerCase();
 
@@ -44,10 +42,8 @@
     if (status !== "All" && status !== "" && row.dataset.status !== status) return false;
     if (type !== "All" && type !== "" && row.dataset.type !== type) return false;
 
-    const rowSessionWorker = row.dataset.sessionWorker || row.dataset.sw || "";
+    const rowSessionWorker = row.dataset.sessionWorker || "";
     if (sessionWorker !== "All" && sessionWorker !== "" && rowSessionWorker !== sessionWorker) return false;
-
-    if (coach !== "All" && coach !== "" && row.dataset.coach !== coach) return false;
 
     return true;
   }
@@ -60,32 +56,23 @@
     updateClientCount();
   }
 
-  function initSearchToggle() {
-    const openBtn = el("openClientSearch") || el("toggleClientSearch");
-    const closeBtn = el("closeClientSearch");
-    const panel = el("clientFilterPanel");
+  function getCurrentScope() {
+    const scopeField = el("clientScopeFilter");
+    return scopeField ? scopeField.value || "my" : "my";
+  }
 
-    if (openBtn) {
-      openBtn.addEventListener("click", function () {
-        document.body.classList.add("client-search-open");
-        if (panel) panel.classList.add("is-open");
-      });
-    }
-
-    if (closeBtn) {
-      closeBtn.addEventListener("click", function () {
-        document.body.classList.remove("client-search-open");
-        if (panel) panel.classList.remove("is-open");
-      });
-    }
+  function reloadForScope(scope) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("scope", scope || "my");
+    url.searchParams.set("_ts", Date.now().toString());
+    window.location.href = url.toString();
   }
 
   function initActions() {
     const refreshBtn = el("refreshClients");
     if (refreshBtn) {
       refreshBtn.addEventListener("click", function () {
-        const url = new URL(window.location.href);
-        window.location.href = url.toString();
+        reloadForScope(getCurrentScope());
       });
     }
 
@@ -98,24 +85,19 @@
   }
 
   function init() {
-    if (!el("clientScopeFilter") && !el("refreshClients") && !el("addClient")) return;
-
     const scopeField = el("clientScopeFilter");
-      if (scopeField) {
-        scopeField.addEventListener("change", function () {
-          const scope = encodeURIComponent(scopeField.value || "my");
-          window.location.href = `/franchisor_db/clients?scope=${scope}`;
-        });
-      }
-          
+
+    if (scopeField) {
+      scopeField.addEventListener("change", function () {
+        reloadForScope(scopeField.value || "my");
+      });
+    }
+
     [
       "clientSearch",
       "statusFilter",
       "clientTypeFilter",
-      "typeFilter",
-      "sessionWorkerFilter",
-      "swFilter",
-      "coachFilter"
+      "sessionWorkerFilter"
     ].forEach((id) => {
       const field = el(id);
       if (!field) return;
@@ -123,7 +105,6 @@
       field.addEventListener(field.tagName === "SELECT" ? "change" : "input", renderFilters);
     });
 
-    initSearchToggle();
     initActions();
     renderFilters();
   }
