@@ -491,6 +491,7 @@
   .client-mobile-actions .dashboard-btn {
     width: 100%;
   }
+}
 
 @media (max-width: 860px) {
   .dashboard-page-actions.dashboard-client-top-actions {
