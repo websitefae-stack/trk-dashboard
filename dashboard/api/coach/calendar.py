@@ -227,7 +227,7 @@ def _get_calendar_for_options(coach_context):
     options = [
         {
             "value": COACH_ME_VALUE,
-            "label": "Me",
+            "label": coach_context.get("coach_label") or "My Calendar",
         }
     ]
 
@@ -237,30 +237,25 @@ def _get_calendar_for_options(coach_context):
     client_meta = frappe.get_meta("Client")
     coach_name = coach_context.get("coach_name")
 
-    client_rows = []
+    rows_by_name = {}
 
     if coach_context.get("is_dashboard_admin"):
-        client_rows = frappe.get_all(
+        for row in frappe.get_all(
             "Client",
             fields=["name", "session_worker"],
-            filters={"session_worker": ["is", "set"]},
             limit_page_length=1000,
             ignore_permissions=True,
-        )
+        ):
+            rows_by_name[row.name] = row
     else:
         if not coach_name:
             return options
-
-        rows_by_name = {}
 
         if client_meta.has_field("primary_coach"):
             for row in frappe.get_all(
                 "Client",
                 fields=["name", "session_worker"],
-                filters={
-                    "primary_coach": coach_name,
-                    "session_worker": ["is", "set"],
-                },
+                filters={"primary_coach": coach_name},
                 limit_page_length=1000,
                 ignore_permissions=True,
             ):
@@ -270,20 +265,15 @@ def _get_calendar_for_options(coach_context):
             for row in frappe.get_all(
                 "Client",
                 fields=["name", "session_worker"],
-                filters={
-                    "attending_coach": coach_name,
-                    "session_worker": ["is", "set"],
-                },
+                filters={"attending_coach": coach_name},
                 limit_page_length=1000,
                 ignore_permissions=True,
             ):
                 rows_by_name[row.name] = row
 
-        client_rows = list(rows_by_name.values())
-
     worker_names = sorted({
         row.get("session_worker")
-        for row in client_rows
+        for row in rows_by_name.values()
         if row.get("session_worker")
     })
 
@@ -299,6 +289,8 @@ def _get_calendar_for_options(coach_context):
 def _get_selected_calendar_for(selected_calendar_for, coach_context):
     options = _get_calendar_for_options(coach_context)
     allowed = {row["value"] for row in options}
+
+    selected_calendar_for = (selected_calendar_for or "").strip()
 
     if selected_calendar_for and selected_calendar_for in allowed:
         return selected_calendar_for, options
