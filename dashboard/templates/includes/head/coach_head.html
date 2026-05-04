@@ -5,8 +5,22 @@
 
 <link rel="stylesheet" href="/assets/dashboard/css/coach/coach.css?v=1">
 
+{% if clean_path == "/coach_db/calendar" or clean_path == "/coach_db/calendar_details" %}
+<link rel="stylesheet" href="/assets/dashboard/css/shared/calendar.css?v=1">
+{% endif %}
+
 {% if clean_path == "/coach_db" %}
 <script src="/assets/dashboard/js/coach/dashboard_home.js?v=1"></script>
+{% endif %}
+
+{% if path.startswith("/coach_db/calendar_details") %}
+<script src="/assets/dashboard/js/coach/calendar_details.js?v=1"></script>
+<script src="/assets/dashboard/js/shared/calendar_details.js?v=1"></script>
+{% endif %}
+
+{% if path.startswith("/coach_db/calendar") and not path.startswith("/coach_db/calendar_details") %}
+<script src="/assets/dashboard/js/coach/calendar.js?v=1"></script>
+<script src="/assets/dashboard/js/shared/calendar.js?v=1"></script>
 {% endif %}
 
 {% if path.startswith("/coach_db/profile") %}
