@@ -1,3 +1,4 @@
+@@ -0,0 +1,32 @@
 {% include "dashboard/templates/includes/head/franchisor_head.html" %}
 
 <div class="dashboard-page">
@@ -7,136 +8,26 @@
     {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
 
     <div class="dashboard-container">
-
       <div class="dashboard-page-header">
         <div>
-          <h1 class="dashboard-page-title">My Profile</h1>
-          <p class="dashboard-page-subtitle">View your profile, legal documents, and banking details.</p>
-        </div>
-
-        <div class="dashboard-page-actions">
-          <button type="button" class="dashboard-btn dashboard-btn-primary" id="editProfileBtn">
-            Edit Profile
-          </button>
+          <h1 class="dashboard-page-title">Franchisor Dashboard</h1>
+          <p class="dashboard-page-subtitle">Welcome to your franchisor dashboard.</p>
         </div>
       </div>
 
-      <div class="dashboard-card dashboard-tabs-card">
-        <div class="dashboard-tabs">
-          <button type="button" class="dashboard-tab-btn is-active" data-tab="profile">Profile</button>
-          <button type="button" class="dashboard-tab-btn" data-tab="legal">Legal Details</button>
-          <button type="button" class="dashboard-tab-btn" data-tab="banking">Banking</button>
+      <div class="dashboard-card">
+        <div class="dashboard-list">
+          <a href="/franchisor_db/clients">Clients</a>
+          <a href="/franchisor_db/franchisees">Franchisees</a>
+          <a href="/franchisor_db/onboarding">Onboarding</a>
+          <a href="/franchisor_db/session_workers">Session Workers</a>
+          <a href="/franchisor_db/coaches">Coaches</a>
+          <a href="/franchisor_db/franchise_fees">Franchise Fees</a>
+          <a href="/franchisor_db/marketing_fees">Marketing Fees</a>
+          <a href="/franchisor_db/reports">Reports</a>
+          <a href="/franchisor_db/notifications">Notifications</a>
         </div>
       </div>
-
-      <!-- PROFILE -->
-      <div class="dashboard-tab-panel is-active" data-tab-panel="profile">
-        <div class="dashboard-card">
-          <h3>Profile Information</h3>
-
-          <div class="dashboard-detail-grid dashboard-detail-grid-2">
-            <div class="dashboard-detail-field">
-              <label>Name</label>
-              <input class="dashboard-input" value="{{ coach.coach_name or '' }}" readonly>
-            </div>
-
-            <div class="dashboard-detail-field">
-              <label>Email</label>
-              <input class="dashboard-input" value="{{ coach.coach_email or '' }}" readonly>
-            </div>
-
-            <div class="dashboard-detail-field dashboard-detail-field-full">
-              <label>Bio</label>
-              <textarea class="dashboard-textarea" readonly>{{ coach.bio or '' }}</textarea>
-            </div>
-
-            <div class="dashboard-detail-field dashboard-detail-field-full">
-              <label>Interest</label>
-              <textarea class="dashboard-textarea" readonly>{{ coach.interest or '' }}</textarea>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- LEGAL -->
-      <div class="dashboard-tab-panel" data-tab-panel="legal" style="display:none;">
-        <div class="dashboard-card">
-          <h3>Legal Details</h3>
-
-          <h4>DBS</h4>
-          <table class="dashboard-table dashboard-table-compact">
-            <thead>
-              <tr>
-                <th>Status</th>
-                <th>Date Received</th>
-                <th>Expiry Date</th>
-                <th>Number</th>
-                <th>File</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in dbs_rows %}
-              <tr>
-                <td>{{ row.status }}</td>
-                <td>{{ row.date_received }}</td>
-                <td>{{ row.expiry_date }}</td>
-                <td>{{ row.dbs_number }}</td>
-                <td>{% if row.dbs_file %}<a href="{{ row.dbs_file }}">View</a>{% endif %}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-
-          <h4>Insurance</h4>
-          <table class="dashboard-table dashboard-table-compact">
-            <thead>
-              <tr>
-                <th>Status</th>
-                <th>Date Received</th>
-                <th>Expiry Date</th>
-                <th>Number</th>
-                <th>Insurer</th>
-                <th>File</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in insurance_rows %}
-              <tr>
-                <td>{{ row.status }}</td>
-                <td>{{ row.date_received }}</td>
-                <td>{{ row.expiry_date }}</td>
-                <td>{{ row.insurance_number }}</td>
-                <td>{{ row.insurer_name }}</td>
-                <td>{% if row.insurance_file %}<a href="{{ row.insurance_file }}">View</a>{% endif %}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- BANKING -->
-      <div class="dashboard-tab-panel" data-tab-panel="banking" style="display:none;">
-        <div class="dashboard-card">
-          <h3>Banking</h3>
-
-          {% if bank_account %}
-            <div class="dashboard-detail-grid dashboard-detail-grid-2">
-              <div class="dashboard-detail-field">
-                <label>Bank</label>
-                <input class="dashboard-input" value="{{ bank_account.bank }}" readonly>
-              </div>
-
-              <div class="dashboard-detail-field">
-                <label>Account Number</label>
-                <input class="dashboard-input" value="{{ bank_account.bank_account_no }}" readonly>
-              </div>
-            </div>
-          {% endif %}
-
-        </div>
-      </div>
-
     </div>
   </div>
 </div>
