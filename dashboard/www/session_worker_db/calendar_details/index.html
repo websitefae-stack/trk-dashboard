@@ -1,1 +1,244 @@
+{% include "trk_session_worker_dashboard/templates/includes/dashboard_head.html" %}
 
+<div class="dashboard-page" id="sessionWorkerCalendarDetailsShell">
+  {% include "trk_session_worker_dashboard/templates/includes/dashboard_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "trk_session_worker_dashboard/templates/includes/dashboard_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Session Details</h1>
+          <p class="dashboard-page-subtitle">
+            View session details and add client notes inside the Session Worker Dashboard.
+          </p>
+        </div>
+
+        <div class="dashboard-page-actions">
+          <a href="/session_dashboard/calendar" class="dashboard-btn dashboard-btn-light">
+            ← Back to Calendar
+          </a>
+        </div>
+      </div>
+
+      <div id="sessionWorkerCalendarDetailsRoot">
+        <div class="dashboard-notice" id="trkCalendarDetailsNotice">
+          Loading session details…
+        </div>
+
+        <div class="dashboard-detail-form" id="trkCalendarDetailsContent" style="display:none;">
+          <div class="dashboard-detail-section">
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">Session Overview</h2>
+            </div>
+
+            <div class="dashboard-detail-grid dashboard-detail-grid-2">
+              <div class="dashboard-detail-field">
+                <label>Client</label>
+                <div class="dashboard-html-block" id="trkDetailClient"></div>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Session Type</label>
+                <div class="dashboard-html-block" id="trkDetailType"></div>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Status</label>
+                <div class="dashboard-html-block" id="trkDetailStatus"></div>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Worker</label>
+                <div class="dashboard-html-block" id="trkDetailWorker"></div>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Date</label>
+                <div class="dashboard-html-block" id="trkDetailDate"></div>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Time</label>
+                <div class="dashboard-html-block" id="trkDetailTime"></div>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Location</label>
+                <div class="dashboard-html-block" id="trkDetailLocation"></div>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Record ID</label>
+                <div class="dashboard-html-block" id="trkDetailRecordId"></div>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Billing Type</label>
+                <div class="dashboard-html-block" id="trkDetailBillingType"></div>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Travel Charged</label>
+                <div class="dashboard-html-block" id="trkDetailTravelCharged"></div>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Session Progress</label>
+                <div class="dashboard-html-block" id="trkDetailSessionProgress">—</div>
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full">
+                <label>Package Warning</label>
+                <div class="dashboard-html-block" id="trkDetailBookingWarning">—</div>
+              </div>
+            </div>
+
+            <div class="dashboard-detail-actions" style="margin-top:18px;">
+              <button type="button" class="dashboard-btn dashboard-btn-primary" id="trkDetailEditBtn">
+                Edit Session
+              </button>
+            </div>
+          </div>
+
+          <div class="dashboard-detail-section">
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">Add Client Note</h2>
+            </div>
+
+            <div class="dashboard-detail-grid dashboard-detail-grid-2">
+              <div class="dashboard-detail-field">
+                <label for="trkClientNoteSessionDate">Session Date</label>
+                <input type="date" id="trkClientNoteSessionDate" class="dashboard-input">
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label for="trkClientNoteSessionType">Session Type</label>
+                <select id="trkClientNoteSessionType" class="dashboard-select">
+                  <option value="">Select session type</option>
+                  <option value="Initial Consultation">Initial Consultation</option>
+                  <option value="Coaching Session">Coaching Session</option>
+                  <option value="Review">Review</option>
+                  <option value="Parent Feedback">Parent Feedback</option>
+                  <option value="Teacher Meeting">Teacher Meeting</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full">
+                <label for="trkClientNoteText">Notes</label>
+                <textarea id="trkClientNoteText" class="dashboard-textarea" placeholder="Write a client note"></textarea>
+              </div>
+            </div>
+
+            <div class="dashboard-detail-actions">
+              <button type="button" class="dashboard-btn dashboard-btn-primary" id="trkSaveClientNoteBtn">
+                Save Client Note
+              </button>
+            </div>
+          </div>
+
+          <div class="dashboard-detail-section">
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">Client Notes History</h2>
+            </div>
+
+            <div id="trkClientNotesHistory"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="trk-calendar-modal-backdrop" id="trkDetailEditModal">
+  <div class="trk-calendar-modal">
+    <div class="trk-calendar-modal-head">
+      <h3>Edit Session</h3>
+      <button type="button" class="trk-calendar-icon-btn" id="trkDetailEditModalClose">✕</button>
+    </div>
+
+    <div class="trk-calendar-modal-body">
+      <input type="hidden" id="trkDetailEditEventName">
+
+      <div class="trk-calendar-form-row">
+        <div class="trk-calendar-field">
+          <label for="trkDetailEditDate">Date *</label>
+          <input type="date" id="trkDetailEditDate" class="dashboard-input">
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="trkDetailEditTime">Time *</label>
+          <input type="time" id="trkDetailEditTime" class="dashboard-input" step="900">
+        </div>
+      </div>
+
+      <div class="trk-calendar-form-row">
+        <div class="trk-calendar-field">
+          <label for="trkDetailEditStatus">Status</label>
+          <select id="trkDetailEditStatus" class="dashboard-select">
+            <option value="Booked">Booked</option>
+            <option value="Attended">Attended</option>
+            <option value="Cancelled">Cancelled</option>
+            <option value="No Show">No Show</option>
+          </select>
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="trkDetailEditType">Session Type</label>
+          <select id="trkDetailEditType" class="dashboard-select">
+            <option value="Therapy Session">Therapy Session</option>
+            <option value="Parent Check-In">Parent Check-In</option>
+            <option value="Initial Consultation">Initial Consultation</option>
+            <option value="General">General</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="trk-calendar-form-row" id="trkDetailEditBillingTypeRow" style="display:none;">
+        <div class="trk-calendar-field">
+          <label for="trkDetailEditBillingType">Billing Type</label>
+          <select id="trkDetailEditBillingType" class="dashboard-select">
+            <option value="One to One">One to One</option>
+            <option value="Group">Group</option>
+            <option value="Workshop">Workshop</option>
+            <option value="Non-Billable">Non-Billable</option>
+          </select>
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="trkDetailEditTravelCharged">Travel Charged</label>
+          <select id="trkDetailEditTravelCharged" class="dashboard-select">
+            <option value="0">No</option>
+            <option value="1">Yes</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="trk-calendar-form-row" id="trkDetailEditTravelOnlyRow">
+        <div class="trk-calendar-field">
+          <label for="trkDetailEditTravelChargedSolo">Travel Charged</label>
+          <select id="trkDetailEditTravelChargedSolo" class="dashboard-select">
+            <option value="0">No</option>
+            <option value="1">Yes</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="trk-calendar-field">
+        <label for="trkDetailEditLocation">Location</label>
+        <input type="text" id="trkDetailEditLocation" class="dashboard-input" placeholder="Optional">
+      </div>
+    </div>
+
+    <div class="trk-calendar-modal-foot">
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="trkDetailEditModalCancel">
+        Cancel
+      </button>
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="trkDetailEditSaveBtn">
+        Save Changes
+      </button>
+    </div>
+  </div>
+</div>
