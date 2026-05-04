@@ -74,21 +74,21 @@
     document.querySelectorAll(".js-profile-editable").forEach(function (field) {
       field.readOnly = !isEditing;
     });
-  
+
     document.querySelectorAll(".js-profile-editable-file").forEach(function (field) {
       field.disabled = !isEditing;
     });
-  
+
     const photoWrap = document.querySelector(".js-profile-photo-wrap");
     if (photoWrap) {
       photoWrap.style.display = isEditing ? "" : "none";
     }
-  
+
     const actions = document.querySelector(".js-profile-save-actions");
     if (actions) {
       actions.style.display = isEditing ? "" : "none";
     }
-  
+
     const editBtn = el("editProfileBtn");
     if (editBtn) {
       editBtn.textContent = isEditing ? "Save" : "Edit Profile";
@@ -107,7 +107,7 @@
           if (form) form.requestSubmit();
           return;
         }
-    
+
         setProfileEditMode(true);
       });
     }
@@ -136,7 +136,7 @@
         const formData = new FormData(form);
 
         const result = await postForm(
-          "dashboard.api.coach.profile.update_my_coach_profile",
+          form.getAttribute("data-save-method") || "dashboard.api.coach.profile.update_my_coach_profile",
           formData
         );
 
@@ -190,7 +190,7 @@
         const formData = new FormData(form);
 
         const result = await postJson(
-          "dashboard.api.coach.profile.request_my_banking_change",
+          form.getAttribute("data-save-method") || "dashboard.api.coach.profile.request_my_banking_change",
           {
             new_banking_details: formData.get("new_banking_details"),
             banking_change_reason: formData.get("banking_change_reason")
@@ -212,11 +212,70 @@
     });
   }
 
+  function initLegalForms() {
+    document.querySelectorAll(".legal-record-form").forEach(function (form) {
+      form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        const message = form.querySelector(".legal-record-message");
+        const recordType = form.getAttribute("data-record-type");
+
+        if (message) {
+          message.textContent = "Saving...";
+        }
+
+        try {
+          const formData = new FormData(form);
+          formData.append("record_type", recordType);
+
+          const result = await postForm(
+            form.getAttribute("data-save-method") || "dashboard.api.coach.profile.add_my_legal_record",
+            formData
+          );
+
+          if (message) {
+            message.textContent = result.message || "Record added.";
+          }
+
+          setTimeout(function () {
+            window.location.reload();
+          }, 800);
+        } catch (error) {
+          if (message) {
+            message.textContent = error.message || "Could not add record.";
+          }
+        }
+      });
+    });
+  }
+
+  function initLegalToggleButtons() {
+    document.querySelectorAll(".legal-toggle-btn").forEach(function (button) {
+      button.addEventListener("click", function () {
+        const targetType = button.getAttribute("data-target-type");
+
+        document.querySelectorAll(".legal-add-section").forEach(function (section) {
+          const form = section.querySelector(".legal-record-form");
+          const recordType = form ? form.getAttribute("data-record-type") : "";
+
+          if (recordType === targetType) {
+            const isHidden = section.style.display === "none";
+            section.style.display = isHidden ? "" : "none";
+          } else {
+            section.style.display = "none";
+          }
+        });
+      });
+    });
+  }
+
   function init() {
     initTabs();
     initProfileEdit();
     initProfileForm();
     initBankingChangeRequest();
+    initLegalForms();
+    initLegalToggleButtons();
   }
 
   if (document.readyState === "loading") {
