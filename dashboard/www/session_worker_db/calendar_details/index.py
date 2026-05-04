@@ -1,5 +1,6 @@
 import frappe
 from frappe import _
+from frappe.utils import get_fullname
 
 
 def get_context(context):
@@ -9,4 +10,4 @@ def get_context(context):
     context.no_cache = 1
     context.active_page = "calendar"
     context.dashboard_notifications_url = "/session_worker_db/notifications"
-    context.dashboard_user_name = frappe.utils.get_fullname(frappe.session.user)
+    context.dashboard_user_name = get_fullname(frappe.session.user)
