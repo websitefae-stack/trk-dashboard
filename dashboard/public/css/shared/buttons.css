@@ -130,6 +130,8 @@
 ========================================================= */
 
 .client-edit-mode #editClient,
+.contact-edit-mode #editContact,
+.dashboard-detail-edit-mode #editContact,
 .dashboard-btn.is-save-mode {
   background: #AC455C !important;
   border-color: #AC455C !important;
@@ -137,6 +139,8 @@
 }
 
 .client-edit-mode #editClient:hover,
+.contact-edit-mode #editContact:hover,
+.dashboard-detail-edit-mode #editContact:hover,
 .dashboard-btn.is-save-mode:hover {
   background: #922f45 !important;
   border-color: #922f45 !important;
