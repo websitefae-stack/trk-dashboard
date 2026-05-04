@@ -224,34 +224,3 @@
 .contacts-filter-row-search-only {
   grid-template-columns: minmax(0, 1fr);
 }
-
-/* =========================================================
-   PROFILE BUTTON ROW FIX (ALL DASHBOARDS)
-========================================================= */
-
-.dashboard-detail-actions,
-.profile-legal-add-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-}
-
-.dashboard-detail-actions .dashboard-btn,
-.profile-legal-add-actions .dashboard-btn {
-  flex: 0 0 auto;
-}
-
-/* Mobile fix: keep buttons inline */
-@media (max-width: 640px) {
-  .dashboard-detail-actions,
-  .profile-legal-add-actions {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-  }
-
-  .dashboard-detail-actions .dashboard-btn,
-  .profile-legal-add-actions .dashboard-btn {
-    white-space: nowrap;
-  }
-}
