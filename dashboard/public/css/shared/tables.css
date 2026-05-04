@@ -888,3 +888,48 @@ table:has(#clientNotesTableBody) thead th:nth-child(3),
     display: none !important;
   }
 }
+
+/* Coach/Franchisor client invoices mobile spacing */
+@media (max-width: 640px) {
+  .dashboard-client-invoice-table {
+    min-width: 0 !important;
+    table-layout: fixed !important;
+  }
+
+  .dashboard-client-invoice-table th,
+  .dashboard-client-invoice-table td {
+    padding: 8px 6px !important;
+    font-size: 12px !important;
+    line-height: 1.25 !important;
+  }
+
+  .dashboard-client-invoice-table th:nth-child(1),
+  .dashboard-client-invoice-table td:nth-child(1) {
+    width: 34% !important;
+  }
+
+  .dashboard-client-invoice-table th:nth-child(2),
+  .dashboard-client-invoice-table td:nth-child(2) {
+    width: 22% !important;
+  }
+
+  .dashboard-client-invoice-table th:nth-child(4),
+  .dashboard-client-invoice-table td:nth-child(4) {
+    width: 18% !important;
+  }
+
+  .dashboard-client-invoice-table th:nth-child(5),
+  .dashboard-client-invoice-table td:nth-child(5),
+  .dashboard-client-invoice-table th:nth-child(6),
+  .dashboard-client-invoice-table td:nth-child(6) {
+    width: 13% !important;
+    text-align: right !important;
+  }
+
+  .dashboard-client-invoice-table th:nth-child(3),
+  .dashboard-client-invoice-table td:nth-child(3),
+  .dashboard-client-invoice-table .dashboard-action-col,
+  .dashboard-client-invoice-table .dashboard-action-cell {
+    display: none !important;
+  }
+}
