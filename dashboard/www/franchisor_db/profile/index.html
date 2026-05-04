@@ -104,6 +104,43 @@
             </table>
           </div>
 
+          <!-- DBS UPDATE SERVICE -->
+          <h4 style="margin-top:20px;">DBS Update Service</h4>
+          <div class="dashboard-table-wrap">
+            <table class="dashboard-table dashboard-table-compact">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Date Received</th>
+                  <th>Expiry Date</th>
+                  <th>Number</th>
+                  <th>File</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% if dbs_update_service_rows %}
+                  {% for row in dbs_update_service_rows %}
+                  <tr>
+                    <td>{{ row.status or "—" }}</td>
+                    <td>{{ row.date_received or "—" }}</td>
+                    <td>{{ row.expiry_date or "—" }}</td>
+                    <td>{{ row.dbs_number or "—" }}</td>
+                    <td>
+                      {% if row.update_service_file %}
+                        <a class="dashboard-inline-link" href="{{ row.update_service_file }}" target="_blank">View</a>
+                      {% else %}
+                        —
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                {% else %}
+                  <tr><td colspan="5" class="dashboard-empty">No DBS Update Service records found.</td></tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+
           <!-- INSURANCE -->
           <h4 style="margin-top:20px;">Insurance</h4>
           <div class="dashboard-table-wrap">
@@ -138,6 +175,45 @@
                   {% endfor %}
                 {% else %}
                   <tr><td colspan="6" class="dashboard-empty">No insurance records found.</td></tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- INDEMNITY -->
+          <h4 style="margin-top:20px;">Indemnity</h4>
+          <div class="dashboard-table-wrap">
+            <table class="dashboard-table dashboard-table-compact">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Date Received</th>
+                  <th>Expiry Date</th>
+                  <th>Number</th>
+                  <th>Insurer</th>
+                  <th>File</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% if indemnity_rows %}
+                  {% for row in indemnity_rows %}
+                  <tr>
+                    <td>{{ row.status or "—" }}</td>
+                    <td>{{ row.date_received or "—" }}</td>
+                    <td>{{ row.expiry_date or "—" }}</td>
+                    <td>{{ row.indemnity_number or "—" }}</td>
+                    <td>{{ row.insurer_name or "—" }}</td>
+                    <td>
+                      {% if row.indemnity_file %}
+                        <a class="dashboard-inline-link" href="{{ row.indemnity_file }}" target="_blank">View</a>
+                      {% else %}
+                        —
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                {% else %}
+                  <tr><td colspan="6" class="dashboard-empty">No indemnity records found.</td></tr>
                 {% endif %}
               </tbody>
             </table>
