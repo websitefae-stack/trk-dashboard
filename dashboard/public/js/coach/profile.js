@@ -74,24 +74,25 @@
     document.querySelectorAll(".js-profile-editable").forEach(function (field) {
       field.readOnly = !isEditing;
     });
-
+  
     document.querySelectorAll(".js-profile-editable-file").forEach(function (field) {
       field.disabled = !isEditing;
     });
-
+  
     const photoWrap = document.querySelector(".js-profile-photo-wrap");
     if (photoWrap) {
       photoWrap.style.display = isEditing ? "" : "none";
     }
-
+  
     const actions = document.querySelector(".js-profile-save-actions");
     if (actions) {
       actions.style.display = isEditing ? "" : "none";
     }
-
+  
     const editBtn = el("editProfileBtn");
     if (editBtn) {
-      editBtn.style.display = isEditing ? "none" : "";
+      editBtn.textContent = isEditing ? "Save" : "Edit Profile";
+      editBtn.classList.toggle("is-save-mode", isEditing);
     }
   }
 
@@ -101,6 +102,12 @@
 
     if (editBtn) {
       editBtn.addEventListener("click", function () {
+        if (editBtn.classList.contains("is-save-mode")) {
+          const form = el("coachProfileForm");
+          if (form) form.requestSubmit();
+          return;
+        }
+    
         setProfileEditMode(true);
       });
     }
