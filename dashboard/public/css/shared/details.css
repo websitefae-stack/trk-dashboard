@@ -239,8 +239,8 @@
     grid-column: auto !important;
   }
 
-    .dashboard-detail-actions,
-  .dashboard-edit-actions {
+   .dashboard-detail-actions,
+   .dashboard-edit-actions {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
