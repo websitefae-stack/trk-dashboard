@@ -3,9 +3,22 @@
 
   const privateEvents = new Set();
 
+  function getUrlSelectedCalendarFor() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("calendar_for") || "";
+  }
+
+  function setUrlSelectedCalendarFor(value) {
+    const params = new URLSearchParams(window.location.search);
+    params.set("calendar_for", value || "__coach_me__");
+
+    const newUrl = window.location.pathname + "?" + params.toString();
+    window.history.replaceState({}, "", newUrl);
+  }
+
   function getSelectedWorker() {
     const field = document.getElementById("trkCoachCalendarWorkerSelect");
-    return field ? field.value || "" : "";
+    return field && field.value ? field.value : getUrlSelectedCalendarFor();
   }
 
   const originalFetch = window.fetch;
@@ -62,56 +75,25 @@
     const select = document.getElementById("trkCoachCalendarWorkerSelect");
     if (!select) return;
 
-    const oldValue = select.value || "";
+    const urlSelected = getUrlSelectedCalendarFor();
+    const finalSelected = selectedWorker || urlSelected || "__coach_me__";
+
     let html = "";
 
     rows.forEach(function (row) {
       const value = escapeHtml(row.value || "");
       const label = escapeHtml(row.label || row.value || "");
-      const selected = (selectedWorker || oldValue) === row.value ? " selected" : "";
+      const selected = finalSelected === row.value ? " selected" : "";
 
       html += '<option value="' + value + '"' + selected + ">" + label + "</option>";
     });
 
-    if (!html) {
-      html = '<option value="">No session workers found</option>';
+    select.innerHTML = html || '<option value="">No calendars found</option>';
+
+    if (finalSelected) {
+      select.value = finalSelected;
+      setUrlSelectedCalendarFor(finalSelected);
     }
-
-    select.innerHTML = html;
-  }
-
-  function removePrivateActions() {
-    const body = document.getElementById("trkCalendarDetailsBody");
-    if (!body) return;
-
-    const editButton = body.querySelector("[data-calendar-action='edit-session']");
-    const noteButton = body.querySelector("[data-calendar-action='add-note']");
-
-    const eventName = editButton ? editButton.getAttribute("data-event") : "";
-
-    if (!eventName || !privateEvents.has(eventName)) {
-      return;
-    }
-
-    if (editButton) editButton.remove();
-    if (noteButton) noteButton.remove();
-
-    const openLink = body.querySelector("a[href*='calendar_details']");
-    if (openLink) openLink.remove();
-
-    if (!body.querySelector(".trk-coach-private-event-notice")) {
-      const notice = document.createElement("div");
-      notice.className = "dashboard-notice trk-coach-private-event-notice";
-      notice.style.marginTop = "14px";
-      notice.textContent = "This appointment belongs to another coach. Details are hidden.";
-      body.appendChild(notice);
-    }
-  }
-
-  function rewriteCoachLinks() {
-    document.querySelectorAll("a[href*='/session_worker_db/calendar_details']").forEach(function (link) {
-      link.href = link.href.replace("/session_worker_db/calendar_details", "/coach_db/calendar_details");
-    });
   }
 
   function escapeHtml(value) {
@@ -127,19 +109,15 @@
     const select = document.getElementById("trkCoachCalendarWorkerSelect");
 
     if (select) {
+      const urlSelected = getUrlSelectedCalendarFor();
+      if (urlSelected) {
+        select.innerHTML = '<option value="' + escapeHtml(urlSelected) + '" selected>Loading...</option>';
+      }
+
       select.addEventListener("change", function () {
+        setUrlSelectedCalendarFor(this.value || "__coach_me__");
         window.location.reload();
       });
     }
-
-    const observer = new MutationObserver(function () {
-      removePrivateActions();
-      rewriteCoachLinks();
-    });
-
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
   });
 })();
