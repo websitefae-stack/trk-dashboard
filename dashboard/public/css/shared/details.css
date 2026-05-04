@@ -362,3 +362,18 @@ body.dashboard-modal-open {
   background: #94384d;
   color: #FFFFFF;
 }
+
+/* Hide name parts unless client is being edited/created */
+.dashboard-detail-field:has([data-fieldname="name1"]),
+.dashboard-detail-field:has([data-fieldname="first_name"]),
+.dashboard-detail-field:has([data-fieldname="middle_name"]),
+.dashboard-detail-field:has([data-fieldname="last_name"]) {
+  display: none;
+}
+
+body.client-edit-mode .dashboard-detail-field:has([data-fieldname="name1"]),
+body.client-edit-mode .dashboard-detail-field:has([data-fieldname="first_name"]),
+body.client-edit-mode .dashboard-detail-field:has([data-fieldname="middle_name"]),
+body.client-edit-mode .dashboard-detail-field:has([data-fieldname="last_name"]) {
+  display: flex;
+}
