@@ -74,21 +74,21 @@
     document.querySelectorAll(".js-profile-editable").forEach(function (field) {
       field.readOnly = !isEditing;
     });
-  
+
     document.querySelectorAll(".js-profile-editable-file").forEach(function (field) {
       field.disabled = !isEditing;
     });
-  
+
     const photoWrap = document.querySelector(".js-profile-photo-wrap");
     if (photoWrap) {
       photoWrap.style.display = isEditing ? "" : "none";
     }
-  
+
     const actions = document.querySelector(".js-profile-save-actions");
     if (actions) {
       actions.style.display = isEditing ? "" : "none";
     }
-  
+
     const editBtn = el("editProfileBtn");
     if (editBtn) {
       editBtn.textContent = isEditing ? "Save" : "Edit Profile";
@@ -107,7 +107,7 @@
           if (form) form.requestSubmit();
           return;
         }
-    
+
         setProfileEditMode(true);
       });
     }
@@ -136,7 +136,7 @@
         const formData = new FormData(form);
 
         const result = await postForm(
-          "dashboard.api.session_worker.profile.update_my_session_worker_profile",
+          form.getAttribute("data-save-method") || "dashboard.api.session_worker.profile.update_my_session_worker_profile",
           formData
         );
 
@@ -190,7 +190,7 @@
         const formData = new FormData(form);
 
         const result = await postJson(
-          "dashboard.api.session_worker.profile.request_my_banking_change",
+          form.getAttribute("data-save-method") || "dashboard.api.session_worker.profile.request_my_banking_change",
           {
             new_banking_details: formData.get("new_banking_details"),
             banking_change_reason: formData.get("banking_change_reason")
@@ -229,7 +229,7 @@
           formData.append("record_type", recordType);
 
           const result = await postForm(
-            "dashboard.api.session_worker.profile.add_my_legal_record",
+            form.getAttribute("data-save-method") || "dashboard.api.session_worker.profile.add_my_legal_record",
             formData
           );
 
