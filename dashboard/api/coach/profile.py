@@ -91,6 +91,27 @@ def update_my_coach_profile():
         coach.photo = photo_url
 
     coach.save(ignore_permissions=True)
+
+    user_name = coach.user or coach.coach_email or frappe.session.user
+
+    if user_name:
+        user_updates = {}
+
+        if frappe.form_dict.get("phone") is not None:
+            user_updates["phone"] = frappe.form_dict.get("phone")
+
+        if frappe.form_dict.get("location") is not None:
+            user_updates["location"] = frappe.form_dict.get("location")
+
+        if frappe.form_dict.get("gender") is not None:
+            user_updates["gender"] = frappe.form_dict.get("gender")
+
+        if photo_url:
+            user_updates["user_image"] = photo_url
+
+        if user_updates:
+            frappe.db.set_value("User", user_name, user_updates)
+
     frappe.db.commit()
 
     return {"ok": 1, "message": "Profile updated."}
