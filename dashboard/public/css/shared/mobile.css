@@ -882,3 +882,48 @@
     font-size: 11px;
   }
 }
+
+@media (max-width: 640px) {
+  .dashboard-detail-actions,
+  .dashboard-page-actions,
+  .dashboard-table-header .dashboard-btn,
+  .legal-toggle-btn {
+    flex-direction: row !important;
+  }
+
+  .dashboard-detail-actions {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .dashboard-detail-actions .dashboard-btn,
+  .dashboard-detail-actions .dashboard-link-btn {
+    flex: 1 1 0;
+    width: auto !important;
+  }
+
+  .dashboard-table-header {
+    gap: 12px;
+  }
+
+  .dashboard-table-header > .dashboard-btn {
+    width: auto !important;
+    flex: 0 0 auto;
+  }
+
+  .legal-add-buttons,
+  .dashboard-detail-actions:has(.legal-toggle-btn) {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .legal-toggle-btn {
+    width: 100% !important;
+  }
+
+  #sessionWorkerProfilePage .dashboard-tab-panel[data-tab-panel="billing"] .dashboard-detail-grid-2:first-of-type {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
