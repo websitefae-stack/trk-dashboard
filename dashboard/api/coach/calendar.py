@@ -138,30 +138,45 @@ def _get_client_rows_for_coach_me(coach_context):
     client_meta = frappe.get_meta("Client")
     coach_name = coach_context.get("coach_name")
 
-    filters = {"session_worker": ["in", ["", None]]}
-    or_filters = None
+    if coach_context.get("is_dashboard_admin"):
+        return frappe.get_all(
+            "Client",
+            fields=_get_client_base_fields(),
+            order_by="full_name asc",
+            limit_page_length=1000,
+            ignore_permissions=True,
+        )
 
-    if not coach_context.get("is_dashboard_admin"):
-        if not coach_name:
-            return []
+    if not coach_name:
+        return []
 
-        or_filters = []
-        if client_meta.has_field("primary_coach"):
-            or_filters.append(["Client", "primary_coach", "=", coach_name])
-        if client_meta.has_field("attending_coach"):
-            or_filters.append(["Client", "attending_coach", "=", coach_name])
+    rows_by_name = {}
 
-        if not or_filters:
-            return []
+    if client_meta.has_field("primary_coach"):
+        for row in frappe.get_all(
+            "Client",
+            fields=_get_client_base_fields(),
+            filters={"primary_coach": coach_name},
+            order_by="full_name asc",
+            limit_page_length=1000,
+            ignore_permissions=True,
+        ):
+            rows_by_name[row.name] = row
 
-    return frappe.get_all(
-        "Client",
-        fields=_get_client_base_fields(),
-        filters=filters,
-        or_filters=or_filters,
-        order_by="full_name asc",
-        limit_page_length=1000,
-        ignore_permissions=True,
+    if client_meta.has_field("attending_coach"):
+        for row in frappe.get_all(
+            "Client",
+            fields=_get_client_base_fields(),
+            filters={"attending_coach": coach_name},
+            order_by="full_name asc",
+            limit_page_length=1000,
+            ignore_permissions=True,
+        ):
+            rows_by_name[row.name] = row
+
+    return sorted(
+        rows_by_name.values(),
+        key=lambda row: (row.get("full_name") or row.get("name") or "").lower()
     )
 
 
@@ -220,36 +235,57 @@ def _get_calendar_for_options(coach_context):
         return options
 
     client_meta = frappe.get_meta("Client")
-    if not client_meta.has_field("session_worker"):
-        return options
+    coach_name = coach_context.get("coach_name")
 
-    filters = {"session_worker": ["is", "set"]}
-    or_filters = None
+    client_rows = []
 
-    if not coach_context.get("is_dashboard_admin"):
-        coach_name = coach_context.get("coach_name")
+    if coach_context.get("is_dashboard_admin"):
+        client_rows = frappe.get_all(
+            "Client",
+            fields=["name", "session_worker"],
+            filters={"session_worker": ["is", "set"]},
+            limit_page_length=1000,
+            ignore_permissions=True,
+        )
+    else:
         if not coach_name:
             return options
 
-        or_filters = []
+        rows_by_name = {}
+
         if client_meta.has_field("primary_coach"):
-            or_filters.append(["Client", "primary_coach", "=", coach_name])
+            for row in frappe.get_all(
+                "Client",
+                fields=["name", "session_worker"],
+                filters={
+                    "primary_coach": coach_name,
+                    "session_worker": ["is", "set"],
+                },
+                limit_page_length=1000,
+                ignore_permissions=True,
+            ):
+                rows_by_name[row.name] = row
+
         if client_meta.has_field("attending_coach"):
-            or_filters.append(["Client", "attending_coach", "=", coach_name])
+            for row in frappe.get_all(
+                "Client",
+                fields=["name", "session_worker"],
+                filters={
+                    "attending_coach": coach_name,
+                    "session_worker": ["is", "set"],
+                },
+                limit_page_length=1000,
+                ignore_permissions=True,
+            ):
+                rows_by_name[row.name] = row
 
-        if not or_filters:
-            return options
+        client_rows = list(rows_by_name.values())
 
-    rows = frappe.get_all(
-        "Client",
-        fields=["session_worker"],
-        filters=filters,
-        or_filters=or_filters,
-        limit_page_length=1000,
-        ignore_permissions=True,
-    )
-
-    worker_names = sorted({row.get("session_worker") for row in rows if row.get("session_worker")})
+    worker_names = sorted({
+        row.get("session_worker")
+        for row in client_rows
+        if row.get("session_worker")
+    })
 
     for worker in worker_names:
         options.append({
@@ -336,17 +372,27 @@ def _get_coach_events(range_start_date, range_end_date, selected_calendar_for, c
     )
 
     client_map = {row.get("name"): row for row in client_rows if row.get("name")}
+
     if not client_map:
         return []
+
+    filters = [
+        ["Event", "starts_on", ">=", f"{range_start_date} 00:00:00"],
+        ["Event", "starts_on", "<=", f"{range_end_date} 23:59:59"],
+        ["Event", "custom_client", "in", list(client_map.keys())],
+    ]
+
+    if selected_calendar_for == COACH_ME_VALUE:
+        if sw_calendar._event_has_field("custom_session_worker"):
+            filters.append(["Event", "custom_session_worker", "in", ["", None]])
+    else:
+        if sw_calendar._event_has_field("custom_session_worker"):
+            filters.append(["Event", "custom_session_worker", "=", selected_calendar_for])
 
     rows = frappe.get_all(
         "Event",
         fields=_get_event_fields(),
-        filters=[
-            ["Event", "starts_on", ">=", f"{range_start_date} 00:00:00"],
-            ["Event", "starts_on", "<=", f"{range_end_date} 23:59:59"],
-            ["Event", "custom_client", "in", list(client_map.keys())],
-        ],
+        filters=filters,
         order_by="starts_on asc",
         limit_page_length=500,
         ignore_permissions=True,
