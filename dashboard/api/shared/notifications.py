@@ -132,6 +132,9 @@ def _recipient_row(label, recipient_user, recipient_type, reference_name):
     if not _valid_user(recipient_user):
         return None
 
+    if recipient_user == frappe.session.user:
+        return None
+
     return {
         "label": label,
         "recipient_user": recipient_user,
@@ -383,25 +386,25 @@ def get_notification_recipients():
             "franchisors": [],
         }
 
-    if dashboard_type == "franchisor":
-        franchisors = []
+        if dashboard_type == "franchisor":
+        admins = []
         seen_users = set()
 
         for user in FRANCHISOR_USERS:
             row = _recipient_row(
                 label=frappe.get_cached_value("User", user, "full_name") or user,
                 recipient_user=user,
-                recipient_type="Franchisor",
+                recipient_type="Admin",
                 reference_name=user,
             )
 
-            _add_unique_recipient(franchisors, seen_users, row)
+            _add_unique_recipient(admins, seen_users, row)
 
         return {
             "dashboard_type": "franchisor",
             "coaches": _get_all_coach_recipients(),
             "session_workers": _get_all_session_worker_recipients(),
-            "franchisors": franchisors,
+            "admins": admins,
         }
 
     frappe.throw(_("You are not allowed to send notifications."), frappe.PermissionError)
@@ -449,7 +452,7 @@ def send_dashboard_notification(recipient_users=None, notification_type=None, me
     allowed_rows = []
     allowed_rows.extend(recipient_data.get("coaches") or [])
     allowed_rows.extend(recipient_data.get("session_workers") or [])
-    allowed_rows.extend(recipient_data.get("franchisors") or [])
+    allowed_rows.extend(recipient_data.get("admins") or [])
 
     allowed_users = {row["recipient_user"]: row for row in allowed_rows}
 
@@ -478,7 +481,7 @@ def send_dashboard_notification(recipient_users=None, notification_type=None, me
             notification_type=notification_type,
             message=message,
             priority=priority,
-            reference_doctype=row.get("recipient_type"),
+            reference_doctype="User" if row.get("recipient_type") == "Admin" else row.get("recipient_type"),
             reference_name=row.get("reference_name"),
             coach=row.get("reference_name") if row.get("recipient_type") == "Coach" else None,
             session_worker=row.get("reference_name") if row.get("recipient_type") == "Session Worker" else None,
