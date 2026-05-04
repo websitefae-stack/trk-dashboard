@@ -1,18 +1,32 @@
-import frappe
-from frappe import _
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
 
-from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
-from dashboard.api.franchisor.clients import get_franchisor_display_name
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
 
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
 
-def get_context(context):
-    if frappe.session.user == "Guest":
-        frappe.throw(_("Login required"), frappe.PermissionError)
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Franchisor Dashboard</h1>
+          <p class="dashboard-page-subtitle">Welcome to your franchisor dashboard.</p>
+        </div>
+      </div>
 
-    redirect_if_wrong_dashboard("franchisor")
-
-    context.no_cache = 1
-    context.page_title = "Franchisor Dashboard"
-    context.active_page = "dashboard"
-    context.dashboard_user_name = get_franchisor_display_name()
-    context.dashboard_notifications_url = "/franchisor_db/notifications"
+      <div class="dashboard-card">
+        <div class="dashboard-list">
+          <a href="/franchisor_db/clients">Clients</a>
+          <a href="/franchisor_db/franchisees">Franchisees</a>
+          <a href="/franchisor_db/onboarding">Onboarding</a>
+          <a href="/franchisor_db/session_workers">Session Workers</a>
+          <a href="/franchisor_db/coaches">Coaches</a>
+          <a href="/franchisor_db/franchise_fees">Franchise Fees</a>
+          <a href="/franchisor_db/marketing_fees">Marketing Fees</a>
+          <a href="/franchisor_db/reports">Reports</a>
+          <a href="/franchisor_db/notifications">Notifications</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
