@@ -641,4 +641,46 @@ def update_session(
     if sw_calendar._event_has_field("custom_appointment_status"):
         event_doc.custom_appointment_status = sw_calendar._map_ui_status_to_custom_status(status or "Booked")
     elif sw_calendar._event_has_field("appointment_status"):
-        event_doc.appointment_status =
+                event_doc.appointment_status = sw_calendar._map_ui_status_to_event(status or "Booked")
+
+    if sw_calendar._event_has_field("status"):
+        event_doc.status = sw_calendar._map_ui_status_to_event(status or "Booked")
+
+    if sw_calendar._event_has_field("location"):
+        event_doc.location = location
+
+    if sw_calendar._event_has_field("event_type"):
+        event_doc.event_type = "Public"
+
+    if sw_calendar._event_has_field("custom_travel_charged"):
+        event_doc.custom_travel_charged = 1 if sw_calendar._to_int(travel_charged) else 0
+
+    if client and frappe.db.exists("Client", client):
+        client_doc = frappe.get_doc("Client", client)
+        client_travel = sw_calendar._get_client_travel_defaults(client_doc)
+
+        if sw_calendar._event_has_field("custom_travel_miles_one_way"):
+            event_doc.custom_travel_miles_one_way = float(client_travel.get("miles_one_way") or 0)
+
+        if sw_calendar._event_has_field("custom_return_trip_required"):
+            event_doc.custom_return_trip_required = 1
+
+        if sw_calendar._event_has_field("custom_session_worker") and client_row and client_row.get("session_worker"):
+            event_doc.custom_session_worker = client_row.get("session_worker")
+
+    if sw_calendar._event_has_field("custom_total_travel_miles"):
+        event_doc.custom_total_travel_miles = sw_calendar._get_effective_total_travel_miles(event_doc)
+
+    if client:
+        client_label = sw_calendar._get_client_display_name(client)
+        event_doc.subject = f"{client_label} - {session_type_value or 'Session'}"
+
+    event_doc.save(ignore_permissions=True)
+
+    return {
+        "name": event_doc.name,
+        "billing_type": event_doc.get("custom_billing_type") or "",
+        "travel_charged": int(event_doc.get("custom_travel_charged") or 0),
+        "travel_miles_one_way": float(event_doc.get("custom_travel_miles_one_way") or 0),
+        "total_travel_miles": float(event_doc.get("custom_total_travel_miles") or 0),
+    }
