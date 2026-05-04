@@ -715,17 +715,17 @@ def get_client_appointment_rows(client_name, calendar_detail_base_url="/coach_db
         )
         row["item_display_name"] = get_item_display_name(row.get("item"))
 
-            # ✅ Pull location from linked Event (correct source)
-            row["location"] = frappe.db.get_value(
-                "Event",
-                row.get("linked_event"),
-                "location"
-            ) if row.get("linked_event") else ""
-            
-            row["view_link"] = (
-            f"{calendar_detail_base_url}?event={row.get('linked_event')}"
-            if row.get("linked_event")
-            else ""
+        # ✅ Pull location from linked Event (correct source)
+        row["location"] = frappe.db.get_value(
+            "Event",
+            row.get("linked_event"),
+            "location"
+        ) if row.get("linked_event") else ""
+        
+        row["view_link"] = (
+        f"{calendar_detail_base_url}?event={row.get('linked_event')}"
+        if row.get("linked_event")
+        else ""
         )
 
         result.append(row)
