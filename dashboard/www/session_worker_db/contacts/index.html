@@ -14,7 +14,13 @@
         </div>
       </div>
 
-      <div class="dashboard-card contacts-filter-row">
+      <div class="dashboard-page-actions dashboard-contact-top-actions">
+        <button type="button" class="dashboard-btn dashboard-btn-secondary" id="refreshContacts">
+          Refresh
+        </button>
+      </div>
+      
+      <div class="dashboard-card contacts-filter-row contacts-filter-row-search-only">
         <div class="dashboard-filter-field dashboard-filter-search">
           <label for="contactSearch">Search contacts</label>
           <input
@@ -24,10 +30,6 @@
             placeholder="Search by name, mobile, email or client"
           >
         </div>
-
-        <button type="button" class="dashboard-btn dashboard-btn-primary contacts-refresh-btn" id="refreshContacts">
-          Refresh
-        </button>
       </div>
 
       <div class="dashboard-card">
