@@ -12,6 +12,12 @@
           <h1 class="dashboard-page-title">Notifications</h1>
           <p class="dashboard-page-subtitle">Notifications assigned to you</p>
         </div>
+      
+        <div class="dashboard-page-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="openSendNotification">
+            Send Notification
+          </button>
+        </div>
       </div>
 
       {% if page_error %}
@@ -25,6 +31,46 @@
         <div><strong id="notificationUnreadCount">{{ unread_count }}</strong> active notification(s)</div>
       </div>
 
+      <div class="dashboard-card" id="sendNotificationPanel" style="display:none; margin-bottom:20px;">
+        <h3>Send Notification</h3>
+      
+        <form id="sendNotificationForm">
+          <div class="dashboard-detail-grid dashboard-detail-grid-2">
+            <div class="dashboard-detail-field">
+              <label>Recipient</label>
+              <select class="dashboard-input" id="sendNotificationRecipients" name="recipient_user" required>
+                <option value="">Select recipient</option>
+              </select>
+            </div>
+      
+            <div class="dashboard-detail-field">
+              <label>Priority</label>
+              <select class="dashboard-input" name="priority">
+                <option value="Normal">Normal</option>
+                <option value="High">High</option>
+                <option value="Urgent">Urgent</option>
+              </select>
+            </div>
+      
+            <div class="dashboard-detail-field dashboard-detail-field-full">
+              <label>Type</label>
+              <input class="dashboard-input" name="notification_type" value="Dashboard Message" required>
+            </div>
+      
+            <div class="dashboard-detail-field dashboard-detail-field-full">
+              <label>Message</label>
+              <textarea class="dashboard-textarea" name="message" required></textarea>
+            </div>
+          </div>
+      
+          <div class="dashboard-detail-actions" style="margin-top:18px;">
+            <button class="dashboard-btn dashboard-btn-primary" type="submit">Send</button>
+            <button class="dashboard-btn dashboard-btn-light" type="button" id="cancelSendNotification">Cancel</button>
+            <span class="dashboard-help" id="sendNotificationMessage"></span>
+          </div>
+        </form>
+      </div>
+            
       <div class="dashboard-card notification-filter-row">
         <div class="dashboard-filter-field">
           <label for="notificationSearch">Search</label>
