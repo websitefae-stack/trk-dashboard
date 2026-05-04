@@ -51,7 +51,7 @@
             return `
               <label class="dashboard-checkbox-label">
                 <input type="checkbox" name="notification_recipients" value="${escapeHtml(item.recipient_user)}">
-                <span>${escapeHtml(item.label)} <small>(${escapeHtml(item.recipient_type)})</small></span>
+                <span>${escapeHtml(item.label)}</span>
               </label>
             `;
           }).join("")}
@@ -72,7 +72,7 @@
       container.innerHTML = `
         ${renderGroup("Coaches", data.coaches)}
         ${renderGroup("Session Workers", data.session_workers)}
-        ${renderGroup("Franchisors", data.franchisors)}
+        ${renderGroup("Admin", data.admins)}
       `;
 
       if (!container.innerHTML.trim()) {
