@@ -29,3 +29,7 @@ def get_context(context):
     context.dbs_update_service_rows = coach.get("dbs_update_services") or []
     context.insurance_rows = coach.get("insurance") or []
     context.indemnity_rows = coach.get("indemnity") or []
+
+    user_doc = frappe.get_doc("User", frappe.session.user)
+
+    context.user_doc = user_doc
