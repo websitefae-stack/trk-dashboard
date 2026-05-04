@@ -947,45 +947,67 @@ table:has(#clientNotesTableBody) thead th:nth-child(3),
 .profile-indemnity-table {
   min-width: 860px;
   table-layout: fixed;
+  width: 100%;
 }
 
+/* DBS + DBS Update: no insurer, wider number */
 .profile-dbs-table th:nth-child(1),
 .profile-dbs-table td:nth-child(1),
 .profile-dbs-update-table th:nth-child(1),
-.profile-dbs-update-table td:nth-child(1),
-.profile-insurance-table th:nth-child(1),
-.profile-insurance-table td:nth-child(1),
-.profile-indemnity-table th:nth-child(1),
-.profile-indemnity-table td:nth-child(1) {
-  width: 16%;
+.profile-dbs-update-table td:nth-child(1) {
+  width: 14%;
 }
 
 .profile-dbs-table th:nth-child(2),
 .profile-dbs-table td:nth-child(2),
 .profile-dbs-update-table th:nth-child(2),
-.profile-dbs-update-table td:nth-child(2),
-.profile-insurance-table th:nth-child(2),
-.profile-insurance-table td:nth-child(2),
-.profile-indemnity-table th:nth-child(2),
-.profile-indemnity-table td:nth-child(2) {
-  width: 18%;
+.profile-dbs-update-table td:nth-child(2) {
+  width: 17%;
 }
 
 .profile-dbs-table th:nth-child(3),
 .profile-dbs-table td:nth-child(3),
 .profile-dbs-update-table th:nth-child(3),
-.profile-dbs-update-table td:nth-child(3),
-.profile-insurance-table th:nth-child(3),
-.profile-insurance-table td:nth-child(3),
-.profile-indemnity-table th:nth-child(3),
-.profile-indemnity-table td:nth-child(3) {
-  width: 18%;
+.profile-dbs-update-table td:nth-child(3) {
+  width: 17%;
 }
 
 .profile-dbs-table th:nth-child(4),
 .profile-dbs-table td:nth-child(4),
 .profile-dbs-update-table th:nth-child(4),
-.profile-dbs-update-table td:nth-child(4),
+.profile-dbs-update-table td:nth-child(4) {
+  width: 34%;
+}
+
+.profile-dbs-table th:nth-child(5),
+.profile-dbs-table td:nth-child(5),
+.profile-dbs-update-table th:nth-child(5),
+.profile-dbs-update-table td:nth-child(5) {
+  width: 18%;
+}
+
+/* Insurance + Indemnity: insurer included */
+.profile-insurance-table th:nth-child(1),
+.profile-insurance-table td:nth-child(1),
+.profile-indemnity-table th:nth-child(1),
+.profile-indemnity-table td:nth-child(1) {
+  width: 12%;
+}
+
+.profile-insurance-table th:nth-child(2),
+.profile-insurance-table td:nth-child(2),
+.profile-indemnity-table th:nth-child(2),
+.profile-indemnity-table td:nth-child(2) {
+  width: 16%;
+}
+
+.profile-insurance-table th:nth-child(3),
+.profile-insurance-table td:nth-child(3),
+.profile-indemnity-table th:nth-child(3),
+.profile-indemnity-table td:nth-child(3) {
+  width: 16%;
+}
+
 .profile-insurance-table th:nth-child(4),
 .profile-insurance-table td:nth-child(4),
 .profile-indemnity-table th:nth-child(4),
@@ -993,20 +1015,16 @@ table:has(#clientNotesTableBody) thead th:nth-child(3),
   width: 22%;
 }
 
-.profile-dbs-table th:nth-child(5),
-.profile-dbs-table td:nth-child(5),
-.profile-dbs-update-table th:nth-child(5),
-.profile-dbs-update-table td:nth-child(5),
 .profile-insurance-table th:nth-child(5),
 .profile-insurance-table td:nth-child(5),
 .profile-indemnity-table th:nth-child(5),
 .profile-indemnity-table td:nth-child(5) {
-  width: 16%;
+  width: 18%;
 }
 
 .profile-insurance-table th:nth-child(6),
 .profile-insurance-table td:nth-child(6),
 .profile-indemnity-table th:nth-child(6),
 .profile-indemnity-table td:nth-child(6) {
-  width: 10%;
+  width: 16%;
 }
