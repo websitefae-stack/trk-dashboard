@@ -24,53 +24,35 @@ def get_my_coach_name():
     return coach.get("name") if coach else ""
 
 
-def get_client_scope_filters(scope="my"):
+def get_coach_values(coach_name):
+    if not coach_name:
+        return []
+
+    values = {coach_name}
+
+    if frappe.db.exists("Coach", coach_name):
+        coach_doc = frappe.db.get_value(
+            "Coach",
+            coach_name,
+            ["name", "coach_name"],
+            as_dict=True,
+        )
+
+        if coach_doc:
+            if coach_doc.get("name"):
+                values.add(coach_doc.get("name"))
+            if coach_doc.get("coach_name"):
+                values.add(coach_doc.get("coach_name"))
+
+    return list(values)
+
+
+def get_client_query_args(scope="my"):
     scope = (scope or "my").strip()
 
-    if scope.lower() == "all":
-        return {}
-
-    if scope.lower() == "my":
-        coach_name = get_my_coach_name()
-    else:
-        coach_name = scope
-
-    if not coach_name:
-        return {"name": ["in", []]}
-
-    coach_doc = frappe.db.get_value(
-        "Coach",
-        coach_name,
-        ["name", "coach_name"],
-        as_dict=True,
-    )
-
-    coach_values = {coach_name}
-
-    if coach_doc:
-        if coach_doc.get("name"):
-            coach_values.add(coach_doc.get("name"))
-
-        if coach_doc.get("coach_name"):
-            coach_values.add(coach_doc.get("coach_name"))
-
-    coach_values = list(coach_values)
-
-    return [
-        [CLIENT_DOCTYPE, "primary_coach", "in", coach_values],
-        "or",
-        [CLIENT_DOCTYPE, "attending_coach", "in", coach_values],
-    ]
-
-
-@frappe.whitelist()
-def get_clients(scope="my"):
-    require_logged_in_user()
-
-    rows = frappe.get_all(
-        CLIENT_DOCTYPE,
-        filters=get_client_scope_filters(scope),
-        fields=[
+    args = {
+        "doctype": CLIENT_DOCTYPE,
+        "fields": [
             "name",
             "name1",
             "last_name",
@@ -84,15 +66,39 @@ def get_clients(scope="my"):
             "attending_coach",
             "session_worker",
         ],
-        order_by="full_name asc",
-        limit_page_length=5000,
-    )
+        "order_by": "full_name asc",
+        "limit_page_length": 5000,
+    }
+
+    if scope.lower() == "all":
+        return args
+
+    coach_name = get_my_coach_name() if scope.lower() == "my" else scope
+    coach_values = get_coach_values(coach_name)
+
+    if not coach_values:
+        args["filters"] = {"name": ["in", []]}
+        return args
+
+    args["or_filters"] = [
+        [CLIENT_DOCTYPE, "primary_coach", "in", coach_values],
+        [CLIENT_DOCTYPE, "attending_coach", "in", coach_values],
+    ]
+
+    return args
+
+
+@frappe.whitelist()
+def get_clients(scope="my"):
+    require_logged_in_user()
+
+    rows = frappe.get_all(**get_client_query_args(scope))
 
     result = []
 
     for row in rows:
         item = normalize_client_row(row)
-        item["scope"] = item.get("primary_coach") or "All"
+        item["scope"] = item.get("primary_coach") or item.get("attending_coach") or "All"
         result.append(item)
 
     return result
