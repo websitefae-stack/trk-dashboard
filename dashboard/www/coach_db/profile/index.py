@@ -24,3 +24,8 @@ def get_context(context):
     context.bank_account = None
     if coach.bank_account:
         context.bank_account = frappe.get_doc("Bank Account", coach.bank_account)
+
+    context.dbs_rows = coach.get("dbs") or []
+    context.dbs_update_service_rows = coach.get("dbs_update_services") or []
+    context.insurance_rows = coach.get("insurance") or []
+    context.indemnity_rows = coach.get("indemnity") or []
