@@ -1,1 +1,17 @@
+{% include "dashboard/templates/includes/head/coach_head.html" %}
 
+{% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
+{% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+<div class="trk-calendar-toolbar">
+  <div class="trk-calendar-toolbar-sub">
+    <label>Session Worker</label>
+    <select id="trkCoachCalendarWorkerSelect" class="dashboard-select">
+      <option value="">Loading...</option>
+    </select>
+  </div>
+
+  <div class="trk-calendar-toolbar-main">
+    <div id="trkCalendar"></div>
+  </div>
+</div>
