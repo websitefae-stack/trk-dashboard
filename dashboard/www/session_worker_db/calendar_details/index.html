@@ -1,10 +1,10 @@
-{% include "trk_session_worker_dashboard/templates/includes/dashboard_head.html" %}
+{% include "dashboard/templates/includes/head/session_worker_head.html" %}
 
 <div class="dashboard-page" id="sessionWorkerCalendarDetailsShell">
-  {% include "trk_session_worker_dashboard/templates/includes/dashboard_sidebar.html" %}
+  {% include "dashboard/templates/includes/sidebar/session_worker_sidebar.html" %}
 
   <div class="dashboard-main">
-    {% include "trk_session_worker_dashboard/templates/includes/dashboard_topbar.html" %}
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
 
     <div class="dashboard-container">
       <div class="dashboard-page-header">
@@ -16,7 +16,7 @@
         </div>
 
         <div class="dashboard-page-actions">
-          <a href="/session_dashboard/calendar" class="dashboard-btn dashboard-btn-light">
+          <a href="/session_worker_db/calendar" class="dashboard-btn dashboard-btn-light">
             ← Back to Calendar
           </a>
         </div>
