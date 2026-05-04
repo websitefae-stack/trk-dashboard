@@ -3,7 +3,7 @@ from frappe import _
 
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
 from dashboard.api.shared.contacts import get_contacts_for_scope, get_current_coach_name
-from dashboard.api.franchisor.clients import get_coaches, get_session_workers
+from dashboard.api.franchisor.clients import get_coaches, get_session_workers, get_franchisor_display_name
 
 
 def get_context(context):
@@ -17,6 +17,7 @@ def get_context(context):
     context.no_cache = 1
     context.page_title = "Contacts"
     context.active_page = "contacts"
+    context.dashboard_user_name = get_franchisor_display_name()
     context.contact_scope = contact_scope
     context.my_coach_name = get_current_coach_name()
     context.my_coach_display_name = frappe.db.get_value(
