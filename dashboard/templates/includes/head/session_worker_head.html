@@ -1,62 +1,18 @@
 {% include "dashboard/templates/includes/head/shared_head.html" %}
 
-{% set path = frappe.request.path if frappe and frappe.request else "" %}
-{% set clean_path = path.rstrip("/") %}
-
 <link rel="stylesheet" href="/assets/dashboard/css/session_worker/session_worker.css?v=1">
 
-{# ✅ CALENDAR CSS #}
-{% if clean_path == "/session_worker_db/calendar" or clean_path == "/session_worker_db/calendar_details" %}
-<link rel="stylesheet" href="/assets/dashboard/css/shared/calendar.css?v=1">
-{% endif %}
-
-{# ✅ HOME #}
-{% if clean_path == "/session_worker_db" %}
-<script src="/assets/dashboard/js/session_worker/dashboard_home.js?v=1"></script>
-{% endif %}
-
-{# ✅ CALENDAR DETAILS PAGE #}
-{% if path.startswith("/session_worker_db/calendar_details") %}
-<script src="/assets/dashboard/js/shared/calendar_details.js?v=1"></script>
-<script src="/assets/dashboard/js/session_worker/calendar_details.js?v=1"></script>
-{% endif %}
-
-{# ✅ CALENDAR PAGE #}
-{% if path.startswith("/session_worker_db/calendar") and not path.startswith("/session_worker_db/calendar_details") %}
 <script src="/assets/dashboard/js/shared/calendar.js?v=1"></script>
-<script src="/assets/dashboard/js/session_worker/calendar.js?v=1"></script>
-{% endif %}
-
-{# ✅ CLIENT DETAILS #}
-{% if path.startswith("/session_worker_db/client_details") %}
+<script src="/assets/dashboard/js/shared/calendar_details.js?v=1"></script>
 <script src="/assets/dashboard/js/shared/client_details.js?v=1"></script>
-<script src="/assets/dashboard/js/session_worker/client_details.js?v=1"></script>
-{% endif %}
-
-{# ✅ CLIENTS #}
-{% if path.startswith("/session_worker_db/clients") %}
-<script src="/assets/dashboard/js/session_worker/clients.js?v=1"></script>
-{% endif %}
-
-{# ✅ CONTACTS #}
-{% if path.startswith("/session_worker_db/contact_details") %}
 <script src="/assets/dashboard/js/shared/contact_details.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/session_worker_db/contacts") %}
 <script src="/assets/dashboard/js/shared/contacts.js?v=1"></script>
-{% endif %}
 
-{# ✅ NOTIFICATIONS #}
-{% if path.startswith("/session_worker_db/notification_details") %}
+<script src="/assets/dashboard/js/session_worker/dashboard_home.js?v=1"></script>
+<script src="/assets/dashboard/js/session_worker/calendar.js?v=1"></script>
+<script src="/assets/dashboard/js/session_worker/calendar_details.js?v=1"></script>
+<script src="/assets/dashboard/js/session_worker/client_details.js?v=1"></script>
+<script src="/assets/dashboard/js/session_worker/clients.js?v=1"></script>
 <script src="/assets/dashboard/js/session_worker/notification_details.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/session_worker_db/notifications") %}
 <script src="/assets/dashboard/js/session_worker/notifications.js?v=1"></script>
-{% endif %}
-
-{# ✅ PROFILE #}
-{% if path.startswith("/session_worker_db/profile") %}
 <script src="/assets/dashboard/js/session_worker/profile.js?v=1"></script>
-{% endif %}
