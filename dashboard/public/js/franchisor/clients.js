@@ -84,7 +84,8 @@
     const refreshBtn = el("refreshClients");
     if (refreshBtn) {
       refreshBtn.addEventListener("click", function () {
-        window.location.reload();
+        const url = new URL(window.location.href);
+        window.location.href = url.toString();
       });
     }
 
@@ -97,7 +98,7 @@
   }
 
   function init() {
-    if (!el("clientTable") && !document.querySelector(".dashboard-client-row")) return;
+    if (!el("clientScopeFilter") && !el("refreshClients") && !el("addClient")) return;
 
     const scopeField = el("clientScopeFilter");
       if (scopeField) {
