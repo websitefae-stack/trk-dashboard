@@ -1,88 +1,26 @@
 {% include "dashboard/templates/includes/head/shared_head.html" %}
 
-{% set path = frappe.request.path if frappe and frappe.request else "" %}
-{% set clean_path = path.rstrip("/") %}
-
 <link rel="stylesheet" href="/assets/dashboard/css/coach/coach.css?v=1">
 
-{% if clean_path == "/coach_db/calendar" or clean_path == "/coach_db/calendar_details" %}
-<link rel="stylesheet" href="/assets/dashboard/css/shared/calendar.css?v=1">
-{% endif %}
-
-{% if clean_path == "/coach_db" %}
-<script src="/assets/dashboard/js/coach/dashboard_home.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/coach_db/calendar_details") %}
-<script src="/assets/dashboard/js/coach/calendar_details.js?v=1"></script>
-<script src="/assets/dashboard/js/shared/calendar_details.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/coach_db/calendar") and not path.startswith("/coach_db/calendar_details") %}
-<script src="/assets/dashboard/js/coach/calendar.js?v=1"></script>
 <script src="/assets/dashboard/js/shared/calendar.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/coach_db/profile") %}
-<script src="/assets/dashboard/js/coach/profile.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/coach_db/session_worker_details") %}
-<script src="/assets/dashboard/js/coach/session_worker_details.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/coach_db/session_workers") %}
-<script src="/assets/dashboard/js/coach/session_workers.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/coach_db/client_details") %}
-<script src="/assets/dashboard/js/coach/client_details.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/coach_db/clients") %}
-<script src="/assets/dashboard/js/coach/clients.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/coach_db/contact_details") %}
+<script src="/assets/dashboard/js/shared/calendar_details.js?v=1"></script>
 <script src="/assets/dashboard/js/shared/contact_details.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/coach_db/contacts") %}
 <script src="/assets/dashboard/js/shared/contacts.js?v=1"></script>
-{% endif %}
 
-{% if path.startswith("/coach_db/invoice_details") %}
+<script src="/assets/dashboard/js/coach/dashboard_home.js?v=1"></script>
+<script src="/assets/dashboard/js/coach/calendar.js?v=1"></script>
+<script src="/assets/dashboard/js/coach/calendar_details.js?v=1"></script>
+<script src="/assets/dashboard/js/coach/client_details.js?v=1"></script>
+<script src="/assets/dashboard/js/coach/clients.js?v=1"></script>
+<script src="/assets/dashboard/js/coach/session_worker_details.js?v=1"></script>
+<script src="/assets/dashboard/js/coach/session_workers.js?v=1"></script>
 <script src="/assets/dashboard/js/coach/invoice_details.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/coach_db/invoices") %}
 <script src="/assets/dashboard/js/coach/invoices.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/coach_db/job_applicant_details") %}
 <script src="/assets/dashboard/js/coach/job_applicant_details.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/coach_db/job_details") %}
 <script src="/assets/dashboard/js/coach/job_details.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/coach_db/jobs") %}
 <script src="/assets/dashboard/js/coach/jobs.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/coach_db/lead_details") %}
 <script src="/assets/dashboard/js/coach/lead_details.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/coach_db/leads") %}
 <script src="/assets/dashboard/js/coach/leads.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/coach_db/notification_details") %}
 <script src="/assets/dashboard/js/coach/notification_details.js?v=1"></script>
-{% endif %}
-
-{% if path.startswith("/coach_db/notifications") %}
 <script src="/assets/dashboard/js/coach/notifications.js?v=1"></script>
-{% endif %}
+<script src="/assets/dashboard/js/coach/profile.js?v=1"></script>
