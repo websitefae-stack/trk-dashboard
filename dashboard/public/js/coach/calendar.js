@@ -15,6 +15,7 @@
 
   function setSelectedCalendarFor(value) {
     const selected = value || "__coach_me__";
+
     window.localStorage.setItem(STORAGE_KEY, selected);
 
     const params = new URLSearchParams(window.location.search);
@@ -39,8 +40,11 @@
       if (url.indexOf("get_calendar_bootstrap") !== -1) {
         const selected = getSelectedCalendarFor();
         const parsed = new URL(url, window.location.origin);
+
+        parsed.searchParams.set("calendar_for", selected);
         parsed.searchParams.set("selected_calendar_for", selected);
         parsed.searchParams.set("selected_worker", selected);
+
         url = parsed.toString();
       }
 
@@ -49,13 +53,12 @@
 
     return originalFetch(input, init).then(function (response) {
       try {
-        const cloned = response.clone();
-
-        cloned.json().then(function (data) {
+        response.clone().json().then(function (data) {
           const message = data && data.message ? data.message : {};
 
           if (Array.isArray(message.events)) {
             privateEvents.clear();
+
             message.events.forEach(function (event) {
               if (Number(event.is_private || 0)) {
                 privateEvents.add(event.name || event.id);
@@ -63,11 +66,10 @@
             });
           }
 
-          const options = Array.isArray(message.calendar_for_options)
-            ? message.calendar_for_options
-            : [];
-
-          renderCalendarForOptions(options, message.selected_calendar_for || "__coach_me__");
+          renderCalendarForOptions(
+            Array.isArray(message.calendar_for_options) ? message.calendar_for_options : [],
+            message.selected_calendar_for || getSelectedCalendarFor()
+          );
         }).catch(function () {});
       } catch (error) {}
 
@@ -85,10 +87,11 @@
       const value = escapeHtml(row.value || "");
       const label = escapeHtml(row.label || row.value || "");
       const selected = selectedValue === row.value ? " selected" : "";
+
       html += '<option value="' + value + '"' + selected + ">" + label + "</option>";
     });
 
-    select.innerHTML = html || '<option value="__coach_me__">Me</option>';
+    select.innerHTML = html || '<option value="__coach_me__">My Calendar</option>';
   }
 
   function removePrivateActions() {
@@ -126,6 +129,7 @@
     renameLabel();
 
     const select = document.getElementById("trkCoachCalendarWorkerSelect");
+
     if (select) {
       select.addEventListener("change", function () {
         setSelectedCalendarFor(this.value || "__coach_me__");
