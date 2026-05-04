@@ -509,20 +509,13 @@ def is_cancelled_status(status):
     }
 
 
-def is_open_appointment_status(status):
+def should_show_appointment_status(status):
     value = normalize(status)
 
     if not value:
-        return False
+        return True
 
-    if is_cancelled_status(value):
-        return False
-
-    return value in {
-        "open",
-        "scheduled",
-        "booked",
-    }
+    return not is_cancelled_status(value)
 
 
 def get_effective_event_session_type(event_row):
@@ -644,7 +637,7 @@ def get_event_client_appointments(client_name, calendar_detail_base_url="/coach_
     for row in rows:
         raw_status = get_event_status(row)
 
-        if not is_open_appointment_status(raw_status):
+        if not should_show_appointment_status(raw_status):
             continue
 
         row["appointment_start"] = row.get("starts_on")
@@ -704,10 +697,29 @@ def get_client_appointment_rows(client_name, calendar_detail_base_url="/coach_db
     for row in rows:
         status = row.get("status") or ""
 
-        if not is_open_appointment_status(status):
+        linked_event_status = ""
+
+        if row.get("linked_event") and frappe.db.exists("Event", row.get("linked_event")):
+            linked_event_status = frappe.db.get_value(
+                "Event",
+                row.get("linked_event"),
+                "custom_appointment_status"
+            ) or frappe.db.get_value(
+                "Event",
+                row.get("linked_event"),
+                "appointment_status"
+            ) or frappe.db.get_value(
+                "Event",
+                row.get("linked_event"),
+                "status"
+            ) or ""
+        
+        effective_status = linked_event_status or status
+        
+        if not should_show_appointment_status(effective_status):
             continue
 
-        row["display_status"] = map_event_status_to_ui(status)
+        row["display_status"] = map_event_status_to_ui(effective_status)
         row["display_progress"] = get_progress_text(
             row.get("progress_text"),
             row.get("session_number"),
@@ -723,9 +735,9 @@ def get_client_appointment_rows(client_name, calendar_detail_base_url="/coach_db
         ) if row.get("linked_event") else ""
         
         row["view_link"] = (
-        f"{calendar_detail_base_url}?event={row.get('linked_event')}"
-        if row.get("linked_event")
-        else ""
+            f"{calendar_detail_base_url}?event={row.get('linked_event')}"
+            if row.get("linked_event")
+            else ""
         )
 
         result.append(row)
