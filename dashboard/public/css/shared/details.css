@@ -239,10 +239,11 @@
     grid-column: auto !important;
   }
 
-  .dashboard-detail-actions,
+    .dashboard-detail-actions,
   .dashboard-edit-actions {
-    display: grid;
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
     gap: 10px;
   }
 
@@ -250,7 +251,8 @@
   .dashboard-detail-actions .dashboard-link-btn,
   .dashboard-edit-actions .dashboard-btn,
   .dashboard-edit-actions .dashboard-link-btn {
-    width: 100%;
+    width: auto;
+    flex: 0 0 auto;
   }
 
   .dashboard-table-header {
