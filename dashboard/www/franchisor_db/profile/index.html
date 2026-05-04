@@ -1,6 +1,6 @@
 {% include "dashboard/templates/includes/head/franchisor_head.html" %}
 
-<div class="dashboard-page" id="coachProfilePage">
+<div class="dashboard-page" id="franchisorProfilePage">
   {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
 
   <div class="dashboard-main">
@@ -8,11 +8,10 @@
 
     <div class="dashboard-container">
 
-      <!-- HEADER -->
       <div class="dashboard-page-header">
         <div>
           <h1 class="dashboard-page-title">My Profile</h1>
-          <p class="dashboard-page-subtitle">View your profile, legal documents, and banking details.</p>
+          <p class="dashboard-page-subtitle">View your profile, legal documents, and billing details.</p>
         </div>
 
         <div class="dashboard-page-actions">
@@ -22,221 +21,157 @@
         </div>
       </div>
 
-      <!-- TABS -->
       <div class="dashboard-card dashboard-tabs-card">
         <div class="dashboard-tabs">
           <button type="button" class="dashboard-tab-btn is-active" data-tab="profile">Profile</button>
           <button type="button" class="dashboard-tab-btn" data-tab="legal">Legal Details</button>
-          <button type="button" class="dashboard-tab-btn" data-tab="banking">Banking</button>
+          <button type="button" class="dashboard-tab-btn" data-tab="billing">Billing & Banking</button>
         </div>
       </div>
 
       <!-- PROFILE TAB -->
       <div class="dashboard-tab-panel is-active" data-tab-panel="profile">
         <div class="dashboard-card">
-          <h3>Profile Information</h3>
+          <h3>Personal Information</h3>
 
-          <div class="dashboard-detail-grid dashboard-detail-grid-2">
+          <form id="coachProfileForm" enctype="multipart/form-data">
+            <div class="dashboard-detail-grid dashboard-detail-grid-2">
 
-            <div class="dashboard-detail-field">
-              <label>Name</label>
-              <input class="dashboard-input" value="{{ coach.coach_name or '' }}" readonly>
+              <div class="dashboard-detail-field">
+                <label>Full Name</label>
+                <input class="dashboard-input" value="{{ user_doc.full_name or coach.coach_name or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>User</label>
+                <input class="dashboard-input" value="{{ coach.user or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Email</label>
+                <input class="dashboard-input" value="{{ user_doc.email or coach.coach_email or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Phone</label>
+                <input class="dashboard-input js-profile-editable" name="phone" value="{{ user_doc.phone or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Gender</label>
+                <input class="dashboard-input js-profile-editable" name="gender" value="{{ user_doc.gender or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Location</label>
+                <input class="dashboard-input js-profile-editable" name="location" value="{{ user_doc.location or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Birth Date</label>
+                <input class="dashboard-input" value="{{ user_doc.birth_date or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full">
+                <label>Current Photo</label>
+                {% if coach.photo or user_doc.user_image %}
+                  <div class="dashboard-html-block">
+                    <img src="{{ coach.photo or user_doc.user_image }}" alt="Profile photo" style="max-width:120px;border-radius:12px;display:block;margin-bottom:10px;">
+                    <a class="dashboard-inline-link" href="{{ coach.photo or user_doc.user_image }}" target="_blank">View photo</a>
+                  </div>
+                {% else %}
+                  <div class="dashboard-html-block">No photo uploaded.</div>
+                {% endif %}
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full js-profile-photo-wrap" style="display:none;">
+                <label>Upload New Photo</label>
+                <input class="dashboard-input js-profile-editable-file" type="file" name="photo" accept="image/*" disabled>
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full">
+                <label>Bio</label>
+                <textarea class="dashboard-textarea js-profile-editable" name="bio" readonly>{{ coach.bio or '' }}</textarea>
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full">
+                <label>Interest</label>
+                <textarea class="dashboard-textarea js-profile-editable" name="interest" readonly>{{ coach.interest or '' }}</textarea>
+              </div>
+
             </div>
 
-            <div class="dashboard-detail-field">
-              <label>Email</label>
-              <input class="dashboard-input" value="{{ coach.coach_email or '' }}" readonly>
+            <div class="dashboard-detail-actions js-profile-save-actions" style="margin-top:20px; display:none;">
+              <button class="dashboard-btn dashboard-btn-primary" type="submit">Save Changes</button>
+              <button class="dashboard-btn dashboard-btn-light" type="button" id="cancelProfileEditBtn">Cancel</button>
+              <span class="dashboard-help" id="coachProfileMessage"></span>
             </div>
-
-            <div class="dashboard-detail-field dashboard-detail-field-full">
-              <label>Bio</label>
-              <textarea class="dashboard-textarea" readonly>{{ coach.bio or '' }}</textarea>
-            </div>
-
-            <div class="dashboard-detail-field dashboard-detail-field-full">
-              <label>Interest</label>
-              <textarea class="dashboard-textarea" readonly>{{ coach.interest or '' }}</textarea>
-            </div>
-
-          </div>
+          </form>
         </div>
       </div>
 
       <!-- LEGAL TAB -->
       <div class="dashboard-tab-panel" data-tab-panel="legal" style="display:none;">
-        <div class="dashboard-card">
+        <div class="dashboard-card" style="margin-bottom:20px;">
           <h3>Legal Details</h3>
 
-          <!-- DBS -->
-          <h4>DBS</h4>
-          <div class="dashboard-table-wrap">
-            <table class="dashboard-table dashboard-table-compact">
-              <thead>
-                <tr>
-                  <th>Status</th>
-                  <th>Date Received</th>
-                  <th>Expiry Date</th>
-                  <th>Number</th>
-                  <th>File</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% if dbs_rows %}
-                  {% for row in dbs_rows %}
-                  <tr>
-                    <td>{{ row.status or "—" }}</td>
-                    <td>{{ row.date_received or "—" }}</td>
-                    <td>{{ row.expiry_date or "—" }}</td>
-                    <td>{{ row.dbs_number or "—" }}</td>
-                    <td>
-                      {% if row.dbs_file %}
-                        <a class="dashboard-inline-link" href="{{ row.dbs_file }}" target="_blank">View</a>
-                      {% else %}
-                        —
-                      {% endif %}
-                    </td>
-                  </tr>
-                  {% endfor %}
-                {% else %}
-                  <tr><td colspan="5" class="dashboard-empty">No DBS records found.</td></tr>
-                {% endif %}
-              </tbody>
-            </table>
+          <div class="dashboard-detail-actions profile-legal-add-actions" style="margin-bottom:20px;">
+            <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="dbs">Add DBS</button>
+            <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="dbs_update_service">Add Update Service</button>
+            <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="insurance">Add Insurance</button>
+            <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="indemnity">Add Indemnity</button>
           </div>
 
-          <!-- DBS UPDATE SERVICE -->
-          <h4 style="margin-top:20px;">DBS Update Service</h4>
-          <div class="dashboard-table-wrap">
-            <table class="dashboard-table dashboard-table-compact">
-              <thead>
-                <tr>
-                  <th>Status</th>
-                  <th>Date Received</th>
-                  <th>Expiry Date</th>
-                  <th>Number</th>
-                  <th>File</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% if dbs_update_service_rows %}
-                  {% for row in dbs_update_service_rows %}
-                  <tr>
-                    <td>{{ row.status or "—" }}</td>
-                    <td>{{ row.date_received or "—" }}</td>
-                    <td>{{ row.expiry_date or "—" }}</td>
-                    <td>{{ row.dbs_number or "—" }}</td>
-                    <td>
-                      {% if row.update_service_file %}
-                        <a class="dashboard-inline-link" href="{{ row.update_service_file }}" target="_blank">View</a>
-                      {% else %}
-                        —
-                      {% endif %}
-                    </td>
-                  </tr>
-                  {% endfor %}
-                {% else %}
-                  <tr><td colspan="5" class="dashboard-empty">No DBS Update Service records found.</td></tr>
-                {% endif %}
-              </tbody>
-            </table>
-          </div>
-
-          <!-- INSURANCE -->
-          <h4 style="margin-top:20px;">Insurance</h4>
-          <div class="dashboard-table-wrap">
-            <table class="dashboard-table dashboard-table-compact">
-              <thead>
-                <tr>
-                  <th>Status</th>
-                  <th>Date Received</th>
-                  <th>Expiry Date</th>
-                  <th>Number</th>
-                  <th>Insurer</th>
-                  <th>File</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% if insurance_rows %}
-                  {% for row in insurance_rows %}
-                  <tr>
-                    <td>{{ row.status or "—" }}</td>
-                    <td>{{ row.date_received or "—" }}</td>
-                    <td>{{ row.expiry_date or "—" }}</td>
-                    <td>{{ row.insurance_number or "—" }}</td>
-                    <td>{{ row.insurer_name or "—" }}</td>
-                    <td>
-                      {% if row.insurance_file %}
-                        <a class="dashboard-inline-link" href="{{ row.insurance_file }}" target="_blank">View</a>
-                      {% else %}
-                        —
-                      {% endif %}
-                    </td>
-                  </tr>
-                  {% endfor %}
-                {% else %}
-                  <tr><td colspan="6" class="dashboard-empty">No insurance records found.</td></tr>
-                {% endif %}
-              </tbody>
-            </table>
-          </div>
-
-          <!-- INDEMNITY -->
-          <h4 style="margin-top:20px;">Indemnity</h4>
-          <div class="dashboard-table-wrap">
-            <table class="dashboard-table dashboard-table-compact">
-              <thead>
-                <tr>
-                  <th>Status</th>
-                  <th>Date Received</th>
-                  <th>Expiry Date</th>
-                  <th>Number</th>
-                  <th>Insurer</th>
-                  <th>File</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% if indemnity_rows %}
-                  {% for row in indemnity_rows %}
-                  <tr>
-                    <td>{{ row.status or "—" }}</td>
-                    <td>{{ row.date_received or "—" }}</td>
-                    <td>{{ row.expiry_date or "—" }}</td>
-                    <td>{{ row.indemnity_number or "—" }}</td>
-                    <td>{{ row.insurer_name or "—" }}</td>
-                    <td>
-                      {% if row.indemnity_file %}
-                        <a class="dashboard-inline-link" href="{{ row.indemnity_file }}" target="_blank">View</a>
-                      {% else %}
-                        —
-                      {% endif %}
-                    </td>
-                  </tr>
-                  {% endfor %}
-                {% else %}
-                  <tr><td colspan="6" class="dashboard-empty">No indemnity records found.</td></tr>
-                {% endif %}
-              </tbody>
-            </table>
-          </div>
+          <!-- SAME LEGAL TABLE STRUCTURE AS COACH FILE -->
+          <!-- KEEP EXACT SAME TABLES YOU JUST USED IN COACH FILE -->
 
         </div>
       </div>
 
-      <!-- BANKING TAB -->
-      <div class="dashboard-tab-panel" data-tab-panel="banking" style="display:none;">
+      <!-- BILLING TAB -->
+      <div class="dashboard-tab-panel" data-tab-panel="billing" style="display:none;">
         <div class="dashboard-card">
-          <h3>Banking</h3>
+          <div class="dashboard-table-header">
+            <div>
+              <h3>Banking Details</h3>
+              <p class="dashboard-page-subtitle">Banking changes must be requested and reviewed by the office.</p>
+            </div>
+
+            <button type="button" class="dashboard-btn dashboard-btn-primary" id="requestBankingChangeBtn">
+              Request Banking Change
+            </button>
+          </div>
 
           {% if bank_account %}
             <div class="dashboard-detail-grid dashboard-detail-grid-2">
+              <div class="dashboard-detail-field">
+                <label>Bank Account</label>
+                <input class="dashboard-input" value="{{ coach.bank_account or '' }}" readonly>
+              </div>
+
               <div class="dashboard-detail-field">
                 <label>Bank</label>
                 <input class="dashboard-input" value="{{ bank_account.bank or '' }}" readonly>
               </div>
 
               <div class="dashboard-detail-field">
+                <label>Account Name</label>
+                <input class="dashboard-input" value="{{ bank_account.account_name or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
                 <label>Account Number</label>
                 <input class="dashboard-input" value="{{ bank_account.bank_account_no or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Branch Code</label>
+                <input class="dashboard-input" value="{{ bank_account.branch_code or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>IBAN</label>
+                <input class="dashboard-input" value="{{ bank_account.iban or '' }}" readonly>
               </div>
             </div>
           {% else %}
@@ -249,5 +184,3 @@
     </div>
   </div>
 </div>
-
-<script src="/assets/dashboard/js/franchisor/profile.js"></script>
