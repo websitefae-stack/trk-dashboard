@@ -201,17 +201,22 @@
     position: static;
   }
 
-  .dashboard-tabs-card .dashboard-tabs {
-    display: grid;
-    grid-template-columns: 1fr;
+   .dashboard-tabs-card .dashboard-tabs {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
     gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .dashboard-tabs-card .dashboard-tab-btn {
-    width: 100%;
+    flex: 0 0 auto;
+    width: auto;
     min-height: 42px;
     border-radius: 12px;
     text-align: center;
+    white-space: nowrap;
   }
 
   .dashboard-page-header {
