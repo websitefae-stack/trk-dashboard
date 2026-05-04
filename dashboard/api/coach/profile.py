@@ -1,5 +1,8 @@
 import frappe
 from frappe import _
+from werkzeug.utils import secure_filename
+
+from dashboard.api.shared.notifications import create_trk_notification
 
 
 COACH_DOCTYPE = "Coach"
@@ -7,6 +10,35 @@ CHANGE_REQUEST_DOCTYPE = "Change Request"
 
 OFFICE_EMAIL = "office@theresilientpeople.uk"
 ASHLEY_USER = "ashley@theresilientkid.co.uk"
+
+LEGAL_TABLE_CONFIG = {
+    "dbs": {
+        "parentfield": "dbs",
+        "label": "DBS",
+        "number_field": "dbs_number",
+        "file_field": "dbs_file",
+    },
+    "dbs_update_service": {
+        "parentfield": "dbs_update_services",
+        "label": "DBS Update Service",
+        "number_field": "dbs_number",
+        "file_field": "update_service_file",
+    },
+    "insurance": {
+        "parentfield": "insurance",
+        "label": "Insurance",
+        "number_field": "insurance_number",
+        "file_field": "insurance_file",
+        "insurer_field": "insurer_name",
+    },
+    "indemnity": {
+        "parentfield": "indemnity",
+        "label": "Indemnity",
+        "number_field": "indemnity_number",
+        "file_field": "indemnity_file",
+        "insurer_field": "insurer_name",
+    },
+}
 
 
 def ensure_logged_in():
@@ -47,22 +79,16 @@ def update_my_coach_profile():
 
     coach = get_coach_doc()
 
-    coach.bio = frappe.form_dict.get("bio")
+    if coach.meta.has_field("bio"):
+        coach.bio = frappe.form_dict.get("bio")
 
-    if frappe.request.files.get("photo"):
-        file = frappe.request.files.get("photo")
+    if coach.meta.has_field("interest"):
+        coach.interest = frappe.form_dict.get("interest")
 
-        file_doc = frappe.get_doc({
-            "doctype": "File",
-            "file_name": file.filename,
-            "attached_to_doctype": COACH_DOCTYPE,
-            "attached_to_name": coach.name,
-            "content": file.stream.read(),
-            "is_private": 1,
-        })
-        file_doc.save(ignore_permissions=True)
+    photo_url = _save_optional_file("photo", coach)
 
-        coach.photo = file_doc.file_url
+    if photo_url and coach.meta.has_field("photo"):
+        coach.photo = photo_url
 
     coach.save(ignore_permissions=True)
     frappe.db.commit()
@@ -91,23 +117,103 @@ def request_my_banking_change(new_banking_details=None, banking_change_reason=No
 
     doc.insert(ignore_permissions=True)
 
-    # EMAIL OFFICE
     frappe.sendmail(
         recipients=[OFFICE_EMAIL],
         subject="Coach Banking Change Request",
-        message=f"{coach.coach_name} submitted a banking change request.",
+        message=f"{coach.coach_name or coach.name} submitted a banking change request.",
     )
 
-    # NOTIFY ASHLEY
-    frappe.get_doc({
-        "doctype": "TRK Notification",
-        "recipient_user": ASHLEY_USER,
-        "notification_type": "Coach Banking Change",
-        "message": f"{coach.coach_name} submitted a banking change request.",
-        "status": "Unread",
-        "notification_date": frappe.utils.now_datetime(),
-    }).insert(ignore_permissions=True)
+    create_trk_notification(
+        recipient_user=ASHLEY_USER,
+        notification_type="Coach Banking Change",
+        message=f"{coach.coach_name or coach.name} submitted a banking change request.",
+        priority="High",
+        reference_doctype=CHANGE_REQUEST_DOCTYPE,
+        reference_name=doc.name,
+        coach=coach.name,
+    )
 
     frappe.db.commit()
 
     return {"ok": 1, "message": "Request submitted."}
+
+
+@frappe.whitelist()
+def add_my_legal_record():
+    ensure_logged_in()
+
+    coach = get_coach_doc()
+
+    record_type = (frappe.form_dict.get("record_type") or "").strip()
+    config = LEGAL_TABLE_CONFIG.get(record_type)
+
+    if not config:
+        frappe.throw(_("Invalid legal record type."))
+
+    parentfield = config["parentfield"]
+
+    if not coach.meta.has_field(parentfield):
+        frappe.throw(_("Coach is missing field: {0}").format(parentfield))
+
+    file_url = _save_optional_file(config["file_field"], coach)
+
+    if not file_url:
+        frappe.throw(_("Please attach the required file."))
+
+    child = coach.append(parentfield, {})
+
+    child.status = _get_status_from_expiry(frappe.form_dict.get("expiry_date"))
+    child.date_received = frappe.form_dict.get("date_received")
+    child.expiry_date = frappe.form_dict.get("expiry_date")
+
+    child.set(config["number_field"], frappe.form_dict.get("number"))
+
+    if config.get("insurer_field"):
+        child.set(config["insurer_field"], frappe.form_dict.get("insurer_name"))
+
+    child.set(config["file_field"], file_url)
+
+    coach.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "ok": 1,
+        "message": "{0} added successfully.".format(config["label"]),
+    }
+
+
+def _get_status_from_expiry(expiry_date):
+    if not expiry_date:
+        return "Expired"
+
+    try:
+        expiry = frappe.utils.getdate(expiry_date)
+        today = frappe.utils.getdate(frappe.utils.today())
+        return "Current" if expiry >= today else "Expired"
+    except Exception:
+        return "Expired"
+
+
+def _save_optional_file(fieldname, coach):
+    if not getattr(frappe, "request", None):
+        return ""
+
+    uploaded_file = frappe.request.files.get(fieldname)
+
+    if not uploaded_file:
+        return ""
+
+    filename = secure_filename(uploaded_file.filename or "uploaded-file")
+
+    file_doc = frappe.get_doc({
+        "doctype": "File",
+        "file_name": filename,
+        "attached_to_doctype": COACH_DOCTYPE,
+        "attached_to_name": coach.name,
+        "content": uploaded_file.stream.read(),
+        "is_private": 1,
+    })
+
+    file_doc.save(ignore_permissions=True)
+
+    return file_doc.file_url
