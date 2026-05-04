@@ -1,0 +1,84 @@
+{% include "dashboard/templates/includes/head/coach_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Notifications</h1>
+          <p class="dashboard-page-subtitle">Notifications assigned to you</p>
+        </div>
+      </div>
+
+      {% if page_error %}
+        <div class="dashboard-notice" style="margin-bottom: 20px;">{{ page_error }}</div>
+      {% endif %}
+
+      <div class="dashboard-card" style="margin-bottom: 20px;">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Summary</div>
+        </div>
+        <div><strong id="notificationUnreadCount">{{ unread_count }}</strong> active notification(s)</div>
+      </div>
+
+      <div class="dashboard-card notification-filter-row">
+        <input type="text" id="notificationSearch" class="dashboard-input" placeholder="Search notifications">
+        <select id="notificationStatusFilter" class="dashboard-input">
+          <option value="All">All</option>
+          <option value="Unread">Unread</option>
+          <option value="Read">Read</option>
+          <option value="Archived">Archived</option>
+        </select>
+        <button id="refreshNotifications" class="dashboard-btn dashboard-btn-light">Refresh</button>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Notification List</div>
+          <div class="dashboard-table-count" id="notificationCount">{{ notifications|length }} notifications</div>
+        </div>
+
+        {% if notifications %}
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th class="dashboard-text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for n in notifications %}
+              <tr class="dashboard-notification-row"
+                  data-search="{{ (n.notification_type ~ ' ' ~ (n.message or ''))|lower }}"
+                  data-status="{{ n.status }}">
+                <td>{{ frappe.format(n.notification_date, {"fieldtype": "Datetime"}) }}</td>
+                <td>{{ n.notification_type }}</td>
+                <td>{{ n.status }}</td>
+                <td>{{ n.priority }}</td>
+                <td class="dashboard-text-right">
+                  <a href="/coach_db/notification_details?name={{ n.name }}" class="dashboard-link-btn">View</a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+          <div class="dashboard-empty">No notifications found.</div>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="/assets/dashboard/js/coach/notifications.js"></script>
