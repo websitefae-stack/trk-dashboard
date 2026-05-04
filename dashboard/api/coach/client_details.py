@@ -694,7 +694,6 @@ def get_client_appointment_rows(client_name, calendar_detail_base_url="/coach_db
             "progress_text",
             "booking_warning",
             "linked_event",
-            "location",
         ],
         order_by="appointment_start desc, creation desc",
         limit_page_length=200,
@@ -715,7 +714,15 @@ def get_client_appointment_rows(client_name, calendar_detail_base_url="/coach_db
             row.get("total_sessions"),
         )
         row["item_display_name"] = get_item_display_name(row.get("item"))
-        row["view_link"] = (
+
+            # ✅ Pull location from linked Event (correct source)
+            row["location"] = frappe.db.get_value(
+                "Event",
+                row.get("linked_event"),
+                "location"
+            ) if row.get("linked_event") else ""
+            
+            row["view_link"] = (
             f"{calendar_detail_base_url}?event={row.get('linked_event')}"
             if row.get("linked_event")
             else ""
@@ -730,11 +737,18 @@ def get_client_appointments(client_name, calendar_detail_base_url="/coach_db/cal
     if not client_name:
         return []
 
+    # ✅ Always prefer Client Appointment (this fixes progress + status issues)
+    appointment_rows = get_client_appointment_rows(client_name, calendar_detail_base_url)
+
+    if appointment_rows:
+        return appointment_rows
+
+    # fallback only if no client appointments exist
     event_rows = get_event_client_appointments(client_name, calendar_detail_base_url)
     if event_rows is not None:
         return event_rows
 
-    return get_client_appointment_rows(client_name, calendar_detail_base_url)
+    return []
 
 
 def whole_number(value):
