@@ -10,24 +10,19 @@
 
     if (fromUrl) return fromUrl;
 
-    const field = document.getElementById("trkCoachCalendarWorkerSelect");
-    if (field && field.value) return field.value;
-
-    return window.localStorage.getItem(STORAGE_KEY) || "";
+    return window.localStorage.getItem(STORAGE_KEY) || "__coach_me__";
   }
 
   function setSelectedCalendarFor(value) {
-    if (value) {
-      window.localStorage.setItem(STORAGE_KEY, value);
-    } else {
-      window.localStorage.removeItem(STORAGE_KEY);
-    }
+    const selected = value || "__coach_me__";
+    window.localStorage.setItem(STORAGE_KEY, selected);
 
     const params = new URLSearchParams(window.location.search);
-    params.set("calendar_for", value || "__coach_me__");
+    params.set("calendar_for", selected);
+    params.set("selected_calendar_for", selected);
+    params.set("selected_worker", selected);
 
-    const newUrl = window.location.pathname + "?" + params.toString();
-    window.location.href = newUrl;
+    window.location.href = window.location.pathname + "?" + params.toString();
   }
 
   const originalFetch = window.fetch;
@@ -42,14 +37,11 @@
       );
 
       if (url.indexOf("get_calendar_bootstrap") !== -1) {
-        const selectedCalendarFor = getSelectedCalendarFor();
-
-        if (selectedCalendarFor) {
-          const parsed = new URL(url, window.location.origin);
-          parsed.searchParams.set("selected_calendar_for", selectedCalendarFor);
-          parsed.searchParams.set("selected_worker", selectedCalendarFor);
-          url = parsed.toString();
-        }
+        const selected = getSelectedCalendarFor();
+        const parsed = new URL(url, window.location.origin);
+        parsed.searchParams.set("selected_calendar_for", selected);
+        parsed.searchParams.set("selected_worker", selected);
+        url = parsed.toString();
       }
 
       input = url;
@@ -64,7 +56,6 @@
 
           if (Array.isArray(message.events)) {
             privateEvents.clear();
-
             message.events.forEach(function (event) {
               if (Number(event.is_private || 0)) {
                 privateEvents.add(event.name || event.id);
@@ -74,9 +65,9 @@
 
           const options = Array.isArray(message.calendar_for_options)
             ? message.calendar_for_options
-            : (Array.isArray(message.session_workers) ? message.session_workers : []);
+            : [];
 
-          renderCalendarForOptions(options, message.selected_calendar_for || message.selected_worker || "__coach_me__");
+          renderCalendarForOptions(options, message.selected_calendar_for || "__coach_me__");
         }).catch(function () {});
       } catch (error) {}
 
@@ -94,7 +85,6 @@
       const value = escapeHtml(row.value || "");
       const label = escapeHtml(row.label || row.value || "");
       const selected = selectedValue === row.value ? " selected" : "";
-
       html += '<option value="' + value + '"' + selected + ">" + label + "</option>";
     });
 
@@ -116,27 +106,11 @@
 
     const openLink = body.querySelector("a[href*='calendar_details']");
     if (openLink) openLink.remove();
-
-    if (!body.querySelector(".trk-coach-private-event-notice")) {
-      const notice = document.createElement("div");
-      notice.className = "dashboard-notice trk-coach-private-event-notice";
-      notice.style.marginTop = "14px";
-      notice.textContent = "This appointment belongs to another coach. Details are hidden.";
-      body.appendChild(notice);
-    }
   }
 
-  function rewriteCoachLinks() {
-    document.querySelectorAll("a[href*='/session_worker_db/calendar_details']").forEach(function (link) {
-      link.href = link.href.replace("/session_worker_db/calendar_details", "/coach_db/calendar_details");
-    });
-  }
-
-  function renameCalendarForLabel() {
+  function renameLabel() {
     const label = document.querySelector("label[for='trkCoachCalendarWorkerSelect']");
-    if (label) {
-      label.textContent = "View Calendar For";
-    }
+    if (label) label.textContent = "View Calendar For";
   }
 
   function escapeHtml(value) {
@@ -149,10 +123,9 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
-    renameCalendarForLabel();
+    renameLabel();
 
     const select = document.getElementById("trkCoachCalendarWorkerSelect");
-
     if (select) {
       select.addEventListener("change", function () {
         setSelectedCalendarFor(this.value || "__coach_me__");
@@ -161,8 +134,7 @@
 
     const observer = new MutationObserver(function () {
       removePrivateActions();
-      rewriteCoachLinks();
-      renameCalendarForLabel();
+      renameLabel();
     });
 
     observer.observe(document.body, {
