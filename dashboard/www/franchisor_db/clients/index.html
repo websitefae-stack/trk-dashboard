@@ -111,7 +111,7 @@
                   {% set row_status = c.status or "Archived" %}
                   {% set row_type = c.client_type or "Not set" %}
                   {% set session_worker = c.session_worker or "Not set" %}
-                  {% set coach_name = c.primary_coach or c.attending_coach or "Not set" %}
+                  {% set coach_name = c.primary_coach_label or c.attending_coach_label or "Not set" %}
 
                   <tr
                     class="dashboard-client-row"
@@ -123,7 +123,7 @@
                     data-type="{{ row_type }}"
                     data-session-worker="{{ session_worker }}"
                     data-coach="{{ coach_name }}"
-                    data-scope="{{ c.scope or 'All' }}"
+                    data-scope="{{ c.primary_coach or c.attending_coach or 'All' }}"
                   >
                     <td>
                       <a class="dashboard-inline-link dashboard-client-name-link" href="/franchisor_db/client_details?name={{ c.name | urlencode }}">
