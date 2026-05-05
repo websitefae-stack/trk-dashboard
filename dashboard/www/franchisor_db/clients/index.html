@@ -32,21 +32,13 @@
           </div>
         
           <div class="dashboard-filter-field dashboard-filter-coach">
-            <label for="clientScopeFilter">Coach</label>
-            <select class="dashboard-select" id="clientScopeFilter">
-              <option value="my" {% if client_scope == "my" %}selected{% endif %}>
-                {{ my_coach_display_name or "My clients" }}
-              </option>
-              <option value="all" {% if client_scope == "all" %}selected{% endif %}>
-                All clients
-              </option>
-        
+            <label for="coachFilter">Coach</label>
+            <select class="dashboard-select" id="coachFilter">
+              <option value="All">All coaches</option>
               {% for coach in coaches %}
-                {% if coach.name != my_coach_name %}
-                  <option value="{{ coach.name }}" {% if client_scope == coach.name %}selected{% endif %}>
-                    {{ coach.coach_name or coach.name }}
-                  </option>
-                {% endif %}
+                <option value="{{ coach.name }}">
+                  {{ coach.coach_name or coach.name }}
+                </option>
               {% endfor %}
             </select>
           </div>
@@ -111,7 +103,8 @@
                   {% set row_status = c.status or "Archived" %}
                   {% set row_type = c.client_type or "Not set" %}
                   {% set session_worker = c.session_worker or "Not set" %}
-                  {% set coach_name = c.primary_coach_label or c.attending_coach_label or "Not set" %}
+                  {% set coach_label = c.primary_coach_label or c.attending_coach_label or "Not set" %}
+                  {% set coach_value = c.primary_coach or c.attending_coach or "Not set" %}
 
                   <tr
                     class="dashboard-client-row"
@@ -122,8 +115,7 @@
                     data-status="{{ row_status }}"
                     data-type="{{ row_type }}"
                     data-session-worker="{{ session_worker }}"
-                    data-coach="{{ coach_name }}"
-                    data-scope="{{ c.primary_coach or c.attending_coach or 'All' }}"
+                    data-coach="{{ coach_value }}"
                   >
                     <td>
                       <a class="dashboard-inline-link dashboard-client-name-link" href="/franchisor_db/client_details?name={{ c.name | urlencode }}">
@@ -133,7 +125,7 @@
                     <td>{{ c.mobile or "—" }}</td>
                     <td>{{ c.email or "—" }}</td>
                     <td>{{ session_worker }}</td>
-                    <td>{{ coach_name }}</td>
+                    <td>{{ coach_label }}</td>
                     <td>{{ row_type }}</td>
                     <td>
                       <span class="dashboard-badge {% if row_status == 'Active' %}dashboard-status-active{% elif row_status == 'On Hold' %}dashboard-status-onhold{% else %}dashboard-status-archived{% endif %}">
