@@ -79,18 +79,10 @@
 
               <tbody id="clientTable">
                 {% for c in clients %}
-                  {% set display_name = c.full_name or ((c.name1 or "") ~ " " ~ (c.last_name or ""))|trim or c.name %}
+                  {% set display_name = c.display_name or c.name %}
                   {% set row_status = c.status or "Archived" %}
                   {% set row_type = c.client_type or "Not set" %}
-                  {% set coach_label = namespace(value="Not set") %}
-
-                  {% if c.primary_coach %}
-                    {% for coach in coaches %}
-                      {% if coach.name == c.primary_coach %}
-                        {% set coach_label.value = coach.coach_name or coach.name %}
-                      {% endif %}
-                    {% endfor %}
-                  {% endif %}
+                  {% set coach_label = namespace(value=c.primary_coach_label or "Not set") %}
 
                   <tr
                     class="dashboard-client-row"
