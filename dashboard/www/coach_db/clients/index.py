@@ -1,12 +1,9 @@
 import frappe
 from frappe import _
+
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
-from dashboard.api.coach.clients import (
-    get_clients,
-    get_client_types,
-    get_coach_display_name,
-    get_session_workers,
-)
+from dashboard.api.shared.clients import get_clients, get_client_types
+from dashboard.api.shared.directory import get_coach_display_name, get_session_workers
 
 
 def get_context(context):
