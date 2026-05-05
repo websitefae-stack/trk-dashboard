@@ -13,7 +13,6 @@ def ensure_notification_access(notification_name):
     if not frappe.db.exists(NOTIFICATION_DOCTYPE, notification_name):
         frappe.throw(_("Notification not found"))
 
-    # Extend with role-based logic if needed
     return True
 
 
@@ -147,7 +146,11 @@ def send_dashboard_notification(subject, message, priority="Normal"):
         "priority": priority,
         "read": 0,
     })
+
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
 
-    return {"ok": True, "name": doc.name}
+    return {
+        "ok": True,
+        "name": doc.name,
+    }
