@@ -1,13 +1,12 @@
 import frappe
 from frappe import _
+
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
-from dashboard.api.franchisor.clients import (
-    get_clients,
-    get_client_types,
-    get_coaches,
+from dashboard.api.shared.clients import get_clients, get_client_types
+from dashboard.api.shared.directory import (
     get_franchisor_display_name,
     get_session_workers,
-    get_my_coach_name,
+    get_coaches,
 )
 
 
@@ -23,14 +22,7 @@ def get_context(context):
     context.dashboard_notifications_url = "/franchisor_db/notifications"
     context.dashboard_user_name = get_franchisor_display_name()
 
-    context.client_scope = frappe.form_dict.get("scope") or "my"
-    context.my_coach_name = get_my_coach_name()
-    context.my_coach_display_name = frappe.db.get_value(
-        "Coach",
-        context.my_coach_name,
-        "coach_name",
-    ) or "My clients"
-    context.clients = get_clients(scope=context.client_scope)
+    context.clients = get_clients()
     context.client_types = get_client_types()
     context.session_workers = get_session_workers()
     context.coaches = get_coaches()
