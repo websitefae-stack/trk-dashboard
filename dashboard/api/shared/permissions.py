@@ -6,6 +6,7 @@ from dashboard.api.shared.notifications import create_trk_notification
 
 SESSION_WORKER_DOCTYPE = "Session Worker"
 COACH_DOCTYPE = "Coach"
+CLIENT_DOCTYPE = "Client"
 
 FRANCHISOR_USERS = {
     "ashley@theresilientkid.co.uk",
@@ -14,12 +15,35 @@ FRANCHISOR_USERS = {
 }
 
 
+# -------------------------------------------------------------------
+# Basic user helpers
+# -------------------------------------------------------------------
+
 def ensure_logged_in():
     if frappe.session.user == "Guest":
         frappe.throw(_("Login required"), frappe.PermissionError)
 
 
-def get_current_coach():
+def is_office_user():
+    return frappe.session.user in FRANCHISOR_USERS
+
+
+def is_franchisor_user():
+    return is_office_user()
+
+
+def ensure_office_user():
+    ensure_logged_in()
+
+    if not is_office_user():
+        frappe.throw(_("You are not allowed to access this page."), frappe.PermissionError)
+
+
+# -------------------------------------------------------------------
+# Current user profile helpers
+# -------------------------------------------------------------------
+
+def get_current_coach_name(optional=False):
     ensure_logged_in()
 
     coach_name = frappe.db.get_value(COACH_DOCTYPE, {"user": frappe.session.user}, "name")
@@ -27,13 +51,18 @@ def get_current_coach():
     if not coach_name:
         coach_name = frappe.db.get_value(COACH_DOCTYPE, {"coach_email": frappe.session.user}, "name")
 
-    if not coach_name:
+    if not coach_name and not optional:
         frappe.throw(_("No Coach profile is linked to your user."), frappe.PermissionError)
 
+    return coach_name or ""
+
+
+def get_current_coach():
+    coach_name = get_current_coach_name(optional=False)
     return frappe.get_doc(COACH_DOCTYPE, coach_name)
 
 
-def get_current_session_worker():
+def get_current_session_worker_name(optional=False):
     ensure_logged_in()
 
     session_worker_name = frappe.db.get_value(
@@ -49,22 +78,284 @@ def get_current_session_worker():
             "name",
         )
 
-    if not session_worker_name:
+    if not session_worker_name and not optional:
         frappe.throw(_("No Session Worker profile is linked to your user."), frappe.PermissionError)
 
+    return session_worker_name or ""
+
+
+def get_current_session_worker():
+    session_worker_name = get_current_session_worker_name(optional=False)
     return frappe.get_doc(SESSION_WORKER_DOCTYPE, session_worker_name)
 
 
-def is_office_user():
-    return frappe.session.user in FRANCHISOR_USERS
-
-
-def ensure_office_user():
+def get_current_user_dashboard_type():
     ensure_logged_in()
 
-    if not is_office_user():
-        frappe.throw(_("You are not allowed to access this page."), frappe.PermissionError)
+    if is_office_user():
+        return "franchisor"
 
+    if frappe.db.exists(SESSION_WORKER_DOCTYPE, {"user": frappe.session.user}):
+        return "session_worker"
+
+    if frappe.db.exists(SESSION_WORKER_DOCTYPE, {"sw_email": frappe.session.user}):
+        return "session_worker"
+
+    if frappe.db.exists(COACH_DOCTYPE, {"user": frappe.session.user}):
+        return "coach"
+
+    if frappe.db.exists(COACH_DOCTYPE, {"coach_email": frappe.session.user}):
+        return "coach"
+
+    return "unknown"
+
+
+# -------------------------------------------------------------------
+# Client access helpers
+# -------------------------------------------------------------------
+
+def get_allowed_client_or_filters():
+    """
+    Returns:
+    - None for franchisor/admin users because they can see all clients.
+    - OR filters for coach/session worker access.
+    - Safe empty filter for unknown users.
+    """
+
+    ensure_logged_in()
+
+    if is_franchisor_user():
+        return None
+
+    dashboard_type = get_current_user_dashboard_type()
+
+    if dashboard_type == "coach":
+        coach_name = get_current_coach_name(optional=True)
+
+        if not coach_name:
+            return [[CLIENT_DOCTYPE, "name", "=", "__no_client__"]]
+
+        return [
+            [CLIENT_DOCTYPE, "primary_coach", "=", coach_name],
+            [CLIENT_DOCTYPE, "attending_coach", "=", coach_name],
+        ]
+
+    if dashboard_type == "session_worker":
+        session_worker_name = get_current_session_worker_name(optional=True)
+
+        if not session_worker_name:
+            return [[CLIENT_DOCTYPE, "name", "=", "__no_client__"]]
+
+        return [
+            [CLIENT_DOCTYPE, "session_worker", "=", session_worker_name],
+        ]
+
+    return [[CLIENT_DOCTYPE, "name", "=", "__no_client__"]]
+
+
+def get_allowed_client_names():
+    ensure_logged_in()
+
+    or_filters = get_allowed_client_or_filters()
+
+    if or_filters is None:
+        return frappe.get_all(
+            CLIENT_DOCTYPE,
+            pluck="name",
+            limit_page_length=5000,
+        )
+
+    return frappe.get_all(
+        CLIENT_DOCTYPE,
+        or_filters=or_filters,
+        pluck="name",
+        limit_page_length=5000,
+    )
+
+
+def user_can_access_client(client_name):
+    ensure_logged_in()
+
+    if not client_name:
+        return False
+
+    if is_franchisor_user():
+        return True
+
+    if not frappe.db.exists(CLIENT_DOCTYPE, client_name):
+        return False
+
+    client = frappe.db.get_value(
+        CLIENT_DOCTYPE,
+        client_name,
+        [
+            "name",
+            "primary_coach",
+            "attending_coach",
+            "session_worker",
+        ],
+        as_dict=True,
+    )
+
+    if not client:
+        return False
+
+    dashboard_type = get_current_user_dashboard_type()
+
+    if dashboard_type == "coach":
+        coach_name = get_current_coach_name(optional=True)
+
+        return coach_name in {
+            client.get("primary_coach"),
+            client.get("attending_coach"),
+        }
+
+    if dashboard_type == "session_worker":
+        session_worker_name = get_current_session_worker_name(optional=True)
+
+        return session_worker_name == client.get("session_worker")
+
+    return False
+
+
+def ensure_client_access(client_name):
+    if not user_can_access_client(client_name):
+        frappe.throw(_("You do not have permission to access this client."), frappe.PermissionError)
+
+    return frappe.get_doc(CLIENT_DOCTYPE, client_name)
+
+
+def get_client_role(client_name):
+    """
+    Returns the current user's relationship to a client.
+    Possible values:
+    - franchisor
+    - primary_coach
+    - attending_coach
+    - session_worker
+    - none
+    """
+
+    ensure_logged_in()
+
+    if is_franchisor_user():
+        return "franchisor"
+
+    if not client_name or not frappe.db.exists(CLIENT_DOCTYPE, client_name):
+        return "none"
+
+    client = frappe.db.get_value(
+        CLIENT_DOCTYPE,
+        client_name,
+        [
+            "primary_coach",
+            "attending_coach",
+            "session_worker",
+        ],
+        as_dict=True,
+    )
+
+    dashboard_type = get_current_user_dashboard_type()
+
+    if dashboard_type == "coach":
+        coach_name = get_current_coach_name(optional=True)
+
+        if coach_name and coach_name == client.get("primary_coach"):
+            return "primary_coach"
+
+        if coach_name and coach_name == client.get("attending_coach"):
+            return "attending_coach"
+
+    if dashboard_type == "session_worker":
+        session_worker_name = get_current_session_worker_name(optional=True)
+
+        if session_worker_name and session_worker_name == client.get("session_worker"):
+            return "session_worker"
+
+    return "none"
+
+
+def get_client_permissions(client_name):
+    """
+    Central source of truth for what the current user can do with a client.
+    """
+
+    role = get_client_role(client_name)
+
+    permissions = {
+        "role": role,
+        "can_view": False,
+        "can_edit": False,
+        "can_book": False,
+        "can_invoice": False,
+        "can_allocate": False,
+        "can_view_contacts": False,
+        "can_send_notifications": False,
+        "invoice_company": "",
+    }
+
+    if role == "franchisor":
+        permissions.update({
+            "can_view": True,
+            "can_edit": True,
+            "can_book": True,
+            "can_invoice": True,
+            "can_allocate": True,
+            "can_view_contacts": True,
+            "can_send_notifications": True,
+        })
+
+    elif role == "primary_coach":
+        permissions.update({
+            "can_view": True,
+            "can_edit": True,
+            "can_book": True,
+            "can_invoice": True,
+            "can_allocate": True,
+            "can_view_contacts": True,
+            "can_send_notifications": True,
+        })
+
+    elif role == "attending_coach":
+        permissions.update({
+            "can_view": True,
+            "can_edit": False,
+            "can_book": True,
+            "can_invoice": True,
+            "can_allocate": False,
+            "can_view_contacts": True,
+            "can_send_notifications": True,
+        })
+
+    elif role == "session_worker":
+        permissions.update({
+            "can_view": True,
+            "can_edit": False,
+            "can_book": True,
+            "can_invoice": False,
+            "can_allocate": False,
+            "can_view_contacts": True,
+            "can_send_notifications": True,
+        })
+
+    if permissions["can_invoice"] and client_name and frappe.db.exists(CLIENT_DOCTYPE, client_name):
+        primary_coach = frappe.db.get_value(CLIENT_DOCTYPE, client_name, "primary_coach")
+
+        if primary_coach and frappe.db.exists(COACH_DOCTYPE, primary_coach):
+            coach_meta = frappe.get_meta(COACH_DOCTYPE)
+
+            if coach_meta.has_field("company"):
+                permissions["invoice_company"] = frappe.db.get_value(COACH_DOCTYPE, primary_coach, "company") or ""
+
+            elif coach_meta.has_field("coach_company"):
+                permissions["invoice_company"] = frappe.db.get_value(COACH_DOCTYPE, primary_coach, "coach_company") or ""
+
+    return permissions
+
+
+# -------------------------------------------------------------------
+# Session worker access helpers
+# -------------------------------------------------------------------
 
 def get_active_session_worker_coaches(session_worker):
     coaches = []
@@ -104,26 +395,9 @@ def ensure_franchisor_can_access_coach(coach_name):
     return frappe.get_doc(COACH_DOCTYPE, coach_name)
 
 
-def get_current_user_dashboard_type():
-    ensure_logged_in()
-
-    if is_office_user():
-        return "franchisor"
-
-    if frappe.db.exists("Session Worker", {"user": frappe.session.user}):
-        return "session_worker"
-
-    if frappe.db.exists("Session Worker", {"sw_email": frappe.session.user}):
-        return "session_worker"
-
-    if frappe.db.exists("Coach", {"user": frappe.session.user}):
-        return "coach"
-
-    if frappe.db.exists("Coach", {"coach_email": frappe.session.user}):
-        return "coach"
-
-    return "unknown"
-
+# -------------------------------------------------------------------
+# Legal compliance helpers
+# -------------------------------------------------------------------
 
 def get_expired_legal_items(doc, dashboard_type):
     expired = []
@@ -256,6 +530,10 @@ def enforce_legal_compliance(dashboard_type):
         frappe.PermissionError,
     )
 
+
+# -------------------------------------------------------------------
+# Dashboard routing
+# -------------------------------------------------------------------
 
 def redirect_if_wrong_dashboard(expected):
     current = get_current_user_dashboard_type()
