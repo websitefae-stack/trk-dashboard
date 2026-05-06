@@ -115,16 +115,29 @@
   function activateTab(targetId) {
     if (!targetId) return;
   
-    qsa(".dashboard-tab-btn").forEach(function (button) {
+    const buttons = qsa(".dashboard-tab-btn");
+    const panels = qsa(".dashboard-tab-panel");
+  
+    buttons.forEach(function (button) {
       const isActive = button.dataset.tabTarget === targetId;
       button.classList.toggle("is-active", isActive);
       button.setAttribute("aria-selected", isActive ? "true" : "false");
     });
   
-    qsa(".dashboard-tab-panel").forEach(function (panel) {
+    panels.forEach(function (panel) {
       const isActive = panel.id === targetId;
+  
       panel.classList.toggle("is-active", isActive);
-      panel.style.display = isActive ? "block" : "none";
+  
+      if (isActive) {
+        panel.removeAttribute("hidden");
+        panel.style.setProperty("display", "block", "important");
+        panel.style.setProperty("visibility", "visible", "important");
+      } else {
+        panel.setAttribute("hidden", "hidden");
+        panel.style.setProperty("display", "none", "important");
+        panel.style.setProperty("visibility", "hidden", "important");
+      }
     });
   
     try {
@@ -135,42 +148,52 @@
     if (targetId === "client-notes-tab") loadSessionWorkerNotes();
     if (targetId === "client-appointments-tab") loadSessionWorkerAppointments();
   }
-
+  
+  
   function initTabs() {
     const buttons = qsa(".dashboard-tab-btn");
-
-    if (!buttons.length) return;
-
-    buttons.forEach(function (button) {
-      button.addEventListener("click", function (event) {
-        event.preventDefault();
-        activateTab(button.dataset.tabTarget);
-      });
-    });
-
+    const panels = qsa(".dashboard-tab-panel");
+  
+    if (!buttons.length || !panels.length) return;
+  
+    document.addEventListener("click", function (event) {
+      const button = event.target.closest(".dashboard-tab-btn");
+  
+      if (!button) return;
+  
+      const targetId = button.dataset.tabTarget;
+  
+      if (!targetId) return;
+  
+      event.preventDefault();
+      event.stopPropagation();
+  
+      activateTab(targetId);
+    }, true);
+  
     let savedTab = "";
-
+  
     try {
       savedTab = sessionStorage.getItem(roleConfig.storageKey) || "";
     } catch (error) {
       savedTab = "";
     }
-
+  
     const savedButton = savedTab
       ? buttons.find(function (button) {
           return button.dataset.tabTarget === savedTab;
         })
       : null;
-
+  
     if (savedButton) {
       activateTab(savedTab);
       return;
     }
-
+  
     const activeButton = buttons.find(function (button) {
       return button.classList.contains("is-active");
     });
-
+  
     activateTab(activeButton ? activeButton.dataset.tabTarget : buttons[0].dataset.tabTarget);
   }
 
