@@ -1,68 +1,57 @@
 (function () {
-  const roleConfig = window.TRKClientDetailsRole || {
-    role: "coach",
-    baseUrl: "/coach_db",
-    apiBase: "dashboard.api.shared.client_details",
-    storageKey: "client_details_active_tab",
-    canEdit: true,
-    canInvoice: true,
-    canRequestChange: false
-  };
+  function inferRoleConfig() {
+    const path = window.location.pathname || "";
+
+    if (path.startsWith("/franchisor_db")) {
+      return {
+        role: "franchisor",
+        baseUrl: "/franchisor_db",
+        apiBase: "dashboard.api.shared.client_details",
+        storageKey: "franchisor_client_details_active_tab",
+        canEdit: true,
+        canInvoice: true,
+        canRequestChange: false
+      };
+    }
+
+    if (path.startsWith("/session_worker_db")) {
+      return {
+        role: "session_worker",
+        baseUrl: "/session_worker_db",
+        apiBase: "dashboard.api.shared.client_details",
+        storageKey: "session_worker_client_details_active_tab",
+        canEdit: false,
+        canInvoice: false,
+        canRequestChange: true
+      };
+    }
+
+    return {
+      role: "coach",
+      baseUrl: "/coach_db",
+      apiBase: "dashboard.api.shared.client_details",
+      storageKey: "coach_client_details_active_tab",
+      canEdit: true,
+      canInvoice: true,
+      canRequestChange: false
+    };
+  }
+
+  const roleConfig = Object.assign(
+    inferRoleConfig(),
+    window.TRKClientDetailsRole || {}
+  );
 
   function el(id) {
     return document.getElementById(id);
   }
 
-  function qsa(selector) {
-    return Array.from(document.querySelectorAll(selector));
+  function qsa(selector, root) {
+    return Array.from((root || document).querySelectorAll(selector));
   }
 
-  function activateTab(targetId) {
-    if (!targetId) return;
-
-    qsa(".dashboard-tab-btn").forEach(function (btn) {
-      btn.classList.toggle("is-active", btn.dataset.tabTarget === targetId);
-    });
-
-    qsa(".dashboard-tab-panel").forEach(function (panel) {
-      panel.classList.toggle("is-active", panel.id === targetId);
-    });
-
-    try {
-      sessionStorage.setItem(roleConfig.storageKey, targetId);
-    } catch (e) {}
-  }
-
-  function initTabs() {
-    const buttons = qsa(".dashboard-tab-btn");
-
-    if (!buttons.length) return;
-
-    buttons.forEach(function (btn) {
-      btn.addEventListener("click", function (event) {
-        event.preventDefault();
-        activateTab(btn.dataset.tabTarget);
-      });
-    });
-
-    let saved = "";
-
-    try {
-      saved = sessionStorage.getItem(roleConfig.storageKey) || "";
-    } catch (e) {}
-
-    const savedBtn = saved
-      ? buttons.find(function (btn) {
-          return btn.dataset.tabTarget === saved;
-        })
-      : null;
-
-    if (savedBtn) {
-      activateTab(saved);
-      return;
-    }
-
-    activateTab(buttons[0].dataset.tabTarget);
+  function getClientName() {
+    return el("clientDocname") ? el("clientDocname").value : "";
   }
 
   function getCsrfToken() {
@@ -71,6 +60,31 @@
 
     const meta = document.querySelector('meta[name="csrf-token"]');
     return meta && meta.content ? meta.content : "";
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function showSuccess(message) {
+    if (window.frappe && typeof window.frappe.show_alert === "function") {
+      window.frappe.show_alert({ message: message, indicator: "green" });
+    } else {
+      console.log(message);
+    }
+  }
+
+  function showError(message) {
+    if (window.frappe && typeof window.frappe.msgprint === "function") {
+      window.frappe.msgprint(message);
+    } else {
+      alert(message || "Something went wrong.");
+    }
   }
 
   async function apiPost(methodName, args) {
@@ -84,136 +98,308 @@
       body: JSON.stringify(args || {})
     });
 
-    const data = await response.json();
+    let data = {};
+    try {
+      data = await response.json();
+    } catch (error) {
+      throw new Error("Could not read server response.");
+    }
 
     if (!response.ok || data.exc) {
-      throw new Error(data.message || "Request failed");
+      throw new Error(data.message || "Request failed.");
     }
 
     return data.message;
   }
 
-  function getClientName() {
-    const field = el("clientDocname");
-    return field ? field.value : "";
-  }
+  function activateTab(targetId) {
+    if (!targetId) return;
 
-  function showSuccess(message) {
-    if (window.frappe && frappe.show_alert) {
-      frappe.show_alert({ message: message, indicator: "green" });
-    } else {
-      console.log(message);
-    }
-  }
-
-  function showError(message) {
-    if (window.frappe && frappe.msgprint) {
-      frappe.msgprint(message);
-    } else {
-      alert(message);
-    }
-  }
-
-  function setEditMode(isEditing) {
-    qsa("[data-client-field='1']").forEach(function (field) {
-      const readOnly = field.dataset.metaReadonly === "1";
-
-      if (!roleConfig.canEdit || readOnly) {
-        field.disabled = true;
-        field.readOnly = true;
-        return;
-      }
-
-      if (field.tagName === "SELECT" || field.type === "checkbox") {
-        field.disabled = !isEditing;
-      } else {
-        field.readOnly = !isEditing;
-      }
+    qsa(".dashboard-tab-btn").forEach(function (button) {
+      button.classList.toggle("is-active", button.dataset.tabTarget === targetId);
     });
 
-    const btn = el("editClient");
-    if (btn) {
+    qsa(".dashboard-tab-panel").forEach(function (panel) {
+      panel.classList.toggle("is-active", panel.id === targetId);
+    });
+
+    try {
+      sessionStorage.setItem(roleConfig.storageKey, targetId);
+    } catch (error) {}
+
+    if (targetId === "client-contacts-tab") loadSessionWorkerContacts();
+    if (targetId === "client-notes-tab") loadSessionWorkerNotes();
+    if (targetId === "client-appointments-tab") loadSessionWorkerAppointments();
+  }
+
+  function initTabs() {
+    const buttons = qsa(".dashboard-tab-btn");
+
+    if (!buttons.length) return;
+
+    buttons.forEach(function (button) {
+      button.addEventListener("click", function (event) {
+        event.preventDefault();
+        activateTab(button.dataset.tabTarget);
+      });
+    });
+
+    let savedTab = "";
+
+    try {
+      savedTab = sessionStorage.getItem(roleConfig.storageKey) || "";
+    } catch (error) {
+      savedTab = "";
+    }
+
+    const savedButton = savedTab
+      ? buttons.find(function (button) {
+          return button.dataset.tabTarget === savedTab;
+        })
+      : null;
+
+    if (savedButton) {
+      activateTab(savedTab);
+      return;
+    }
+
+    const activeButton = buttons.find(function (button) {
+      return button.classList.contains("is-active");
+    });
+
+    activateTab(activeButton ? activeButton.dataset.tabTarget : buttons[0].dataset.tabTarget);
+  }
+
+  function setFieldState(field, isEditing) {
+    const readOnly = field.dataset.metaReadonly === "1";
+
+    if (!roleConfig.canEdit || readOnly) {
+      field.disabled = true;
+      field.readOnly = true;
+      return;
+    }
+
+    if (field.tagName === "SELECT" || field.type === "checkbox") {
+      field.disabled = !isEditing;
+    } else {
+      field.readOnly = !isEditing;
+    }
+  }
+
+  function applyEditMode(isEditing, isSaving) {
+    qsa("[data-client-field='1']").forEach(function (field) {
+      setFieldState(field, isEditing);
+    });
+
+    const editButton = el("editClient");
+
+    if (editButton) {
       if (!roleConfig.canEdit) {
-        btn.style.display = "none";
+        editButton.style.display = "none";
       } else {
-        btn.textContent = isEditing ? "Save Client" : "Edit Client";
+        editButton.disabled = !!isSaving;
+        editButton.textContent = isSaving ? "Saving..." : isEditing ? "Save Client" : "Edit Client";
+        editButton.classList.toggle("is-save-mode", !!isEditing);
       }
     }
 
-    const invoiceBtn = el("createClientInvoice");
-    if (invoiceBtn && !roleConfig.canInvoice) {
-      invoiceBtn.style.display = "none";
+    const invoiceButton = el("createClientInvoice");
+    if (invoiceButton && !roleConfig.canInvoice) {
+      invoiceButton.style.display = "none";
     }
+
+    document.body.classList.toggle("client-edit-mode", !!isEditing);
   }
 
   function collectClientData() {
     const data = {};
 
     qsa("[data-client-field='1']").forEach(function (field) {
-      const name = field.dataset.fieldname;
-      if (!name) return;
+      const fieldname = field.dataset.fieldname;
+      if (!fieldname) return;
 
-      data[name] = field.type === "checkbox" ? (field.checked ? 1 : 0) : field.value;
+      if (field.type === "checkbox") {
+        data[fieldname] = field.checked ? 1 : 0;
+      } else {
+        data[fieldname] = field.value;
+      }
     });
 
     return data;
   }
 
-  async function saveClient() {
+  function isNewClientPage() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("new") === "1" || !getClientName();
+  }
+
+  function getField(fieldname) {
+    return document.querySelector('[data-fieldname="' + fieldname + '"]');
+  }
+
+  function updateNewClientFullName() {
+    if (!isNewClientPage()) return;
+
+    const fullNameField = getField("full_name");
+    if (!fullNameField) return;
+
+    const first = (getField("name1") && getField("name1").value) || (getField("first_name") && getField("first_name").value) || "";
+    const middle = (getField("middle_name") && getField("middle_name").value) || "";
+    const last = (getField("last_name") && getField("last_name").value) || "";
+
+    fullNameField.value = [first, middle, last]
+      .map(function (part) {
+        return String(part || "").trim();
+      })
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  function initFullNameBuilder() {
+    if (!isNewClientPage()) return;
+
+    ["name1", "first_name", "middle_name", "last_name"].forEach(function (fieldname) {
+      const field = getField(fieldname);
+      if (!field) return;
+
+      field.addEventListener("input", updateNewClientFullName);
+      field.addEventListener("change", updateNewClientFullName);
+    });
+
+    updateNewClientFullName();
+  }
+
+  function getOptionLabel(row) {
+    return (
+      row.coach_name ||
+      row.sw_name ||
+      row.session_worker_name ||
+      row.full_name ||
+      row.customer_name ||
+      row.item_name ||
+      row.title ||
+      row.name ||
+      ""
+    );
+  }
+
+  async function loadLinkOptions(select) {
+    if (!select) return;
+
+    const doctype = select.dataset.linkDoctype;
+    if (!doctype) return;
+
+    const currentValue = select.dataset.currentValue || select.value || "";
+
     try {
-      const result = await apiPost("save_client", {
-        docname: getClientName(),
-        data: JSON.stringify(collectClientData())
+      const options = await apiPost("get_link_options", {
+        doctype: doctype,
+        limit_page_length: 1000
       });
 
-      if (result && result.name && !getClientName()) {
-        window.location.href = roleConfig.baseUrl + "/client_details?name=" + encodeURIComponent(result.name);
-        return;
+      const rows = Array.isArray(options) ? options : [];
+
+      select.innerHTML = '<option value=""></option>';
+
+      if (currentValue && !rows.some(function (row) { return row.name === currentValue; })) {
+        const currentOption = document.createElement("option");
+        currentOption.value = currentValue;
+        currentOption.textContent = currentValue;
+        currentOption.selected = true;
+        select.appendChild(currentOption);
       }
 
-      showSuccess("Client saved");
-      setEditMode(false);
+      rows.forEach(function (row) {
+        if (!row.name) return;
+
+        const option = document.createElement("option");
+        option.value = row.name;
+        option.textContent = getOptionLabel(row);
+
+        if (row.name === currentValue) {
+          option.selected = true;
+        }
+
+        select.appendChild(option);
+      });
+
+      select.dataset.optionsLoaded = "1";
     } catch (error) {
-      showError(error.message || "Could not save client.");
+      console.warn("Could not load link options", error);
+    }
+  }
+
+  function initLinkOptions() {
+    qsa("select[data-link-doctype]").forEach(function (select) {
+      ["focus", "mousedown", "touchstart"].forEach(function (eventName) {
+        select.addEventListener(eventName, function () {
+          loadLinkOptions(select);
+        });
+      });
+    });
+
+    if (isNewClientPage()) {
+      qsa("select[data-link-doctype]").forEach(loadLinkOptions);
     }
   }
 
   function initEditButton() {
-    const btn = el("editClient");
-    if (!btn) return;
+    const editButton = el("editClient");
+    if (!editButton) return;
 
-    let editing = false;
+    let isEditing = isNewClientPage() && !!roleConfig.canEdit;
+    let isSaving = false;
 
-    if (!roleConfig.canEdit) {
-      btn.style.display = "none";
-      return;
-    }
+    applyEditMode(isEditing, isSaving);
 
-    btn.addEventListener("click", function (event) {
+    editButton.addEventListener("click", async function (event) {
       event.preventDefault();
 
-      if (!editing) {
-        editing = true;
-        setEditMode(true);
-      } else {
-        editing = false;
-        saveClient();
-      }
-    });
+      if (!roleConfig.canEdit) return;
 
-    setEditMode(false);
+      if (!isEditing) {
+        isEditing = true;
+        applyEditMode(isEditing, false);
+        return;
+      }
+
+      updateNewClientFullName();
+
+      isSaving = true;
+      applyEditMode(isEditing, isSaving);
+
+      try {
+        const result = await apiPost("save_client", {
+          docname: getClientName(),
+          data: JSON.stringify(collectClientData())
+        });
+
+        if (result && result.name && !getClientName()) {
+          window.location.href = roleConfig.baseUrl + "/client_details?name=" + encodeURIComponent(result.name);
+          return;
+        }
+
+        isEditing = false;
+        showSuccess("Client saved");
+      } catch (error) {
+        showError(error.message || "Could not save client.");
+      }
+
+      isSaving = false;
+      applyEditMode(isEditing, isSaving);
+    });
   }
 
   function initInvoiceButton() {
-    const btn = el("createClientInvoice");
-    if (!btn) return;
+    const invoiceButton = el("createClientInvoice");
+    if (!invoiceButton) return;
 
     if (!roleConfig.canInvoice) {
-      btn.style.display = "none";
+      invoiceButton.style.display = "none";
       return;
     }
 
-    btn.addEventListener("click", function (event) {
+    invoiceButton.addEventListener("click", function (event) {
       event.preventDefault();
 
       const client = getClientName();
@@ -227,57 +413,182 @@
     });
   }
 
-  function initAddNote() {
-    const btn = el("addClientNote");
+  async function addClientNote() {
     const field = el("newClientNoteText");
+    if (!field) return;
 
-    if (!btn || !field) return;
+    const noteText = field.value || "";
 
-    btn.addEventListener("click", async function (event) {
-      event.preventDefault();
+    if (!noteText.trim()) {
+      showError("Enter a note.");
+      return;
+    }
 
-      const note = field.value || "";
+    try {
+      await apiPost("add_client_note", {
+        client_name: getClientName(),
+        note_text: noteText
+      });
 
-      if (!note.trim()) {
-        showError("Enter a note");
-        return;
-      }
+      field.value = "";
+      showSuccess("Note added");
 
-      try {
-        await apiPost("add_client_note", {
-          client_name: getClientName(),
-          note_text: note
-        });
-
-        showSuccess("Note added");
+      if (roleConfig.role === "session_worker") {
+        loadSessionWorkerNotes();
+      } else {
         window.location.reload();
-      } catch (error) {
-        showError(error.message || "Could not add note.");
       }
+    } catch (error) {
+      showError(error.message || "Could not add note.");
+    }
+  }
+
+  function initAddNote() {
+    const button = el("addClientNote");
+    if (!button) return;
+
+    button.addEventListener("click", function (event) {
+      event.preventDefault();
+      addClientNote();
     });
+  }
+
+  function renderSimpleTable(bodyId, rows, emptyMessage, columns) {
+    const body = el(bodyId);
+    if (!body) return;
+
+    if (!rows || !rows.length) {
+      body.innerHTML = '<tr><td colspan="' + columns + '" class="dashboard-empty">' + escapeHtml(emptyMessage) + '</td></tr>';
+      return;
+    }
+
+    body.innerHTML = rows.join("");
+  }
+
+  function formatDate(value) {
+    if (!value) return "—";
+
+    const text = String(value);
+    if (text.length >= 10) return escapeHtml(text.slice(0, 10));
+
+    return escapeHtml(text);
+  }
+
+  function formatTime(value) {
+    if (!value) return "";
+
+    const text = String(value);
+    if (text.length >= 16) return escapeHtml(text.slice(11, 16));
+
+    return "";
+  }
+
+  async function loadSessionWorkerContacts() {
+    if (roleConfig.role !== "session_worker") return;
+    if (!el("clientContactsTableBody")) return;
+
+    try {
+      const contacts = await apiPost("get_client_contacts", {
+        client_name: getClientName(),
+        contact_detail_base_url: roleConfig.baseUrl + "/contact_details"
+      });
+
+      const rows = (contacts || []).map(function (row) {
+        return (
+          "<tr>" +
+            "<td><a class=\"dashboard-inline-link\" href=\"" + escapeHtml(row.link || "#") + "\">" + escapeHtml(row.display_name || row.contact_name || "—") + "</a></td>" +
+            "<td>" + escapeHtml(row.mobile || row.phone || "—") + "</td>" +
+            "<td>" + escapeHtml(row.email || "—") + "</td>" +
+            "<td>" + escapeHtml(row.company || "—") + "</td>" +
+            "<td class=\"dashboard-action-cell\"><a class=\"dashboard-link-btn\" href=\"" + escapeHtml(row.link || "#") + "\">View</a></td>" +
+          "</tr>"
+        );
+      });
+
+      renderSimpleTable("clientContactsTableBody", rows, "No linked contacts found.", 5);
+    } catch (error) {
+      renderSimpleTable("clientContactsTableBody", [], error.message || "Could not load contacts.", 5);
+    }
+  }
+
+  async function loadSessionWorkerNotes() {
+    if (roleConfig.role !== "session_worker") return;
+    if (!el("clientNotesTableBody")) return;
+
+    try {
+      const notes = await apiPost("get_client_notes", {
+        client_name: getClientName()
+      });
+
+      const rows = (notes || []).map(function (row) {
+        return (
+          "<tr>" +
+            "<td>" + formatDate(row.note_date || row.session_date) + "</td>" +
+            "<td class=\"dashboard-note-user-cell\">" + escapeHtml(row.note_user_name || row.user_full_name || row.note_user || row.user || "—") + "</td>" +
+            "<td>" + escapeHtml(row.note_text || row.notes || "—") + "</td>" +
+          "</tr>"
+        );
+      });
+
+      renderSimpleTable("clientNotesTableBody", rows, "No notes found.", 3);
+    } catch (error) {
+      renderSimpleTable("clientNotesTableBody", [], error.message || "Could not load notes.", 3);
+    }
+  }
+
+  async function loadSessionWorkerAppointments() {
+    if (roleConfig.role !== "session_worker") return;
+    if (!el("clientAppointmentsTableBody")) return;
+
+    try {
+      const appointments = await apiPost("get_client_appointments", {
+        client_name: getClientName(),
+        calendar_detail_base_url: roleConfig.baseUrl + "/calendar_details"
+      });
+
+      const rows = (appointments || []).map(function (row) {
+        const link = row.record_url || row.view_link || "#";
+        const dateValue = row.date || row.appointment_start || "";
+        const timeValue = row.time || formatTime(row.appointment_start || "");
+
+        return (
+          "<tr class=\"dashboard-client-appointment-row\">" +
+            "<td><div class=\"dashboard-table-date\">" + formatDate(dateValue) + "</div><div class=\"dashboard-table-time\">" + escapeHtml(timeValue || "") + "</div></td>" +
+            "<td><a class=\"dashboard-inline-link\" href=\"" + escapeHtml(link) + "\">" + escapeHtml(row.appointment_type || row.item_display_name || row.item || "—") + "</a></td>" +
+            "<td>" + escapeHtml(row.ui_status || row.display_status || row.status || "—") + "</td>" +
+            "<td>" + escapeHtml(row.location || "—") + "</td>" +
+            "<td class=\"dashboard-action-cell\"><a class=\"dashboard-link-btn\" href=\"" + escapeHtml(link) + "\">View</a></td>" +
+          "</tr>"
+        );
+      });
+
+      renderSimpleTable("clientAppointmentsTableBody", rows, "No appointments found.", 5);
+    } catch (error) {
+      renderSimpleTable("clientAppointmentsTableBody", [], error.message || "Could not load appointments.", 5);
+    }
   }
 
   function initChangeRequest() {
     if (!roleConfig.canRequestChange) return;
 
-    const btn = el("requestChangeButton");
+    const requestButton = el("requestChangeButton");
     const modal = el("changeRequestModal");
 
-    if (!btn || !modal) return;
+    if (!requestButton || !modal) return;
 
     function openModal(event) {
-      event.preventDefault();
+      if (event) event.preventDefault();
       modal.classList.add("is-open");
       document.body.classList.add("dashboard-modal-open");
     }
 
     function closeModal(event) {
-      event.preventDefault();
+      if (event) event.preventDefault();
       modal.classList.remove("is-open");
       document.body.classList.remove("dashboard-modal-open");
     }
 
-    btn.addEventListener("click", openModal);
+    requestButton.addEventListener("click", openModal);
 
     if (el("closeChangeRequestModal")) {
       el("closeChangeRequestModal").addEventListener("click", closeModal);
@@ -295,8 +606,27 @@
     initEditButton();
     initInvoiceButton();
     initAddNote();
+    initLinkOptions();
+    initFullNameBuilder();
     initChangeRequest();
+
+    if (roleConfig.role === "session_worker") {
+      loadSessionWorkerContacts();
+      loadSessionWorkerNotes();
+      loadSessionWorkerAppointments();
+    }
   }
+
+  window.TRKClientDetails = {
+    apiPost: apiPost,
+    el: el,
+    escapeHtml: escapeHtml,
+    qsa: qsa,
+    renderSimpleTable: renderSimpleTable,
+    showError: showError,
+    showSuccess: showSuccess,
+    activateTab: activateTab
+  };
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
