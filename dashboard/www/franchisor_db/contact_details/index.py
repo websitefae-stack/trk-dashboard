@@ -3,7 +3,17 @@ from frappe import _
 
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
 from dashboard.api.shared.contact_details import get_contact_context
-from dashboard.api.franchisor.clients import get_franchisor_display_name
+
+
+def get_franchisor_display_name():
+    return (
+        frappe.db.get_value(
+            "Coach",
+            {"user": frappe.session.user},
+            "coach_name",
+        )
+        or frappe.session.user
+    )
 
 
 def get_context(context):
