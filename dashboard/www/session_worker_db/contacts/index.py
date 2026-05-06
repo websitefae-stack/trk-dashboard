@@ -14,9 +14,11 @@ def get_context(context):
     context.no_cache = 1
     context.page_title = "Contacts"
     context.active_page = "contacts"
+
     context.dashboard_user_name = frappe.db.get_value(
         "Session Worker",
         {"user": frappe.session.user},
         "sw_name",
     ) or frappe.session.user
+
     context.contacts = get_contacts_for_scope("session_worker")
