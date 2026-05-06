@@ -909,3 +909,31 @@
     white-space: nowrap !important;
   }
 }
+
+@media (max-width: 768px) {
+  .dashboard-contact-billing-table th:nth-child(n+2),
+  .dashboard-contact-billing-table td:nth-child(n+2) {
+    display: none !important;
+  }
+
+  .dashboard-contact-invoice-table th:nth-child(n+2),
+  .dashboard-contact-invoice-table td:nth-child(n+2) {
+    display: none !important;
+  }
+
+  .dashboard-contact-billing-table th:first-child,
+  .dashboard-contact-billing-table td:first-child,
+  .dashboard-contact-invoice-table th:first-child,
+  .dashboard-contact-invoice-table td:first-child {
+    display: table-cell !important;
+    width: 100% !important;
+  }
+
+  .dashboard-contact-billing-table .dashboard-client-type-mobile,
+  .dashboard-contact-invoice-table .dashboard-client-type-mobile {
+    display: block !important;
+    margin-top: 6px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+  }
+}
