@@ -1,15 +1,24 @@
 (function () {
+  "use strict";
+
   const START_HOUR = 7;
   const END_HOUR = 19;
   const SLOT_MINUTES = 30;
   const SLOT_HEIGHT = 44;
   const MOBILE_BREAKPOINT = 860;
+
   const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-  function getDefaultCalendarView() {
-    return window.innerWidth <= MOBILE_BREAKPOINT ? "day" : "week";
-  }
+  const SHARED_API = "dashboard.api.shared.calendar";
+
+  const COACH_ME_VALUE = "__coach_me__";
+  const FRANCHISOR_ME_VALUE = "__franchisor_me__";
+
+  const STORAGE_KEYS = {
+    coach: "trkCoachCalendarFor",
+    franchisor: "trkFranchisorCalendarFor"
+  };
 
   const DURATION_BY_TYPE = {
     "Therapy Session": 45,
@@ -32,8 +41,11 @@
   };
 
   const state = {
+    dashboardType: getDashboardType(),
     currentView: getDefaultCalendarView(),
     currentDate: stripTime(new Date()),
+    selectedCalendarFor: "",
+    calendarForOptions: [],
     events: [],
     clients: [],
     currentWorkerLabel: "",
@@ -42,59 +54,127 @@
     loading: false
   };
 
+  function getDefaultCalendarView() {
+    return window.innerWidth <= MOBILE_BREAKPOINT ? "day" : "week";
+  }
+
+  function getDashboardType() {
+    const path = window.location.pathname || "";
+
+    if (path.indexOf("/coach_db/") !== -1) return "coach";
+    if (path.indexOf("/franchisor_db/") !== -1) return "franchisor";
+
+    return "session_worker";
+  }
+
+  function getDefaultCalendarFor() {
+    if (state.dashboardType === "coach") return COACH_ME_VALUE;
+    if (state.dashboardType === "franchisor") return FRANCHISOR_ME_VALUE;
+    return "";
+  }
+
+  function getCalendarForSelectId() {
+    if (state.dashboardType === "coach") return "trkCoachCalendarWorkerSelect";
+    if (state.dashboardType === "franchisor") return "trkFranchisorCalendarForSelect";
+    return "";
+  }
+
+  function getSelectedCalendarForFromPage() {
+    if (state.dashboardType === "session_worker") return "";
+
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get("calendar_for") || params.get("selected_calendar_for") || params.get("selected_worker");
+
+    if (fromUrl) return fromUrl;
+
+    const select = document.getElementById(getCalendarForSelectId());
+    if (select && select.value) return select.value;
+
+    return window.localStorage.getItem(STORAGE_KEYS[state.dashboardType]) || getDefaultCalendarFor();
+  }
+
+  function setSelectedCalendarFor(value) {
+    if (state.dashboardType === "session_worker") return;
+
+    const selected = value || getDefaultCalendarFor();
+    state.selectedCalendarFor = selected;
+
+    window.localStorage.setItem(STORAGE_KEYS[state.dashboardType], selected);
+
+    const params = new URLSearchParams(window.location.search);
+    params.set("calendar_for", selected);
+    params.set("selected_calendar_for", selected);
+    params.set("selected_worker", selected);
+    params.set("view", state.currentView);
+    params.set("date", formatDateKey(state.currentDate));
+
+    window.location.href = window.location.pathname + "?" + params.toString();
+  }
+
   function init() {
     const root = document.getElementById("sessionWorkerCalendarRoot");
     if (!root) return;
 
     restoreCalendarStateFromUrl();
+    state.selectedCalendarFor = getSelectedCalendarForFromPage();
 
     bindEvents();
     renderDetailsEmptyState();
+    renameCalendarForLabel();
     updateViewButtons();
     renderCalendar();
     loadCalendarData();
   }
 
   function bindEvents() {
-  bindClick("trkCalendarPrevBtn", goPrev);
-  bindClick("trkCalendarNextBtn", goNext);
-  bindClick("trkCalendarTodayBtn", goToday);
+    bindClick("trkCalendarPrevBtn", goPrev);
+    bindClick("trkCalendarNextBtn", goNext);
+    bindClick("trkCalendarTodayBtn", goToday);
 
-  bindClick("trkCalendarNewBtn", function () {
-    openBookingModal(formatDateKey(state.currentDate), "09:00");
-  });
-
-  bindClick("trkCalendarDatePickerBtn", openCalendarDatePicker);
-  
-  const datePicker = document.getElementById("trkCalendarDatePicker");
-  if (datePicker) {
-    datePicker.addEventListener("change", function () {
-      const selectedDate = parseDateKey(this.value || "");
-      if (!selectedDate) return;
-  
-      state.currentDate = selectedDate;
-      saveCalendarStateToUrl();
-      loadCalendarData();
+    bindClick("trkCalendarNewBtn", function () {
+      openBookingModal(formatDateKey(state.currentDate), "09:00");
     });
-  }
+
+    bindClick("trkCalendarDatePickerBtn", openCalendarDatePicker);
+
+    const datePicker = document.getElementById("trkCalendarDatePicker");
+    if (datePicker) {
+      datePicker.addEventListener("change", function () {
+        const selectedDate = parseDateKey(this.value || "");
+        if (!selectedDate) return;
+
+        state.currentDate = selectedDate;
+        saveCalendarStateToUrl();
+        loadCalendarData();
+      });
+    }
 
     bindClick("trkCalendarWeekViewBtn", function () {
       state.currentView = "week";
-saveCalendarStateToUrl();
-loadCalendarData();
+      saveCalendarStateToUrl();
+      loadCalendarData();
     });
 
     bindClick("trkCalendarDayViewBtn", function () {
       state.currentView = "day";
-saveCalendarStateToUrl();
-loadCalendarData();
-      });
+      saveCalendarStateToUrl();
+      loadCalendarData();
+    });
 
     bindClick("trkCalendarMonthViewBtn", function () {
       state.currentView = "month";
-saveCalendarStateToUrl();
-loadCalendarData();
+      saveCalendarStateToUrl();
+      loadCalendarData();
     });
+
+    const calendarForSelectId = getCalendarForSelectId();
+    const calendarForSelect = calendarForSelectId ? document.getElementById(calendarForSelectId) : null;
+
+    if (calendarForSelect) {
+      calendarForSelect.addEventListener("change", function () {
+        setSelectedCalendarFor(this.value || getDefaultCalendarFor());
+      });
+    }
 
     bindClick("trkCalendarModalClose", closeBookingModal);
     bindClick("trkCalendarModalCancel", closeBookingModal);
@@ -118,9 +198,7 @@ loadCalendarData();
 
     const editTypeSelect = document.getElementById("trkEditType");
     if (editTypeSelect) {
-      editTypeSelect.addEventListener("change", function () {
-        syncEditFields();
-      });
+      editTypeSelect.addEventListener("change", syncEditFields);
     }
 
     document.addEventListener("click", function (event) {
@@ -141,17 +219,19 @@ loadCalendarData();
         const dateValue = monthCell.dataset.calendarMonthDate || "";
         if (dateValue) {
           state.currentDate = parseDateKey(dateValue) || state.currentDate;
-state.currentView = "day";
-saveCalendarStateToUrl();
-loadCalendarData();
+          state.currentView = "day";
+          saveCalendarStateToUrl();
+          loadCalendarData();
         }
       }
 
       const monthEvent = event.target.closest("[data-calendar-month-event]");
       if (monthEvent) {
         event.stopPropagation();
+
         const eventName = monthEvent.dataset.calendarMonthEvent || "";
         const row = getEventByName(eventName);
+
         if (row) {
           state.selectedEvent = row;
           renderDetails(row);
@@ -165,51 +245,51 @@ loadCalendarData();
   }
 
   function goPrev() {
-  if (state.currentView === "day") {
-    state.currentDate = addDays(state.currentDate, -1);
-  } else if (state.currentView === "month") {
-    state.currentDate = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth() - 1, 1);
-  } else {
-    state.currentDate = addDays(state.currentDate, -7);
+    if (state.currentView === "day") {
+      state.currentDate = addDays(state.currentDate, -1);
+    } else if (state.currentView === "month") {
+      state.currentDate = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth() - 1, 1);
+    } else {
+      state.currentDate = addDays(state.currentDate, -7);
+    }
+
+    saveCalendarStateToUrl();
+    loadCalendarData();
   }
 
-  saveCalendarStateToUrl();
-  loadCalendarData();
-}
+  function goNext() {
+    if (state.currentView === "day") {
+      state.currentDate = addDays(state.currentDate, 1);
+    } else if (state.currentView === "month") {
+      state.currentDate = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth() + 1, 1);
+    } else {
+      state.currentDate = addDays(state.currentDate, 7);
+    }
 
-function goNext() {
-  if (state.currentView === "day") {
-    state.currentDate = addDays(state.currentDate, 1);
-  } else if (state.currentView === "month") {
-    state.currentDate = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth() + 1, 1);
-  } else {
-    state.currentDate = addDays(state.currentDate, 7);
+    saveCalendarStateToUrl();
+    loadCalendarData();
   }
 
-  saveCalendarStateToUrl();
-  loadCalendarData();
-}
-
-function goToday() {
-  state.currentDate = stripTime(new Date());
-  saveCalendarStateToUrl();
-  loadCalendarData();
-}
+  function goToday() {
+    state.currentDate = stripTime(new Date());
+    saveCalendarStateToUrl();
+    loadCalendarData();
+  }
 
   function openCalendarDatePicker() {
-  const picker = document.getElementById("trkCalendarDatePicker");
-  if (!picker) return;
+    const picker = document.getElementById("trkCalendarDatePicker");
+    if (!picker) return;
 
-  picker.value = formatDateKey(state.currentDate);
+    picker.value = formatDateKey(state.currentDate);
 
-  if (typeof picker.showPicker === "function") {
-    picker.showPicker();
-  } else {
-    picker.focus();
-    picker.click();
+    if (typeof picker.showPicker === "function") {
+      picker.showPicker();
+    } else {
+      picker.focus();
+      picker.click();
+    }
   }
-}
-  
+
   function bindClick(id, handler) {
     const node = document.getElementById(id);
     if (node) node.addEventListener("click", handler);
@@ -218,48 +298,98 @@ function goToday() {
   function bindBackdropClose(id, closer) {
     const modal = document.getElementById(id);
     if (!modal) return;
+
     modal.addEventListener("click", function (event) {
       if (event.target === modal) closer();
     });
   }
 
   function loadCalendarData() {
-      setLoading(true);
-    
-      apiGet("dashboard.api.session_worker.calendar.get_calendar_bootstrap", {
-        week_start: formatDateKey(getWeekStart(state.currentDate)),
-        view: state.currentView,
-        date: formatDateKey(state.currentDate)
-      }).then(function (message) {
-        state.events = Array.isArray(message.events)
-          ? message.events.filter(function (event) {
-              return !isCancelledEvent(event);
-            })
-          : [];
-    
-        state.clients = Array.isArray(message.clients) ? message.clients : [];
-        state.currentWorkerLabel = message.current_worker_label || "";
-        state.resolutionNote = message.resolution_note || "";
-    
-        renderClientOptions();
-        updateClientNotice();
-        renderCalendar();
-        refreshSelectedEvent();
-        setLoading(false);
-      }).catch(function (error) {
-        console.error("Calendar bootstrap failed:", error);
-        state.events = [];
-        state.clients = [];
-        state.currentWorkerLabel = "";
-        state.resolutionNote = "";
-        renderClientOptions();
-        updateClientNotice(error.message || "");
-        renderCalendar();
-        renderDetailsEmptyState();
-        setLoading(false);
-        showToast(error.message || "Could not load calendar data");
-      });
+    setLoading(true);
+
+    state.selectedCalendarFor = getSelectedCalendarForFromPage();
+
+    apiGet(SHARED_API + ".get_calendar_bootstrap", {
+      dashboard_type: state.dashboardType,
+      week_start: formatDateKey(getWeekStart(state.currentDate)),
+      view: state.currentView,
+      date: formatDateKey(state.currentDate),
+      calendar_for: state.selectedCalendarFor,
+      selected_calendar_for: state.selectedCalendarFor,
+      selected_worker: state.selectedCalendarFor
+    }).then(function (message) {
+      state.events = Array.isArray(message.events)
+        ? message.events.filter(function (event) {
+            return !isCancelledEvent(event);
+          })
+        : [];
+
+      state.clients = Array.isArray(message.clients) ? message.clients : [];
+      state.calendarForOptions = Array.isArray(message.calendar_for_options) ? message.calendar_for_options : [];
+      state.selectedCalendarFor = message.selected_calendar_for || state.selectedCalendarFor || getDefaultCalendarFor();
+      state.currentWorkerLabel = message.current_worker_label || "";
+      state.resolutionNote = message.resolution_note || "";
+
+      renderCalendarForOptions();
+      renderClientOptions();
+      updateClientNotice();
+      renderCalendar();
+      refreshSelectedEvent();
+      setLoading(false);
+    }).catch(function (error) {
+      console.error("Calendar bootstrap failed:", error);
+
+      state.events = [];
+      state.clients = [];
+      state.calendarForOptions = [];
+      state.currentWorkerLabel = "";
+      state.resolutionNote = "";
+
+      renderCalendarForOptions();
+      renderClientOptions();
+      updateClientNotice(error.message || "");
+      renderCalendar();
+      renderDetailsEmptyState();
+      setLoading(false);
+      showToast(error.message || "Could not load calendar data");
+    });
+  }
+
+  function renderCalendarForOptions() {
+    const selectId = getCalendarForSelectId();
+    if (!selectId) return;
+
+    const select = document.getElementById(selectId);
+    if (!select) return;
+
+    let html = "";
+
+    state.calendarForOptions.forEach(function (row) {
+      const value = row.value || "";
+      const label = row.label || row.value || "";
+      const selected = state.selectedCalendarFor === value ? " selected" : "";
+
+      html += '<option value="' + escapeHtml(value) + '"' + selected + ">" + escapeHtml(label) + "</option>";
+    });
+
+    if (!html) {
+      if (state.dashboardType === "coach") {
+        html = '<option value="' + COACH_ME_VALUE + '">My Calendar</option>';
+      } else if (state.dashboardType === "franchisor") {
+        html = '<option value="' + FRANCHISOR_ME_VALUE + '">Me</option>';
+      }
     }
+
+    select.innerHTML = html;
+  }
+
+  function renameCalendarForLabel() {
+    const coachLabel = document.querySelector("label[for='trkCoachCalendarWorkerSelect']");
+    if (coachLabel) coachLabel.textContent = "View Calendar For";
+
+    const franchisorLabel = document.querySelector("label[for='trkFranchisorCalendarForSelect']");
+    if (franchisorLabel) franchisorLabel.textContent = "View Calendar For";
+  }
 
   function renderCalendar() {
     updateViewButtons();
@@ -285,6 +415,7 @@ function goToday() {
   function setTabActive(id, active) {
     const node = document.getElementById(id);
     if (!node) return;
+
     node.classList.toggle("is-active", !!active);
   }
 
@@ -299,6 +430,7 @@ function goToday() {
 
     const start = getWeekStart(state.currentDate);
     const end = addDays(start, 6);
+
     label.textContent = formatDisplayDate(start) + " to " + formatDisplayDate(end);
   }
 
@@ -322,14 +454,15 @@ function goToday() {
 
     header.style.display = "grid";
     grid.style.display = "grid";
-
     column.style.display = "";
 
     let html = "";
+
     for (let hour = START_HOUR; hour < END_HOUR; hour++) {
       html += '<div class="trk-calendar-time-slot trk-calendar-time-slot-label">' + pad(hour) + ':00</div>';
       html += '<div class="trk-calendar-time-slot"></div>';
     }
+
     column.innerHTML = html;
   }
 
@@ -347,6 +480,7 @@ function goToday() {
       const day = addDays(startDate, i);
       const dateKey = formatDateKey(day);
       const isToday = dateKey === todayStr ? " is-today" : "";
+
       html += '<div class="trk-calendar-day-header-cell' + isToday + '">'
         + '<div class="trk-calendar-day-name">' + DAYS[day.getDay()] + '</div>'
         + '<div class="trk-calendar-day-number">' + day.getDate() + '</div>'
@@ -374,6 +508,7 @@ function goToday() {
 
       for (let minutes = START_HOUR * 60; minutes < END_HOUR * 60; minutes += SLOT_MINUTES) {
         const slotTime = minutesToTime(minutes);
+
         html += '<button type="button" class="trk-calendar-grid-slot"'
           + ' data-date="' + escapeHtml(dateKey) + '"'
           + ' data-time="' + escapeHtml(slotTime) + '"'
@@ -410,6 +545,7 @@ function goToday() {
 
       const dayIndex = state.currentView === "day" ? 0 : dayOffsetWithinWeek(date, startDate);
       const maxIndex = state.currentView === "day" ? 0 : 6;
+
       if (dayIndex < 0 || dayIndex > maxIndex) return;
 
       const dayColumn = document.getElementById("trkCalendarDayCol-" + dayIndex);
@@ -428,15 +564,18 @@ function goToday() {
       if (top < 0) return;
 
       applyEventTypeStyle(eventNode, event.type);
+
       eventNode.style.top = top + "px";
       eventNode.style.height = height + "px";
+
       eventNode.innerHTML =
-  '<span class="trk-calendar-event-title">' + escapeHtml(event.title || "Session") + '</span>' +
-  '<span class="trk-calendar-event-time">' + escapeHtml((event.start_time || "") + " - " + (event.end_time || "")) + '</span>' +
-  getCalendarEventProgressHtml(event);
+        '<span class="trk-calendar-event-title">' + escapeHtml(event.title || "Session") + '</span>' +
+        '<span class="trk-calendar-event-time">' + escapeHtml((event.start_time || "") + " - " + (event.end_time || "")) + '</span>' +
+        getCalendarEventProgressHtml(event);
 
       eventNode.addEventListener("click", function (clickEvent) {
         clickEvent.stopPropagation();
+
         state.selectedEvent = event;
         renderDetails(event);
       });
@@ -474,6 +613,7 @@ function goToday() {
     wrap.style.width = "100%";
 
     let headerHtml = "";
+
     for (let i = 0; i < 7; i++) {
       headerHtml += '<div class="trk-calendar-day-header-cell">'
         + '<div class="trk-calendar-day-name">' + DAYS[i] + '</div>'
@@ -485,6 +625,7 @@ function goToday() {
     header.innerHTML = headerHtml;
 
     const eventsByDate = {};
+
     state.events.forEach(function (row) {
       const key = row.date || "";
       if (!eventsByDate[key]) eventsByDate[key] = [];
@@ -497,6 +638,7 @@ function goToday() {
       const dateKey = formatDateKey(cursor);
       const isCurrentMonth = cursor.getMonth() === state.currentDate.getMonth();
       const isToday = dateKey === formatDateKey(new Date());
+
       const cellEvents = (eventsByDate[dateKey] || []).slice().sort(function (a, b) {
         return timeToMinutes(a.start_time) - timeToMinutes(b.start_time);
       });
@@ -536,98 +678,23 @@ function goToday() {
     grid.innerHTML = html;
   }
 
-  function isCancelledEvent(event) {
-    const status = String(event.ui_status || event.status || "").toLowerCase().trim();
-    return status === "cancelled" || status === "canceled";
-  }
-  
-  function getVisibleEvents() {
-    if (state.currentView === "month") {
-      return state.events;
-    }
-  
-    if (state.currentView === "day") {
-      const key = formatDateKey(state.currentDate);
-      return state.events.filter(function (row) {
-        return row.date === key;
-      });
-    }
-  
-    const start = getWeekStart(state.currentDate);
-    const end = addDays(start, 6);
-  
-    return state.events.filter(function (row) {
-      const date = parseDateKey(row.date);
-      if (!date) return false;
-  
-      const cleanDate = stripTime(date);
-      return cleanDate >= stripTime(start) && cleanDate <= stripTime(end);
-    });
-  }
-
-  function applyEventTypeStyle(node, type) {
-    const style = TYPE_STYLES[type] || TYPE_STYLES["Therapy Session"];
-    node.style.background = style.background;
-    node.style.borderLeft = "4px solid " + style.border;
-    node.style.color = style.textColor || "#FFFFFF";
-  }
-
-  function getCalendarEventProgressHtml(event) {
-  if (!event) return "";
-
-  const progressText = event.progress_text || "";
-  const sessionNumber = Number(event.session_number || 0);
-  const totalSessions = Number(event.total_sessions || 0);
-
-  let label = "";
-
-  if (progressText) {
-    label = progressText;
-  } else if (sessionNumber && totalSessions) {
-    label = sessionNumber + " of " + totalSessions;
-  }
-
-  if (!label) return "";
-
-  return '<span class="trk-calendar-event-time" style="font-weight:800;">Session ' + escapeHtml(label) + '</span>';
-}
-
-  function getSessionProgressDetailHtml(event) {
-  if (!event) return "";
-
-  const progressText = event.progress_text || "";
-  const sessionNumber = Number(event.session_number || 0);
-  const totalSessions = Number(event.total_sessions || 0);
-
-  let label = "";
-
-  if (progressText) {
-    label = progressText;
-  } else if (sessionNumber && totalSessions) {
-    label = sessionNumber + " of " + totalSessions;
-  }
-
-  if (!label) return "";
-
-  return '<div class="trk-calendar-detail-group">'
-    + '<div class="trk-calendar-detail-label">Session Progress</div>'
-    + '<div class="trk-calendar-detail-value"><strong>Session ' + escapeHtml(label) + '</strong></div>'
-    + '</div>';
-}
-
-function getBookingWarningDetailHtml(event) {
-  if (!event || !event.booking_warning) return "";
-
-  return '<div class="dashboard-notice" style="margin:10px 0 14px 0;background:#fff7ed;border-left:4px solid #ff8438;color:#7c2d12;">'
-    + escapeHtml(event.booking_warning)
-    + '</div>';
-}
-  
   function renderDetails(event) {
     const body = document.getElementById("trkCalendarDetailsBody");
     if (!body) return;
 
-    const detailsUrl = "/session_worker_db/calendar_details?event=" + encodeURIComponent(event.name || "");
+    const detailsUrl = event.record_url || getDefaultDetailsUrl(event.name || "");
+    const isPrivate = Number(event.is_private || 0) === 1;
+
+    let actions = "";
+
+    if (!isPrivate) {
+      actions =
+        '<div class="dashboard-detail-actions" style="margin-top:16px;">'
+        + '<button type="button" class="dashboard-btn dashboard-btn-primary" data-calendar-action="edit-session" data-event="' + escapeHtml(event.name || "") + '">Edit Session</button>'
+        + '<button type="button" class="dashboard-btn dashboard-btn-light" data-calendar-action="add-note" data-event="' + escapeHtml(event.name || "") + '">Add Note</button>'
+        + '<a class="dashboard-link-btn" href="' + escapeHtml(detailsUrl) + '">Open details page ↗</a>'
+        + '</div>';
+    }
 
     body.innerHTML =
       '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Client / Session</div><div class="trk-calendar-detail-value">' + escapeHtml(event.title || "Session") + '</div></div>' +
@@ -636,21 +703,30 @@ function getBookingWarningDetailHtml(event) {
       '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Status</div><div class="trk-calendar-detail-value"><span class="dashboard-badge ' + getBadgeClass(event.ui_status) + '">' + escapeHtml(event.ui_status || "Booked") + '</span></div></div>' +
       '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Worker</div><div class="trk-calendar-detail-value">' + escapeHtml(event.worker || state.currentWorkerLabel || "Current Session Worker") + '</div></div>' +
       '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Type</div><div class="trk-calendar-detail-value">' + escapeHtml(event.type || "Session") + '</div></div>' +
-getSessionProgressDetailHtml(event) +
-getBookingWarningDetailHtml(event) +
-'<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Billing Type</div><div class="trk-calendar-detail-value">' + escapeHtml(event.billing_type || "Non-Billable") + '</div></div>' +
+      getSessionProgressDetailHtml(event) +
+      getBookingWarningDetailHtml(event) +
+      '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Billing Type</div><div class="trk-calendar-detail-value">' + escapeHtml(event.billing_type || "Non-Billable") + '</div></div>' +
       '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Travel Charged</div><div class="trk-calendar-detail-value">' + (Number(event.travel_charged || 0) ? "Yes" : "No") + '</div></div>' +
       '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Location</div><div class="trk-calendar-detail-value">' + escapeHtml(event.location || "Not set") + '</div></div>' +
-      '<div class="dashboard-detail-actions" style="margin-top:16px;">'
-      + '<button type="button" class="dashboard-btn dashboard-btn-primary" data-calendar-action="edit-session" data-event="' + escapeHtml(event.name || "") + '">Edit Session</button>'
-      + '<button type="button" class="dashboard-btn dashboard-btn-light" data-calendar-action="add-note" data-event="' + escapeHtml(event.name || "") + '">Add Note</button>'
-      + '<a class="dashboard-link-btn" href="' + escapeHtml(detailsUrl) + '">Open details page ↗</a>'
-      + '</div>';
+      actions;
+  }
+
+  function getDefaultDetailsUrl(eventName) {
+    if (state.dashboardType === "coach") {
+      return "/coach_db/calendar_details?event=" + encodeURIComponent(eventName || "");
+    }
+
+    if (state.dashboardType === "franchisor") {
+      return "/franchisor_db/calendar_details?event=" + encodeURIComponent(eventName || "");
+    }
+
+    return "/session_worker_db/calendar_details?event=" + encodeURIComponent(eventName || "");
   }
 
   function renderDetailsEmptyState() {
     const body = document.getElementById("trkCalendarDetailsBody");
     if (!body) return;
+
     body.innerHTML = '<div class="dashboard-empty">Select a calendar item to view its details.</div>';
   }
 
@@ -658,6 +734,7 @@ getBookingWarningDetailHtml(event) +
     if (!state.selectedEvent || !state.selectedEvent.name) return;
 
     const fresh = getEventByName(state.selectedEvent.name);
+
     if (!fresh) {
       state.selectedEvent = null;
       renderDetailsEmptyState();
@@ -673,26 +750,28 @@ getBookingWarningDetailHtml(event) +
     if (!select) return;
 
     let html = '<option value="">Select a client</option>';
+
     state.clients.forEach(function (client) {
       html += '<option value="' + escapeHtml(client.value) + '">' + escapeHtml(client.label) + '</option>';
     });
+
     select.innerHTML = html;
   }
 
   function updateClientNotice(errorMessage) {
     const notice = document.getElementById("trkCalendarClientNotice");
     if (!notice) return;
-  
+
     if (errorMessage) {
       notice.textContent = errorMessage;
     } else if (state.resolutionNote && !state.clients.length) {
       notice.textContent = state.resolutionNote;
     } else if (!state.clients.length) {
-      notice.textContent = "No clients linked to this logged-in session worker were found.";
+      notice.textContent = "No clients linked to this calendar were found.";
     } else {
       notice.textContent = "";
     }
-  
+
     notice.style.display = notice.textContent ? "" : "none";
   }
 
@@ -703,12 +782,15 @@ getBookingWarningDetailHtml(event) +
     const time = getValue("trkCalendarTime");
     const type = getValue("trkCalendarType") || "Therapy Session";
     const duration = getValue("trkCalendarDuration") || "45";
+
     const billingType = type === "General"
       ? (getValue("trkCalendarBillingType") || "")
       : (DEFAULT_BILLING_BY_TYPE[type] || "One to One");
+
     const travelCharged = type === "General"
       ? (getValue("trkCalendarTravelCharged") || "0")
       : (getValue("trkCalendarTravelChargedSingle") || "0");
+
     const location = getValue("trkCalendarLocation");
     const notes = getValue("trkCalendarNotes");
 
@@ -729,7 +811,8 @@ getBookingWarningDetailHtml(event) +
 
     setButtonLoading("trkCalendarSaveBtn", true, "Saving...");
 
-    apiPost("dashboard.api.session_worker.calendar.create_booking", {
+    apiPost(SHARED_API + ".create_booking", {
+      dashboard_type: state.dashboardType,
       client: clientId,
       client_name: clientName,
       booking_date: date,
@@ -747,6 +830,7 @@ getBookingWarningDetailHtml(event) +
       loadCalendarData();
     }).catch(function (error) {
       console.error("Save booking failed:", error);
+
       setButtonLoading("trkCalendarSaveBtn", false, "Save Session");
       showToast(error.message || "Could not save session");
     });
@@ -758,12 +842,15 @@ getBookingWarningDetailHtml(event) +
     const bookingTime = getValue("trkEditTime");
     const status = getValue("trkEditStatus");
     const appointmentType = getValue("trkEditType");
+
     const billingType = appointmentType === "General"
       ? (getValue("trkEditBillingType") || "")
       : (DEFAULT_BILLING_BY_TYPE[appointmentType] || "One to One");
+
     const travelCharged = appointmentType === "General"
       ? (getValue("trkEditTravelCharged") || "0")
       : (getValue("trkEditTravelChargedSingle") || "0");
+
     const location = getValue("trkEditLocation");
 
     if (!eventName) {
@@ -783,7 +870,8 @@ getBookingWarningDetailHtml(event) +
 
     setButtonLoading("trkCalendarEditSaveBtn", true, "Saving...");
 
-    apiPost("dashboard.api.session_worker.calendar.update_session", {
+    apiPost(SHARED_API + ".update_session", {
+      dashboard_type: state.dashboardType,
       event: eventName,
       booking_date: bookingDate,
       booking_time: bookingTime,
@@ -799,6 +887,7 @@ getBookingWarningDetailHtml(event) +
       loadCalendarData();
     }).catch(function (error) {
       console.error("Update session failed:", error);
+
       setButtonLoading("trkCalendarEditSaveBtn", false, "Save Changes");
       showToast(error.message || "Could not save session");
     });
@@ -822,7 +911,8 @@ getBookingWarningDetailHtml(event) +
 
     setButtonLoading("trkCalendarNoteSaveBtn", true, "Saving...");
 
-    apiPost("dashboard.api.session_worker.calendar.add_client_note", {
+    apiPost(SHARED_API + ".add_client_note", {
+      dashboard_type: state.dashboardType,
       client: client,
       session_date: sessionDate,
       session_type: sessionType,
@@ -833,6 +923,7 @@ getBookingWarningDetailHtml(event) +
       showToast("Client note saved");
     }).catch(function (error) {
       console.error("Save note failed:", error);
+
       setButtonLoading("trkCalendarNoteSaveBtn", false, "Save Note");
       showToast(error.message || "Could not save client note");
     });
@@ -849,6 +940,7 @@ getBookingWarningDetailHtml(event) +
     setValue("trkCalendarTravelChargedSingle", "0");
     setValue("trkCalendarLocation", "");
     setValue("trkCalendarNotes", "");
+
     syncBookingFields();
     toggleModal("trkCalendarModal", true);
   }
@@ -859,8 +951,14 @@ getBookingWarningDetailHtml(event) +
 
   function openEditModal(eventName) {
     const event = getEventByName(eventName);
+
     if (!event) {
       showToast("Session not found");
+      return;
+    }
+
+    if (Number(event.is_private || 0) === 1) {
+      showToast("This session cannot be edited from this dashboard");
       return;
     }
 
@@ -873,6 +971,7 @@ getBookingWarningDetailHtml(event) +
     setValue("trkEditTravelCharged", String(Number(event.travel_charged || 0)));
     setValue("trkEditTravelChargedSingle", String(Number(event.travel_charged || 0)));
     setValue("trkEditLocation", event.location || "");
+
     syncEditFields();
     toggleModal("trkCalendarEditModal", true);
   }
@@ -883,8 +982,14 @@ getBookingWarningDetailHtml(event) +
 
   function openNoteModal(eventName) {
     const event = getEventByName(eventName);
+
     if (!event) {
       showToast("Session not found");
+      return;
+    }
+
+    if (Number(event.is_private || 0) === 1) {
+      showToast("This session cannot be edited from this dashboard");
       return;
     }
 
@@ -898,6 +1003,7 @@ getBookingWarningDetailHtml(event) +
     setValue("trkNoteSessionDate", event.date || "");
     setValue("trkNoteSessionType", mapAppointmentTypeToClientNoteType(event.type || ""));
     setValue("trkNoteText", "");
+
     toggleModal("trkCalendarNoteModal", true);
   }
 
@@ -932,6 +1038,7 @@ getBookingWarningDetailHtml(event) +
   function toggleDisplay(id, show) {
     const node = document.getElementById(id);
     if (!node) return;
+
     node.style.display = show ? "" : "none";
   }
 
@@ -942,6 +1049,7 @@ getBookingWarningDetailHtml(event) +
 
   function setLoading(show) {
     state.loading = !!show;
+
     const node = document.getElementById("trkCalendarLoading");
     if (node) node.classList.toggle("show", state.loading);
   }
@@ -949,15 +1057,19 @@ getBookingWarningDetailHtml(event) +
   function setButtonLoading(id, loading, text) {
     const btn = document.getElementById(id);
     if (!btn) return;
+
     btn.disabled = !!loading;
     btn.textContent = text;
   }
 
   function apiGet(method, params) {
     const url = new URL("/api/method/" + method, window.location.origin);
+
     Object.keys(params || {}).forEach(function (key) {
       const value = params[key];
-      if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, value);
+      if (value !== undefined && value !== null && value !== "") {
+        url.searchParams.set(key, value);
+      }
     });
 
     return fetch(url.toString(), {
@@ -983,6 +1095,7 @@ getBookingWarningDetailHtml(event) +
   function handleApiResponse(response) {
     return response.text().then(function (text) {
       let data = {};
+
       try {
         data = text ? JSON.parse(text) : {};
       } catch (error) {
@@ -1007,6 +1120,7 @@ getBookingWarningDetailHtml(event) +
     if (typeof data._server_messages === "string" && data._server_messages) {
       try {
         const parsed = JSON.parse(data._server_messages);
+
         if (Array.isArray(parsed) && parsed.length) {
           const first = JSON.parse(parsed[0]);
           if (first && first.message) return first.message;
@@ -1018,6 +1132,7 @@ getBookingWarningDetailHtml(event) +
 
     if (typeof data.message === "string") return data.message;
     if (data.exception) return String(data.exception);
+
     return "";
   }
 
@@ -1039,6 +1154,7 @@ getBookingWarningDetailHtml(event) +
     if (uiStatus === "Attended") return "dashboard-status-active";
     if (uiStatus === "Cancelled") return "dashboard-status-archived";
     if (uiStatus === "No Show") return "dashboard-status-onhold";
+
     return "dashboard-status-onhold";
   }
 
@@ -1046,12 +1162,14 @@ getBookingWarningDetailHtml(event) +
     if (appointmentType === "Initial Consultation") return "Initial Consultation";
     if (appointmentType === "Parent Check-In") return "Parent Feedback";
     if (appointmentType === "Therapy Session") return "Coaching Session";
+
     return "Other";
   }
 
   function getSelectedText(id) {
     const node = document.getElementById(id);
     if (!node || node.selectedIndex < 0) return "";
+
     return node.options[node.selectedIndex].text || "";
   }
 
@@ -1071,6 +1189,7 @@ getBookingWarningDetailHtml(event) +
 
     toast.textContent = message;
     toast.classList.add("show");
+
     clearTimeout(toast._hideTimer);
     toast._hideTimer = setTimeout(function () {
       toast.classList.remove("show");
@@ -1078,42 +1197,137 @@ getBookingWarningDetailHtml(event) +
   }
 
   function restoreCalendarStateFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  const view = params.get("view");
-  const date = params.get("date");
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get("view");
+    const date = params.get("date");
 
-  if (view === "day" || view === "week" || view === "month") {
-    state.currentView = view;
-  } else {
-    state.currentView = getDefaultCalendarView();
+    if (view === "day" || view === "week" || view === "month") {
+      state.currentView = view;
+    } else {
+      state.currentView = getDefaultCalendarView();
+    }
+
+    const parsedDate = parseDateKey(date || "");
+    state.currentDate = parsedDate || stripTime(new Date());
   }
 
-  const parsedDate = parseDateKey(date || "");
-  if (parsedDate) {
-    state.currentDate = parsedDate;
-  } else {
-    state.currentDate = stripTime(new Date());
+  function saveCalendarStateToUrl() {
+    const params = new URLSearchParams(window.location.search);
+
+    params.set("view", state.currentView);
+    params.set("date", formatDateKey(state.currentDate));
+
+    if (state.dashboardType !== "session_worker" && state.selectedCalendarFor) {
+      params.set("calendar_for", state.selectedCalendarFor);
+      params.set("selected_calendar_for", state.selectedCalendarFor);
+      params.set("selected_worker", state.selectedCalendarFor);
+    }
+
+    const newUrl = window.location.pathname + "?" + params.toString();
+    window.history.replaceState({}, "", newUrl);
   }
-}
 
-function saveCalendarStateToUrl() {
-  const params = new URLSearchParams(window.location.search);
-  params.set("view", state.currentView);
-  params.set("date", formatDateKey(state.currentDate));
+  function isCancelledEvent(event) {
+    const status = String(event.ui_status || event.status || "").toLowerCase().trim();
+    return status === "cancelled" || status === "canceled";
+  }
 
-  const newUrl = window.location.pathname + "?" + params.toString();
-  window.history.replaceState({}, "", newUrl);
-}
-  
+  function getVisibleEvents() {
+    if (state.currentView === "month") {
+      return state.events;
+    }
+
+    if (state.currentView === "day") {
+      const key = formatDateKey(state.currentDate);
+
+      return state.events.filter(function (row) {
+        return row.date === key;
+      });
+    }
+
+    const start = getWeekStart(state.currentDate);
+    const end = addDays(start, 6);
+
+    return state.events.filter(function (row) {
+      const date = parseDateKey(row.date);
+      if (!date) return false;
+
+      const cleanDate = stripTime(date);
+
+      return cleanDate >= stripTime(start) && cleanDate <= stripTime(end);
+    });
+  }
+
+  function applyEventTypeStyle(node, type) {
+    const style = TYPE_STYLES[type] || TYPE_STYLES["Therapy Session"];
+
+    node.style.background = style.background;
+    node.style.borderLeft = "4px solid " + style.border;
+    node.style.color = style.textColor || "#FFFFFF";
+  }
+
+  function getCalendarEventProgressHtml(event) {
+    if (!event) return "";
+
+    const progressText = event.progress_text || "";
+    const sessionNumber = Number(event.session_number || 0);
+    const totalSessions = Number(event.total_sessions || 0);
+
+    let label = "";
+
+    if (progressText) {
+      label = progressText;
+    } else if (sessionNumber && totalSessions) {
+      label = sessionNumber + " of " + totalSessions;
+    }
+
+    if (!label) return "";
+
+    return '<span class="trk-calendar-event-time" style="font-weight:800;">Session ' + escapeHtml(label) + '</span>';
+  }
+
+  function getSessionProgressDetailHtml(event) {
+    if (!event) return "";
+
+    const progressText = event.progress_text || "";
+    const sessionNumber = Number(event.session_number || 0);
+    const totalSessions = Number(event.total_sessions || 0);
+
+    let label = "";
+
+    if (progressText) {
+      label = progressText;
+    } else if (sessionNumber && totalSessions) {
+      label = sessionNumber + " of " + totalSessions;
+    }
+
+    if (!label) return "";
+
+    return '<div class="trk-calendar-detail-group">'
+      + '<div class="trk-calendar-detail-label">Session Progress</div>'
+      + '<div class="trk-calendar-detail-value"><strong>Session ' + escapeHtml(label) + '</strong></div>'
+      + '</div>';
+  }
+
+  function getBookingWarningDetailHtml(event) {
+    if (!event || !event.booking_warning) return "";
+
+    return '<div class="dashboard-notice" style="margin:10px 0 14px 0;background:#fff7ed;border-left:4px solid #ff8438;color:#7c2d12;">'
+      + escapeHtml(event.booking_warning)
+      + '</div>';
+  }
+
   function getWeekStart(date) {
     const d = stripTime(date);
     d.setDate(d.getDate() - d.getDay());
+
     return d;
   }
 
   function addDays(date, days) {
     const d = new Date(date.getTime());
     d.setDate(d.getDate() + days);
+
     return stripTime(d);
   }
 
@@ -1127,7 +1341,9 @@ function saveCalendarStateToUrl() {
 
   function formatLongDisplayDate(dateKey) {
     const date = parseDateKey(dateKey);
+
     if (!date) return dateKey;
+
     return date.toLocaleDateString("en-GB", {
       weekday: "long",
       day: "numeric",
@@ -1142,13 +1358,16 @@ function saveCalendarStateToUrl() {
 
   function parseDateKey(value) {
     if (!value || typeof value !== "string") return null;
+
     const parts = value.split("-").map(Number);
     if (parts.length !== 3) return null;
+
     return new Date(parts[0], parts[1] - 1, parts[2]);
   }
 
   function dayOffsetWithinWeek(date, weekStart) {
     const oneDay = 24 * 60 * 60 * 1000;
+
     return Math.round((stripTime(date).getTime() - stripTime(weekStart).getTime()) / oneDay);
   }
 
@@ -1156,12 +1375,14 @@ function saveCalendarStateToUrl() {
     const parts = String(timeValue || "00:00").split(":");
     const hours = parseInt(parts[0], 10) || 0;
     const minutes = parseInt(parts[1], 10) || 0;
+
     return (hours * 60) + minutes;
   }
 
   function minutesToTime(totalMinutes) {
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
+
     return pad(hours) + ":" + pad(minutes);
   }
 
