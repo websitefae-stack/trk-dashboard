@@ -3,7 +3,23 @@ from frappe import _
 
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
 from dashboard.api.shared.clients import get_clients, get_client_types
-from dashboard.api.session_worker.client_details import get_session_worker_name
+
+
+def get_session_worker_display_name():
+    return (
+        frappe.db.get_value(
+            "Session Worker",
+            {"user": frappe.session.user},
+            "sw_name",
+        )
+        or frappe.db.get_value(
+            "Session Worker",
+            {"sw_email": frappe.session.user},
+            "sw_name",
+        )
+        or frappe.get_cached_value("User", frappe.session.user, "full_name")
+        or frappe.session.user
+    )
 
 
 def get_context(context):
@@ -16,7 +32,7 @@ def get_context(context):
     context.page_title = "Clients"
     context.active_page = "clients"
     context.dashboard_notifications_url = "/session_worker_db/notifications"
-    context.dashboard_user_name = get_session_worker_name()
+    context.dashboard_user_name = get_session_worker_display_name()
 
     context.clients = get_clients()
     context.client_types = get_client_types()
