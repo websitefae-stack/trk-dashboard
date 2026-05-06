@@ -523,14 +523,21 @@
       const rows = (contacts || []).map(function (row) {
         return (
           "<tr>" +
-            "<td><a class=\"dashboard-inline-link\" href=\"" + escapeHtml(row.link || "#") + "\">" + escapeHtml(row.display_name || row.contact_name || "—") + "</a></td>" +
-            "<td>" + escapeHtml(row.mobile || row.phone || "—") + "</td>" +
+            "<td>" +
+              "<a class=\"dashboard-inline-link\" href=\"" + escapeHtml(row.link || "#") + "\">" +
+                escapeHtml(row.display_name || row.contact_name || "—") +
+              "</a>" +
+              "<div class=\"dashboard-client-type-mobile\">" +
+                escapeHtml(row.phone || "—") +
+              "</div>" +
+            "</td>" +
+            "<td>" + escapeHtml(row.phone || "—") + "</td>" +
             "<td>" + escapeHtml(row.email || "—") + "</td>" +
             "<td>" + escapeHtml(row.company || "—") + "</td>" +
             "<td class=\"dashboard-action-cell\"><a class=\"dashboard-link-btn\" href=\"" + escapeHtml(row.link || "#") + "\">View</a></td>" +
           "</tr>"
         );
-      });
+      });;
 
       renderSimpleTable("clientContactsTableBody", rows, "No linked contacts found.", 5);
     } catch (error) {
