@@ -164,6 +164,10 @@
                             <a class="dashboard-inline-link" href="/coach_db/client_details?name={{ client.name }}">
                               {{ client.display_name }}
                             </a>
+                            <div class="dashboard-client-type-mobile">
+                              Bank: {{ client.default_bank_account or "—" }}<br>
+                              Price List: {{ client.default_price_list or "—" }}
+                            </div>
                           </td>
                           <td>{{ client.default_bank_account or "—" }}</td>
                           <td>{{ client.default_price_list or "—" }}</td>
