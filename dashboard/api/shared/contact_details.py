@@ -3,12 +3,12 @@ import frappe
 from frappe import _
 
 from dashboard.api.shared.contacts import (
-    ensure_logged_in,
     ensure_contact_access,
     get_current_coach_name,
     get_current_session_worker_name,
     is_franchisor_user,
 )
+from dashboard.api.shared.permissions import ensure_logged_in
 
 
 EDITABLE_CONTACT_FIELDS = [
@@ -24,6 +24,7 @@ EDITABLE_CONTACT_FIELDS = [
 def parse_payload(value):
     if isinstance(value, str):
         return json.loads(value) if value else {}
+
     return value or {}
 
 
@@ -48,6 +49,7 @@ def client_display_name(client):
 def coach_display_name(coach):
     if coach and frappe.db.exists("Coach", coach):
         return frappe.db.get_value("Coach", coach, "coach_name") or coach
+
     return coach or ""
 
 
@@ -92,6 +94,7 @@ def get_linked_clients(contact, scope):
 
     current_coach = get_current_coach_name()
     current_sw = get_current_session_worker_name()
+
     rows = []
 
     for client in clients:
@@ -197,6 +200,9 @@ def get_contact_context(scope, contact_name=None, is_new=False):
             "is_new": 1,
             "linked_clients": [],
             "contact_invoices": [],
+            "contact_details_scope": scope,
+            "contact_details_base_url": get_base_url_for_scope(scope),
+            "contact_details_save_method": "dashboard.api.shared.contact_details.save_contact",
         }
 
     if not contact_name:
@@ -205,11 +211,7 @@ def get_contact_context(scope, contact_name=None, is_new=False):
     contact = frappe.get_doc("Contact", contact_name)
     linked_clients = get_linked_clients(contact, scope)
 
-    if scope == "session_worker":
-        if not linked_clients:
-            frappe.throw(_("You do not have permission to access this contact."), frappe.PermissionError)
-
-    elif scope == "coach":
+    if scope in ("session_worker", "coach"):
         if not linked_clients:
             frappe.throw(_("You do not have permission to access this contact."), frappe.PermissionError)
 
@@ -227,7 +229,20 @@ def get_contact_context(scope, contact_name=None, is_new=False):
         "is_new": 0,
         "linked_clients": linked_clients,
         "contact_invoices": get_contact_invoices(linked_clients),
+        "contact_details_scope": scope,
+        "contact_details_base_url": get_base_url_for_scope(scope),
+        "contact_details_save_method": "dashboard.api.shared.contact_details.save_contact",
     }
+
+
+def get_base_url_for_scope(scope):
+    if scope == "franchisor":
+        return "/franchisor_db"
+
+    if scope == "session_worker":
+        return "/session_worker_db"
+
+    return "/coach_db"
 
 
 def save_contact_for_scope(scope, docname=None, data=None):
@@ -252,8 +267,18 @@ def save_contact_for_scope(scope, docname=None, data=None):
         frappe.throw(_("Please enter at least a First Name or Company Name."))
 
     contact.save(ignore_permissions=True)
+    frappe.db.commit()
 
     return {
         "name": contact.name,
         "display_name": contact_display_name(contact),
     }
+
+
+@frappe.whitelist()
+def save_contact(scope="coach", docname=None, data=None):
+    return save_contact_for_scope(
+        scope=scope or "coach",
+        docname=docname,
+        data=data,
+    )
