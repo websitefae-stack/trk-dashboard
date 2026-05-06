@@ -136,11 +136,11 @@
             </section>
           </div>
 
-          <div class="dashboard-tab-panel" id="contact-billing-tab">
-            <section class="dashboard-detail-section">
-              <div class="dashboard-detail-section-head">
-                <h2 class="dashboard-detail-section-title">Billing Context Per Linked Client</h2>
-              </div>
+          <<div class="dashboard-tab-panel" id="contact-billing-tab">
+  <section class="dashboard-detail-section">
+    <div class="dashboard-detail-section-head">
+      <h2 class="dashboard-detail-section-title">Billing Context Per Linked Client</h2>
+    </div>
 
               <div class="dashboard-table-wrap">
                 <table class="dashboard-table dashboard-contact-billing-table">
@@ -153,10 +153,10 @@
                       <th>Billing Contact</th>
                     </tr>
                   </thead>
-
+          
                   <tbody>
                     {% set billing_clients = linked_clients | selectattr("is_billing_client") | list %}
-
+          
                     {% if billing_clients %}
                       {% for client in billing_clients %}
                         <tr>
@@ -164,11 +164,13 @@
                             <a class="dashboard-inline-link" href="/coach_db/client_details?name={{ client.name }}">
                               {{ client.display_name }}
                             </a>
+          
                             <div class="dashboard-client-type-mobile">
                               Bank: {{ client.default_bank_account or "—" }}<br>
                               Price List: {{ client.default_price_list or "—" }}
                             </div>
                           </td>
+          
                           <td>{{ client.default_bank_account or "—" }}</td>
                           <td>{{ client.default_price_list or "—" }}</td>
                           <td>{{ client.primary_coach_display or client.primary_coach or "—" }}</td>
@@ -177,19 +179,21 @@
                       {% endfor %}
                     {% else %}
                       <tr>
-                        <td colspan="5" class="dashboard-empty">This contact is not the billing contact for any linked clients.</td>
+                        <td colspan="5" class="dashboard-empty">
+                          This contact is not the billing contact for any linked clients.
+                        </td>
                       </tr>
                     {% endif %}
                   </tbody>
                 </table>
               </div>
             </section>
-
+          
             <section class="dashboard-detail-section">
               <div class="dashboard-detail-section-head">
                 <h2 class="dashboard-detail-section-title">Invoices</h2>
               </div>
-
+          
               <div class="dashboard-table-wrap">
                 <table class="dashboard-table dashboard-contact-invoice-table">
                   <thead>
@@ -204,7 +208,7 @@
                       <th class="dashboard-action-col">Action</th>
                     </tr>
                   </thead>
-
+          
                   <tbody>
                     {% if contact_invoices %}
                       {% for invoice in contact_invoices %}
@@ -213,21 +217,34 @@
                             <a class="dashboard-inline-link" href="/coach_db/invoice_details?name={{ invoice.name }}">
                               {{ invoice.name }}
                             </a>
+          
+                            <div class="dashboard-client-type-mobile">
+                              Client: {{ invoice.client_display or invoice.client or "—" }}<br>
+                              Date: {{ frappe.format(invoice.posting_date, {"fieldtype": "Date"}) if invoice.posting_date else "—" }}<br>
+                              Status: {{ invoice.status or "—" }}<br>
+                              Total: {{ frappe.format_value(invoice.grand_total or 0, {"fieldtype": "Currency"}) }}
+                            </div>
                           </td>
+          
                           <td>{{ invoice.client_display or invoice.client or "—" }}</td>
                           <td>{{ frappe.format(invoice.posting_date, {"fieldtype": "Date"}) if invoice.posting_date else "—" }}</td>
                           <td>{{ frappe.format(invoice.due_date, {"fieldtype": "Date"}) if invoice.due_date else "—" }}</td>
                           <td>{{ invoice.status or "—" }}</td>
                           <td>{{ frappe.format_value(invoice.grand_total or 0, {"fieldtype": "Currency"}) }}</td>
                           <td>{{ frappe.format_value(invoice.outstanding_amount or 0, {"fieldtype": "Currency"}) }}</td>
+          
                           <td class="dashboard-action-cell">
-                            <a class="dashboard-link-btn" href="/coach_db/invoice_details?name={{ invoice.name }}">View</a>
+                            <a class="dashboard-link-btn" href="/coach_db/invoice_details?name={{ invoice.name }}">
+                              View
+                            </a>
                           </td>
                         </tr>
                       {% endfor %}
                     {% else %}
                       <tr>
-                        <td colspan="8" class="dashboard-empty">No invoices found for this contact.</td>
+                        <td colspan="8" class="dashboard-empty">
+                          No invoices found for this contact.
+                        </td>
                       </tr>
                     {% endif %}
                   </tbody>
