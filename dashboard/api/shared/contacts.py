@@ -1,47 +1,33 @@
 import frappe
 from frappe import _
 
+from dashboard.api.shared.permissions import (
+    ensure_logged_in,
+    is_franchisor_user,
+    get_current_coach_name as permissions_get_current_coach_name,
+    get_current_session_worker_name as permissions_get_current_session_worker_name,
+)
+
+
 CLIENT_DOCTYPE = "Client"
 CONTACT_DOCTYPE = "Contact"
 COACH_DOCTYPE = "Coach"
 SESSION_WORKER_DOCTYPE = "Session Worker"
 
-FRANCHISOR_EMAILS = {
-    "ashley@theresilientkid.co.uk",
-    "office@theresilientpeople.uk",
-    "hq@theresilientkid.co.uk",
-}
-
-
-def ensure_logged_in():
-    if frappe.session.user == "Guest":
-        frappe.throw(_("Login required"), frappe.PermissionError)
-
-
-def is_franchisor_user():
-    ensure_logged_in()
-    return (frappe.session.user or "").lower() in FRANCHISOR_EMAILS
-
-
-def get_linked_doc_name(doctype):
-    ensure_logged_in()
-
-    if not frappe.db.exists("DocType", doctype):
-        return ""
-
-    meta = frappe.get_meta(doctype)
-    if not meta.has_field("user"):
-        return ""
-
-    return frappe.db.get_value(doctype, {"user": frappe.session.user}, "name") or ""
-
 
 def get_current_coach_name():
-    return get_linked_doc_name(COACH_DOCTYPE)
+    """
+    Used by coach/franchisor contact pages.
+    Keeps the old public function name so existing imports keep working.
+    """
+    return permissions_get_current_coach_name(optional=True)
 
 
 def get_current_session_worker_name():
-    return get_linked_doc_name(SESSION_WORKER_DOCTYPE)
+    """
+    Used by session worker contact pages.
+    """
+    return permissions_get_current_session_worker_name(optional=True)
 
 
 def get_contact_display_name(contact):
@@ -108,6 +94,7 @@ def get_allowed_clients(scope, coach_scope="my"):
 
     if scope == "session_worker":
         session_worker = get_current_session_worker_name()
+
         if not session_worker:
             return []
 
@@ -121,6 +108,7 @@ def get_allowed_clients(scope, coach_scope="my"):
 
     if scope == "coach":
         coach = get_current_coach_name()
+
         if not coach:
             return []
 
@@ -138,7 +126,10 @@ def get_allowed_clients(scope, coach_scope="my"):
 
     if scope == "franchisor":
         if not is_franchisor_user():
-            frappe.throw(_("You do not have permission to access the Franchisor Dashboard."), frappe.PermissionError)
+            frappe.throw(
+                _("You do not have permission to access the Franchisor Dashboard."),
+                frappe.PermissionError,
+            )
 
         coach_scope = (coach_scope or "my").strip()
 
@@ -182,6 +173,7 @@ def get_contact_names_from_clients(clients, include_billing_contact=True):
 
         if include_billing_contact and client.get("billing_contact"):
             billing_contact = get_contact_from_customer(client.get("billing_contact"))
+
             if billing_contact:
                 contact_names.add(billing_contact)
 
@@ -206,6 +198,7 @@ def get_linked_clients_for_contact(contact_name, clients):
 
         if not linked and client.get("billing_contact"):
             billing_contact = get_contact_from_customer(client.get("billing_contact"))
+
             if billing_contact == contact_name:
                 linked = True
 
@@ -310,6 +303,12 @@ def get_contacts_for_scope(scope, show_all=False, coach_scope="my"):
             if c.get("primary_coach") or c.get("attending_coach")
         })
 
+        session_worker_names = sorted({
+            c.get("session_worker")
+            for c in linked_clients
+            if c.get("session_worker")
+        })
+
         rows.append({
             "name": contact.name,
             "display_name": get_contact_display_name(contact),
@@ -322,11 +321,7 @@ def get_contacts_for_scope(scope, show_all=False, coach_scope="my"):
             "linked_clients": linked_clients,
             "linked_client_text": ", ".join([c["display_name"] for c in linked_clients]),
             "coach_name": ", ".join(coach_names),
-            "session_worker_name": ", ".join(sorted({
-                c.get("session_worker")
-                for c in linked_clients
-                if c.get("session_worker")
-            })),
+            "session_worker_name": ", ".join(session_worker_names),
         })
 
     return dedupe_contacts_prefer_customer(rows)
@@ -346,3 +341,20 @@ def ensure_contact_access(contact_name, scope):
 
     if contact_name not in allowed_names:
         frappe.throw(_("You do not have permission to access this contact."), frappe.PermissionError)
+
+
+@frappe.whitelist()
+def get_contacts(scope="coach", show_all=0, coach_scope="my"):
+    """
+    Shared endpoint for all dashboards.
+
+    scope:
+    - coach
+    - franchisor
+    - session_worker
+    """
+    return get_contacts_for_scope(
+        scope=scope,
+        show_all=bool(int(show_all or 0)),
+        coach_scope=coach_scope or "my",
+    )
