@@ -114,19 +114,23 @@
 
   function activateTab(targetId) {
     if (!targetId) return;
-
+  
     qsa(".dashboard-tab-btn").forEach(function (button) {
-      button.classList.toggle("is-active", button.dataset.tabTarget === targetId);
+      const isActive = button.dataset.tabTarget === targetId;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-selected", isActive ? "true" : "false");
     });
-
+  
     qsa(".dashboard-tab-panel").forEach(function (panel) {
-      panel.classList.toggle("is-active", panel.id === targetId);
+      const isActive = panel.id === targetId;
+      panel.classList.toggle("is-active", isActive);
+      panel.style.display = isActive ? "block" : "none";
     });
-
+  
     try {
       sessionStorage.setItem(roleConfig.storageKey, targetId);
     } catch (error) {}
-
+  
     if (targetId === "client-contacts-tab") loadSessionWorkerContacts();
     if (targetId === "client-notes-tab") loadSessionWorkerNotes();
     if (targetId === "client-appointments-tab") loadSessionWorkerAppointments();
