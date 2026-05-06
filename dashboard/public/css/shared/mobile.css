@@ -937,3 +937,27 @@
     line-height: 1.4;
   }
 }
+
+@media (max-width: 768px) {
+  /* Contact Details > Billing Context
+     Keep: Client, Bank, Price List
+     Hide: Primary Coach, Billing Contact */
+  .dashboard-contact-billing-table th:nth-child(4),
+  .dashboard-contact-billing-table td:nth-child(4),
+  .dashboard-contact-billing-table th:nth-child(5),
+  .dashboard-contact-billing-table td:nth-child(5) {
+    display: none !important;
+  }
+
+  /* Contact Details > Invoices
+     Keep: Invoice, Client, Date, Status, Total
+     Hide: Due Date, Outstanding, Action */
+  .dashboard-contact-invoice-table th:nth-child(4),
+  .dashboard-contact-invoice-table td:nth-child(4),
+  .dashboard-contact-invoice-table th:nth-child(7),
+  .dashboard-contact-invoice-table td:nth-child(7),
+  .dashboard-contact-invoice-table th:nth-child(8),
+  .dashboard-contact-invoice-table td:nth-child(8) {
+    display: none !important;
+  }
+}
