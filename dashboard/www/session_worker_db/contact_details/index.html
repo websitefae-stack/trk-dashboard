@@ -22,7 +22,9 @@
       <div class="dashboard-card dashboard-client-detail-card">
         <form id="contactDetailsForm" class="dashboard-detail-form" onsubmit="return false;">
           <input type="hidden" id="csrfToken" value="{{ frappe.session.csrf_token or '' }}">
-          <input type="hidden" id="contactDocname" value="{{ contact_docname }}">
+          <input type="hidden" id="contactDetailsScope" value="{{ contact_details_scope }}">
+          <input type="hidden" id="contactBaseUrl" value="{{ contact_details_base_url }}">
+          <input type="hidden" id="saveContactMethod" value="{{ contact_details_save_method }}">
 
           <div class="dashboard-tabs dashboard-contact-detail-tabs">
             <button type="button" class="dashboard-tab-btn is-active" data-tab-target="contact-details-tab">Details</button>
