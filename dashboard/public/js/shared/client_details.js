@@ -62,12 +62,77 @@
   }
 
   function getClientName() {
-    return el("clientDocname") ? el("clientDocname").value : "";
+    const field = el("clientDocname");
+    return field ? field.value : "";
   }
 
   function isNewClientPage() {
     const params = new URLSearchParams(window.location.search);
     return params.get("new") === "1" || !getClientName();
+  }
+
+  function activateTab(targetId) {
+    if (!targetId) return;
+
+    qsa(".dashboard-tab-btn").forEach(function (btn) {
+      btn.classList.toggle("is-active", btn.dataset.tabTarget === targetId);
+    });
+
+    qsa(".dashboard-tab-panel").forEach(function (panel) {
+      panel.classList.toggle("is-active", panel.id === targetId);
+    });
+
+    try {
+      sessionStorage.setItem(roleConfig.storageKey, targetId);
+    } catch (e) {}
+  }
+
+  function initTabs() {
+    const buttons = qsa(".dashboard-tab-btn");
+    const panels = qsa(".dashboard-tab-panel");
+
+    if (!buttons.length || !panels.length) return;
+
+    buttons.forEach(function (btn) {
+      if (btn.dataset.tabBound === "1") return;
+
+      btn.dataset.tabBound = "1";
+
+      btn.addEventListener("click", function (event) {
+        event.preventDefault();
+        activateTab(btn.dataset.tabTarget);
+      });
+    });
+
+    let savedTab = "";
+
+    try {
+      savedTab = sessionStorage.getItem(roleConfig.storageKey) || "";
+    } catch (e) {
+      savedTab = "";
+    }
+
+    const savedButton = savedTab
+      ? buttons.find(function (btn) {
+          return btn.dataset.tabTarget === savedTab;
+        })
+      : null;
+
+    if (savedButton && !isNewClientPage()) {
+      activateTab(savedTab);
+      return;
+    }
+
+    const activeButton = buttons.find(function (btn) {
+      return btn.classList.contains("is-active");
+    });
+
+    if (activeButton && activeButton.dataset.tabTarget) {
+      activateTab(activeButton.dataset.tabTarget);
+      return;
+    }
+
+    activateTab(buttons[0].dataset.tabTarget);
   }
 
   function setFieldState(field, editing) {
@@ -87,23 +152,24 @@
   }
 
   function applyEditMode(editMode, isSaving) {
-    qsa("[data-client-field='1']").forEach((field) => {
+    qsa("[data-client-field='1']").forEach(function (field) {
       setFieldState(field, editMode);
     });
 
     const editBtn = el("editClient");
+
     if (editBtn) {
       if (!roleConfig.canEdit) {
         editBtn.style.display = "none";
-        return;
+      } else {
+        editBtn.textContent = isSaving ? "Saving..." : editMode ? "Save Client" : "Edit Client";
+        editBtn.disabled = !!isSaving;
+        editBtn.classList.toggle("is-save-mode", !!editMode);
       }
-
-      editBtn.textContent = isSaving ? "Saving..." : editMode ? "Save Client" : "Edit Client";
-      editBtn.disabled = !!isSaving;
-      editBtn.classList.toggle("is-save-mode", !!editMode);
     }
 
     const invoiceBtn = el("createClientInvoice");
+
     if (invoiceBtn && !roleConfig.canInvoice) {
       invoiceBtn.style.display = "none";
     }
@@ -114,7 +180,7 @@
   function collectData() {
     const data = {};
 
-    qsa("[data-client-field='1']").forEach((field) => {
+    qsa("[data-client-field='1']").forEach(function (field) {
       const fieldname = field.dataset.fieldname;
       if (!fieldname) return;
 
@@ -134,12 +200,14 @@
     const fullNameField = getField("full_name");
     if (!fullNameField) return;
 
-    const first = getField("name1")?.value || getField("first_name")?.value || "";
-    const middle = getField("middle_name")?.value || "";
-    const last = getField("last_name")?.value || "";
+    const first = (getField("name1") && getField("name1").value) || (getField("first_name") && getField("first_name").value) || "";
+    const middle = (getField("middle_name") && getField("middle_name").value) || "";
+    const last = (getField("last_name") && getField("last_name").value) || "";
 
     fullNameField.value = [first, middle, last]
-      .map((part) => String(part || "").trim())
+      .map(function (part) {
+        return String(part || "").trim();
+      })
       .filter(Boolean)
       .join(" ");
   }
@@ -176,7 +244,7 @@
 
       select.innerHTML = '<option value=""></option>';
 
-      if (currentValue && !rows.some((row) => row.name === currentValue)) {
+      if (currentValue && !rows.some(function (row) { return row.name === currentValue; })) {
         const currentOption = document.createElement("option");
         currentOption.value = currentValue;
         currentOption.textContent = currentValue;
@@ -184,7 +252,7 @@
         select.appendChild(currentOption);
       }
 
-      rows.forEach((row) => {
+      rows.forEach(function (row) {
         if (!row.name) return;
 
         const option = document.createElement("option");
@@ -205,8 +273,8 @@
   }
 
   function initLinkOptions() {
-    qsa("select[data-link-doctype]").forEach((select) => {
-      ["focus", "mousedown", "touchstart"].forEach((eventName) => {
+    qsa("select[data-link-doctype]").forEach(function (select) {
+      ["focus", "mousedown", "touchstart"].forEach(function (eventName) {
         select.addEventListener(eventName, function () {
           loadLinkOptions(select);
         });
@@ -221,7 +289,7 @@
   function initFullNameBuilder() {
     if (!isNewClientPage()) return;
 
-    ["name1", "first_name", "middle_name", "last_name"].forEach((fieldname) => {
+    ["name1", "first_name", "middle_name", "last_name"].forEach(function (fieldname) {
       const field = getField(fieldname);
       if (!field) return;
 
@@ -230,41 +298,6 @@
     });
 
     updateNewClientFullName();
-  }
-
-  function activateTab(targetId) {
-    qsa(".dashboard-tab-btn").forEach((btn) => {
-      btn.classList.toggle("is-active", btn.dataset.tabTarget === targetId);
-    });
-
-    qsa(".dashboard-tab-panel").forEach((panel) => {
-      panel.classList.toggle("is-active", panel.id === targetId);
-    });
-
-    try {
-      sessionStorage.setItem(roleConfig.storageKey, targetId);
-    } catch (e) {}
-  }
-
-  function initTabs() {
-    const buttons = qsa(".dashboard-tab-btn");
-
-    buttons.forEach((btn) => {
-      btn.addEventListener("click", function () {
-        activateTab(btn.dataset.tabTarget);
-      });
-    });
-
-    let savedTab = "";
-
-    try {
-      savedTab = sessionStorage.getItem(roleConfig.storageKey) || "";
-    } catch (e) {}
-
-    if (savedTab && !isNewClientPage()) {
-      const savedBtn = buttons.find((btn) => btn.dataset.tabTarget === savedTab);
-      if (savedBtn) activateTab(savedTab);
-    }
   }
 
   async function saveClient(state) {
@@ -299,7 +332,8 @@
   async function addNote(state) {
     if (state.isAddingNote) return;
 
-    const noteText = el("newClientNoteText") ? el("newClientNoteText").value : "";
+    const noteField = el("newClientNoteText");
+    const noteText = noteField ? noteField.value : "";
 
     if (!noteText.trim()) {
       showError("Enter a note");
@@ -314,7 +348,7 @@
         note_text: noteText
       });
 
-      el("newClientNoteText").value = "";
+      if (noteField) noteField.value = "";
       showSuccess("Note added");
       window.location.reload();
     } catch (error) {
@@ -332,20 +366,27 @@
 
     if (!requestBtn || !modal) return;
 
-    function openModal() {
+    function openModal(event) {
+      if (event) event.preventDefault();
       modal.classList.add("is-open");
       document.body.classList.add("dashboard-modal-open");
     }
 
-    function closeModal() {
+    function closeModal(event) {
+      if (event) event.preventDefault();
       modal.classList.remove("is-open");
       document.body.classList.remove("dashboard-modal-open");
     }
 
     requestBtn.addEventListener("click", openModal);
 
-    el("closeChangeRequestModal")?.addEventListener("click", closeModal);
-    el("closeChangeRequestModalFooter")?.addEventListener("click", closeModal);
+    if (el("closeChangeRequestModal")) {
+      el("closeChangeRequestModal").addEventListener("click", closeModal);
+    }
+
+    if (el("closeChangeRequestModalFooter")) {
+      el("closeChangeRequestModalFooter").addEventListener("click", closeModal);
+    }
   }
 
   function initInvoiceButton() {
@@ -381,31 +422,41 @@
       isAddingNote: false
     };
 
-    applyEditMode(state.editMode, false);
     initTabs();
+    applyEditMode(state.editMode, false);
     initLinkOptions();
     initFullNameBuilder();
     initChangeRequest();
     initInvoiceButton();
 
-    el("editClient")?.addEventListener("click", function (event) {
-      event.preventDefault();
+    const editBtn = el("editClient");
+    if (editBtn) {
+      editBtn.addEventListener("click", function (event) {
+        event.preventDefault();
 
-      if (!roleConfig.canEdit) return;
+        if (!roleConfig.canEdit) return;
 
-      if (!state.editMode) {
-        state.editMode = true;
-        applyEditMode(state.editMode, false);
-      } else {
-        saveClient(state);
-      }
-    });
+        if (!state.editMode) {
+          state.editMode = true;
+          applyEditMode(state.editMode, false);
+        } else {
+          saveClient(state);
+        }
+      });
+    }
 
-    el("addClientNote")?.addEventListener("click", function (event) {
-      event.preventDefault();
-      addNote(state);
-    });
+    const addNoteBtn = el("addClientNote");
+    if (addNoteBtn) {
+      addNoteBtn.addEventListener("click", function (event) {
+        event.preventDefault();
+        addNote(state);
+      });
+    }
   }
 
-  document.addEventListener("DOMContentLoaded", init);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 })();
