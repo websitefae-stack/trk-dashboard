@@ -1,6 +1,6 @@
 {% include "dashboard/templates/includes/head/coach_head.html" %}
 
-<div class="dashboard-page" id="sessionWorkerCalendarShell">
+<div class="dashboard-page" id="sessionWorkerCalendarShell" data-dashboard-type="coach">
   {% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
 
   <div class="dashboard-main">
@@ -16,47 +16,33 @@
         </div>
 
         <div class="dashboard-page-actions trk-calendar-header-actions">
-          <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarTodayBtn">
-            Today
-          </button>
-          <button type="button" class="dashboard-btn dashboard-btn-primary" id="trkCalendarNewBtn">
-            + Book Session
-          </button>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarTodayBtn">Today</button>
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="trkCalendarNewBtn">+ Book Session</button>
         </div>
       </div>
 
       <div id="sessionWorkerCalendarRoot" class="trk-calendar-page">
         <div class="dashboard-card trk-calendar-toolbar">
-
           <div class="trk-calendar-toolbar-sub">
             <div class="trk-calendar-field" style="min-width:260px;width:100%;">
-              <label for="trkCoachCalendarWorkerSelect">Session Worker</label>
+              <label for="trkCoachCalendarWorkerSelect">View Calendar For</label>
               <select id="trkCoachCalendarWorkerSelect" class="dashboard-select">
-                <option value="">Loading session workers...</option>
+                <option value="__coach_me__">Loading calendars...</option>
               </select>
             </div>
           </div>
 
           <div class="trk-calendar-toolbar-main">
             <div class="trk-calendar-nav">
-              <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarPrevBtn">
-                ◀ Prev
-              </button>
+              <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarPrevBtn">◀ Prev</button>
 
               <button type="button" class="trk-calendar-range trk-calendar-date-picker-btn" id="trkCalendarDatePickerBtn">
                 <span id="trkCalendarRangeLabel" aria-live="polite">Week</span>
               </button>
 
-              <input
-                type="date"
-                id="trkCalendarDatePicker"
-                class="trk-calendar-date-picker-input"
-                aria-label="Select calendar date"
-              >
+              <input type="date" id="trkCalendarDatePicker" class="trk-calendar-date-picker-input" aria-label="Select calendar date">
 
-              <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarNextBtn">
-                Next ▶
-              </button>
+              <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarNextBtn">Next ▶</button>
             </div>
 
             <div class="trk-calendar-view-switch" aria-label="Calendar views">
@@ -68,22 +54,10 @@
 
           <div class="trk-calendar-toolbar-sub">
             <div class="trk-calendar-legend" aria-label="Event legend">
-              <span class="trk-calendar-legend-item">
-                <i class="trk-calendar-dot" style="background:#E94763;"></i>
-                Therapy Session
-              </span>
-              <span class="trk-calendar-legend-item">
-                <i class="trk-calendar-dot" style="background:#FF8438;"></i>
-                Parent Check-In
-              </span>
-              <span class="trk-calendar-legend-item">
-                <i class="trk-calendar-dot" style="background:#00A19E;"></i>
-                Initial Consultation
-              </span>
-              <span class="trk-calendar-legend-item">
-                <i class="trk-calendar-dot" style="background:#D5DA39;"></i>
-                General
-              </span>
+              <span class="trk-calendar-legend-item"><i class="trk-calendar-dot" style="background:#E94763;"></i>Therapy Session</span>
+              <span class="trk-calendar-legend-item"><i class="trk-calendar-dot" style="background:#FF8438;"></i>Parent Check-In</span>
+              <span class="trk-calendar-legend-item"><i class="trk-calendar-dot" style="background:#00A19E;"></i>Initial Consultation</span>
+              <span class="trk-calendar-legend-item"><i class="trk-calendar-dot" style="background:#D5DA39;"></i>General</span>
             </div>
           </div>
         </div>
@@ -92,7 +66,6 @@
           <div class="dashboard-card trk-calendar-board-card">
             <div class="trk-calendar-board" id="trkCalendarBoard">
               <div class="trk-calendar-time-column" id="trkCalendarTimeColumn"></div>
-
               <div class="trk-calendar-grid-wrap">
                 <div class="trk-calendar-day-header" id="trkCalendarDayHeader"></div>
                 <div class="trk-calendar-day-grid" id="trkCalendarDayGrid"></div>
@@ -108,9 +81,7 @@
             </div>
 
             <div class="trk-calendar-sidepanel-body" id="trkCalendarDetailsBody">
-              <div class="dashboard-empty">
-                Select a calendar item to view its details.
-              </div>
+              <div class="dashboard-empty">Select a calendar item to view its details.</div>
             </div>
           </aside>
         </div>
@@ -119,246 +90,10 @@
   </div>
 </div>
 
-<div class="trk-calendar-modal-backdrop" id="trkCalendarModal">
-  <div class="trk-calendar-modal">
-    <div class="trk-calendar-modal-head">
-      <h3>Book Session</h3>
-      <button type="button" class="trk-calendar-icon-btn" id="trkCalendarModalClose">✕</button>
-    </div>
-
-    <div class="trk-calendar-modal-body">
-      <div class="trk-calendar-field">
-        <label for="trkCalendarClientSelect">Client *</label>
-        <select id="trkCalendarClientSelect" class="dashboard-select">
-          <option value="">Select a client</option>
-        </select>
-      </div>
-
-      <div class="trk-calendar-form-row">
-        <div class="trk-calendar-field">
-          <label for="trkCalendarDate">Date *</label>
-          <input type="date" id="trkCalendarDate" class="dashboard-input">
-        </div>
-
-        <div class="trk-calendar-field">
-          <label for="trkCalendarTime">Time *</label>
-          <input type="time" id="trkCalendarTime" class="dashboard-input" step="900">
-        </div>
-      </div>
-
-      <div class="trk-calendar-form-row">
-        <div class="trk-calendar-field">
-          <label for="trkCalendarType">Session Type</label>
-          <select id="trkCalendarType" class="dashboard-select">
-            <option value="Therapy Session">Therapy Session</option>
-            <option value="Parent Check-In">Parent Check-In</option>
-            <option value="Initial Consultation">Initial Consultation</option>
-            <option value="General">General</option>
-          </select>
-        </div>
-
-        <div class="trk-calendar-field">
-          <label for="trkCalendarDuration">Duration</label>
-          <select id="trkCalendarDuration" class="dashboard-select">
-            <option value="30">30 min</option>
-            <option value="45" selected>45 min</option>
-            <option value="60">60 min</option>
-            <option value="90">90 min</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="trk-calendar-form-row" id="trkCalendarBillingTypeRow" style="display:none;">
-        <div class="trk-calendar-field">
-          <label for="trkCalendarBillingType">Billing Type</label>
-          <select id="trkCalendarBillingType" class="dashboard-select">
-            <option value="">Select billing type</option>
-            <option value="One to One">One to One</option>
-            <option value="Group">Group</option>
-            <option value="Workshop">Workshop</option>
-            <option value="Non-Billable">Non-Billable</option>
-          </select>
-        </div>
-
-        <div class="trk-calendar-field">
-          <label for="trkCalendarTravelCharged">Travel Charged</label>
-          <select id="trkCalendarTravelCharged" class="dashboard-select">
-            <option value="0">No</option>
-            <option value="1">Yes</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="trk-calendar-form-row" id="trkCalendarTravelRow">
-        <div class="trk-calendar-field">
-          <label for="trkCalendarTravelChargedSingle">Travel Charged</label>
-          <select id="trkCalendarTravelChargedSingle" class="dashboard-select">
-            <option value="0">No</option>
-            <option value="1">Yes</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="trk-calendar-field">
-        <label for="trkCalendarLocation">Location</label>
-        <input type="text" id="trkCalendarLocation" class="dashboard-input" placeholder="Optional">
-      </div>
-
-      <div class="trk-calendar-field">
-        <label for="trkCalendarNotes">Booking Notes</label>
-        <textarea id="trkCalendarNotes" class="dashboard-textarea" placeholder="Optional internal booking note"></textarea>
-      </div>
-    </div>
-
-    <div class="trk-calendar-modal-foot">
-      <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarModalCancel">
-        Cancel
-      </button>
-      <button type="button" class="dashboard-btn dashboard-btn-primary" id="trkCalendarSaveBtn">
-        Save Session
-      </button>
-    </div>
-  </div>
-</div>
-
-<div class="trk-calendar-modal-backdrop" id="trkCalendarEditModal">
-  <div class="trk-calendar-modal">
-    <div class="trk-calendar-modal-head">
-      <h3>Edit Session</h3>
-      <button type="button" class="trk-calendar-icon-btn" id="trkCalendarEditModalClose">✕</button>
-    </div>
-
-    <div class="trk-calendar-modal-body">
-      <input type="hidden" id="trkEditEventName">
-
-      <div class="trk-calendar-form-row">
-        <div class="trk-calendar-field">
-          <label for="trkEditDate">Date *</label>
-          <input type="date" id="trkEditDate" class="dashboard-input">
-        </div>
-
-        <div class="trk-calendar-field">
-          <label for="trkEditTime">Time *</label>
-          <input type="time" id="trkEditTime" class="dashboard-input" step="900">
-        </div>
-      </div>
-
-      <div class="trk-calendar-form-row">
-        <div class="trk-calendar-field">
-          <label for="trkEditStatus">Status</label>
-          <select id="trkEditStatus" class="dashboard-select">
-            <option value="Booked">Booked</option>
-            <option value="Attended">Attended</option>
-            <option value="Cancelled">Cancelled</option>
-            <option value="No Show">No Show</option>
-          </select>
-        </div>
-
-        <div class="trk-calendar-field">
-          <label for="trkEditType">Session Type</label>
-          <select id="trkEditType" class="dashboard-select">
-            <option value="Therapy Session">Therapy Session</option>
-            <option value="Parent Check-In">Parent Check-In</option>
-            <option value="Initial Consultation">Initial Consultation</option>
-            <option value="General">General</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="trk-calendar-form-row" id="trkEditBillingTypeRow" style="display:none;">
-        <div class="trk-calendar-field">
-          <label for="trkEditBillingType">Billing Type</label>
-          <select id="trkEditBillingType" class="dashboard-select">
-            <option value="">Select billing type</option>
-            <option value="One to One">One to One</option>
-            <option value="Group">Group</option>
-            <option value="Workshop">Workshop</option>
-            <option value="Non-Billable">Non-Billable</option>
-          </select>
-        </div>
-
-        <div class="trk-calendar-field">
-          <label for="trkEditTravelCharged">Travel Charged</label>
-          <select id="trkEditTravelCharged" class="dashboard-select">
-            <option value="0">No</option>
-            <option value="1">Yes</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="trk-calendar-form-row" id="trkEditTravelRow">
-        <div class="trk-calendar-field">
-          <label for="trkEditTravelChargedSingle">Travel Charged</label>
-          <select id="trkEditTravelChargedSingle" class="dashboard-select">
-            <option value="0">No</option>
-            <option value="1">Yes</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="trk-calendar-field">
-        <label for="trkEditLocation">Location</label>
-        <input type="text" id="trkEditLocation" class="dashboard-input" placeholder="Optional">
-      </div>
-    </div>
-
-    <div class="trk-calendar-modal-foot">
-      <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarEditModalCancel">
-        Cancel
-      </button>
-      <button type="button" class="dashboard-btn dashboard-btn-primary" id="trkCalendarEditSaveBtn">
-        Save Changes
-      </button>
-    </div>
-  </div>
-</div>
-
-<div class="trk-calendar-modal-backdrop" id="trkCalendarNoteModal">
-  <div class="trk-calendar-modal">
-    <div class="trk-calendar-modal-head">
-      <h3>Add Client Note</h3>
-      <button type="button" class="trk-calendar-icon-btn" id="trkCalendarNoteModalClose">✕</button>
-    </div>
-
-    <div class="trk-calendar-modal-body">
-      <input type="hidden" id="trkNoteEventName">
-      <input type="hidden" id="trkNoteClientName">
-
-      <div class="trk-calendar-form-row">
-        <div class="trk-calendar-field">
-          <label for="trkNoteSessionDate">Session Date</label>
-          <input type="date" id="trkNoteSessionDate" class="dashboard-input">
-        </div>
-
-        <div class="trk-calendar-field">
-          <label for="trkNoteSessionType">Session Type</label>
-          <select id="trkNoteSessionType" class="dashboard-select">
-            <option value="">Select session type</option>
-            <option value="Initial Consultation">Initial Consultation</option>
-            <option value="Coaching Session">Coaching Session</option>
-            <option value="Review">Review</option>
-            <option value="Parent Feedback">Parent Feedback</option>
-            <option value="Teacher Meeting">Teacher Meeting</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="trk-calendar-field">
-        <label for="trkNoteText">Notes</label>
-        <textarea id="trkNoteText" class="dashboard-textarea" placeholder="Write a client note"></textarea>
-      </div>
-    </div>
-
-    <div class="trk-calendar-modal-foot">
-      <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarNoteModalCancel">
-        Cancel
-      </button>
-      <button type="button" class="dashboard-btn dashboard-btn-primary" id="trkCalendarNoteSaveBtn">
-        Save Note
-      </button>
-    </div>
-  </div>
-</div>
+{% include "dashboard/templates/includes/calendar/session_modal.html" ignore missing %}
+{% include "dashboard/templates/includes/calendar/edit_session_modal.html" ignore missing %}
+{% include "dashboard/templates/includes/calendar/note_modal.html" ignore missing %}
 
 <div class="trk-calendar-toast" id="trkCalendarToast"></div>
+
+<script src="/assets/dashboard/js/shared/calendar.js"></script>
