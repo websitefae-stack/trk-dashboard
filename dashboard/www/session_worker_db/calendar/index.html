@@ -1,6 +1,6 @@
 {% include "dashboard/templates/includes/head/session_worker_head.html" %}
 
-<div class="dashboard-page" id="sessionWorkerCalendarShell" data-dashboard-type="session_worker">
+<div class="dashboard-page" id="sessionWorkerCalendarShell">
   {% include "dashboard/templates/includes/sidebar/session_worker_sidebar.html" %}
 
   <div class="dashboard-main">
@@ -16,54 +16,95 @@
         </div>
 
         <div class="dashboard-page-actions trk-calendar-header-actions">
-          <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarTodayBtn">Today</button>
-          <button type="button" class="dashboard-btn dashboard-btn-primary" id="trkCalendarNewBtn">+ Book Session</button>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarTodayBtn">
+            Today
+          </button>
+
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="trkCalendarNewBtn">
+            + Book Session
+          </button>
         </div>
       </div>
 
       <div id="sessionWorkerCalendarRoot" class="trk-calendar-page">
         <div class="dashboard-card trk-calendar-toolbar">
+
           <div class="trk-calendar-toolbar-main">
             <div class="trk-calendar-nav">
-              <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarPrevBtn">◀ Prev</button>
-
-              <button type="button" class="trk-calendar-range trk-calendar-date-picker-btn" id="trkCalendarDatePickerBtn">
-                <span id="trkCalendarRangeLabel" aria-live="polite">Week</span>
+              <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarPrevBtn">
+                ◀ Prev
               </button>
 
-              <input type="date" id="trkCalendarDatePicker" class="trk-calendar-date-picker-input" aria-label="Select calendar date">
+              <button type="button" class="trk-calendar-range trk-calendar-date-picker-btn" id="trkCalendarDatePickerBtn">
+                <span id="trkCalendarRangeLabel">Week</span>
+              </button>
 
-              <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarNextBtn">Next ▶</button>
+              <input
+                type="date"
+                id="trkCalendarDatePicker"
+                class="trk-calendar-date-picker-input"
+              >
+
+              <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarNextBtn">
+                Next ▶
+              </button>
             </div>
 
-            <div class="trk-calendar-view-switch" aria-label="Calendar views">
-              <button type="button" class="dashboard-tab-btn" id="trkCalendarDayViewBtn">Day</button>
-              <button type="button" class="dashboard-tab-btn is-active" id="trkCalendarWeekViewBtn">Week</button>
-              <button type="button" class="dashboard-tab-btn" id="trkCalendarMonthViewBtn">Month</button>
+            <div class="trk-calendar-view-switch">
+              <button type="button" class="dashboard-tab-btn" id="trkCalendarDayViewBtn">
+                Day
+              </button>
+
+              <button type="button" class="dashboard-tab-btn is-active" id="trkCalendarWeekViewBtn">
+                Week
+              </button>
+
+              <button type="button" class="dashboard-tab-btn" id="trkCalendarMonthViewBtn">
+                Month
+              </button>
             </div>
           </div>
 
           <div class="trk-calendar-toolbar-sub">
-            <div class="trk-calendar-legend" aria-label="Event legend">
-              <span class="trk-calendar-legend-item"><i class="trk-calendar-dot" style="background:#E94763;"></i>Therapy Session</span>
-              <span class="trk-calendar-legend-item"><i class="trk-calendar-dot" style="background:#FF8438;"></i>Parent Check-In</span>
-              <span class="trk-calendar-legend-item"><i class="trk-calendar-dot" style="background:#00A19E;"></i>Initial Consultation</span>
-              <span class="trk-calendar-legend-item"><i class="trk-calendar-dot" style="background:#D5DA39;"></i>General</span>
+            <div class="trk-calendar-legend">
+              <span class="trk-calendar-legend-item">
+                <i class="trk-calendar-dot" style="background:#E94763;"></i>
+                Therapy Session
+              </span>
+
+              <span class="trk-calendar-legend-item">
+                <i class="trk-calendar-dot" style="background:#FF8438;"></i>
+                Parent Check-In
+              </span>
+
+              <span class="trk-calendar-legend-item">
+                <i class="trk-calendar-dot" style="background:#00A19E;"></i>
+                Initial Consultation
+              </span>
+
+              <span class="trk-calendar-legend-item">
+                <i class="trk-calendar-dot" style="background:#D5DA39;"></i>
+                General
+              </span>
             </div>
           </div>
         </div>
 
         <div class="trk-calendar-layout">
           <div class="dashboard-card trk-calendar-board-card">
+
             <div class="trk-calendar-board" id="trkCalendarBoard">
               <div class="trk-calendar-time-column" id="trkCalendarTimeColumn"></div>
+
               <div class="trk-calendar-grid-wrap">
                 <div class="trk-calendar-day-header" id="trkCalendarDayHeader"></div>
                 <div class="trk-calendar-day-grid" id="trkCalendarDayGrid"></div>
               </div>
             </div>
 
-            <div class="trk-calendar-loading" id="trkCalendarLoading">Loading calendar…</div>
+            <div class="trk-calendar-loading" id="trkCalendarLoading">
+              Loading calendar…
+            </div>
           </div>
 
           <aside class="dashboard-card trk-calendar-sidepanel">
@@ -72,7 +113,9 @@
             </div>
 
             <div class="trk-calendar-sidepanel-body" id="trkCalendarDetailsBody">
-              <div class="dashboard-empty">Select a calendar item to view its details.</div>
+              <div class="dashboard-empty">
+                Select a calendar item to view its details.
+              </div>
             </div>
           </aside>
         </div>
@@ -80,6 +123,10 @@
     </div>
   </div>
 </div>
+
+{% include "dashboard/templates/includes/calendar/booking_modal.html" %}
+{% include "dashboard/templates/includes/calendar/edit_modal.html" %}
+{% include "dashboard/templates/includes/calendar/note_modal.html" %}
 
 <div class="trk-calendar-toast" id="trkCalendarToast"></div>
 
