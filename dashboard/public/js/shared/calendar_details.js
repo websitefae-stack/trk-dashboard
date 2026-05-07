@@ -1,10 +1,22 @@
 (function () {
+  "use strict";
+
+  const SHARED_API = "dashboard.api.shared.calendar";
+
   const state = {
+    dashboardType: getDashboardType(),
     eventName: "",
     eventData: null,
     savingNote: false,
     savingEdit: false
   };
+
+  function getDashboardType() {
+    const path = window.location.pathname || "";
+    if (path.indexOf("/coach_db/") !== -1) return "coach";
+    if (path.indexOf("/franchisor_db/") !== -1) return "franchisor";
+    return "session_worker";
+  }
 
   function el(id) {
     return document.getElementById(id);
@@ -44,9 +56,7 @@
     const response = await fetch(url.toString(), {
       method: "GET",
       credentials: "same-origin",
-      headers: {
-        "Accept": "application/json"
-      }
+      headers: { "Accept": "application/json" }
     });
 
     return handleApiResponse(response);
@@ -107,29 +117,23 @@
   }
 
   function showNotice(message) {
-    const notice = el("trkCalendarDetailsNotice");
-    const content = el("trkCalendarDetailsContent");
-
-    if (notice) {
-      notice.style.display = "";
-      notice.textContent = message || "";
+    if (el("trkCalendarDetailsNotice")) {
+      el("trkCalendarDetailsNotice").style.display = "";
+      el("trkCalendarDetailsNotice").textContent = message || "";
     }
 
-    if (content) {
-      content.style.display = "none";
+    if (el("trkCalendarDetailsContent")) {
+      el("trkCalendarDetailsContent").style.display = "none";
     }
   }
 
   function showContent() {
-    const notice = el("trkCalendarDetailsNotice");
-    const content = el("trkCalendarDetailsContent");
-
-    if (notice) {
-      notice.style.display = "none";
+    if (el("trkCalendarDetailsNotice")) {
+      el("trkCalendarDetailsNotice").style.display = "none";
     }
 
-    if (content) {
-      content.style.display = "";
+    if (el("trkCalendarDetailsContent")) {
+      el("trkCalendarDetailsContent").style.display = "";
     }
   }
 
@@ -166,33 +170,33 @@
   }
 
   function getSessionProgressHtml(data) {
-  if (!data) return "—";
+    if (!data) return "—";
 
-  const progressText = data.progress_text || "";
-  const sessionNumber = Number(data.session_number || 0);
-  const totalSessions = Number(data.total_sessions || 0);
+    const progressText = data.progress_text || "";
+    const sessionNumber = Number(data.session_number || 0);
+    const totalSessions = Number(data.total_sessions || 0);
 
-  let label = "";
+    let label = "";
 
-  if (progressText) {
-    label = progressText;
-  } else if (sessionNumber && totalSessions) {
-    label = sessionNumber + " of " + totalSessions;
+    if (progressText) {
+      label = progressText;
+    } else if (sessionNumber && totalSessions) {
+      label = sessionNumber + " of " + totalSessions;
+    }
+
+    if (!label) return "—";
+
+    return "<strong>Session " + escapeHtml(label) + "</strong>";
   }
 
-  if (!label) return "—";
+  function getBookingWarningHtml(data) {
+    if (!data || !data.booking_warning) return "—";
 
-  return "<strong>Session " + escapeHtml(label) + "</strong>";
-}
+    return '<div class="dashboard-notice" style="margin:0;background:#fff7ed;border-left:4px solid #ff8438;color:#7c2d12;">'
+      + escapeHtml(data.booking_warning)
+      + "</div>";
+  }
 
-function getBookingWarningHtml(data) {
-  if (!data || !data.booking_warning) return "—";
-
-  return '<div class="dashboard-notice" style="margin:0;background:#fff7ed;border-left:4px solid #ff8438;color:#7c2d12;">'
-    + escapeHtml(data.booking_warning)
-    + "</div>";
-}
-  
   async function loadDetails() {
     state.eventName = getQueryParam("event") || getQueryParam("name");
 
@@ -204,7 +208,8 @@ function getBookingWarningHtml(data) {
     showNotice("Loading session details...");
 
     try {
-      const data = await apiGet("trk_session_worker_dashboard.api.calendar.get_event_details", {
+      const data = await apiGet(SHARED_API + ".get_event_details", {
+        dashboard_type: state.dashboardType,
         event: state.eventName
       });
 
@@ -240,38 +245,27 @@ function getBookingWarningHtml(data) {
   function renderClientNotes(notes) {
     const wrap = el("trkClientNotesHistory");
     if (!wrap) return;
-  
+
     if (!notes.length) {
       wrap.innerHTML = '<div class="dashboard-empty">No client notes found.</div>';
       return;
     }
-  
-    wrap.innerHTML = `
-      <div class="dashboard-table-wrap">
-        <table class="dashboard-table calendar-client-notes-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>User</th>
-              <th>Note</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${notes.map(function (note) {
-              const noteUser = note.note_user_name || note.note_user || "—";
-  
-              return `
-                <tr>
-                  <td>${escapeHtml(note.session_date || "—")}</td>
-                  <td>${escapeHtml(noteUser)}</td>
-                  <td>${escapeHtml(note.notes || "—")}</td>
-                </tr>
-              `;
-            }).join("")}
-          </tbody>
-        </table>
-      </div>
-    `;
+
+    wrap.innerHTML =
+      '<div class="dashboard-table-wrap">'
+      + '<table class="dashboard-table calendar-client-notes-table">'
+      + '<thead><tr><th>Date</th><th>User</th><th>Note</th></tr></thead>'
+      + '<tbody>'
+      + notes.map(function (note) {
+        const noteUser = note.note_user_name || note.note_user || "—";
+
+        return '<tr>'
+          + '<td>' + escapeHtml(note.session_date || "—") + '</td>'
+          + '<td>' + escapeHtml(noteUser) + '</td>'
+          + '<td>' + escapeHtml(note.notes || "—") + '</td>'
+          + '</tr>';
+      }).join("")
+      + '</tbody></table></div>';
   }
 
   function mapAppointmentTypeToClientNoteType(type) {
@@ -313,11 +307,13 @@ function getBookingWarningHtml(data) {
     const type = getValue("trkDetailEditType");
     const isGeneral = type === "General";
 
-    const billingRow = el("trkDetailEditBillingTypeRow");
-    const travelOnlyRow = el("trkDetailEditTravelOnlyRow");
+    if (el("trkDetailEditBillingTypeRow")) {
+      el("trkDetailEditBillingTypeRow").style.display = isGeneral ? "" : "none";
+    }
 
-    if (billingRow) billingRow.style.display = isGeneral ? "" : "none";
-    if (travelOnlyRow) travelOnlyRow.style.display = isGeneral ? "none" : "";
+    if (el("trkDetailEditTravelOnlyRow")) {
+      el("trkDetailEditTravelOnlyRow").style.display = isGeneral ? "none" : "";
+    }
   }
 
   async function saveEdit() {
@@ -328,12 +324,15 @@ function getBookingWarningHtml(data) {
     const bookingTime = getValue("trkDetailEditTime");
     const status = getValue("trkDetailEditStatus");
     const appointmentType = getValue("trkDetailEditType");
+
     const billingType = appointmentType === "General"
       ? getValue("trkDetailEditBillingType")
       : "";
+
     const travelCharged = appointmentType === "General"
       ? getValue("trkDetailEditTravelCharged")
       : getValue("trkDetailEditTravelChargedSolo");
+
     const location = getValue("trkDetailEditLocation");
 
     if (!eventName || !bookingDate || !bookingTime) {
@@ -342,6 +341,7 @@ function getBookingWarningHtml(data) {
     }
 
     state.savingEdit = true;
+
     const button = el("trkDetailEditSaveBtn");
     if (button) {
       button.disabled = true;
@@ -349,7 +349,8 @@ function getBookingWarningHtml(data) {
     }
 
     try {
-      await apiPost("trk_session_worker_dashboard.api.calendar.update_session", {
+      await apiPost(SHARED_API + ".update_session", {
+        dashboard_type: state.dashboardType,
         event: eventName,
         booking_date: bookingDate,
         booking_time: bookingTime,
@@ -367,6 +368,7 @@ function getBookingWarningHtml(data) {
       alert(error.message || "Could not save session.");
     } finally {
       state.savingEdit = false;
+
       if (button) {
         button.disabled = false;
         button.textContent = "Save Changes";
@@ -401,7 +403,8 @@ function getBookingWarningHtml(data) {
     }
 
     try {
-      await apiPost("trk_session_worker_dashboard.api.calendar.add_client_note", {
+      await apiPost(SHARED_API + ".add_client_note", {
+        dashboard_type: state.dashboardType,
         client: data.client_name,
         session_date: sessionDate,
         session_type: sessionType,
@@ -424,23 +427,12 @@ function getBookingWarningHtml(data) {
   }
 
   function bindEvents() {
-    const editBtn = el("trkDetailEditBtn");
-    if (editBtn) editBtn.addEventListener("click", openEditModal);
-
-    const closeBtn = el("trkDetailEditModalClose");
-    if (closeBtn) closeBtn.addEventListener("click", closeEditModal);
-
-    const cancelBtn = el("trkDetailEditModalCancel");
-    if (cancelBtn) cancelBtn.addEventListener("click", closeEditModal);
-
-    const saveBtn = el("trkDetailEditSaveBtn");
-    if (saveBtn) saveBtn.addEventListener("click", saveEdit);
-
-    const saveNoteBtn = el("trkSaveClientNoteBtn");
-    if (saveNoteBtn) saveNoteBtn.addEventListener("click", saveClientNote);
-
-    const typeSelect = el("trkDetailEditType");
-    if (typeSelect) typeSelect.addEventListener("change", syncEditFields);
+    if (el("trkDetailEditBtn")) el("trkDetailEditBtn").addEventListener("click", openEditModal);
+    if (el("trkDetailEditModalClose")) el("trkDetailEditModalClose").addEventListener("click", closeEditModal);
+    if (el("trkDetailEditModalCancel")) el("trkDetailEditModalCancel").addEventListener("click", closeEditModal);
+    if (el("trkDetailEditSaveBtn")) el("trkDetailEditSaveBtn").addEventListener("click", saveEdit);
+    if (el("trkSaveClientNoteBtn")) el("trkSaveClientNoteBtn").addEventListener("click", saveClientNote);
+    if (el("trkDetailEditType")) el("trkDetailEditType").addEventListener("change", syncEditFields);
 
     const modal = el("trkDetailEditModal");
     if (modal) {
