@@ -1,0 +1,138 @@
+<div class="trk-calendar-modal-backdrop" id="trkCalendarModal">
+  <div class="trk-calendar-modal">
+    <div class="trk-calendar-modal-head">
+      <h3>Book Session</h3>
+
+      <button type="button" class="trk-calendar-icon-btn" id="trkCalendarModalClose">
+        ✕
+      </button>
+    </div>
+
+    <div class="trk-calendar-modal-body">
+
+      <div class="trk-calendar-field">
+        <label for="trkCalendarClientSelect">Client *</label>
+
+        <select id="trkCalendarClientSelect" class="dashboard-select">
+          <option value="">Select a client</option>
+        </select>
+      </div>
+
+      <div class="trk-calendar-form-row">
+        <div class="trk-calendar-field">
+          <label for="trkCalendarDate">Date *</label>
+
+          <input type="date" id="trkCalendarDate" class="dashboard-input">
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="trkCalendarTime">Time *</label>
+
+          <input
+            type="time"
+            id="trkCalendarTime"
+            class="dashboard-input"
+            step="900"
+          >
+        </div>
+      </div>
+
+      <div class="trk-calendar-form-row">
+        <div class="trk-calendar-field">
+          <label for="trkCalendarType">Session Type</label>
+
+          <select id="trkCalendarType" class="dashboard-select">
+            <option value="Therapy Session">Therapy Session</option>
+            <option value="Parent Check-In">Parent Check-In</option>
+            <option value="Initial Consultation">Initial Consultation</option>
+            <option value="General">General</option>
+          </select>
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="trkCalendarDuration">Duration</label>
+
+          <select id="trkCalendarDuration" class="dashboard-select">
+            <option value="30">30 min</option>
+            <option value="45" selected>45 min</option>
+            <option value="60">60 min</option>
+            <option value="90">90 min</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="trk-calendar-form-row" id="trkCalendarBillingTypeRow" style="display:none;">
+        <div class="trk-calendar-field">
+          <label for="trkCalendarBillingType">Billing Type</label>
+
+          <select id="trkCalendarBillingType" class="dashboard-select">
+            <option value="">Select billing type</option>
+            <option value="One to One">One to One</option>
+            <option value="Group">Group</option>
+            <option value="Workshop">Workshop</option>
+            <option value="Non-Billable">Non-Billable</option>
+          </select>
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="trkCalendarTravelCharged">Travel Charged</label>
+
+          <select id="trkCalendarTravelCharged" class="dashboard-select">
+            <option value="0">No</option>
+            <option value="1">Yes</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="trk-calendar-form-row" id="trkCalendarTravelRow">
+        <div class="trk-calendar-field">
+          <label for="trkCalendarTravelChargedSingle">Travel Charged</label>
+
+          <select id="trkCalendarTravelChargedSingle" class="dashboard-select">
+            <option value="0">No</option>
+            <option value="1">Yes</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="trk-calendar-field">
+        <label for="trkCalendarLocation">Location</label>
+
+        <input
+          type="text"
+          id="trkCalendarLocation"
+          class="dashboard-input"
+          placeholder="Optional"
+        >
+      </div>
+
+      <div class="trk-calendar-field">
+        <label for="trkCalendarNotes">Booking Notes</label>
+
+        <textarea
+          id="trkCalendarNotes"
+          class="dashboard-textarea"
+          placeholder="Optional internal booking note"
+        ></textarea>
+      </div>
+    </div>
+
+    <div class="trk-calendar-modal-foot">
+      <button
+        type="button"
+        class="dashboard-btn dashboard-btn-light"
+        id="trkCalendarModalCancel"
+      >
+        Cancel
+      </button>
+
+      <button
+        type="button"
+        class="dashboard-btn dashboard-btn-primary"
+        id="trkCalendarSaveBtn"
+      >
+        Save Session
+      </button>
+    </div>
+  </div>
+</div>
