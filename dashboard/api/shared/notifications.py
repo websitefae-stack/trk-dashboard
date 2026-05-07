@@ -1144,23 +1144,28 @@ def reply_to_notification(name=None, message=None, attachment=None):
 
 @frappe.whitelist()
 def get_dashboard_notification_summary():
-    return get_notification_summary_for_page(limit=5)
-
-
-def get_notification_summary_for_page(limit=5):
     ensure_logged_in()
 
-    latest = get_notifications(status="All", limit=limit)
+    notifications = get_notifications(status="All", limit=500)
 
     unread_count = 0
-    all_rows = get_notifications(status="All", limit=500)
+    open_count = 0
 
-    for row in all_rows:
-        if row.get("read_status") == "Unread" or row.get("status") == "Unread":
+    for row in notifications:
+        read_status = (row.get("read_status") or "").strip()
+        status = (row.get("status") or "").strip()
+
+        if read_status == "Unread":
             unread_count += 1
+
+        if status not in ["Done", "Archived", "Closed"]:
+            open_count += 1
+
+    latest = notifications[:5]
 
     return {
         "unread_count": unread_count,
+        "open_count": open_count,
         "latest": latest,
     }
 
