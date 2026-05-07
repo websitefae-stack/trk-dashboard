@@ -540,6 +540,8 @@ def get_notification_link_options():
             {
                 "value": row.get("name"),
                 "label": _get_event_label(row),
+                "client": row.get("custom_client") or "",
+                "custom_client": row.get("custom_client") or "",
             }
             for row in rows
         ]
