@@ -44,19 +44,13 @@ def _get_user_full_name(user):
     return frappe.get_cached_value("User", user, "full_name") or user
 
 
-def _get_current_role():
-    user = frappe.session.user
+def _get_label(row, fields):
+    for fieldname in fields:
+        value = (row.get(fieldname) or "").strip()
+        if value:
+            return value
 
-    if _is_franchisor_user(user):
-        return "Franchisor"
-
-    if _get_current_coach_name(user):
-        return "Coach"
-
-    if _get_current_session_worker_name(user):
-        return "Session Worker"
-
-    return "Admin"
+    return row.get("name") or ""
 
 
 def _get_current_coach_name(user=None):
@@ -93,13 +87,35 @@ def _get_current_session_worker_name(user=None):
     return ""
 
 
-def _get_label(row, fields):
-    for fieldname in fields:
-        value = (row.get(fieldname) or "").strip()
-        if value:
-            return value
+def _get_current_role():
+    user = frappe.session.user
 
-    return row.get("name") or ""
+    if _is_franchisor_user(user):
+        return "Franchisor"
+
+    if _get_current_coach_name(user):
+        return "Coach"
+
+    if _get_current_session_worker_name(user):
+        return "Session Worker"
+
+    return "Admin"
+
+
+def _get_admin_recipients():
+    result = []
+
+    for email in FRANCHISOR_USERS:
+        if frappe.db.exists("User", email):
+            result.append({
+                "recipient_user": email,
+                "label": _get_user_full_name(email),
+                "role": "Franchisor",
+                "source_doctype": "User",
+                "source_name": email,
+            })
+
+    return result
 
 
 def _get_coach_user_and_label(row):
@@ -232,22 +248,6 @@ def _get_all_session_workers():
     return result
 
 
-def _get_admin_recipients():
-    result = []
-
-    for email in FRANCHISOR_USERS:
-        if frappe.db.exists("User", email):
-            result.append({
-                "recipient_user": email,
-                "label": _get_user_full_name(email),
-                "role": "Franchisor",
-                "source_doctype": "User",
-                "source_name": email,
-            })
-
-    return result
-
-
 def _get_client_meta():
     if not frappe.db.exists("DocType", "Client"):
         return None
@@ -260,35 +260,30 @@ def _get_session_workers_linked_to_coach(coach_name):
         return set()
 
     meta = _get_client_meta()
-    if not meta:
-        return set()
-
-    if not meta.has_field("session_worker"):
+    if not meta or not meta.has_field("session_worker"):
         return set()
 
     worker_names = set()
 
     if meta.has_field("primary_coach"):
-        rows = frappe.get_all(
+        worker_names.update(frappe.get_all(
             "Client",
             filters={"primary_coach": coach_name},
             pluck="session_worker",
             limit_page_length=5000,
             ignore_permissions=True,
-        )
-        worker_names.update([row for row in rows if row])
+        ))
 
     if meta.has_field("attending_coach"):
-        rows = frappe.get_all(
+        worker_names.update(frappe.get_all(
             "Client",
             filters={"attending_coach": coach_name},
             pluck="session_worker",
             limit_page_length=5000,
             ignore_permissions=True,
-        )
-        worker_names.update([row for row in rows if row])
+        ))
 
-    return worker_names
+    return {worker for worker in worker_names if worker}
 
 
 def _get_coaches_linked_to_session_worker(worker_name):
@@ -296,13 +291,9 @@ def _get_coaches_linked_to_session_worker(worker_name):
         return set()
 
     meta = _get_client_meta()
-    if not meta:
+    if not meta or not meta.has_field("session_worker"):
         return set()
 
-    if not meta.has_field("session_worker"):
-        return set()
-
-    coach_names = set()
     fields = ["name"]
 
     if meta.has_field("primary_coach"):
@@ -319,6 +310,8 @@ def _get_coaches_linked_to_session_worker(worker_name):
         ignore_permissions=True,
     )
 
+    coach_names = set()
+
     for row in rows:
         if row.get("primary_coach"):
             coach_names.add(row.get("primary_coach"))
@@ -329,36 +322,13 @@ def _get_coaches_linked_to_session_worker(worker_name):
     return coach_names
 
 
-def _filter_session_workers_by_names(worker_names):
-    worker_names = set(worker_names or [])
-
-    if not worker_names:
-        return []
-
-    return [
-        row for row in _get_all_session_workers()
-        if row.get("source_name") in worker_names
-    ]
-
-
-def _filter_coaches_by_names(coach_names):
-    coach_names = set(coach_names or [])
-
-    if not coach_names:
-        return []
-
-    return [
-        row for row in _get_all_coaches()
-        if row.get("source_name") in coach_names
-    ]
-
-
 def _dedupe_recipients(rows):
     seen = set()
     result = []
 
     for row in rows or []:
         user = row.get("recipient_user")
+
         if not user or user in seen:
             continue
 
@@ -373,10 +343,12 @@ def get_notification_recipients():
     """
     Recipient list is intentionally NOT all Users.
 
-    Allowed recipient sources only:
-    - approved franchisor/admin users
-    - Coach DocType records with a linked user/email
-    - Session Worker DocType records with a linked user/email
+    Priority rules:
+    - Franchisor/Admin users appear only in Franchisor/Admin
+    - Coach users appear only in Coaches
+    - Session Worker users appear only in Session Workers
+    - If one user appears in multiple source doctypes, first priority wins:
+      Franchisor/Admin > Coach > Session Worker
     """
     ensure_logged_in()
 
@@ -384,29 +356,50 @@ def get_notification_recipients():
     current_role = _get_current_role()
 
     admins = _get_admin_recipients()
+    admin_users = {row.get("recipient_user") for row in admins if row.get("recipient_user")}
+
+    all_coaches = [
+        row for row in _get_all_coaches()
+        if row.get("recipient_user") not in admin_users
+    ]
+    coach_users = {row.get("recipient_user") for row in all_coaches if row.get("recipient_user")}
+
+    all_session_workers = [
+        row for row in _get_all_session_workers()
+        if row.get("recipient_user") not in admin_users
+        and row.get("recipient_user") not in coach_users
+    ]
+
     coaches = []
     session_workers = []
 
     if current_role in ["Franchisor", "Admin"]:
-        coaches = _get_all_coaches()
-        session_workers = _get_all_session_workers()
+        coaches = all_coaches
+        session_workers = all_session_workers
 
     elif current_role == "Coach":
         coach_name = _get_current_coach_name(current_user)
 
         coaches = [
-            row for row in _get_all_coaches()
+            row for row in all_coaches
             if row.get("recipient_user") != current_user
         ]
 
         linked_workers = _get_session_workers_linked_to_coach(coach_name)
-        session_workers = _filter_session_workers_by_names(linked_workers)
+        session_workers = [
+            row for row in all_session_workers
+            if row.get("source_name") in linked_workers
+        ]
 
     elif current_role == "Session Worker":
         worker_name = _get_current_session_worker_name(current_user)
         linked_coaches = _get_coaches_linked_to_session_worker(worker_name)
 
-        coaches = _filter_coaches_by_names(linked_coaches)
+        coaches = [
+            row for row in all_coaches
+            if row.get("source_name") in linked_coaches
+        ]
+
         session_workers = []
 
     return {
@@ -414,6 +407,146 @@ def get_notification_recipients():
         "coaches": _dedupe_recipients(coaches),
         "session_workers": _dedupe_recipients(session_workers),
         "current_role": current_role,
+    }
+
+
+def _get_client_display_label(client_name):
+    if not client_name or not frappe.db.exists("Client", client_name):
+        return client_name or ""
+
+    meta = frappe.get_meta("Client")
+    fields = ["name"]
+
+    for fieldname in ["full_name", "preferred_name", "name1", "first_name", "last_name"]:
+        if meta.has_field(fieldname) and fieldname not in fields:
+            fields.append(fieldname)
+
+    row = frappe.db.get_value("Client", client_name, fields, as_dict=True) or {}
+
+    for fieldname in ["full_name", "preferred_name"]:
+        value = (row.get(fieldname) or "").strip()
+        if value:
+            return value
+
+    first = (row.get("name1") or row.get("first_name") or "").strip()
+    last = (row.get("last_name") or "").strip()
+
+    return " ".join([part for part in [first, last] if part]).strip() or client_name
+
+
+def _get_allowed_client_names_for_current_user():
+    role = _get_current_role()
+
+    if not frappe.db.exists("DocType", "Client"):
+        return []
+
+    meta = frappe.get_meta("Client")
+
+    if role in ["Franchisor", "Admin"]:
+        return frappe.get_all(
+            "Client",
+            pluck="name",
+            limit_page_length=5000,
+            ignore_permissions=True,
+        )
+
+    if role == "Coach":
+        coach_name = _get_current_coach_name()
+        if not coach_name:
+            return []
+
+        names = set()
+
+        if meta.has_field("primary_coach"):
+            names.update(frappe.get_all(
+                "Client",
+                filters={"primary_coach": coach_name},
+                pluck="name",
+                limit_page_length=5000,
+                ignore_permissions=True,
+            ))
+
+        if meta.has_field("attending_coach"):
+            names.update(frappe.get_all(
+                "Client",
+                filters={"attending_coach": coach_name},
+                pluck="name",
+                limit_page_length=5000,
+                ignore_permissions=True,
+            ))
+
+        return sorted(names)
+
+    if role == "Session Worker":
+        worker_name = _get_current_session_worker_name()
+        if not worker_name or not meta.has_field("session_worker"):
+            return []
+
+        return frappe.get_all(
+            "Client",
+            filters={"session_worker": worker_name},
+            pluck="name",
+            limit_page_length=5000,
+            ignore_permissions=True,
+        )
+
+    return []
+
+
+def _get_event_label(row):
+    client_label = _get_client_display_label(row.get("custom_client")) if row.get("custom_client") else ""
+    subject = row.get("subject") or "Session"
+
+    starts_on = row.get("starts_on")
+    date_text = ""
+
+    if starts_on:
+        try:
+            date_text = starts_on.strftime("%d/%m/%Y %H:%M")
+        except Exception:
+            date_text = str(starts_on)
+
+    parts = [part for part in [date_text, client_label or subject] if part]
+    return " - ".join(parts) or row.get("name")
+
+
+@frappe.whitelist()
+def get_notification_link_options():
+    ensure_logged_in()
+
+    client_names = _get_allowed_client_names_for_current_user()
+
+    clients = [
+        {
+            "value": client_name,
+            "label": _get_client_display_label(client_name),
+        }
+        for client_name in client_names
+    ]
+
+    events = []
+
+    if client_names and frappe.db.exists("DocType", "Event") and _field_exists("Event", "custom_client"):
+        rows = frappe.get_all(
+            "Event",
+            fields=["name", "subject", "starts_on", "custom_client"],
+            filters={"custom_client": ["in", client_names]},
+            order_by="starts_on desc",
+            limit_page_length=500,
+            ignore_permissions=True,
+        )
+
+        events = [
+            {
+                "value": row.get("name"),
+                "label": _get_event_label(row),
+            }
+            for row in rows
+        ]
+
+    return {
+        "clients": clients,
+        "events": events,
     }
 
 
@@ -490,6 +623,18 @@ def _get_recipient_role(recipient_user):
     return ""
 
 
+def _get_dashboard_base_url():
+    role = _get_current_role()
+
+    if role == "Coach":
+        return "/coach_db"
+
+    if role == "Session Worker":
+        return "/session_worker_db"
+
+    return "/franchisor_db"
+
+
 def _get_reference_link(reference_doctype, reference_name, dashboard_base_url=""):
     if not reference_doctype or not reference_name:
         return ""
@@ -501,18 +646,6 @@ def _get_reference_link(reference_doctype, reference_name, dashboard_base_url=""
         return f"{dashboard_base_url}/calendar_details?event={reference_name}" if dashboard_base_url else ""
 
     return ""
-
-
-def _get_dashboard_base_url():
-    role = _get_current_role()
-
-    if role == "Coach":
-        return "/coach_db"
-
-    if role == "Session Worker":
-        return "/session_worker_db"
-
-    return "/franchisor_db"
 
 
 def _user_is_recipient(doc, user):
@@ -741,6 +874,7 @@ def get_notifications(status="All", limit=20):
             order_by="creation desc",
             limit_page_length=int(limit or 20),
         )
+
         return [_format_notification_log(row) for row in rows]
 
     rows = frappe.get_all(
@@ -823,6 +957,7 @@ def update_notification_status(name, status=None, read=None):
 
     if read is not None:
         row = _get_recipient_row(doc, frappe.session.user)
+
         if row:
             row.read = int(read)
             row.read_on = now_datetime() if int(read) else None
@@ -861,9 +996,6 @@ def reply_to_notification(name=None, message=None):
         if row.get("recipient_user") != frappe.session.user:
             row.read = 0
             row.read_on = None
-
-    if doc.get("created_by_user") != frappe.session.user:
-        pass
 
     doc.save(ignore_permissions=True)
     frappe.db.commit()
@@ -1082,12 +1214,6 @@ def create_trk_notification(
     client=None,
     event=None,
 ):
-    """
-    Used by other backend processes.
-
-    Creates a Dashboard Conversation when available.
-    Falls back to Notification Log if the new DocType is not installed.
-    """
     if not recipient_user:
         return None
 
