@@ -1007,22 +1007,6 @@ def get_notifications(status="All", limit=20):
 
             result.append(_format_conversation(doc))
 
-    if frappe.db.exists("DocType", NOTIFICATION_DOCTYPE):
-        legacy_status_allowed = status in ["All", "Read", "Unread", None, ""]
-
-        if legacy_status_allowed:
-            legacy_rows = frappe.get_all(
-                NOTIFICATION_DOCTYPE,
-                filters=_get_notification_log_filters(status),
-                fields=_notification_log_fields(),
-                order_by="creation desc",
-                limit_page_length=500,
-                ignore_permissions=True,
-            )
-
-            for row in legacy_rows:
-                result.append(_format_notification_log(row))
-
     result.sort(
         key=lambda row: row.get("modified") or row.get("notification_date") or "",
         reverse=True,
