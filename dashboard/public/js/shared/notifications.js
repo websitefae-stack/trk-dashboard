@@ -7,7 +7,17 @@
 
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
-    return meta && meta.content ? meta.content : "";
+  
+    if (meta && meta.content) {
+      return meta.content;
+    }
+  
+    if (window.frappe && window.frappe.csrf_token) {
+      return window.frappe.csrf_token;
+    }
+  
+    const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : "";
   }
 
   function getDashboardBaseUrl() {
