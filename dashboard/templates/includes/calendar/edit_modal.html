@@ -1,0 +1,122 @@
+<div class="trk-calendar-modal-backdrop" id="trkCalendarEditModal">
+  <div class="trk-calendar-modal">
+    <div class="trk-calendar-modal-head">
+      <h3>Edit Session</h3>
+
+      <button type="button" class="trk-calendar-icon-btn" id="trkCalendarEditModalClose">
+        ✕
+      </button>
+    </div>
+
+    <div class="trk-calendar-modal-body">
+
+      <input type="hidden" id="trkEditEventName">
+
+      <div class="trk-calendar-form-row">
+        <div class="trk-calendar-field">
+          <label for="trkEditDate">Date *</label>
+
+          <input type="date" id="trkEditDate" class="dashboard-input">
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="trkEditTime">Time *</label>
+
+          <input
+            type="time"
+            id="trkEditTime"
+            class="dashboard-input"
+            step="900"
+          >
+        </div>
+      </div>
+
+      <div class="trk-calendar-form-row">
+        <div class="trk-calendar-field">
+          <label for="trkEditStatus">Status</label>
+
+          <select id="trkEditStatus" class="dashboard-select">
+            <option value="Booked">Booked</option>
+            <option value="Attended">Attended</option>
+            <option value="Cancelled">Cancelled</option>
+            <option value="No Show">No Show</option>
+          </select>
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="trkEditType">Session Type</label>
+
+          <select id="trkEditType" class="dashboard-select">
+            <option value="Therapy Session">Therapy Session</option>
+            <option value="Parent Check-In">Parent Check-In</option>
+            <option value="Initial Consultation">Initial Consultation</option>
+            <option value="General">General</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="trk-calendar-form-row" id="trkEditBillingTypeRow" style="display:none;">
+        <div class="trk-calendar-field">
+          <label for="trkEditBillingType">Billing Type</label>
+
+          <select id="trkEditBillingType" class="dashboard-select">
+            <option value="">Select billing type</option>
+            <option value="One to One">One to One</option>
+            <option value="Group">Group</option>
+            <option value="Workshop">Workshop</option>
+            <option value="Non-Billable">Non-Billable</option>
+          </select>
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="trkEditTravelCharged">Travel Charged</label>
+
+          <select id="trkEditTravelCharged" class="dashboard-select">
+            <option value="0">No</option>
+            <option value="1">Yes</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="trk-calendar-form-row" id="trkEditTravelRow">
+        <div class="trk-calendar-field">
+          <label for="trkEditTravelChargedSingle">Travel Charged</label>
+
+          <select id="trkEditTravelChargedSingle" class="dashboard-select">
+            <option value="0">No</option>
+            <option value="1">Yes</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="trk-calendar-field">
+        <label for="trkEditLocation">Location</label>
+
+        <input
+          type="text"
+          id="trkEditLocation"
+          class="dashboard-input"
+          placeholder="Optional"
+        >
+      </div>
+    </div>
+
+    <div class="trk-calendar-modal-foot">
+      <button
+        type="button"
+        class="dashboard-btn dashboard-btn-light"
+        id="trkCalendarEditModalCancel"
+      >
+        Cancel
+      </button>
+
+      <button
+        type="button"
+        class="dashboard-btn dashboard-btn-primary"
+        id="trkCalendarEditSaveBtn"
+      >
+        Save Changes
+      </button>
+    </div>
+  </div>
+</div>
