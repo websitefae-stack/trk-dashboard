@@ -2,7 +2,7 @@ import frappe
 from frappe import _
 
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
-from dashboard.api.franchisor.clients import get_franchisor_display_name
+from dashboard.api.shared.directory import get_franchisor_display_name
 from dashboard.api.shared.notifications import ensure_notification_access, get_notification_detail
 
 
