@@ -898,65 +898,214 @@ def _format_time_range(start_dt, end_dt):
 
 def _get_event_rows_for_dashboard(dashboard_type, range_start_date, range_end_date, selected_calendar_for, context):
     if not _event_has_field("custom_client"):
-        return []
+        return [], {}
 
-    client_rows = []
+    has_worker_field = _event_has_field("custom_session_worker")
 
+    base_filters = [
+        ["Event", "starts_on", ">=", f"{range_start_date} 00:00:00"],
+        ["Event", "starts_on", "<=", f"{range_end_date} 23:59:59"],
+    ]
+
+    #
+    # SESSION WORKER DASHBOARD
+    # Show appointments assigned to the logged-in session worker via Event.custom_session_worker.
+    #
+    if dashboard_type == SESSION_WORKER_DASHBOARD:
+        if not has_worker_field:
+            return [], {}
+
+        if context.get("is_dashboard_admin"):
+            rows = frappe.get_all(
+                "Event",
+                fields=_get_event_fields(),
+                filters=base_filters,
+                order_by="starts_on asc",
+                limit_page_length=1000,
+                ignore_permissions=True,
+            )
+        else:
+            worker_name = (context.get("worker_name") or "").strip()
+            if not worker_name:
+                return [], {}
+
+            filters = base_filters + [
+                ["Event", "custom_session_worker", "=", worker_name],
+            ]
+
+            rows = frappe.get_all(
+                "Event",
+                fields=_get_event_fields(),
+                filters=filters,
+                order_by="starts_on asc",
+                limit_page_length=1000,
+                ignore_permissions=True,
+            )
+
+        client_names = sorted({
+            row.get("custom_client")
+            for row in rows
+            if row.get("custom_client")
+        })
+
+        client_map = {
+            client_name: _get_client_row(client_name)
+            for client_name in client_names
+        }
+
+        return rows, client_map
+
+    #
+    # COACH DASHBOARD
+    #
     if dashboard_type == COACH_DASHBOARD:
-        client_rows = _get_client_rows_for_coach_calendar(selected_calendar_for, context)
-    elif dashboard_type == FRANCHISOR_DASHBOARD:
-        client_rows = _get_client_rows_for_franchisor_calendar(selected_calendar_for)
-    else:
-        clients = _get_session_worker_client_options(context)
-        allowed_client_names = {row["value"] for row in clients}
+        if selected_calendar_for == COACH_ME_VALUE:
+            client_rows = _get_client_rows_for_coach_calendar(selected_calendar_for, context)
+            client_map = {row.get("name"): row for row in client_rows if row.get("name")}
 
-        if not context.get("is_dashboard_admin") and not allowed_client_names:
-            return []
+            if not client_map:
+                return [], {}
 
-        filters = [
-            ["Event", "starts_on", ">=", f"{range_start_date} 00:00:00"],
-            ["Event", "starts_on", "<=", f"{range_end_date} 23:59:59"],
+            filters = base_filters + [
+                ["Event", "custom_client", "in", list(client_map.keys())],
+                ["Event", "owner", "=", frappe.session.user],
+            ]
+
+            rows = frappe.get_all(
+                "Event",
+                fields=_get_event_fields(),
+                filters=filters,
+                order_by="starts_on asc",
+                limit_page_length=1000,
+                ignore_permissions=True,
+            )
+
+            if has_worker_field:
+                rows = [
+                    row for row in rows
+                    if not (row.get("custom_session_worker") or "").strip()
+                ]
+
+            return rows, client_map
+
+        if not has_worker_field:
+            return [], {}
+
+        filters = base_filters + [
+            ["Event", "custom_session_worker", "=", selected_calendar_for],
         ]
 
-        if not context.get("is_dashboard_admin"):
-            filters.append(["Event", "custom_client", "in", list(allowed_client_names)])
-
-        return frappe.get_all(
+        rows = frappe.get_all(
             "Event",
             fields=_get_event_fields(),
             filters=filters,
             order_by="starts_on asc",
-            limit_page_length=300,
+            limit_page_length=1000,
             ignore_permissions=True,
-        ), {row["value"]: {} for row in clients}
+        )
 
-    client_map = {row.get("name"): row for row in client_rows if row.get("name")}
+        client_names = sorted({
+            row.get("custom_client")
+            for row in rows
+            if row.get("custom_client")
+        })
 
-    if not client_map:
-        return [], {}
+        client_map = {
+            client_name: _get_client_row(client_name)
+            for client_name in client_names
+        }
 
-    filters = [
-        ["Event", "starts_on", ">=", f"{range_start_date} 00:00:00"],
-        ["Event", "starts_on", "<=", f"{range_end_date} 23:59:59"],
-        ["Event", "custom_client", "in", list(client_map.keys())],
-    ]
+        return rows, client_map
 
-    if dashboard_type == COACH_DASHBOARD and _event_has_field("custom_session_worker"):
-        if selected_calendar_for == COACH_ME_VALUE:
-            filters.append(["Event", "custom_session_worker", "is", "not set"])
+    #
+    # FRANCHISOR DASHBOARD
+    #
+    if dashboard_type == FRANCHISOR_DASHBOARD:
+        if selected_calendar_for == FRANCHISOR_ME_VALUE:
+            filters = base_filters + [
+                ["Event", "owner", "=", frappe.session.user],
+            ]
+
+            rows = frappe.get_all(
+                "Event",
+                fields=_get_event_fields(),
+                filters=filters,
+                order_by="starts_on asc",
+                limit_page_length=1000,
+                ignore_permissions=True,
+            )
+
+            if has_worker_field:
+                rows = [
+                    row for row in rows
+                    if not (row.get("custom_session_worker") or "").strip()
+                ]
+
+        elif selected_calendar_for.startswith(WORKER_PREFIX):
+            if not has_worker_field:
+                return [], {}
+
+            worker = selected_calendar_for.replace(WORKER_PREFIX, "", 1)
+
+            filters = base_filters + [
+                ["Event", "custom_session_worker", "=", worker],
+            ]
+
+            rows = frappe.get_all(
+                "Event",
+                fields=_get_event_fields(),
+                filters=filters,
+                order_by="starts_on asc",
+                limit_page_length=1000,
+                ignore_permissions=True,
+            )
+
+        elif selected_calendar_for.startswith(COACH_PREFIX):
+            coach = selected_calendar_for.replace(COACH_PREFIX, "", 1)
+            client_rows = _get_client_rows_for_coach(coach)
+            client_map = {row.get("name"): row for row in client_rows if row.get("name")}
+
+            if not client_map:
+                return [], {}
+
+            filters = base_filters + [
+                ["Event", "custom_client", "in", list(client_map.keys())],
+            ]
+
+            rows = frappe.get_all(
+                "Event",
+                fields=_get_event_fields(),
+                filters=filters,
+                order_by="starts_on asc",
+                limit_page_length=1000,
+                ignore_permissions=True,
+            )
+
+            if has_worker_field:
+                rows = [
+                    row for row in rows
+                    if not (row.get("custom_session_worker") or "").strip()
+                ]
+
+            return rows, client_map
+
         else:
-            filters.append(["Event", "custom_session_worker", "=", selected_calendar_for])
+            return [], {}
 
-    rows = frappe.get_all(
-        "Event",
-        fields=_get_event_fields(),
-        filters=filters,
-        order_by="starts_on asc",
-        limit_page_length=1000,
-        ignore_permissions=True,
-    )
+        client_names = sorted({
+            row.get("custom_client")
+            for row in rows
+            if row.get("custom_client")
+        })
 
-    return rows, client_map
+        client_map = {
+            client_name: _get_client_row(client_name)
+            for client_name in client_names
+        }
+
+        return rows, client_map
+
+    return [], {}
 
 
 def _build_event_response(row, dashboard_type, selected_calendar_for, context, client_map):
