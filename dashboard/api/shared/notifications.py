@@ -4,6 +4,7 @@ from frappe.utils import now_datetime
 
 
 CONVERSATION_DOCTYPE = "Dashboard Conversation"
+MESSAGE_DOCTYPE = "Dashboard Conversation Message"
 RECIPIENT_CHILD_DOCTYPE = "Dashboard Conversation Recipient"
 REPLY_CHILD_DOCTYPE = "Dashboard Conversation Reply"
 
@@ -23,6 +24,10 @@ def ensure_logged_in():
 
 def _conversation_enabled():
     return frappe.db.exists("DocType", CONVERSATION_DOCTYPE)
+
+
+def _message_enabled():
+    return frappe.db.exists("DocType", MESSAGE_DOCTYPE)
 
 
 def _field_exists(doctype, fieldname):
@@ -340,16 +345,6 @@ def _dedupe_recipients(rows):
 
 @frappe.whitelist()
 def get_notification_recipients():
-    """
-    Recipient list is intentionally NOT all Users.
-
-    Priority rules:
-    - Franchisor/Admin users appear only in Franchisor/Admin
-    - Coach users appear only in Coaches
-    - Session Worker users appear only in Session Workers
-    - If one user appears in multiple source doctypes, first priority wins:
-      Franchisor/Admin > Coach > Session Worker
-    """
     ensure_logged_in()
 
     current_user = frappe.session.user
@@ -666,6 +661,110 @@ def _get_recipient_row(doc, user):
     return None
 
 
+def _create_conversation_message(
+    conversation,
+    message,
+    message_type="Message",
+    sent_by=None,
+    role_type=None,
+    is_internal=0,
+    attachment=None,
+):
+    if not _message_enabled():
+        return None
+
+    if not conversation or not message:
+        return None
+
+    sent_by = sent_by or frappe.session.user
+    role_type = role_type or _get_current_role()
+
+    doc = frappe.new_doc(MESSAGE_DOCTYPE)
+    doc.conversation = conversation
+    doc.message_type = message_type or "Message"
+    doc.message = message
+    doc.sent_by = sent_by
+    doc.sent_by_name = _get_user_full_name(sent_by)
+    doc.role_type = role_type
+    doc.created_on = now_datetime()
+    doc.is_internal = 1 if int(is_internal or 0) else 0
+
+    if attachment and _field_exists(MESSAGE_DOCTYPE, "attachment"):
+        doc.attachment = attachment
+
+    doc.insert(ignore_permissions=True)
+
+    return doc.name
+
+
+def _get_conversation_messages(conversation):
+    if not conversation or not _message_enabled():
+        return []
+
+    fields = [
+        "name",
+        "conversation",
+        "message_type",
+        "message",
+        "sent_by",
+        "sent_by_name",
+        "role_type",
+        "created_on",
+        "is_internal",
+        "creation",
+    ]
+
+    if _field_exists(MESSAGE_DOCTYPE, "attachment"):
+        fields.append("attachment")
+
+    rows = frappe.get_all(
+        MESSAGE_DOCTYPE,
+        filters={"conversation": conversation},
+        fields=fields,
+        order_by="created_on asc, creation asc",
+        limit_page_length=1000,
+        ignore_permissions=True,
+    )
+
+    return [
+        {
+            "name": row.get("name"),
+            "message_type": row.get("message_type") or "Message",
+            "message": row.get("message") or "",
+            "sent_by": row.get("sent_by") or "",
+            "sent_by_label": row.get("sent_by_name") or _get_user_full_name(row.get("sent_by")),
+            "sent_by_name": row.get("sent_by_name") or _get_user_full_name(row.get("sent_by")),
+            "role_type": row.get("role_type") or "",
+            "created_on": row.get("created_on") or row.get("creation"),
+            "is_internal": int(row.get("is_internal") or 0),
+            "attachment": row.get("attachment") or "",
+            "idx": 0,
+        }
+        for row in rows
+    ]
+
+
+def _get_legacy_child_replies(doc):
+    replies = []
+
+    for row in doc.get("replies") or []:
+        replies.append({
+            "name": row.get("name"),
+            "message_type": "Message",
+            "message": row.get("message") or "",
+            "sent_by": row.get("reply_user") or "",
+            "sent_by_label": _get_user_full_name(row.get("reply_user")),
+            "sent_by_name": _get_user_full_name(row.get("reply_user")),
+            "role_type": row.get("reply_user_role") or "",
+            "created_on": row.get("creation"),
+            "is_internal": 0,
+            "attachment": "",
+            "idx": row.get("idx") or 0,
+        })
+
+    return replies
+
+
 def ensure_notification_access(notification_name):
     ensure_logged_in()
 
@@ -716,6 +815,28 @@ def _format_conversation(doc):
     client_link = f"{dashboard_base_url}/client_details?name={linked_client}" if linked_client else ""
     event_link = f"{dashboard_base_url}/calendar_details?event={linked_event}" if linked_event else ""
 
+    messages = _get_conversation_messages(doc.name)
+
+    if not messages:
+        messages = [{
+            "name": doc.name + "-original",
+            "message_type": "Message",
+            "message": doc.get("message") or "",
+            "sent_by": doc.get("created_by_user") or "",
+            "sent_by_label": _get_user_full_name(doc.get("created_by_user") or ""),
+            "sent_by_name": _get_user_full_name(doc.get("created_by_user") or ""),
+            "role_type": doc.get("created_by_role") or "",
+            "created_on": doc.get("creation"),
+            "is_internal": 0,
+            "attachment": "",
+            "idx": 0,
+        }]
+
+    legacy_replies = _get_legacy_child_replies(doc)
+    if legacy_replies:
+        messages.extend(legacy_replies)
+        messages.sort(key=lambda row: row.get("created_on") or "")
+
     return {
         "name": doc.get("name"),
         "notification_type": doc.get("conversation_type") or "Message",
@@ -726,6 +847,7 @@ def _format_conversation(doc):
         "read_status": "Read" if is_read else "Unread",
         "priority": doc.get("priority") or "Normal",
         "notification_date": doc.get("creation"),
+        "modified": doc.get("modified"),
         "created_by_user": doc.get("created_by_user") or "",
         "created_by_label": _get_user_full_name(doc.get("created_by_user") or ""),
         "created_by_role": doc.get("created_by_role") or "",
@@ -743,7 +865,10 @@ def _format_conversation(doc):
         "client_link": client_link,
         "event_link": event_link,
         "reference_link": _get_reference_link(reference_doctype, reference_name, dashboard_base_url),
-        "reply_count": len(doc.get("replies") or []),
+        "reply_count": max(len(messages) - 1, 0),
+        "message_count": len(messages),
+        "messages": messages,
+        "replies": messages,
         "recipients": [
             {
                 "recipient_user": row.get("recipient_user"),
@@ -754,17 +879,6 @@ def _format_conversation(doc):
                 "archived": int(row.get("archived") or 0),
             }
             for row in doc.get("recipients") or []
-        ],
-        "replies": [
-            {
-                "reply_user": row.get("reply_user"),
-                "reply_user_label": _get_user_full_name(row.get("reply_user")),
-                "reply_user_role": row.get("reply_user_role") or "",
-                "message": row.get("message") or "",
-                "creation": row.get("creation"),
-                "idx": row.get("idx") or 0,
-            }
-            for row in doc.get("replies") or []
         ],
     }
 
@@ -792,6 +906,8 @@ def _format_notification_log(row):
         "reference_name": row.get("document_name") or "",
         "sent_from": row.get("from_user") or "",
         "reply_count": 0,
+        "message_count": 1,
+        "messages": [],
         "recipients": [],
         "replies": [],
     }
@@ -908,7 +1024,7 @@ def get_notifications(status="All", limit=20):
                 result.append(_format_notification_log(row))
 
     result.sort(
-        key=lambda row: row.get("notification_date") or "",
+        key=lambda row: row.get("modified") or row.get("notification_date") or "",
         reverse=True,
     )
 
@@ -963,6 +1079,8 @@ def update_notification_status(name, status=None, read=None):
 
         return {"ok": True}
 
+    old_status = doc.get("status") or "Open"
+
     if status in ["Open", "Waiting", "In Progress", "Done", "Archived"]:
         doc.status = status
 
@@ -974,17 +1092,28 @@ def update_notification_status(name, status=None, read=None):
             row.read_on = now_datetime() if int(read) else None
 
     doc.save(ignore_permissions=True)
+
+    if status and status != old_status:
+        _create_conversation_message(
+            conversation=doc.name,
+            message=f"Status changed from {old_status} to {status}.",
+            message_type="Status Update",
+            sent_by=frappe.session.user,
+            role_type=_get_current_role(),
+        )
+
     frappe.db.commit()
 
     return {"ok": True}
 
 
 @frappe.whitelist()
-def reply_to_notification(name=None, message=None):
+def reply_to_notification(name=None, message=None, attachment=None):
     ensure_logged_in()
 
     name = _coalesce_str("name", name)
     message = _coalesce_str("message", message)
+    attachment = _coalesce_str("attachment", attachment)
 
     if not name:
         frappe.throw(_("Notification not found."))
@@ -997,11 +1126,21 @@ def reply_to_notification(name=None, message=None):
     if doc.doctype != CONVERSATION_DOCTYPE:
         frappe.throw(_("Replies are only available on dashboard conversations."))
 
-    doc.append("replies", {
-        "reply_user": frappe.session.user,
-        "reply_user_role": _get_current_role(),
-        "message": message,
-    })
+    if _message_enabled():
+        _create_conversation_message(
+            conversation=doc.name,
+            message=message,
+            message_type="Message",
+            sent_by=frappe.session.user,
+            role_type=_get_current_role(),
+            attachment=attachment,
+        )
+    elif doc.meta.has_field("replies"):
+        doc.append("replies", {
+            "reply_user": frappe.session.user,
+            "reply_user_role": _get_current_role(),
+            "message": message,
+        })
 
     for row in doc.get("recipients") or []:
         if row.get("recipient_user") != frappe.session.user:
@@ -1010,6 +1149,8 @@ def reply_to_notification(name=None, message=None):
 
     doc.save(ignore_permissions=True)
     frappe.db.commit()
+
+    doc.reload()
 
     return {
         "ok": True,
@@ -1028,7 +1169,6 @@ def get_notification_summary_for_page(limit=5):
     latest = get_notifications(status="All", limit=limit)
 
     unread_count = 0
-
     all_rows = get_notifications(status="All", limit=500)
 
     for row in all_rows:
@@ -1140,6 +1280,15 @@ def send_dashboard_notification(
         frappe.throw(_("Please select at least one recipient other than yourself."))
 
     doc.insert(ignore_permissions=True)
+
+    _create_conversation_message(
+        conversation=doc.name,
+        message=message,
+        message_type="Message",
+        sent_by=frappe.session.user,
+        role_type=_get_current_role(),
+    )
+
     frappe.db.commit()
 
     return {
@@ -1252,6 +1401,15 @@ def create_trk_notification(
         })
 
         doc.insert(ignore_permissions=True)
+
+        _create_conversation_message(
+            conversation=doc.name,
+            message=message or "",
+            message_type="Message",
+            sent_by=doc.created_by_user,
+            role_type=doc.created_by_role,
+        )
+
         return doc.name
 
     doc_data = {
