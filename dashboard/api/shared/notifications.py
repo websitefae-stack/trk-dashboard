@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import now_datetime
+from frappe.utils import add_to_date, now_datetime
 
 
 CONVERSATION_DOCTYPE = "Dashboard Conversation"
@@ -1189,6 +1189,42 @@ def get_notification_list_for_page(status="All", limit=20):
     return get_notifications(status=status, limit=limit)
 
 
+def _find_recent_duplicate_conversation(title, message, notification_type, recipient_users):
+    if not _conversation_enabled():
+        return ""
+
+    since = add_to_date(now_datetime(), seconds=-20)
+    expected_recipients = set(recipient_users or [])
+
+    rows = frappe.get_all(
+        CONVERSATION_DOCTYPE,
+        filters={
+            "created_by_user": frappe.session.user,
+            "title": title,
+            "conversation_type": notification_type,
+            "message": message,
+            "creation": [">=", since],
+        },
+        fields=["name"],
+        order_by="creation desc",
+        limit_page_length=10,
+        ignore_permissions=True,
+    )
+
+    for row in rows:
+        doc = frappe.get_doc(CONVERSATION_DOCTYPE, row.get("name"))
+        existing_recipients = {
+            recipient.get("recipient_user")
+            for recipient in doc.get("recipients") or []
+            if recipient.get("recipient_user")
+        }
+
+        if existing_recipients == expected_recipients:
+            return doc.name
+
+    return ""
+
+
 @frappe.whitelist()
 def send_dashboard_notification(
     recipient_users=None,
@@ -1240,6 +1276,25 @@ def send_dashboard_notification(
     if invalid_users:
         frappe.throw(_("One or more selected recipients are not allowed."), frappe.PermissionError)
 
+    duplicate_name = _find_recent_duplicate_conversation(
+        title=title or notification_type,
+        message=message,
+        notification_type=notification_type,
+        recipient_users=[
+            user for user in recipient_users
+            if user != frappe.session.user
+        ],
+    )
+    
+    if duplicate_name:
+        return {
+            "ok": True,
+            "message": "Notification sent.",
+            "created": [duplicate_name],
+            "name": duplicate_name,
+            "duplicate_prevented": 1,
+        }
+        
     doc = frappe.new_doc(CONVERSATION_DOCTYPE)
     doc.title = title or notification_type
     doc.conversation_type = notification_type
