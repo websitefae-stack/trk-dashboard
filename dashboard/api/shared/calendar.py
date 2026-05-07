@@ -942,30 +942,10 @@ def _get_event_rows_for_dashboard(dashboard_type, range_start_date, range_end_da
     ]
 
     if dashboard_type == COACH_DASHBOARD and _event_has_field("custom_session_worker"):
-
-        #
-        # COACH VIEWING THEIR OWN CALENDAR
-        #
-        if selected_calendar_for == COACH_ME_VALUE:
-    
-            filters.append(
-                [
-                    "or",
-                    [
-                        ["Event", "custom_session_worker", "=", ""],
-                        ["Event", "custom_session_worker", "is", "not set"],
-                    ],
-                ]
-            )
-    
-        #
-        # COACH VIEWING SESSION WORKER CALENDAR
-        #
-        else:
-    
-            filters.append(
-                ["Event", "custom_session_worker", "=", selected_calendar_for]
-            )
+    if selected_calendar_for == COACH_ME_VALUE:
+        filters.append(["Event", "custom_session_worker", "is", "not set"])
+    else:
+        filters.append(["Event", "custom_session_worker", "=", selected_calendar_for])
 
     rows = frappe.get_all(
         "Event",
