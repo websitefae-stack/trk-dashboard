@@ -7,111 +7,11 @@
     {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
 
     <div class="dashboard-container">
-      <div class="dashboard-page-header">
-        <div>
-          <h1 class="dashboard-page-title">{{ notification.notification_type or "Notification Details" }}</h1>
-          <p class="dashboard-page-subtitle">Full notification details</p>
-        </div>
+      {% set base_url = dashboard_base_url or "/franchisor_db" %}
 
-        <div class="dashboard-detail-actions notification-detail-actions-top">
-          <a href="/franchisor_db/notifications" class="dashboard-btn dashboard-btn-light">Back</a>
-          <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveNotificationStatus">Save Status</button>
-
-          {% if notification.client %}
-            <a class="dashboard-btn dashboard-btn-light" href="/franchisor_db/client_details?name={{ notification.client | urlencode }}">Open Client</a>
-          {% endif %}
-
-          {% if notification.event %}
-            <a class="dashboard-btn dashboard-btn-light" href="/franchisor_db/calendar_details?event={{ notification.event | urlencode }}">Open Event</a>
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="dashboard-card dashboard-client-detail-card">
-        <form id="notificationDetailsForm" class="dashboard-detail-form" autocomplete="off">
-          <input type="hidden" id="csrfToken" value="{{ frappe.session.csrf_token or '' }}">
-          <input type="hidden" id="notificationDocname" value="{{ notification_docname }}">
-
-          <section class="dashboard-detail-section">
-            <div class="dashboard-detail-section-head">
-              <h2 class="dashboard-detail-section-title">Notification Details</h2>
-            </div>
-
-            <div class="dashboard-detail-grid dashboard-detail-grid-2">
-              <div class="dashboard-detail-field">
-                <label>Status</label>
-                <select id="notificationStatus" class="dashboard-input">
-                  <option value="Unread" {% if notification.status == "Unread" %}selected{% endif %}>Unread</option>
-                  <option value="Read" {% if notification.status == "Read" %}selected{% endif %}>Read</option>
-                  <option value="Archived" {% if notification.status == "Archived" %}selected{% endif %}>Archived</option>
-                </select>
-              </div>
-
-              <div class="dashboard-detail-field">
-                <label>Priority</label>
-                <input type="text" class="dashboard-input" value="{{ notification.priority or '' }}" readonly>
-              </div>
-
-              <div class="dashboard-detail-field">
-                <label>Notification Type</label>
-                <input type="text" class="dashboard-input" value="{{ notification.notification_type or '' }}" readonly>
-              </div>
-
-              <div class="dashboard-detail-field">
-                <label>Date</label>
-                <input type="text" class="dashboard-input" value="{{ frappe.format(notification.notification_date, {'fieldtype': 'Datetime'}) if notification.notification_date else '' }}" readonly>
-              </div>
-
-              <div class="dashboard-detail-field">
-                <label>Client</label>
-                <input type="text" class="dashboard-input" value="{{ notification.client or '' }}" readonly>
-              </div>
-
-              <div class="dashboard-detail-field">
-                <label>Coach</label>
-                <input type="text" class="dashboard-input" value="{{ notification.coach or '' }}" readonly>
-              </div>
-
-              <div class="dashboard-detail-field">
-                <label>Session Worker</label>
-                <input type="text" class="dashboard-input" value="{{ notification.session_worker or '' }}" readonly>
-              </div>
-
-              <div class="dashboard-detail-field">
-                <label>Event</label>
-                <input type="text" class="dashboard-input" value="{{ notification.event or '' }}" readonly>
-              </div>
-
-              <div class="dashboard-detail-field">
-                <label>Client Package</label>
-                <input type="text" class="dashboard-input" value="{{ notification.client_package or '' }}" readonly>
-              </div>
-
-              <div class="dashboard-detail-field">
-                <label>Client Package Balance</label>
-                <input type="text" class="dashboard-input" value="{{ notification.client_package_balance or '' }}" readonly>
-              </div>
-
-              <div class="dashboard-detail-field">
-                <label>Reference</label>
-                <input type="text" class="dashboard-input" value="{{ notification.reference_name or '' }}" readonly>
-              </div>
-
-              <div class="dashboard-detail-field">
-                <label>Sent From</label>
-                <input type="text" class="dashboard-input" value="{{ notification.sent_from or '' }}" readonly>
-              </div>
-            </div>
-
-            <div class="dashboard-detail-field" style="margin-top: 20px;">
-              <label>Message</label>
-              <textarea class="dashboard-input" rows="5" readonly>{{ notification.message or "" }}</textarea>
-            </div>
-          </section>
-        </form>
-      </div>
+      {% include "dashboard/templates/includes/notifications/notification_details_body.html" %}
     </div>
   </div>
 </div>
 
-<script src="/assets/dashboard/js/franchisor/notification_details.js"></script>
+<script src="/assets/dashboard/js/shared/notification_details.js?v=1"></script>
