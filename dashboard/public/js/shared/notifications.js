@@ -1,21 +1,26 @@
 (function () {
   "use strict";
 
+  let notificationLinkOptions = {
+    clients: [],
+    events: []
+  };
+
   function el(id) {
     return document.getElementById(id);
   }
 
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
-  
+
     if (meta && meta.content) {
       return meta.content;
     }
-  
+
     if (window.frappe && window.frappe.csrf_token) {
       return window.frappe.csrf_token;
     }
-  
+
     const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
     return match ? decodeURIComponent(match[1]) : "";
   }
@@ -80,10 +85,14 @@
       const statusMatch = status === "All" || rowStatus === status || rowReadStatus === status;
       const typeMatch = type === "All" || rowType === type;
       const searchMatch = !search || rowSearch.indexOf(search) !== -1;
+
       const visible = searchMatch && statusMatch && typeMatch;
 
       row.style.display = visible ? "" : "none";
-      if (visible) visibleCount += 1;
+
+      if (visible) {
+        visibleCount += 1;
+      }
     });
 
     if (countEl) {
@@ -111,46 +120,9 @@
     ].join("");
   }
 
-  function renderDatalist(id, rows) {
-    let list = document.getElementById(id);
-
-    if (!list) {
-      list = document.createElement("datalist");
-      list.id = id;
-      document.body.appendChild(list);
-    }
-
-    list.innerHTML = (rows || []).map(function (row) {
-      return '<option value="' + escapeHtml(row.value || "") + '">' + escapeHtml(row.label || row.value || "") + '</option>';
-    }).join("");
-  }
-
-  async function loadLinkOptions() {
-    const clientInput = el("notificationLinkedClient");
-    const eventInput = el("notificationLinkedEvent");
-
-    if (clientInput) {
-      clientInput.setAttribute("list", "notificationLinkedClientOptions");
-      clientInput.placeholder = "Start typing or select a client";
-    }
-
-    if (eventInput) {
-      eventInput.setAttribute("list", "notificationLinkedEventOptions");
-      eventInput.placeholder = "Start typing or select a session/event";
-    }
-
-    try {
-      const data = await callApi("dashboard.api.shared.notifications.get_notification_link_options", {});
-
-      renderDatalist("notificationLinkedClientOptions", data.clients || []);
-      renderDatalist("notificationLinkedEventOptions", data.events || []);
-    } catch (error) {
-      console.error("Could not load linked client/event options", error);
-    }
-  }
-
   async function loadRecipients() {
     const container = el("notificationRecipients");
+
     if (!container) return;
 
     container.innerHTML = "Loading recipients...";
@@ -170,6 +142,100 @@
     } catch (error) {
       console.error("Could not load recipients", error);
       container.innerHTML = "Failed to load recipients.";
+    }
+  }
+
+  function renderClientSelect() {
+    const select = el("notificationLinkedClient");
+
+    if (!select) return;
+
+    let html = '<option value="">No linked client</option>';
+
+    notificationLinkOptions.clients.forEach(function (client) {
+      html += '<option value="' + escapeHtml(client.value || "") + '">'
+        + escapeHtml(client.label || client.value || "")
+        + '</option>';
+    });
+
+    select.innerHTML = html;
+  }
+
+  function getEventsForClient(clientName) {
+    if (!clientName) return [];
+
+    return notificationLinkOptions.events.filter(function (event) {
+      return event.client === clientName || event.custom_client === clientName || event.client_name === clientName;
+    });
+  }
+
+  function renderEventSelect(clientName) {
+    const select = el("notificationLinkedEvent");
+
+    if (!select) return;
+
+    const events = getEventsForClient(clientName);
+
+    if (!clientName) {
+      select.disabled = true;
+      select.innerHTML = '<option value="">Select a client first</option>';
+      return;
+    }
+
+    if (!events.length) {
+      select.disabled = true;
+      select.innerHTML = '<option value="">No sessions found for this client</option>';
+      return;
+    }
+
+    select.disabled = false;
+
+    let html = '<option value="">No linked session/event</option>';
+
+    events.forEach(function (event) {
+      html += '<option value="' + escapeHtml(event.value || "") + '">'
+        + escapeHtml(event.label || event.value || "")
+        + '</option>';
+    });
+
+    select.innerHTML = html;
+  }
+
+  async function loadLinkOptions() {
+    const clientSelect = el("notificationLinkedClient");
+    const eventSelect = el("notificationLinkedEvent");
+
+    if (clientSelect) {
+      clientSelect.innerHTML = '<option value="">Loading clients...</option>';
+    }
+
+    if (eventSelect) {
+      eventSelect.disabled = true;
+      eventSelect.innerHTML = '<option value="">Select a client first</option>';
+    }
+
+    try {
+      const data = await callApi("dashboard.api.shared.notifications.get_notification_link_options", {});
+
+      notificationLinkOptions = {
+        clients: Array.isArray(data.clients) ? data.clients : [],
+        events: Array.isArray(data.events) ? data.events : []
+      };
+
+      renderClientSelect();
+      renderEventSelect("");
+
+    } catch (error) {
+      console.error("Could not load linked client/event options", error);
+
+      if (clientSelect) {
+        clientSelect.innerHTML = '<option value="">Could not load clients</option>';
+      }
+
+      if (eventSelect) {
+        eventSelect.disabled = true;
+        eventSelect.innerHTML = '<option value="">Could not load sessions</option>';
+      }
     }
   }
 
@@ -199,6 +265,8 @@
     if (panel) panel.style.display = "none";
     if (form) form.reset();
     if (message) message.textContent = "";
+
+    renderEventSelect("");
   }
 
   async function sendNotification(event) {
@@ -219,8 +287,8 @@
     const notificationType = typeInput ? typeInput.value : "Message";
     const priority = priorityInput ? priorityInput.value : "Normal";
     const message = messageInput ? messageInput.value.trim() : "";
-    const linkedClient = clientInput ? clientInput.value.trim() : "";
-    const linkedEvent = eventInput ? eventInput.value.trim() : "";
+    const linkedClient = clientInput ? clientInput.value : "";
+    const linkedEvent = eventInput && !eventInput.disabled ? eventInput.value : "";
     const requiresResponse = requiresResponseInput && requiresResponseInput.checked ? 1 : 0;
     const dueDate = dueDateInput ? dueDateInput.value : "";
 
@@ -249,13 +317,18 @@
         due_date: dueDate
       });
 
-      if (statusMessage) statusMessage.textContent = result.message || "Notification sent.";
+      if (statusMessage) {
+        statusMessage.textContent = result.message || "Notification sent.";
+      }
 
       setTimeout(function () {
         window.location.reload();
       }, 700);
+
     } catch (error) {
-      if (statusMessage) statusMessage.textContent = error.message || "Request failed.";
+      if (statusMessage) {
+        statusMessage.textContent = error.message || "Request failed.";
+      }
     }
   }
 
@@ -271,6 +344,16 @@
 
         window.location.href = baseUrl + "/notification_details?name=" + encodeURIComponent(name);
       });
+    });
+  }
+
+  function bindLinkedClientChange() {
+    const clientSelect = el("notificationLinkedClient");
+
+    if (!clientSelect) return;
+
+    clientSelect.addEventListener("change", function () {
+      renderEventSelect(this.value || "");
     });
   }
 
@@ -297,6 +380,7 @@
     if (cancelBtn) cancelBtn.addEventListener("click", closePanel);
     if (form) form.addEventListener("submit", sendNotification);
 
+    bindLinkedClientChange();
     makeRowsClickable();
     applyFilters();
   }
