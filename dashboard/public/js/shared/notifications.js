@@ -67,23 +67,12 @@
       const rowReadStatus = row.getAttribute("data-read-status") || "";
       const rowType = row.getAttribute("data-type") || "";
 
-      const statusMatch =
-        status === "All" ||
-        rowStatus === status ||
-        rowReadStatus === status;
-
-      const typeMatch =
-        type === "All" ||
-        rowType === type;
-
-      const searchMatch =
-        !search ||
-        rowSearch.indexOf(search) !== -1;
-
+      const statusMatch = status === "All" || rowStatus === status || rowReadStatus === status;
+      const typeMatch = type === "All" || rowType === type;
+      const searchMatch = !search || rowSearch.indexOf(search) !== -1;
       const visible = searchMatch && statusMatch && typeMatch;
 
       row.style.display = visible ? "" : "none";
-
       if (visible) visibleCount += 1;
     });
 
@@ -104,13 +93,50 @@
           '<label class="dashboard-checkbox-label">',
           '<input type="checkbox" name="notification_recipients" value="' + escapeHtml(item.recipient_user) + '">',
           '<span>' + escapeHtml(item.label || item.recipient_user) + '</span>',
-          item.role ? '<small style="display:block;color:#667;margin-left:24px;">' + escapeHtml(item.role) + '</small>' : '',
           '</label>'
         ].join("");
       }).join(""),
       '</div>',
       '</div>'
     ].join("");
+  }
+
+  function renderDatalist(id, rows) {
+    let list = document.getElementById(id);
+
+    if (!list) {
+      list = document.createElement("datalist");
+      list.id = id;
+      document.body.appendChild(list);
+    }
+
+    list.innerHTML = (rows || []).map(function (row) {
+      return '<option value="' + escapeHtml(row.value || "") + '">' + escapeHtml(row.label || row.value || "") + '</option>';
+    }).join("");
+  }
+
+  async function loadLinkOptions() {
+    const clientInput = el("notificationLinkedClient");
+    const eventInput = el("notificationLinkedEvent");
+
+    if (clientInput) {
+      clientInput.setAttribute("list", "notificationLinkedClientOptions");
+      clientInput.placeholder = "Start typing or select a client";
+    }
+
+    if (eventInput) {
+      eventInput.setAttribute("list", "notificationLinkedEventOptions");
+      eventInput.placeholder = "Start typing or select a session/event";
+    }
+
+    try {
+      const data = await callApi("dashboard.api.shared.notifications.get_notification_link_options", {});
+
+      renderDatalist("notificationLinkedClientOptions", data.clients || []);
+      renderDatalist("notificationLinkedEventOptions", data.events || []);
+    } catch (error) {
+      console.error("Could not load linked client/event options", error);
+    }
   }
 
   async function loadRecipients() {
@@ -132,6 +158,7 @@
         container.innerHTML = "No available recipients found.";
       }
     } catch (error) {
+      console.error("Could not load recipients", error);
       container.innerHTML = "Failed to load recipients.";
     }
   }
@@ -151,6 +178,7 @@
     if (message) message.textContent = "";
 
     loadRecipients();
+    loadLinkOptions();
   }
 
   function closePanel() {
