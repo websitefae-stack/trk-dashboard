@@ -868,42 +868,51 @@ def _conversation_matches_status(doc, status):
 def get_notifications(status="All", limit=20):
     ensure_logged_in()
 
-    if not _conversation_enabled():
-        rows = frappe.get_all(
-            NOTIFICATION_DOCTYPE,
-            filters=_get_notification_log_filters(status),
-            fields=_notification_log_fields(),
-            order_by="creation desc",
-            limit_page_length=int(limit or 20),
-        )
-
-        return [_format_notification_log(row) for row in rows]
-
-    rows = frappe.get_all(
-        CONVERSATION_DOCTYPE,
-        fields=["name"],
-        order_by="modified desc",
-        limit_page_length=500,
-        ignore_permissions=True,
-    )
-
+    limit = int(limit or 20)
     result = []
 
-    for row in rows:
-        doc = frappe.get_doc(CONVERSATION_DOCTYPE, row.get("name"))
+    if _conversation_enabled():
+        conversation_rows = frappe.get_all(
+            CONVERSATION_DOCTYPE,
+            fields=["name"],
+            order_by="modified desc",
+            limit_page_length=500,
+            ignore_permissions=True,
+        )
 
-        if not _current_user_can_see_conversation(doc):
-            continue
+        for row in conversation_rows:
+            doc = frappe.get_doc(CONVERSATION_DOCTYPE, row.get("name"))
 
-        if not _conversation_matches_status(doc, status):
-            continue
+            if not _current_user_can_see_conversation(doc):
+                continue
 
-        result.append(_format_conversation(doc))
+            if not _conversation_matches_status(doc, status):
+                continue
 
-        if len(result) >= int(limit or 20):
-            break
+            result.append(_format_conversation(doc))
 
-    return result
+    if frappe.db.exists("DocType", NOTIFICATION_DOCTYPE):
+        legacy_status_allowed = status in ["All", "Read", "Unread", None, ""]
+
+        if legacy_status_allowed:
+            legacy_rows = frappe.get_all(
+                NOTIFICATION_DOCTYPE,
+                filters=_get_notification_log_filters(status),
+                fields=_notification_log_fields(),
+                order_by="creation desc",
+                limit_page_length=500,
+                ignore_permissions=True,
+            )
+
+            for row in legacy_rows:
+                result.append(_format_notification_log(row))
+
+    result.sort(
+        key=lambda row: row.get("notification_date") or "",
+        reverse=True,
+    )
+
+    return result[:limit]
 
 
 @frappe.whitelist()
@@ -1020,18 +1029,11 @@ def get_notification_summary_for_page(limit=5):
 
     unread_count = 0
 
-    if _conversation_enabled():
-        all_rows = get_notifications(status="All", limit=500)
-        unread_count = sum(1 for row in all_rows if row.get("read_status") == "Unread")
-    else:
-        rows = frappe.get_all(
-            NOTIFICATION_DOCTYPE,
-            filters=_get_notification_log_filters(),
-            fields=_notification_log_fields(),
-            order_by="creation desc",
-            limit_page_length=100,
-        )
-        unread_count = sum(1 for row in rows if not row.get("read"))
+    all_rows = get_notifications(status="All", limit=500)
+
+    for row in all_rows:
+        if row.get("read_status") == "Unread" or row.get("status") == "Unread":
+            unread_count += 1
 
     return {
         "unread_count": unread_count,
