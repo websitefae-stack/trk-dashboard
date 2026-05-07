@@ -1,0 +1,71 @@
+<div class="trk-calendar-modal-backdrop" id="trkCalendarNoteModal">
+  <div class="trk-calendar-modal">
+    <div class="trk-calendar-modal-head">
+      <h3>Add Client Note</h3>
+
+      <button type="button" class="trk-calendar-icon-btn" id="trkCalendarNoteModalClose">
+        ✕
+      </button>
+    </div>
+
+    <div class="trk-calendar-modal-body">
+
+      <input type="hidden" id="trkNoteEventName">
+      <input type="hidden" id="trkNoteClientName">
+
+      <div class="trk-calendar-form-row">
+        <div class="trk-calendar-field">
+          <label for="trkNoteSessionDate">Session Date</label>
+
+          <input
+            type="date"
+            id="trkNoteSessionDate"
+            class="dashboard-input"
+          >
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="trkNoteSessionType">Session Type</label>
+
+          <select id="trkNoteSessionType" class="dashboard-select">
+            <option value="">Select session type</option>
+            <option value="Initial Consultation">Initial Consultation</option>
+            <option value="Coaching Session">Coaching Session</option>
+            <option value="Review">Review</option>
+            <option value="Parent Feedback">Parent Feedback</option>
+            <option value="Teacher Meeting">Teacher Meeting</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="trk-calendar-field">
+        <label for="trkNoteText">Notes</label>
+
+        <textarea
+          id="trkNoteText"
+          class="dashboard-textarea"
+          placeholder="Write a client note"
+        ></textarea>
+      </div>
+    </div>
+
+    <div class="trk-calendar-modal-foot">
+      <button
+        type="button"
+        class="dashboard-btn dashboard-btn-light"
+        id="trkCalendarNoteModalCancel"
+      >
+        Cancel
+      </button>
+
+      <button
+        type="button"
+        class="dashboard-btn dashboard-btn-primary"
+        id="trkCalendarNoteSaveBtn"
+      >
+        Save Note
+      </button>
+    </div>
+  </div>
+</div>
