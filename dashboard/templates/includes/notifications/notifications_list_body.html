@@ -91,25 +91,21 @@
 
       <div class="dashboard-detail-field">
         <label for="notificationLinkedClient">Linked Client</label>
-        <input
-          id="notificationLinkedClient"
-          class="dashboard-input"
-          placeholder="Optional Client ID"
-        >
+        <select id="notificationLinkedClient" class="dashboard-input">
+          <option value="">No linked client</option>
+        </select>
         <div class="dashboard-help">
-          Optional for client-specific messages or requests.
+          Optional. Link this conversation to a client.
         </div>
       </div>
-
+      
       <div class="dashboard-detail-field">
         <label for="notificationLinkedEvent">Linked Session/Event</label>
-        <input
-          id="notificationLinkedEvent"
-          class="dashboard-input"
-          placeholder="Optional Event ID"
-        >
+        <select id="notificationLinkedEvent" class="dashboard-input" disabled>
+          <option value="">Select a client first</option>
+        </select>
         <div class="dashboard-help">
-          Optional for session-specific messages.
+          Optional. Sessions will show after a client is selected.
         </div>
       </div>
 
