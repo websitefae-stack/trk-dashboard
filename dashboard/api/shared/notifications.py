@@ -1169,6 +1169,20 @@ def get_dashboard_notification_summary():
         "latest": latest,
     }
 
+def get_notification_summary_for_page(limit=5):
+    ensure_logged_in()
+
+    summary = get_dashboard_notification_summary()
+
+    latest = summary.get("latest") or []
+    latest = latest[:int(limit or 5)]
+
+    return {
+        "unread_count": summary.get("unread_count", 0),
+        "open_count": summary.get("open_count", 0),
+        "latest": latest,
+    }
+
 
 @frappe.whitelist()
 def get_notification_list_for_page(status="All", limit=20):
