@@ -2,7 +2,10 @@ import frappe
 from frappe import _
 
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
-from dashboard.api.coach.profile import get_coach_doc, get_coach_display_name
+from dashboard.api.shared.profile import (
+    get_profile_context,
+    get_profile_display_name,
+)
 
 
 def get_context(context):
@@ -11,25 +14,26 @@ def get_context(context):
 
     redirect_if_wrong_dashboard("coach")
 
-    coach = get_coach_doc()
+    profile_context = get_profile_context("coach")
+
+    coach = profile_context["profile_doc"]
 
     context.no_cache = 1
     context.page_title = "My Profile"
     context.active_page = "profile"
 
+    context.profile_role = "coach"
+
     context.coach = coach
-    context.dashboard_user_name = get_coach_display_name()
+    context.profile_doc = coach
+    context.user_doc = profile_context["user_doc"]
+
+    context.dashboard_user_name = get_profile_display_name("coach")
     context.dashboard_notifications_url = "/coach_db/notifications"
 
-    context.bank_account = None
-    if coach.bank_account:
-        context.bank_account = frappe.get_doc("Bank Account", coach.bank_account)
+    context.bank_account = profile_context["bank_account"]
 
-    context.dbs_rows = coach.get("dbs") or []
-    context.dbs_update_service_rows = coach.get("dbs_update_services") or []
-    context.insurance_rows = coach.get("insurance") or []
-    context.indemnity_rows = coach.get("indemnity") or []
-
-    user_doc = frappe.get_doc("User", frappe.session.user)
-
-    context.user_doc = user_doc
+    context.dbs_rows = profile_context["dbs_rows"]
+    context.dbs_update_service_rows = profile_context["dbs_update_service_rows"]
+    context.insurance_rows = profile_context["insurance_rows"]
+    context.indemnity_rows = profile_context["indemnity_rows"]
