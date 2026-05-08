@@ -1403,7 +1403,7 @@ def send_dashboard_notification(
         doc.requires_response = 1 if str(requires_response).lower() in ["1", "true", "yes", "on"] else 0
 
     if _field_exists(CONVERSATION_DOCTYPE, "due_date"):
-    doc.due_date = due_date
+        doc.due_date = due_date
 
     doc.append("recipients", {
         "recipient_user": frappe.session.user,
