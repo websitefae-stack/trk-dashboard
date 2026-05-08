@@ -1,6 +1,6 @@
 {% include "dashboard/templates/includes/head/franchisor_head.html" %}
 
-<div class="dashboard-page">
+<div class="dashboard-page" id="franchisorDashboardHome">
   {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
 
   <div class="dashboard-main">
@@ -9,24 +9,115 @@
     <div class="dashboard-container">
       <div class="dashboard-page-header">
         <div>
-          <h1 class="dashboard-page-title">Franchisor Dashboard</h1>
-          <p class="dashboard-page-subtitle">Welcome to your franchisor dashboard.</p>
+          <h1 class="dashboard-page-title">Dashboard</h1>
+          <p class="dashboard-page-subtitle">Overview of coaches, session workers, clients, appointments and invoices</p>
+        </div>
+
+        <div class="dashboard-page-actions">
+          <button class="dashboard-btn dashboard-btn-light" id="refreshDashboard">Refresh</button>
         </div>
       </div>
 
-      <div class="dashboard-card">
-        <div class="dashboard-list">
-          <a href="/franchisor_db/clients">Clients</a>
-          <a href="/franchisor_db/franchisees">Franchisees</a>
-          <a href="/franchisor_db/onboarding">Onboarding</a>
-          <a href="/franchisor_db/session_workers">Session Workers</a>
-          <a href="/franchisor_db/coaches">Coaches</a>
-          <a href="/franchisor_db/franchise_fees">Franchise Fees</a>
-          <a href="/franchisor_db/marketing_fees">Marketing Fees</a>
-          <a href="/franchisor_db/reports">Reports</a>
-          <a href="/franchisor_db/notifications">Notifications</a>
+      <div class="dashboard-summary-grid dashboard-home-summary-grid">
+        <a class="dashboard-summary-card dashboard-summary-card-link" id="dashboardClientsCardLink" href="/franchisor_db/clients">
+          <div class="dashboard-summary-label">Total Clients</div>
+          <div class="dashboard-summary-value" id="dashboardTotalClientsValue">—</div>
+        </a>
+
+        <a class="dashboard-summary-card dashboard-summary-card-link" id="dashboardCoachesCardLink" href="/franchisor_db/coaches">
+          <div class="dashboard-summary-label">Total Coaches</div>
+          <div class="dashboard-summary-value" id="dashboardCoachesValue">—</div>
+        </a>
+
+        <a class="dashboard-summary-card dashboard-summary-card-link" id="dashboardSessionWorkersCardLink" href="/franchisor_db/session_workers">
+          <div class="dashboard-summary-label">Total Session Workers</div>
+          <div class="dashboard-summary-value" id="dashboardSessionWorkersValue">—</div>
+        </a>
+
+        <div class="dashboard-summary-card">
+          <div class="dashboard-summary-label" id="dashboardNewClientsPreviousLabel">New Clients Last Month</div>
+          <div class="dashboard-summary-value" id="dashboardNewClientsPreviousValue">—</div>
+        </div>
+
+        <div class="dashboard-summary-card">
+          <div class="dashboard-summary-label" id="dashboardNewClientsCurrentLabel">New Clients This Month</div>
+          <div class="dashboard-summary-value" id="dashboardNewClientsCurrentValue">—</div>
+        </div>
+
+        <div class="dashboard-summary-card">
+          <div class="dashboard-summary-label" id="dashboardInvoicePreviousLabel">Monthly Invoice Total Last Month</div>
+          <div class="dashboard-summary-value" id="dashboardInvoicePreviousValue">—</div>
+        </div>
+
+        <div class="dashboard-summary-card">
+          <div class="dashboard-summary-label" id="dashboardInvoiceCurrentLabel">Monthly Invoice Total This Month</div>
+          <div class="dashboard-summary-value" id="dashboardInvoiceCurrentValue">—</div>
         </div>
       </div>
+
+      <div class="dashboard-home-two-column">
+        <div class="dashboard-card dashboard-home-panel">
+          <div class="dashboard-table-header">
+            <div class="dashboard-table-title">Upcoming Appointments</div>
+            <div class="dashboard-table-count">Next 8</div>
+          </div>
+
+          <div class="dashboard-table-wrap">
+            <table class="dashboard-table dashboard-dashboard-upcoming-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Appointment Details</th>
+                  <th>Location</th>
+                  <th class="dashboard-text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="dashboardUpcomingTableBody">
+                <tr>
+                  <td colspan="4" class="dashboard-empty">Loading appointments...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style="margin-top: 15px;">
+            <a class="dashboard-btn dashboard-btn-light" id="dashboardViewCalendarBtn" href="/franchisor_db/calendar">View Calendar</a>
+          </div>
+        </div>
+
+        <div class="dashboard-card dashboard-home-panel">
+          <div class="dashboard-table-header">
+            <div class="dashboard-table-title">Outstanding Invoices</div>
+            <div class="dashboard-table-count">Needs payment</div>
+          </div>
+
+          <div class="dashboard-table-wrap">
+            <table class="dashboard-table dashboard-dashboard-invoices-table">
+              <thead>
+                <tr>
+                  <th>Invoice</th>
+                  <th>Date</th>
+                  <th>Due Date</th>
+                  <th>Status</th>
+                  <th>Total</th>
+                  <th>Outstanding</th>
+                  <th class="dashboard-text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="dashboardOutstandingInvoicesTableBody">
+                <tr>
+                  <td colspan="7" class="dashboard-empty">Loading outstanding invoices...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style="margin-top: 15px;">
+            <a class="dashboard-btn dashboard-btn-light" id="dashboardViewAllInvoicesBtn" href="/franchisor_db/invoices">View Invoices</a>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
