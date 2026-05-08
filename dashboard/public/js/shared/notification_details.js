@@ -412,26 +412,24 @@
   function bindEvents() {
     const saveBtn = el("saveNotificationStatus");
     const replyBtn = el("sendNotificationReplyBtn");
-
+    const toggleDetailsBtn = el("toggleNotificationDetails");
+    const detailsMeta = el("notificationDetailsMeta");
+  
     if (saveBtn) {
       saveBtn.addEventListener("click", saveStatus);
     }
-
+  
     if (replyBtn) {
       replyBtn.addEventListener("click", sendReply);
     }
+  
+    if (toggleDetailsBtn && detailsMeta) {
+      toggleDetailsBtn.addEventListener("click", function () {
+        const isCollapsed = detailsMeta.classList.toggle("is-collapsed");
+  
+        toggleDetailsBtn.textContent = isCollapsed
+          ? "Show Details"
+          : "Hide Details";
+      });
+    }
   }
-
-  function init() {
-    if (!el("notificationDetailsRoot")) return;
-
-    bindEvents();
-    loadNotification();
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
-})();
