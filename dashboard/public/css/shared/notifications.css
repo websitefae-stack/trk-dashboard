@@ -414,3 +414,93 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.dashboard-notification-card-header {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 12px;
+}
+
+.dashboard-notification-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dashboard-priority-pill,
+.dashboard-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.priority-normal {
+  background: #5FE07C;
+  color: #434B49;
+}
+
+.priority-high {
+  background: #D5DA39;
+  color: #434B49;
+}
+
+.priority-urgent {
+  background: #FF8438;
+  color: #FFFFFF;
+}
+
+.status-open {
+  background: #258D3B;
+  color: #FFFFFF;
+}
+
+.status-unread {
+  background: #98962A;
+  color: #FFFFFF;
+}
+
+.status-archived {
+  background: #D64923;
+  color: #FFFFFF;
+}
+
+.status-overdue {
+  background: #AC455C;
+  color: #FFFFFF;
+}
+
+.dashboard-notification-card.status-overdue {
+  border: 2px solid #AC455C;
+}
+
+.dashboard-notification-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.dashboard-notification-message {
+  margin-bottom: 18px;
+  line-height: 1.5;
+}
+
+.dashboard-notification-meta {
+  margin-bottom: 18px;
+  color: #687373;
+}
+
+.dashboard-notification-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.dashboard-notification-footer-left {
+  font-size: 14px;
+  color: #687373;
+}
