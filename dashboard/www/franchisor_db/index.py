@@ -2,7 +2,6 @@ import frappe
 from frappe import _
 
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
-from dashboard.api.franchisor.clients import get_franchisor_display_name
 
 
 def get_context(context):
@@ -14,5 +13,4 @@ def get_context(context):
     context.no_cache = 1
     context.page_title = "Franchisor Dashboard"
     context.active_page = "dashboard"
-    context.dashboard_user_name = get_franchisor_display_name()
-    context.dashboard_notifications_url = "/franchisor_db/notifications"
+    context.dashboard_user_name = frappe.get_cached_value("User", frappe.session.user, "full_name") or frappe.session.user
