@@ -218,14 +218,31 @@
     }
   }
 
+  function renderPriorityPill(priority) {
+    const node = el("notificationPriorityText");
+    if (!node) return;
+  
+    const clean = priority || "Normal";
+    node.textContent = clean;
+    node.className = "dashboard-priority-pill priority-" + clean.toLowerCase().replace(/\s+/g, "-");
+  }
+  
+  function renderStatusPill(status) {
+    const node = el("notificationStatusText");
+    if (!node) return;
+  
+    const clean = status || "Open";
+    node.textContent = clean;
+    node.className = "dashboard-status-pill status-" + clean.toLowerCase().replace(/\s+/g, "-");
+  }
+    
   function renderNotification(data) {
     const baseUrl = getDashboardBaseUrl();
 
     setText("notificationTitleText", data.title || data.notification_type || "Notification");
     setText("notificationTypeText", data.conversation_type || data.notification_type || "Message");
-    setHtml("notificationStatusText", badge(data.status || "Open"));
-    setHtml("notificationReadStatusText", badge(data.read_status || "Read"));
-    setHtml("notificationPriorityText", badge(data.priority || "Normal", "priority"));
+    renderPriorityPill(data.priority || "Normal");
+    renderStatusPill(data.read_status === "Unread" ? "Unread" : (data.status || "Open"));
     setText("notificationCreatedByText", data.created_by_label || data.sent_from || "—");
     setText("notificationCreatedDateText", formatDateTime(data.notification_date));
     setText("notificationDueDateText", data.due_date || "—");
@@ -251,6 +268,11 @@
     renderRecipients(data.recipients || []);
     renderTimeline(data.messages || data.replies || []);
     renderReplyArea(data);
+
+    const archiveBtn = el("archiveNotificationBtn");
+    if (archiveBtn) {
+      archiveBtn.style.display = Number(data.can_archive || 0) ? "" : "none";
+    }
   }
 
   function renderRecipients(recipients) {
@@ -314,14 +336,20 @@
 
   function renderReplyArea(data) {
     const wrap = el("notificationReplySection");
-
+  
     if (!wrap) return;
-
+  
     if (!data || !data.name) {
       wrap.style.display = "none";
       return;
     }
-
+  
+    if (Number(data.is_archived || 0)) {
+      wrap.innerHTML = '<div class="dashboard-notice">This conversation has been archived. No further replies can be added.</div>';
+      wrap.style.display = "";
+      return;
+    }
+  
     wrap.style.display = "";
   }
 
@@ -389,13 +417,16 @@
     try {
       await callApi("dashboard.api.shared.notifications.reply_to_notification", {
         name: state.notificationName,
-        message: message
+        message: message,
+        attachment: getValue("notificationReplyAttachment")
       });
 
       if (textarea) {
         textarea.value = "";
       }
 
+      setValue("notificationReplyAttachment", "");
+      
       await loadNotification();
     } catch (error) {
       alert(error.message || "Could not send reply.");
@@ -409,11 +440,43 @@
     }
   }
 
+  async function archiveNotification() {
+    const button = el("archiveNotificationBtn");
+  
+    if (!state.notificationName) return;
+  
+    if (!confirm("Archive this conversation for everyone?")) {
+      return;
+    }
+  
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Archiving...";
+    }
+  
+    try {
+      await callApi("dashboard.api.shared.notifications.archive_notification", {
+        name: state.notificationName
+      });
+  
+      await loadNotification();
+  
+    } catch (error) {
+      alert(error.message || "Could not archive conversation.");
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Archive Conversation";
+      }
+    }
+  }
+    
   function bindEvents() {
     const saveBtn = el("saveNotificationStatus");
     const replyBtn = el("sendNotificationReplyBtn");
     const toggleDetailsBtn = el("toggleNotificationDetails");
     const detailsMeta = el("notificationDetailsMeta");
+    const archiveBtn = el("archiveNotificationBtn");
   
     if (saveBtn) {
       saveBtn.addEventListener("click", saveStatus);
@@ -421,6 +484,10 @@
   
     if (replyBtn) {
       replyBtn.addEventListener("click", sendReply);
+    }
+  
+    if (archiveBtn) {
+      archiveBtn.addEventListener("click", archiveNotification);
     }
   
     if (toggleDetailsBtn && detailsMeta) {
