@@ -1,5 +1,4 @@
 {% include "dashboard/templates/includes/head/session_worker_head.html" %}
-<link rel="stylesheet" href="/assets/dashboard/css/shared/dashboard_home.css">
 
 <div class="dashboard-page" id="sessionWorkerDashboardHome">
   {% include "dashboard/templates/includes/sidebar/session_worker_sidebar.html" %}
@@ -61,65 +60,31 @@
         </div>
       </div>
 
-      <div class="dashboard-home-two-column">
-        <div class="dashboard-card dashboard-home-panel">
-          <div class="dashboard-table-header">
-            <div class="dashboard-table-title">Upcoming Appointments</div>
-            <div class="dashboard-table-count">Next 8</div>
-          </div>
-
-          <div class="dashboard-table-wrap">
-            <table class="dashboard-table dashboard-dashboard-upcoming-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Appointment Details</th>
-                  <th>Location</th>
-                  <th class="dashboard-text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody id="swDashboardUpcomingTableBody">
-                <tr>
-                  <td colspan="4" class="dashboard-empty">Loading appointments...</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Upcoming Appointments</div>
+          <div class="dashboard-table-count">Next 8</div>
         </div>
 
-        <div class="dashboard-card dashboard-home-panel">
-          <div class="dashboard-table-header">
-            <div class="dashboard-table-title">Notifications</div>
-            <div class="dashboard-table-count" id="swDashboardNotificationCount">0 unread</div>
-          </div>
-
-          <div class="dashboard-table-wrap">
-            <table class="dashboard-table dashboard-dashboard-notifications-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Priority</th>
-                  <th class="dashboard-text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody id="swDashboardNotificationsTableBody">
-                <tr>
-                  <td colspan="5" class="dashboard-empty">Loading notifications...</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div style="margin-top: 15px;">
-            <a class="dashboard-btn dashboard-btn-light" href="/session_worker_db/notifications">View All Notifications</a>
-          </div>
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table dashboard-dashboard-upcoming-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Appointment Details</th>
+                <th>Location</th>
+                <th class="dashboard-text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="swDashboardUpcomingTableBody">
+              <tr>
+                <td colspan="4" class="dashboard-empty">Loading appointments...</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
     </div>
   </div>
 </div>
-
-<script src="/assets/dashboard/js/session_worker/dashboard_home.js"></script>
