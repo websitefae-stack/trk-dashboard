@@ -1,6 +1,12 @@
 {% include "dashboard/templates/includes/head/coach_head.html" %}
 
-<div class="dashboard-page" id="coachProfilePage">
+<div
+  class="dashboard-page"
+  id="coachProfilePage"
+  data-profile-role="{{ profile_role }}"
+  data-profile-form-id="coachProfileForm"
+  data-profile-message-id="coachProfileMessage"
+>
   {% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
 
   <div class="dashboard-main">
