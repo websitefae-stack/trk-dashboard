@@ -801,8 +801,7 @@ def _format_conversation(doc):
     recipient_row = _get_recipient_row(doc, current_user)
 
     is_read = 1
-        "is_archived": 1 if (doc.get("status") or "") == "Archived" else 0,
-        "can_archive": 1 if (doc.get("created_by_user") == frappe.session.user or _is_franchisor_user()) and (doc.get("status") or "") != "Archived" else 0,
+
     if doc.get("created_by_user") != current_user:
         is_read = int(recipient_row.get("read") or 0) if recipient_row else 0
 
@@ -838,13 +837,19 @@ def _format_conversation(doc):
         messages.extend(legacy_replies)
         messages.sort(key=lambda row: row.get("created_on") or "")
 
+    status = doc.get("status") or "Open"
+    can_archive = (
+        (doc.get("created_by_user") == frappe.session.user or _is_franchisor_user())
+        and status != "Archived"
+    )
+
     return {
         "name": doc.get("name"),
         "notification_type": doc.get("conversation_type") or "Message",
         "conversation_type": doc.get("conversation_type") or "Message",
         "title": doc.get("title") or doc.get("conversation_type") or "Notification",
         "message": doc.get("message") or "",
-        "status": doc.get("status") or "Open",
+        "status": status,
         "read_status": "Read" if is_read else "Unread",
         "priority": doc.get("priority") or "Normal",
         "notification_date": doc.get("creation"),
@@ -870,6 +875,8 @@ def _format_conversation(doc):
         "message_count": len(messages),
         "messages": messages,
         "replies": messages,
+        "is_archived": 1 if status == "Archived" else 0,
+        "can_archive": 1 if can_archive else 0,
         "recipients": [
             {
                 "recipient_user": row.get("recipient_user"),
