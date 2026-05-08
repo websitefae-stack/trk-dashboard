@@ -21,15 +21,8 @@ ROLE_PROFILE_CONFIG = {
         "banking_change_for": "Coach",
         "banking_link_field": "banking_coach",
         "banking_notification_user": ASHLEY_USER,
-        "editable_fields": [
-            "bio",
-            "interest",
-        ],
-        "user_update_fields": [
-            "phone",
-            "location",
-            "gender",
-        ],
+        "editable_fields": ["bio", "interest"],
+        "user_update_fields": ["phone", "location", "gender"],
         "legal_parentfields": {
             "dbs": "dbs",
             "dbs_update_service": "dbs_update_services",
@@ -46,15 +39,8 @@ ROLE_PROFILE_CONFIG = {
         "banking_change_for": "Coach",
         "banking_link_field": "banking_coach",
         "banking_notification_user": ASHLEY_USER,
-        "editable_fields": [
-            "bio",
-            "interest",
-        ],
-        "user_update_fields": [
-            "phone",
-            "location",
-            "gender",
-        ],
+        "editable_fields": ["bio", "interest"],
+        "user_update_fields": ["phone", "location", "gender"],
         "legal_parentfields": {
             "dbs": "dbs",
             "dbs_update_service": "dbs_update_services",
@@ -81,10 +67,7 @@ ROLE_PROFILE_CONFIG = {
             "bio",
             "interest",
         ],
-        "user_update_fields": [
-            "phone",
-            "location",
-        ],
+        "user_update_fields": ["phone", "location"],
         "legal_parentfields": {
             "dbs": "dbs",
             "dbs_update_service": "dbs_update_service",
@@ -128,7 +111,6 @@ def ensure_logged_in():
 
 def get_role_config(role):
     role = (role or "").strip()
-
     config = ROLE_PROFILE_CONFIG.get(role)
 
     if not config:
@@ -141,7 +123,6 @@ def get_profile_doc(role):
     ensure_logged_in()
 
     config = get_role_config(role)
-
     profile_name = None
 
     for fieldname in config["user_fields"]:
@@ -167,17 +148,13 @@ def get_profile_display_name(role):
     config = get_role_config(role)
     profile_doc = get_profile_doc(role)
 
-    return (
-        profile_doc.get(config["display_field"])
-        or profile_doc.name
-    )
+    return profile_doc.get(config["display_field"]) or profile_doc.name
 
 
 def get_franchisor_name():
-    return frappe.get_cached_value(
-        "User",
-        frappe.session.user,
-        "full_name",
+    return (
+        frappe.get_cached_value("User", frappe.session.user, "full_name")
+        or frappe.session.user
     )
 
 
@@ -200,18 +177,12 @@ def get_profile_context(role):
         "profile_doc": profile_doc,
         "user_doc": user_doc,
         "bank_account": bank_account,
-        "dbs_rows": profile_doc.get(
-            config["legal_parentfields"]["dbs"]
-        ) or [],
+        "dbs_rows": profile_doc.get(config["legal_parentfields"]["dbs"]) or [],
         "dbs_update_service_rows": profile_doc.get(
             config["legal_parentfields"]["dbs_update_service"]
         ) or [],
-        "insurance_rows": profile_doc.get(
-            config["legal_parentfields"]["insurance"]
-        ) or [],
-        "indemnity_rows": profile_doc.get(
-            config["legal_parentfields"]["indemnity"]
-        ) or [],
+        "insurance_rows": profile_doc.get(config["legal_parentfields"]["insurance"]) or [],
+        "indemnity_rows": profile_doc.get(config["legal_parentfields"]["indemnity"]) or [],
     }
 
 
@@ -303,19 +274,14 @@ def request_my_banking_change(
 
     change_request.insert(ignore_permissions=True)
 
-    display_name = (
-        profile_doc.get(config["display_field"])
-        or profile_doc.name
-    )
+    display_name = profile_doc.get(config["display_field"]) or profile_doc.name
 
-    create_trk_notification(
+    notification_name = create_trk_notification(
         recipient_user=config["banking_notification_user"],
         notification_type="{0} Banking Change Request".format(
             config["banking_change_for"]
         ),
-        message="{0} submitted a banking change request.".format(
-            display_name
-        ),
+        message="{0} submitted a banking change request.".format(display_name),
         priority="High",
         reference_doctype=CHANGE_REQUEST_DOCTYPE,
         reference_name=change_request.name,
@@ -323,11 +289,25 @@ def request_my_banking_change(
         session_worker=profile_doc.name if role == "session_worker" else None,
     )
 
+    if notification_name:
+        for fieldname in [
+            "notification",
+            "notification_log",
+            "dashboard_notification",
+            "dashboard_conversation",
+            "conversation",
+        ]:
+            if change_request_meta.has_field(fieldname):
+                change_request.set(fieldname, notification_name)
+                change_request.save(ignore_permissions=True)
+                break
+
     frappe.db.commit()
 
     return {
         "ok": 1,
         "name": change_request.name,
+        "notification": notification_name,
         "message": "Banking change request submitted successfully.",
     }
 
@@ -369,22 +349,14 @@ def add_my_legal_record(role):
 
     child = profile_doc.append(parentfield, {})
 
-    child.status = _get_status_from_expiry(
-        frappe.form_dict.get("expiry_date")
-    )
+    child.status = _get_status_from_expiry(frappe.form_dict.get("expiry_date"))
     child.date_received = frappe.form_dict.get("date_received")
     child.expiry_date = frappe.form_dict.get("expiry_date")
 
-    child.set(
-        record_config["number_field"],
-        frappe.form_dict.get("number"),
-    )
+    child.set(record_config["number_field"], frappe.form_dict.get("number"))
 
     if record_config.get("insurer_field"):
-        child.set(
-            record_config["insurer_field"],
-            frappe.form_dict.get("insurer_name"),
-        )
+        child.set(record_config["insurer_field"], frappe.form_dict.get("insurer_name"))
 
     child.set(record_config["file_field"], file_url)
 
@@ -393,9 +365,7 @@ def add_my_legal_record(role):
 
     return {
         "ok": 1,
-        "message": "{0} added successfully.".format(
-            record_config["label"]
-        ),
+        "message": "{0} added successfully.".format(record_config["label"]),
     }
 
 
@@ -422,9 +392,7 @@ def _save_optional_file(fieldname, attached_to_doctype, attached_to_name):
     if not uploaded_file:
         return ""
 
-    filename = secure_filename(
-        uploaded_file.filename or "uploaded-file"
-    )
+    filename = secure_filename(uploaded_file.filename or "uploaded-file")
 
     file_doc = frappe.get_doc({
         "doctype": "File",
