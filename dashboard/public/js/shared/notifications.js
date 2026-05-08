@@ -1,6 +1,12 @@
 (function () {
   "use strict";
 
+    if (window.__trkSharedNotificationsLoaded) {
+    return;
+  }
+
+  window.__trkSharedNotificationsLoaded = true;
+
   let notificationLinkOptions = {
     clients: [],
     events: []
@@ -378,7 +384,10 @@
 
     if (openBtn) openBtn.addEventListener("click", openPanel);
     if (cancelBtn) cancelBtn.addEventListener("click", closePanel);
-    if (form) form.addEventListener("submit", sendNotification);
+    if (form && form.dataset.notificationsBound !== "1") {
+      form.dataset.notificationsBound = "1";
+      form.addEventListener("submit", sendNotification);
+    }
 
     bindLinkedClientChange();
     makeRowsClickable();
