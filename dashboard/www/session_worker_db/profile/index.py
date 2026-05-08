@@ -15,7 +15,6 @@ def get_context(context):
     redirect_if_wrong_dashboard("session_worker")
 
     profile_context = get_profile_context("session_worker")
-
     session_worker = profile_context["profile_doc"]
 
     context.no_cache = 1
@@ -30,6 +29,7 @@ def get_context(context):
 
     context.dashboard_user_name = get_profile_display_name("session_worker")
     context.dashboard_notifications_url = "/session_worker_db/notifications"
+    context.dashboard_base_url = "/session_worker_db"
 
     context.bank_account = profile_context["bank_account"]
 
@@ -40,18 +40,19 @@ def get_context(context):
 
     context.linked_coaches = []
 
-    for row in session_worker.get("linked_coaches") or []:
-        if row.get("is_active") and row.get("coach"):
-            coach_name = (
-                frappe.db.get_value("Coach", row.coach, "coach_name")
-                or row.coach
-            )
+    if session_worker.meta.has_field("linked_coaches"):
+        for row in session_worker.get("linked_coaches") or []:
+            if row.get("is_active") and row.get("coach"):
+                coach_name = (
+                    frappe.db.get_value("Coach", row.coach, "coach_name")
+                    or row.coach
+                )
 
-            context.linked_coaches.append({
-                "coach": row.coach,
-                "coach_name": coach_name,
-            })
+                context.linked_coaches.append({
+                    "coach": row.coach,
+                    "coach_name": coach_name,
+                })
 
     context.show_invoice_cycle_start_date = (
-        (session_worker.invoice_frequency or "").strip() != "Monthly"
+        (session_worker.get("invoice_frequency") or "").strip() != "Monthly"
     )
