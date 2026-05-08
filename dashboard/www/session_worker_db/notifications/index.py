@@ -2,7 +2,7 @@ import frappe
 from frappe import _
 
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
-from dashboard.api.session_worker.profile import get_session_worker_display_name
+from dashboard.api.shared.directory import get_user_display_name
 from dashboard.api.shared.notifications import (
     get_notification_list_for_page,
     get_notification_summary_for_page,
@@ -19,21 +19,21 @@ def get_context(context):
     context.page_title = "Notifications"
     context.active_page = "notifications"
     context.dashboard_notifications_url = "/session_worker_db/notifications"
-    context.dashboard_base_url = "/session_worker_db"
+    context.base_url = "/session_worker_db"
 
     context.notifications = []
     context.unread_count = 0
     context.page_error = ""
 
     try:
-        context.dashboard_user_name = get_session_worker_display_name()
+        context.dashboard_user_name = get_user_display_name()
     except Exception:
         context.dashboard_user_name = frappe.get_cached_value("User", frappe.session.user, "full_name") or ""
 
     try:
         summary = get_notification_summary_for_page(limit=5)
         context.unread_count = summary.get("unread_count", 0)
-        context.notifications = get_notification_list_for_page(status="All", limit=100)
+        context.notifications = get_notification_list_for_page(status="All", limit=200)
 
     except Exception:
         frappe.log_error(frappe.get_traceback(), "Session Worker Notifications Page Error")
