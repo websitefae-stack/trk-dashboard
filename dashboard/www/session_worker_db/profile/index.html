@@ -1,6 +1,12 @@
 {% include "dashboard/templates/includes/head/session_worker_head.html" %}
 
-<div class="dashboard-page" id="sessionWorkerProfilePage">
+<div
+  class="dashboard-page"
+  id="sessionWorkerProfilePage"
+  data-profile-role="{{ profile_role }}"
+  data-profile-form-id="sessionWorkerProfileForm"
+  data-profile-message-id="sessionWorkerProfileMessage"
+>
   {% include "dashboard/templates/includes/sidebar/session_worker_sidebar.html" %}
 
   <div class="dashboard-main">
