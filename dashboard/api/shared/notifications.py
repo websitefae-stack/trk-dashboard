@@ -1110,35 +1110,39 @@ def reply_to_notification(name=None, message=None, attachment=None):
     if doc.doctype != CONVERSATION_DOCTYPE:
         frappe.throw(_("Replies are only available on dashboard conversations."))
 
-    if _message_enabled():
-        _create_conversation_message(
-            conversation=doc.name,
-            message=message,
-            message_type="Message",
-            sent_by=frappe.session.user,
-            role_type=_get_current_role(),
-            attachment=attachment,
-        )
-    elif doc.meta.has_field("replies"):
-        doc.append("replies", {
-            "reply_user": frappe.session.user,
-            "reply_user_role": _get_current_role(),
-            "message": message,
-        })
-
+    # Mark other recipients as unread using direct DB updates.
+    # This avoids the "document has been modified" save conflict.
     for row in doc.get("recipients") or []:
         if row.get("recipient_user") != frappe.session.user:
-            row.read = 0
-            row.read_on = None
+            frappe.db.set_value(row.doctype, row.name, {
+                "read": 0,
+                "read_on": None,
+            }, update_modified=False)
 
-    doc.save(ignore_permissions=True)
+    _create_conversation_message(
+        conversation=doc.name,
+        message=message,
+        message_type="Message",
+        sent_by=frappe.session.user,
+        role_type=_get_current_role(),
+        attachment=attachment,
+    )
+
+    frappe.db.set_value(
+        CONVERSATION_DOCTYPE,
+        doc.name,
+        "modified",
+        now_datetime(),
+        update_modified=False,
+    )
+
     frappe.db.commit()
 
-    doc.reload()
+    fresh_doc = frappe.get_doc(CONVERSATION_DOCTYPE, doc.name)
 
     return {
         "ok": True,
-        "notification": _format_conversation(doc),
+        "notification": _format_conversation(fresh_doc),
     }
 
 
