@@ -621,3 +621,156 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.dashboard-notification-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+
+.dashboard-notification-card {
+  cursor: pointer;
+  border: 1px solid #D9E6E6 !important;
+  box-shadow: 0 4px 14px rgba(67, 75, 73, 0.06) !important;
+  border-radius: 18px;
+}
+
+.dashboard-notification-board-archived {
+  opacity: 0.88;
+}
+
+.dashboard-notification-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.dashboard-notification-title {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.dashboard-notification-pill-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.dashboard-priority-pill,
+.dashboard-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 6px 13px;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.priority-normal {
+  background: #5FE07C;
+  color: #434B49;
+}
+
+.priority-high {
+  background: #D5DA39;
+  color: #434B49;
+}
+
+.priority-urgent {
+  background: #FF8438;
+  color: #FFFFFF;
+}
+
+.status-open {
+  background: #258D3B;
+  color: #FFFFFF;
+}
+
+.status-unread {
+  background: #98962A;
+  color: #FFFFFF;
+}
+
+.status-archived {
+  background: #D64923;
+  color: #FFFFFF;
+}
+
+.status-overdue {
+  background: #AC455C;
+  color: #FFFFFF;
+}
+
+.status-border-overdue {
+  border: 2px solid #AC455C !important;
+}
+
+.status-border-archived {
+  border: 2px solid #D64923 !important;
+}
+
+.dashboard-notification-meta {
+  margin-bottom: 18px;
+  color: #687373;
+  font-size: 14px;
+}
+
+.dashboard-notification-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin-top: auto;
+}
+
+.dashboard-notification-footer-left {
+  font-size: 13px;
+  color: #687373;
+}
+
+.notification-archive-btn {
+  background: #D64923;
+  color: #FFFFFF;
+  border: 1px solid #D64923;
+}
+
+.notification-archive-btn:hover {
+  background: #B93D20;
+  color: #FFFFFF;
+}
+
+@media (max-width: 1200px) {
+  .dashboard-notification-board {
+    grid-template-columns: repeat(3, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard-notification-board {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-notification-board {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-notification-card-heading {
+    flex-direction: column;
+  }
+
+  .dashboard-notification-pill-row {
+    justify-content: flex-start;
+  }
+}
