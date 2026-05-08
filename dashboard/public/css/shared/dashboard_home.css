@@ -27,3 +27,106 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================================================
+   DASHBOARD HOME TABLE WIDTH FIXES
+========================================================= */
+
+.dashboard-home-panel {
+  margin-top: 24px;
+}
+
+.dashboard-summary-card-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.dashboard-summary-card-link:hover {
+  text-decoration: none;
+}
+
+.dashboard-home-appointments-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.dashboard-home-appointments-table .dashboard-home-date-col {
+  width: 150px;
+}
+
+.dashboard-home-appointments-table .dashboard-home-details-col {
+  width: auto;
+  min-width: 360px;
+}
+
+.dashboard-home-appointments-table .dashboard-home-location-col {
+  width: 170px;
+}
+
+.dashboard-home-appointments-table .dashboard-home-action-col {
+  width: 90px;
+}
+
+.dashboard-home-date-link {
+  display: inline-block;
+  font-weight: 700;
+}
+
+.dashboard-home-invoices-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.dashboard-home-invoices-table th:nth-child(1),
+.dashboard-home-invoices-table td:nth-child(1) {
+  width: 150px;
+}
+
+.dashboard-home-invoices-table th:nth-child(2),
+.dashboard-home-invoices-table td:nth-child(2) {
+  width: auto;
+  min-width: 220px;
+}
+
+.dashboard-home-invoices-table th:nth-child(3),
+.dashboard-home-invoices-table td:nth-child(3) {
+  width: 140px;
+}
+
+.dashboard-home-invoices-table th:nth-child(4),
+.dashboard-home-invoices-table td:nth-child(4) {
+  width: 130px;
+}
+
+.dashboard-home-invoices-table th:nth-child(5),
+.dashboard-home-invoices-table td:nth-child(5) {
+  width: 160px;
+}
+
+.dashboard-home-invoices-table th:nth-child(6),
+.dashboard-home-invoices-table td:nth-child(6) {
+  width: 110px;
+}
+
+@media (max-width: 860px) {
+  .dashboard-home-appointments-table,
+  .dashboard-home-appointments-table thead,
+  .dashboard-home-appointments-table tbody,
+  .dashboard-home-appointments-table tr,
+  .dashboard-home-appointments-table th,
+  .dashboard-home-appointments-table td,
+  .dashboard-home-invoices-table,
+  .dashboard-home-invoices-table thead,
+  .dashboard-home-invoices-table tbody,
+  .dashboard-home-invoices-table tr,
+  .dashboard-home-invoices-table th,
+  .dashboard-home-invoices-table td {
+    width: auto;
+    min-width: 0;
+  }
+
+  .dashboard-home-appointments-table .dashboard-home-details-col {
+    min-width: 0;
+  }
+}
