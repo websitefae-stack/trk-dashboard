@@ -1,4 +1,5 @@
 {% include "dashboard/templates/includes/head/coach_head.html" %}
+<link rel="stylesheet" href="/assets/dashboard/css/shared/dashboard_home.css">
 
 <div class="dashboard-page" id="coachDashboardHome">
   {% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
@@ -10,7 +11,7 @@
       <div class="dashboard-page-header">
         <div>
           <h1 class="dashboard-page-title">Dashboard</h1>
-          <p class="dashboard-page-subtitle">Overview of clients, appointments and invoices</p>
+          <p class="dashboard-page-subtitle">Overview of clients, appointments and outstanding invoices</p>
         </div>
 
         <div class="dashboard-page-actions">
@@ -19,97 +20,90 @@
       </div>
 
       <div class="dashboard-summary-grid dashboard-home-summary-grid">
-        <a class="dashboard-summary-card dashboard-summary-card-link" id="dashboardClientsCardLink" href="/coach_db/clients">
+        <a class="dashboard-summary-card dashboard-summary-card-link" href="/coach_db/clients">
           <div class="dashboard-summary-label">Total Clients</div>
-          <div class="dashboard-summary-value" id="dashboardTotalClientsValue">—</div>
+          <div class="dashboard-summary-value" id="dashboardTotalClients">—</div>
         </a>
 
         <div class="dashboard-summary-card">
-          <div class="dashboard-summary-label" id="dashboardNewClientsPreviousLabel">New Clients Last Month</div>
-          <div class="dashboard-summary-value" id="dashboardNewClientsPreviousValue">—</div>
+          <div class="dashboard-summary-label" id="dashboardPreviousMonthLabel">New Clients Last Month</div>
+          <div class="dashboard-summary-value" id="dashboardNewClientsPrevious">—</div>
         </div>
 
         <div class="dashboard-summary-card">
-          <div class="dashboard-summary-label" id="dashboardNewClientsCurrentLabel">New Clients This Month</div>
-          <div class="dashboard-summary-value" id="dashboardNewClientsCurrentValue">—</div>
+          <div class="dashboard-summary-label" id="dashboardCurrentMonthLabel">New Clients This Month</div>
+          <div class="dashboard-summary-value" id="dashboardNewClientsCurrent">—</div>
         </div>
 
-        <a class="dashboard-summary-card dashboard-summary-card-link" id="dashboardSessionWorkersCardLink" href="/coach_db/session_workers">
-          <div class="dashboard-summary-label">Linked Session Workers</div>
-          <div class="dashboard-summary-value" id="dashboardSessionWorkersValue">—</div>
+        <a class="dashboard-summary-card dashboard-summary-card-link" href="/coach_db/session_workers">
+          <div class="dashboard-summary-label">Session Workers</div>
+          <div class="dashboard-summary-value" id="dashboardTotalSessionWorkers">—</div>
         </a>
 
         <div class="dashboard-summary-card">
-          <div class="dashboard-summary-label" id="dashboardInvoicePreviousLabel">Monthly Invoice Total Last Month</div>
+          <div class="dashboard-summary-label" id="dashboardInvoicePreviousLabel">Invoice Total Last Month</div>
           <div class="dashboard-summary-value" id="dashboardInvoicePreviousValue">—</div>
         </div>
 
         <div class="dashboard-summary-card">
-          <div class="dashboard-summary-label" id="dashboardInvoiceCurrentLabel">Monthly Invoice Total This Month</div>
+          <div class="dashboard-summary-label" id="dashboardInvoiceCurrentLabel">Invoice Total This Month</div>
           <div class="dashboard-summary-value" id="dashboardInvoiceCurrentValue">—</div>
         </div>
       </div>
 
-      <div class="dashboard-home-two-column">
-        <div class="dashboard-card dashboard-home-panel">
-          <div class="dashboard-table-header">
-            <div class="dashboard-table-title">Upcoming Appointments</div>
-            <div class="dashboard-table-count">Next 8</div>
-          </div>
-
-          <div class="dashboard-table-wrap">
-            <table class="dashboard-table dashboard-dashboard-upcoming-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Appointment Details</th>
-                  <th>Location</th>
-                  <th class="dashboard-text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody id="dashboardUpcomingTableBody">
-                <tr>
-                  <td colspan="4" class="dashboard-empty">Loading appointments...</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div style="margin-top: 15px;">
-            <a class="dashboard-btn dashboard-btn-light" id="dashboardViewCalendarBtn" href="/coach_db/calendar">View Calendar</a>
+      <div class="dashboard-card dashboard-home-panel">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Upcoming Appointments</div>
+          <div class="dashboard-table-count">
+            <a class="dashboard-link-btn" href="/coach_db/calendar">View Calendar</a>
           </div>
         </div>
 
-        <div class="dashboard-card dashboard-home-panel">
-          <div class="dashboard-table-header">
-            <div class="dashboard-table-title">Outstanding Invoices</div>
-            <div class="dashboard-table-count">Needs payment</div>
-          </div>
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table dashboard-home-appointments-table">
+            <thead>
+              <tr>
+                <th class="dashboard-home-date-col">Date</th>
+                <th class="dashboard-home-details-col">Appointment Details</th>
+                <th class="dashboard-home-location-col">Location</th>
+                <th class="dashboard-text-right dashboard-home-action-col">Action</th>
+              </tr>
+            </thead>
+            <tbody id="dashboardUpcomingTableBody">
+              <tr>
+                <td colspan="4" class="dashboard-empty">Loading appointments...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-          <div class="dashboard-table-wrap">
-            <table class="dashboard-table dashboard-dashboard-invoices-table">
-              <thead>
-                <tr>
-                  <th>Invoice</th>
-                  <th>Date</th>
-                  <th>Due Date</th>
-                  <th>Status</th>
-                  <th>Total</th>
-                  <th>Outstanding</th>
-                  <th class="dashboard-text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody id="dashboardOutstandingInvoicesTableBody">
-                <tr>
-                  <td colspan="7" class="dashboard-empty">Loading outstanding invoices...</td>
-                </tr>
-              </tbody>
-            </table>
+      <div class="dashboard-card dashboard-home-panel">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Outstanding Invoices</div>
+          <div class="dashboard-table-count">
+            <a class="dashboard-link-btn" href="/coach_db/invoices">View Invoices</a>
           </div>
+        </div>
 
-          <div style="margin-top: 15px;">
-            <a class="dashboard-btn dashboard-btn-light" id="dashboardViewAllInvoicesBtn" href="/coach_db/invoices">View Invoices</a>
-          </div>
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table dashboard-home-invoices-table">
+            <thead>
+              <tr>
+                <th>Invoice</th>
+                <th>Client</th>
+                <th>Due Date</th>
+                <th>Status</th>
+                <th>Total Outstanding</th>
+                <th class="dashboard-text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="dashboardOutstandingInvoicesTableBody">
+              <tr>
+                <td colspan="6" class="dashboard-empty">Loading invoices...</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
