@@ -712,17 +712,21 @@ def _get_upcoming_appointments(dashboard_type, context, limit=8):
         filters = _get_event_filters_for_session_worker(context, future_only=True)
 
     elif dashboard_type == COACH_DASHBOARD:
-        client_rows = _get_client_rows_for_coach(context, primary_only=False)
-        client_names = [row.name for row in client_rows if row.name]
-
-        if not client_names:
-            return []
-
-        filters["custom_client"] = ["in", client_names]
+        # Dashboard appointments must only be this coach user's own appointments.
+        # Do NOT pull appointments through linked clients.
+        filters["owner"] = frappe.session.user
         filters["starts_on"] = [">=", f"{today()} 00:00:00"]
+
+        if _event_has_field("custom_session_worker"):
+            filters["custom_session_worker"] = ["in", ["", None]]
 
     elif dashboard_type == FRANCHISOR_DASHBOARD:
+        # Dashboard appointments must only be this franchisor user's own appointments.
+        filters["owner"] = frappe.session.user
         filters["starts_on"] = [">=", f"{today()} 00:00:00"]
+
+        if _event_has_field("custom_session_worker"):
+            filters["custom_session_worker"] = ["in", ["", None]]
 
     else:
         return []
