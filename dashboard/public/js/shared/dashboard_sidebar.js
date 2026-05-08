@@ -62,56 +62,43 @@
 
   async function loadNotificationBadges() {
     const badges = qsa(".js-notification-badge");
-
+  
     if (!badges.length) return;
-
+  
     try {
       const data = await callApi(
         "dashboard.api.shared.notifications.get_dashboard_notification_summary",
         {}
       );
-
+  
       if (!data) return;
-
+  
       const unreadCount = Number(data.unread_count || 0);
-      const openCount = Number(data.open_count || 0);
-
+  
       badges.forEach(function (badge) {
-
         badge.classList.remove(
           "dashboard-status-unread",
           "dashboard-status-read",
           "dashboard-status-active",
           "dashboard-status-onhold"
         );
-
+  
         if (unreadCount > 0) {
           badge.style.display = "inline-flex";
           badge.textContent = unreadCount;
-
+  
           badge.classList.add(
             "dashboard-badge",
             "dashboard-status-unread"
           );
-
+  
           return;
         }
-
-        if (openCount > 0) {
-          badge.style.display = "inline-flex";
-          badge.textContent = openCount;
-
-          badge.classList.add(
-            "dashboard-badge",
-            "dashboard-status-active"
-          );
-
-          return;
-        }
-
+  
+        badge.textContent = "0";
         badge.style.display = "none";
       });
-
+  
     } catch (error) {
       console.error("Notification badge error", error);
     }
