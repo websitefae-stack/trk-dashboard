@@ -293,10 +293,11 @@
               <p class="dashboard-page-subtitle">Banking changes must be requested and reviewed by the office.</p>
             </div>
 
-            <button type="button" class="dashboard-btn dashboard-btn-primary" id="requestBankingChangeBtn">
-              Request Banking Change
-            </button>
-          </div>
+            {% if can_request_banking_change %}
+              <button type="button" class="dashboard-btn dashboard-btn-primary" id="requestBankingChangeBtn">
+                Request Banking Change
+              </button>
+            {% endif %}
 
           {% if bank_account %}
             <div class="dashboard-detail-grid dashboard-detail-grid-2">
