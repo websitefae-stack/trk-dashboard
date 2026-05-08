@@ -32,6 +32,8 @@ def get_context(context):
     context.dashboard_base_url = "/session_worker_db"
 
     context.bank_account = profile_context["bank_account"]
+    context.can_request_banking_change = profile_context["can_request_banking_change"]
+    context.can_edit_banking_directly = profile_context["can_edit_banking_directly"]
 
     context.dbs_rows = profile_context["dbs_rows"]
     context.dbs_update_service_rows = profile_context["dbs_update_service_rows"]
