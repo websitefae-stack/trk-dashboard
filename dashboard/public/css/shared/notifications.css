@@ -504,3 +504,120 @@
   font-size: 14px;
   color: #687373;
 }
+
+.dashboard-notification-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 420px));
+  gap: 18px;
+  align-items: stretch;
+}
+
+.dashboard-notification-card {
+  cursor: pointer;
+  border: 1px solid #D9E6E6 !important;
+  box-shadow: 0 4px 14px rgba(67, 75, 73, 0.06) !important;
+  border-radius: 18px;
+}
+
+.dashboard-notification-card.status-border-overdue {
+  border: 2px solid #AC455C !important;
+}
+
+.dashboard-notification-pill-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dashboard-priority-pill,
+.dashboard-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 6px 13px;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.priority-normal {
+  background: #5FE07C;
+  color: #434B49;
+}
+
+.priority-high {
+  background: #D5DA39;
+  color: #434B49;
+}
+
+.priority-urgent {
+  background: #FF8438;
+  color: #FFFFFF;
+}
+
+.status-open {
+  background: #258D3B;
+  color: #FFFFFF;
+}
+
+.status-unread {
+  background: #98962A;
+  color: #FFFFFF;
+}
+
+.status-archived {
+  background: #D64923;
+  color: #FFFFFF;
+}
+
+.status-overdue {
+  background: #AC455C;
+  color: #FFFFFF;
+}
+
+.status-response-needed {
+  background: #AC455C;
+  color: #FFFFFF;
+}
+
+.notification-archive-btn {
+  background: #D64923;
+  color: #FFFFFF;
+  border: 1px solid #D64923;
+}
+
+.notification-archive-btn:hover {
+  background: #B93D20;
+  color: #FFFFFF;
+}
+
+.notification-collapsible-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.notification-detail-grid-compact {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.notification-detail-grid-compact.is-collapsed {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .dashboard-notification-board {
+    grid-template-columns: 1fr;
+  }
+
+  .notification-collapsible-head {
+    flex-direction: column;
+  }
+
+  .notification-detail-grid-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
