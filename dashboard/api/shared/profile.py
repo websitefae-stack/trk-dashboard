@@ -7,11 +7,95 @@ from dashboard.api.shared.notifications import create_trk_notification
 
 CHANGE_REQUEST_DOCTYPE = "Change Request"
 
-OFFICE_EMAIL = "office@theresilientpeople.uk"
+OFFICE_USER = "office@theresilientpeople.uk"
 ASHLEY_USER = "ashley@theresilientkid.co.uk"
 
 
-LEGAL_TABLE_CONFIG = {
+ROLE_PROFILE_CONFIG = {
+    "coach": {
+        "doctype": "Coach",
+        "user_fields": ["user", "coach_email"],
+        "display_field": "coach_name",
+        "email_field": "coach_email",
+        "bank_account_field": "bank_account",
+        "banking_change_for": "Coach",
+        "banking_link_field": "banking_coach",
+        "banking_notification_user": ASHLEY_USER,
+        "editable_fields": [
+            "bio",
+            "interest",
+        ],
+        "user_update_fields": [
+            "phone",
+            "location",
+            "gender",
+        ],
+        "legal_parentfields": {
+            "dbs": "dbs",
+            "dbs_update_service": "dbs_update_services",
+            "insurance": "insurance",
+            "indemnity": "indemnity",
+        },
+    },
+    "franchisor": {
+        "doctype": "Coach",
+        "user_fields": ["user", "coach_email"],
+        "display_field": "coach_name",
+        "email_field": "coach_email",
+        "bank_account_field": "bank_account",
+        "banking_change_for": "Coach",
+        "banking_link_field": "banking_coach",
+        "banking_notification_user": ASHLEY_USER,
+        "editable_fields": [
+            "bio",
+            "interest",
+        ],
+        "user_update_fields": [
+            "phone",
+            "location",
+            "gender",
+        ],
+        "legal_parentfields": {
+            "dbs": "dbs",
+            "dbs_update_service": "dbs_update_services",
+            "insurance": "insurance",
+            "indemnity": "indemnity",
+        },
+    },
+    "session_worker": {
+        "doctype": "Session Worker",
+        "user_fields": ["user", "sw_email"],
+        "display_field": "sw_name",
+        "email_field": "sw_email",
+        "bank_account_field": "bank_account",
+        "banking_change_for": "Session Worker",
+        "banking_link_field": "banking_session_worker",
+        "banking_notification_user": OFFICE_USER,
+        "editable_fields": [
+            "first_name",
+            "middle_name",
+            "last_name",
+            "phone",
+            "gender",
+            "location",
+            "bio",
+            "interest",
+        ],
+        "user_update_fields": [
+            "phone",
+            "location",
+        ],
+        "legal_parentfields": {
+            "dbs": "dbs",
+            "dbs_update_service": "dbs_update_service",
+            "insurance": "insurance",
+            "indemnity": "indemnity",
+        },
+    },
+}
+
+
+LEGAL_RECORD_CONFIG = {
     "dbs": {
         "label": "DBS",
         "number_field": "dbs_number",
@@ -42,14 +126,27 @@ def ensure_logged_in():
         frappe.throw(_("Login required"), frappe.PermissionError)
 
 
-def get_profile_doc(doctype_name, user_fieldnames, display_field=None):
+def get_role_config(role):
+    role = (role or "").strip()
+
+    config = ROLE_PROFILE_CONFIG.get(role)
+
+    if not config:
+        frappe.throw(_("Invalid profile role."), frappe.PermissionError)
+
+    return config
+
+
+def get_profile_doc(role):
     ensure_logged_in()
+
+    config = get_role_config(role)
 
     profile_name = None
 
-    for fieldname in user_fieldnames:
+    for fieldname in config["user_fields"]:
         profile_name = frappe.db.get_value(
-            doctype_name,
+            config["doctype"],
             {fieldname: frappe.session.user},
             "name",
         )
@@ -59,63 +156,97 @@ def get_profile_doc(doctype_name, user_fieldnames, display_field=None):
 
     if not profile_name:
         frappe.throw(
-            _("No {0} profile linked.").format(doctype_name),
+            _("No {0} profile linked.").format(config["doctype"]),
             frappe.PermissionError,
         )
 
-    doc = frappe.get_doc(doctype_name, profile_name)
+    return frappe.get_doc(config["doctype"], profile_name)
 
-    display_name = (
-        doc.get(display_field)
-        if display_field and doc.get(display_field)
-        else doc.name
+
+def get_profile_display_name(role):
+    config = get_role_config(role)
+    profile_doc = get_profile_doc(role)
+
+    return (
+        profile_doc.get(config["display_field"])
+        or profile_doc.name
     )
 
-    return doc, display_name
+
+def get_franchisor_name():
+    return frappe.get_cached_value(
+        "User",
+        frappe.session.user,
+        "full_name",
+    )
+
+
+def get_profile_context(role):
+    profile_doc = get_profile_doc(role)
+    config = get_role_config(role)
+
+    bank_account = None
+    bank_account_field = config.get("bank_account_field")
+
+    if bank_account_field and profile_doc.get(bank_account_field):
+        bank_account = frappe.get_doc(
+            "Bank Account",
+            profile_doc.get(bank_account_field),
+        )
+
+    user_doc = frappe.get_doc("User", frappe.session.user)
+
+    return {
+        "profile_doc": profile_doc,
+        "user_doc": user_doc,
+        "bank_account": bank_account,
+        "dbs_rows": profile_doc.get(
+            config["legal_parentfields"]["dbs"]
+        ) or [],
+        "dbs_update_service_rows": profile_doc.get(
+            config["legal_parentfields"]["dbs_update_service"]
+        ) or [],
+        "insurance_rows": profile_doc.get(
+            config["legal_parentfields"]["insurance"]
+        ) or [],
+        "indemnity_rows": profile_doc.get(
+            config["legal_parentfields"]["indemnity"]
+        ) or [],
+    }
 
 
 @frappe.whitelist()
-def update_profile(
-    doctype_name,
-    editable_fields=None,
-    photo_field="photo",
-    user_field="user",
-):
+def update_my_profile(role):
     ensure_logged_in()
 
-    editable_fields = editable_fields or []
+    config = get_role_config(role)
+    profile_doc = get_profile_doc(role)
 
-    editable_fields = frappe.parse_json(editable_fields)
-
-    profile_doc, _ = get_profile_doc(
-        doctype_name,
-        ["user", "coach_email", "sw_email"],
-    )
-
-    for fieldname in editable_fields:
+    for fieldname in config["editable_fields"]:
         if profile_doc.meta.has_field(fieldname):
             profile_doc.set(fieldname, frappe.form_dict.get(fieldname))
 
     photo_url = _save_optional_file(
         "photo",
-        doctype_name,
+        config["doctype"],
         profile_doc.name,
     )
 
-    if photo_url and profile_doc.meta.has_field(photo_field):
-        profile_doc.set(photo_field, photo_url)
+    if photo_url and profile_doc.meta.has_field("photo"):
+        profile_doc.photo = photo_url
 
     profile_doc.save(ignore_permissions=True)
 
     linked_user = (
-        profile_doc.get(user_field)
+        profile_doc.get("user")
+        or profile_doc.get(config.get("email_field"))
         or frappe.session.user
     )
 
     if linked_user:
         user_updates = {}
 
-        for fieldname in ["phone", "location", "gender"]:
+        for fieldname in config["user_update_fields"]:
             if frappe.form_dict.get(fieldname) is not None:
                 user_updates[fieldname] = frappe.form_dict.get(fieldname)
 
@@ -134,89 +265,102 @@ def update_profile(
 
 
 @frappe.whitelist()
-def request_banking_change(
-    doctype_name,
-    link_field,
-    display_name,
-    request_for,
-    notification_user,
+def request_my_banking_change(
+    role,
     new_banking_details=None,
     banking_change_reason=None,
 ):
     ensure_logged_in()
 
-    if not new_banking_details:
-        frappe.throw(_("Enter new banking details."))
+    config = get_role_config(role)
+    profile_doc = get_profile_doc(role)
 
-    profile_doc, resolved_display_name = get_profile_doc(
-        doctype_name,
-        ["user", "coach_email", "sw_email"],
-        display_name,
+    new_banking_details = (new_banking_details or "").strip()
+    banking_change_reason = (banking_change_reason or "").strip()
+
+    if not new_banking_details:
+        frappe.throw(_("Please enter the new banking details."))
+
+    if not frappe.db.exists("DocType", CHANGE_REQUEST_DOCTYPE):
+        frappe.throw(_("Change Request DocType does not exist."))
+
+    change_request = frappe.new_doc(CHANGE_REQUEST_DOCTYPE)
+    change_request_meta = frappe.get_meta(CHANGE_REQUEST_DOCTYPE)
+
+    values = {
+        "banking_change_for": config["banking_change_for"],
+        config["banking_link_field"]: profile_doc.name,
+        "new_banking_details": new_banking_details,
+        "banking_change_reason": banking_change_reason,
+        "banking_change_status": "New",
+        "change_requested_by": frappe.session.user,
+        "request_date": frappe.utils.now_datetime(),
+    }
+
+    for fieldname, value in values.items():
+        if change_request_meta.has_field(fieldname):
+            change_request.set(fieldname, value)
+
+    change_request.insert(ignore_permissions=True)
+
+    display_name = (
+        profile_doc.get(config["display_field"])
+        or profile_doc.name
     )
 
-    doc = frappe.new_doc(CHANGE_REQUEST_DOCTYPE)
-
-    doc.banking_change_for = request_for
-    doc.set(link_field, profile_doc.name)
-
-    doc.new_banking_details = new_banking_details
-    doc.banking_change_reason = banking_change_reason
-    doc.banking_change_status = "New"
-
-    doc.change_requested_by = frappe.session.user
-    doc.request_date = frappe.utils.now_datetime()
-
-    doc.insert(ignore_permissions=True)
-
     create_trk_notification(
-        recipient_user=notification_user,
-        notification_type=f"{request_for} Banking Change",
-        message=f"{resolved_display_name} submitted a banking change request.",
+        recipient_user=config["banking_notification_user"],
+        notification_type="{0} Banking Change Request".format(
+            config["banking_change_for"]
+        ),
+        message="{0} submitted a banking change request.".format(
+            display_name
+        ),
         priority="High",
         reference_doctype=CHANGE_REQUEST_DOCTYPE,
-        reference_name=doc.name,
+        reference_name=change_request.name,
+        coach=profile_doc.name if role in ["coach", "franchisor"] else None,
+        session_worker=profile_doc.name if role == "session_worker" else None,
     )
 
     frappe.db.commit()
 
     return {
         "ok": 1,
-        "message": "Request submitted.",
+        "name": change_request.name,
+        "message": "Banking change request submitted successfully.",
     }
 
 
 @frappe.whitelist()
-def add_legal_record(
-    doctype_name,
-    parentfield_map,
-):
+def add_my_legal_record(role):
     ensure_logged_in()
 
-    parentfield_map = frappe.parse_json(parentfield_map)
-
-    profile_doc, _ = get_profile_doc(
-        doctype_name,
-        ["user", "coach_email", "sw_email"],
-    )
+    config = get_role_config(role)
+    profile_doc = get_profile_doc(role)
 
     record_type = (frappe.form_dict.get("record_type") or "").strip()
+    record_config = LEGAL_RECORD_CONFIG.get(record_type)
 
-    config = LEGAL_TABLE_CONFIG.get(record_type)
-
-    if not config:
+    if not record_config:
         frappe.throw(_("Invalid legal record type."))
 
-    parentfield = parentfield_map.get(record_type)
+    parentfield = config["legal_parentfields"].get(record_type)
 
     if not parentfield:
-        frappe.throw(_("Missing parentfield mapping."))
+        frappe.throw(_("Legal record type is not configured."))
 
     if not profile_doc.meta.has_field(parentfield):
-        frappe.throw(_("Missing field: {0}").format(parentfield))
+        frappe.throw(
+            _("{0} is missing field: {1}").format(
+                config["doctype"],
+                parentfield,
+            )
+        )
 
     file_url = _save_optional_file(
-        config["file_field"],
-        doctype_name,
+        record_config["file_field"],
+        config["doctype"],
         profile_doc.name,
     )
 
@@ -228,30 +372,30 @@ def add_legal_record(
     child.status = _get_status_from_expiry(
         frappe.form_dict.get("expiry_date")
     )
-
     child.date_received = frappe.form_dict.get("date_received")
     child.expiry_date = frappe.form_dict.get("expiry_date")
 
     child.set(
-        config["number_field"],
+        record_config["number_field"],
         frappe.form_dict.get("number"),
     )
 
-    if config.get("insurer_field"):
+    if record_config.get("insurer_field"):
         child.set(
-            config["insurer_field"],
+            record_config["insurer_field"],
             frappe.form_dict.get("insurer_name"),
         )
 
-    child.set(config["file_field"], file_url)
+    child.set(record_config["file_field"], file_url)
 
     profile_doc.save(ignore_permissions=True)
-
     frappe.db.commit()
 
     return {
         "ok": 1,
-        "message": f'{config["label"]} added successfully.',
+        "message": "{0} added successfully.".format(
+            record_config["label"]
+        ),
     }
 
 
@@ -269,7 +413,7 @@ def _get_status_from_expiry(expiry_date):
         return "Expired"
 
 
-def _save_optional_file(fieldname, doctype_name, docname):
+def _save_optional_file(fieldname, attached_to_doctype, attached_to_name):
     if not getattr(frappe, "request", None):
         return ""
 
@@ -285,8 +429,8 @@ def _save_optional_file(fieldname, doctype_name, docname):
     file_doc = frappe.get_doc({
         "doctype": "File",
         "file_name": filename,
-        "attached_to_doctype": doctype_name,
-        "attached_to_name": docname,
+        "attached_to_doctype": attached_to_doctype,
+        "attached_to_name": attached_to_name,
         "content": uploaded_file.stream.read(),
         "is_private": 1,
     })
