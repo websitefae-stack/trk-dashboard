@@ -1,0 +1,368 @@
+<div
+  class="dashboard-page"
+  id="{{ profile_page_id }}"
+  data-profile-role="{{ profile_role }}"
+  data-profile-form-id="{{ profile_form_id }}"
+  data-profile-message-id="{{ profile_message_id }}"
+>
+  {% include sidebar_template %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">My Profile</h1>
+          <p class="dashboard-page-subtitle">View your profile, legal documents, and billing details.</p>
+        </div>
+
+        <div class="dashboard-page-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="editProfileBtn">
+            Edit Profile
+          </button>
+        </div>
+      </div>
+
+      <div class="dashboard-card dashboard-tabs-card">
+        <div class="dashboard-tabs">
+          <button type="button" class="dashboard-tab-btn is-active" data-tab="profile">Profile</button>
+          <button type="button" class="dashboard-tab-btn" data-tab="legal">Legal Details</button>
+          <button type="button" class="dashboard-tab-btn" data-tab="billing">Billing & Banking</button>
+        </div>
+      </div>
+
+      <div class="dashboard-tab-panel is-active" data-tab-panel="profile">
+        <div class="dashboard-card">
+          <h3>Personal Information</h3>
+
+          <form id="{{ profile_form_id }}" enctype="multipart/form-data">
+            <div class="dashboard-detail-grid dashboard-detail-grid-2">
+
+              <div class="dashboard-detail-field">
+                <label>Full Name</label>
+                <input class="dashboard-input" value="{{ user_doc.full_name or profile_display_name or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>User</label>
+                <input class="dashboard-input" value="{{ profile_doc.user or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Email</label>
+                <input class="dashboard-input" value="{{ user_doc.email or profile_email or '' }}" readonly>
+              </div>
+
+              {% if profile_role == "session_worker" %}
+                <div class="dashboard-detail-field">
+                  <label>First Name</label>
+                  <input class="dashboard-input js-profile-editable" name="first_name" value="{{ profile_doc.first_name or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label>Middle Name</label>
+                  <input class="dashboard-input js-profile-editable" name="middle_name" value="{{ profile_doc.middle_name or '' }}" readonly>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label>Last Name</label>
+                  <input class="dashboard-input js-profile-editable" name="last_name" value="{{ profile_doc.last_name or '' }}" readonly>
+                </div>
+              {% endif %}
+
+              <div class="dashboard-detail-field">
+                <label>Phone</label>
+                <input class="dashboard-input js-profile-editable" name="phone" value="{{ profile_doc.phone or user_doc.phone or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Gender</label>
+                <input class="dashboard-input js-profile-editable" name="gender" value="{{ profile_doc.gender or user_doc.gender or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Location</label>
+                <input class="dashboard-input js-profile-editable" name="location" value="{{ profile_doc.location or user_doc.location or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Birth Date</label>
+                <input class="dashboard-input" value="{{ user_doc.birth_date or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full">
+                <label>Current Photo</label>
+                {% if profile_doc.photo or user_doc.user_image %}
+                  <div class="dashboard-html-block">
+                    <img src="{{ profile_doc.photo or user_doc.user_image }}" alt="Profile photo" style="max-width:120px;border-radius:12px;display:block;margin-bottom:10px;">
+                    <a class="dashboard-inline-link" href="{{ profile_doc.photo or user_doc.user_image }}" target="_blank">View photo</a>
+                  </div>
+                {% else %}
+                  <div class="dashboard-html-block">No photo uploaded.</div>
+                {% endif %}
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full js-profile-photo-wrap" style="display:none;">
+                <label>Upload New Photo</label>
+                <input class="dashboard-input js-profile-editable-file" type="file" name="photo" accept="image/*" disabled>
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full">
+                <label>Bio</label>
+                <textarea class="dashboard-textarea js-profile-editable" name="bio" readonly>{{ profile_doc.bio or '' }}</textarea>
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full">
+                <label>Interest</label>
+                <textarea class="dashboard-textarea js-profile-editable" name="interest" readonly>{{ profile_doc.interest or '' }}</textarea>
+              </div>
+
+            </div>
+
+            <div class="dashboard-detail-actions js-profile-save-actions" style="margin-top:20px; display:none;">
+              <button class="dashboard-btn dashboard-btn-primary" type="submit">Save Changes</button>
+              <button class="dashboard-btn dashboard-btn-light" type="button" id="cancelProfileEditBtn">Cancel</button>
+              <span class="dashboard-help" id="{{ profile_message_id }}"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="dashboard-tab-panel" data-tab-panel="legal" style="display:none;">
+        <div class="dashboard-card" style="margin-bottom:20px;">
+          <h3>Legal Details</h3>
+
+          <div class="dashboard-detail-actions profile-legal-add-actions" style="margin-bottom:20px;">
+            <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="dbs">Add DBS</button>
+            <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="dbs_update_service">Add Update Service</button>
+            <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="insurance">Add Insurance</button>
+            <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="indemnity">Add Indemnity</button>
+          </div>
+
+          {% set legal_sections = [
+            {
+              "type": "dbs",
+              "title": "DBS",
+              "number_label": "DBS Number",
+              "file_label": "DBS File",
+              "file_name": "dbs_file",
+              "rows": dbs_rows,
+              "number_field": "dbs_number",
+              "file_field": "dbs_file",
+              "empty": "No DBS records found.",
+              "colspan": 5
+            },
+            {
+              "type": "dbs_update_service",
+              "title": "DBS Update Service",
+              "number_label": "Update Service Number",
+              "file_label": "Update Service File",
+              "file_name": "update_service_file",
+              "rows": dbs_update_service_rows,
+              "number_field": "dbs_number",
+              "file_field": "update_service_file",
+              "empty": "No DBS Update Service records found.",
+              "colspan": 5
+            },
+            {
+              "type": "insurance",
+              "title": "Insurance",
+              "number_label": "Insurance Number",
+              "file_label": "Insurance File",
+              "file_name": "insurance_file",
+              "rows": insurance_rows,
+              "number_field": "insurance_number",
+              "file_field": "insurance_file",
+              "empty": "No insurance records found.",
+              "colspan": 6,
+              "has_insurer": 1
+            },
+            {
+              "type": "indemnity",
+              "title": "Indemnity",
+              "number_label": "Indemnity Number",
+              "file_label": "Indemnity File",
+              "file_name": "indemnity_file",
+              "rows": indemnity_rows,
+              "number_field": "indemnity_number",
+              "file_field": "indemnity_file",
+              "empty": "No indemnity records found.",
+              "colspan": 6,
+              "has_insurer": 1
+            }
+          ] %}
+
+          {% for section in legal_sections %}
+            <div class="dashboard-detail-section legal-add-section" style="margin-bottom:20px; display:none;">
+              <div class="dashboard-detail-section-head">
+                <h2 class="dashboard-detail-section-title">Add {{ section.title }}</h2>
+              </div>
+
+              <form class="legal-record-form" data-record-type="{{ section.type }}">
+                <div class="dashboard-detail-grid dashboard-detail-grid-2">
+                  <div class="dashboard-detail-field">
+                    <label>Date Received</label>
+                    <input class="dashboard-input" type="date" name="date_received" required>
+                  </div>
+
+                  <div class="dashboard-detail-field">
+                    <label>Expiry Date</label>
+                    <input class="dashboard-input" type="date" name="expiry_date" required>
+                  </div>
+
+                  <div class="dashboard-detail-field">
+                    <label>{{ section.number_label }}</label>
+                    <input class="dashboard-input" name="number" required>
+                  </div>
+
+                  {% if section.has_insurer %}
+                    <div class="dashboard-detail-field">
+                      <label>Insurer Name</label>
+                      <input class="dashboard-input" name="insurer_name" required>
+                    </div>
+                  {% endif %}
+
+                  <div class="dashboard-detail-field{% if section.has_insurer %} dashboard-detail-field-full{% endif %}">
+                    <label>{{ section.file_label }}</label>
+                    <input class="dashboard-input" type="file" name="{{ section.file_name }}" required>
+                  </div>
+                </div>
+
+                <div class="dashboard-detail-actions" style="margin-top:18px;">
+                  <button class="dashboard-btn dashboard-btn-primary" type="submit">Add {{ section.title }}</button>
+                  <span class="dashboard-help legal-record-message"></span>
+                </div>
+              </form>
+            </div>
+
+            <h4>{{ section.title }} Records</h4>
+            <div class="dashboard-table-wrap" style="margin-bottom:24px;">
+              <table class="dashboard-table dashboard-table-compact">
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Date Received</th>
+                    <th>Expiry Date</th>
+                    <th>{{ section.number_label }}</th>
+                    {% if section.has_insurer %}
+                      <th>Insurer Name</th>
+                    {% endif %}
+                    <th>File</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {% if section.rows %}
+                    {% for row in section.rows %}
+                      <tr>
+                        <td>{{ row.status or "—" }}</td>
+                        <td>{{ row.date_received or "—" }}</td>
+                        <td>{{ row.expiry_date or "—" }}</td>
+                        <td>{{ row.get(section.number_field) or "—" }}</td>
+                        {% if section.has_insurer %}
+                          <td>{{ row.insurer_name or "—" }}</td>
+                        {% endif %}
+                        <td>
+                          {% if row.get(section.file_field) %}
+                            <a class="dashboard-inline-link" href="{{ row.get(section.file_field) }}" target="_blank">View</a>
+                          {% else %}
+                            —
+                          {% endif %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr>
+                      <td colspan="{{ section.colspan }}" class="dashboard-empty">{{ section.empty }}</td>
+                    </tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="dashboard-tab-panel" data-tab-panel="billing" style="display:none;">
+        <div class="dashboard-card">
+          <div class="dashboard-table-header">
+            <div>
+              <h3>Banking Details</h3>
+              <p class="dashboard-page-subtitle">Banking changes must be requested and reviewed by the office.</p>
+            </div>
+
+            <button type="button" class="dashboard-btn dashboard-btn-primary" id="requestBankingChangeBtn">
+              Request Banking Change
+            </button>
+          </div>
+
+          {% if bank_account %}
+            <div class="dashboard-detail-grid dashboard-detail-grid-2">
+              <div class="dashboard-detail-field">
+                <label>Bank Account</label>
+                <input class="dashboard-input" value="{{ profile_doc.bank_account or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Bank</label>
+                <input class="dashboard-input" value="{{ bank_account.bank or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Account Name</label>
+                <input class="dashboard-input" value="{{ bank_account.account_name or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Account Number</label>
+                <input class="dashboard-input" value="{{ bank_account.bank_account_no or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Branch Code</label>
+                <input class="dashboard-input" value="{{ bank_account.branch_code or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>IBAN</label>
+                <input class="dashboard-input" value="{{ bank_account.iban or '' }}" readonly>
+              </div>
+            </div>
+          {% else %}
+            <div class="dashboard-empty">No bank account linked.</div>
+          {% endif %}
+
+          <div id="bankingChangeRequestPanel" class="dashboard-detail-section" style="display:none; margin-top:22px;">
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">Request Banking Change</h2>
+            </div>
+
+            <form id="bankingChangeRequestForm">
+              <div class="dashboard-detail-grid dashboard-detail-grid-2">
+                <div class="dashboard-detail-field dashboard-detail-field-full">
+                  <label>New Banking Details</label>
+                  <textarea class="dashboard-textarea" name="new_banking_details" rows="5" required placeholder="Enter the requested banking change."></textarea>
+                </div>
+
+                <div class="dashboard-detail-field dashboard-detail-field-full">
+                  <label>Reason</label>
+                  <textarea class="dashboard-textarea" name="banking_change_reason" rows="3" placeholder="Optional reason."></textarea>
+                </div>
+              </div>
+
+              <div class="dashboard-detail-actions" style="margin-top:18px;">
+                <button class="dashboard-btn dashboard-btn-primary" type="submit">Submit Request</button>
+                <button class="dashboard-btn dashboard-btn-light" type="button" id="cancelBankingChangeBtn">Cancel</button>
+                <span class="dashboard-help" id="bankingChangeRequestMessage"></span>
+              </div>
+            </form>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
