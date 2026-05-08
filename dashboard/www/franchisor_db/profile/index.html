@@ -1,6 +1,12 @@
 {% include "dashboard/templates/includes/head/franchisor_head.html" %}
 
-<div class="dashboard-page" id="franchisorProfilePage">
+<div
+  class="dashboard-page"
+  id="franchisorProfilePage"
+  data-profile-role="{{ profile_role }}"
+  data-profile-form-id="coachProfileForm"
+  data-profile-message-id="coachProfileMessage"
+>
   {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
 
   <div class="dashboard-main">
@@ -448,5 +454,3 @@
     </div>
   </div>
 </div>
-
-<script src="/assets/dashboard/js/franchisor/profile.js"></script>
