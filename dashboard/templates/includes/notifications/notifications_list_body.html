@@ -7,6 +7,10 @@
   </div>
 
   <div class="dashboard-page-actions">
+    <button type="button" class="dashboard-btn dashboard-btn-light" id="refreshNotifications">
+      Refresh
+    </button>
+
     <button type="button" class="dashboard-btn dashboard-btn-primary" id="openSendNotification">
       + New Conversation
     </button>
@@ -19,17 +23,6 @@
   </div>
 {% endif %}
 
-<div class="dashboard-card" style="margin-bottom:20px;">
-  <div class="dashboard-table-header">
-    <div class="dashboard-table-title">Summary</div>
-  </div>
-
-  <div>
-    <strong id="notificationUnreadCount">{{ unread_count or 0 }}</strong>
-    unread / active conversation(s)
-  </div>
-</div>
-
 <div class="dashboard-card" id="sendNotificationPanel" style="display:none;margin-bottom:20px;">
   <div class="dashboard-detail-section-head">
     <h2 class="dashboard-detail-section-title">New Conversation</h2>
@@ -39,11 +32,7 @@
     <div class="dashboard-detail-grid dashboard-detail-grid-2">
       <div class="dashboard-detail-field">
         <label for="notificationTitle">Title</label>
-        <input
-          id="notificationTitle"
-          class="dashboard-input"
-          placeholder="Short title for this conversation"
-        >
+        <input id="notificationTitle" class="dashboard-input" placeholder="Short title for this conversation">
       </div>
 
       <div class="dashboard-detail-field">
@@ -68,11 +57,7 @@
 
       <div class="dashboard-detail-field">
         <label for="notificationDueDate">Due Date</label>
-        <input
-          type="date"
-          id="notificationDueDate"
-          class="dashboard-input"
-        >
+        <input type="date" id="notificationDueDate" class="dashboard-input">
       </div>
 
       <div class="dashboard-detail-field dashboard-detail-field-full">
@@ -94,19 +79,15 @@
         <select id="notificationLinkedClient" class="dashboard-input">
           <option value="">No linked client</option>
         </select>
-        <div class="dashboard-help">
-          Optional. Link this conversation to a client.
-        </div>
+        <div class="dashboard-help">Optional. Link this conversation to a client.</div>
       </div>
-      
+
       <div class="dashboard-detail-field">
         <label for="notificationLinkedEvent">Linked Session/Event</label>
         <select id="notificationLinkedEvent" class="dashboard-input" disabled>
           <option value="">Select a client first</option>
         </select>
-        <div class="dashboard-help">
-          Optional. Sessions will show after a client is selected.
-        </div>
+        <div class="dashboard-help">Optional. Sessions will show after a client is selected.</div>
       </div>
 
       <div class="dashboard-detail-field dashboard-detail-field-full">
@@ -121,14 +102,8 @@
     </div>
 
     <div class="dashboard-detail-actions" style="margin-top:18px;">
-      <button class="dashboard-btn dashboard-btn-primary" type="submit">
-        Send
-      </button>
-
-      <button class="dashboard-btn dashboard-btn-light" type="button" id="cancelSendNotification">
-        Cancel
-      </button>
-
+      <button class="dashboard-btn dashboard-btn-primary" type="submit">Send</button>
+      <button class="dashboard-btn dashboard-btn-light" type="button" id="cancelSendNotification">Cancel</button>
       <span class="dashboard-help" id="sendNotificationMessage"></span>
     </div>
   </form>
@@ -137,12 +112,7 @@
 <div class="dashboard-card notification-filter-row" style="margin-bottom:20px;">
   <div class="dashboard-filter-field">
     <label for="notificationSearch">Search</label>
-    <input
-      type="text"
-      class="dashboard-input"
-      id="notificationSearch"
-      placeholder="Search conversations"
-    >
+    <input type="text" class="dashboard-input" id="notificationSearch" placeholder="Search conversations">
   </div>
 
   <div class="dashboard-filter-field">
@@ -150,12 +120,9 @@
     <select class="dashboard-input" id="notificationStatusFilter">
       <option value="All">All</option>
       <option value="Unread">Unread</option>
-      <option value="Read">Read</option>
       <option value="Open">Open</option>
-      <option value="Waiting">Waiting</option>
-      <option value="In Progress">In Progress</option>
-      <option value="Done">Done</option>
       <option value="Archived">Archived</option>
+      <option value="Overdue">Overdue</option>
     </select>
   </div>
 
@@ -168,13 +135,8 @@
       <option value="Client Request">Client Request</option>
       <option value="Task">Task</option>
       <option value="Approval Request">Approval Request</option>
-      <option value="Notification">Legacy Notification</option>
     </select>
   </div>
-
-  <button type="button" class="dashboard-btn dashboard-btn-light notification-refresh-btn" id="refreshNotifications">
-    Refresh
-  </button>
 </div>
 
 <div class="dashboard-card">
@@ -186,88 +148,72 @@
   </div>
 
   {% if notifications and notifications|length %}
-    <div class="dashboard-notification-board" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;">
+    <div class="dashboard-notification-board">
       {% for n in notifications %}
-        {% set read_status = n.read_status or n.status or "Unread" %}
+        {% set read_status = n.read_status or "Read" %}
         {% set conversation_status = n.status or "Open" %}
+        {% set display_status = "Unread" if read_status == "Unread" else conversation_status %}
         {% set conversation_type = n.conversation_type or n.notification_type or "Message" %}
+        {% set status_class = display_status|lower|replace(' ', '-') %}
+        {% set priority_class = (n.priority or 'Normal')|lower|replace(' ', '-') %}
 
         <div
-          class="dashboard-card dashboard-notification-row"
+          class="dashboard-card dashboard-notification-row dashboard-notification-card status-border-{{ status_class }}"
           data-name="{{ n.name }}"
           data-search="{{ ((n.title or '') ~ ' ' ~ (n.notification_type or '') ~ ' ' ~ (n.message or '') ~ ' ' ~ (n.client or '') ~ ' ' ~ (n.event or '') ~ ' ' ~ (n.created_by_label or '') ~ ' ' ~ (n.reference_name or ''))|lower }}"
-          data-status="{{ conversation_status }}"
+          data-status="{{ display_status }}"
           data-read-status="{{ read_status }}"
           data-type="{{ conversation_type }}"
-          style="cursor:pointer;border:1px solid #D9E6E6;box-shadow:none;"
         >
-          <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:10px;">
-            <div>
-              <div style="font-size:13px;font-weight:800;color:#00A19E;margin-bottom:4px;">
-                {{ conversation_type }}
-              </div>
-
-              <h3 style="margin:0;font-size:17px;line-height:1.25;">
-                {{ n.title or n.notification_type or "Notification" }}
-              </h3>
-            </div>
-
-            <span class="dashboard-badge dashboard-status-{{ (read_status or 'Unread')|lower|replace(' ', '-') }}">
-              {{ read_status }}
-            </span>
-          </div>
-
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-            <span class="dashboard-badge dashboard-status-onhold">
-              {{ conversation_status }}
-            </span>
-
-            <span class="dashboard-badge dashboard-status-{{ (n.priority or 'Normal')|lower }}">
-              {{ n.priority or "Normal" }}
-            </span>
-
-            {% if n.requires_response %}
-              <span class="dashboard-badge dashboard-status-active">
-                Response needed
+          <div class="dashboard-notification-card-top">
+            <div class="dashboard-notification-pill-row">
+              <span class="dashboard-priority-pill priority-{{ priority_class }}">
+                {{ n.priority or "Normal" }}
               </span>
-            {% endif %}
+
+              <span class="dashboard-status-pill status-{{ status_class }}">
+                {{ display_status }}
+              </span>
+
+              {% if n.requires_response %}
+                <span class="dashboard-status-pill status-response-needed">
+                  Response needed
+                </span>
+              {% endif %}
+            </div>
           </div>
 
-          <p style="margin:0 0 12px 0;color:#434B49;line-height:1.45;">
+          <h3 class="dashboard-notification-title">
+            {{ n.title or n.notification_type or "Notification" }}
+          </h3>
+
+          <p class="dashboard-notification-message">
             {{ (n.message or "")[:180] }}{% if (n.message or "")|length > 180 %}…{% endif %}
           </p>
 
-          <div style="font-size:13px;color:#667;margin-bottom:12px;">
+          <div class="dashboard-notification-meta">
             {% if n.created_by_label %}
               From: {{ n.created_by_label }}
             {% elif n.sent_from %}
               From: {{ n.sent_from }}
+            {% else %}
+              From: —
             {% endif %}
           </div>
 
-          {% if n.client or n.event or n.reply_count %}
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-              {% if n.client %}
-                <span class="dashboard-badge">Client linked</span>
-              {% endif %}
+          <div class="dashboard-notification-footer">
+            <div class="dashboard-notification-footer-left">
+              <div>
+                {{ n.reply_count or 0 }} repl{% if (n.reply_count or 0) == 1 %}y{% else %}ies{% endif %}
+              </div>
 
-              {% if n.event %}
-                <span class="dashboard-badge">Session linked</span>
-              {% endif %}
-
-              {% if n.reply_count %}
-                <span class="dashboard-badge">{{ n.reply_count }} repl{% if n.reply_count == 1 %}y{% else %}ies{% endif %}</span>
-              {% endif %}
-            </div>
-          {% endif %}
-
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-            <div style="font-size:12px;color:#7A8B8B;">
-              {% if n.notification_date %}
-                {{ frappe.format(n.notification_date, {"fieldtype": "Datetime"}) }}
-              {% else %}
-                —
-              {% endif %}
+              <div>
+                {% if n.notification_date %}
+                  {{ frappe.format(n.notification_date, {"fieldtype": "Datetime"}) }}
+                {% else %}
+                  —
+                {% endif %}
+              </div>
             </div>
 
             <a class="dashboard-link-btn" href="{{ base_url }}/notification_details?name={{ n.name }}">
@@ -278,8 +224,6 @@
       {% endfor %}
     </div>
   {% else %}
-    <div class="dashboard-empty">
-      No conversations found.
-    </div>
+    <div class="dashboard-empty">No conversations found.</div>
   {% endif %}
 </div>
