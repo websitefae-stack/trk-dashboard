@@ -2,8 +2,8 @@ import frappe
 from frappe import _
 
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
-from dashboard.api.session_worker.profile import get_session_worker_display_name
-from dashboard.api.shared.notifications import ensure_notification_access, get_notification_detail
+from dashboard.api.shared.directory import get_user_display_name
+from dashboard.api.shared.notifications import ensure_notification_access
 
 
 def get_context(context):
@@ -16,10 +16,10 @@ def get_context(context):
     context.page_title = "Notification Details"
     context.active_page = "notifications"
     context.dashboard_notifications_url = "/session_worker_db/notifications"
-    context.dashboard_base_url = "/session_worker_db"
+    context.base_url = "/session_worker_db"
 
     try:
-        context.dashboard_user_name = get_session_worker_display_name()
+        context.dashboard_user_name = get_user_display_name()
     except Exception:
         context.dashboard_user_name = frappe.get_cached_value("User", frappe.session.user, "full_name") or ""
 
@@ -27,7 +27,7 @@ def get_context(context):
     if not docname:
         frappe.throw(_("Notification not found."))
 
-    ensure_notification_access(docname)
+    notification = ensure_notification_access(docname)
 
-    context.notification = get_notification_detail(docname)
-    context.notification_docname = docname
+    context.notification = notification.as_dict()
+    context.notification_docname = notification.name
