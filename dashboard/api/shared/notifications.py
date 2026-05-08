@@ -1043,19 +1043,29 @@ def mark_notification_read(name):
         if _field_exists(NOTIFICATION_DOCTYPE, "read"):
             frappe.db.set_value(NOTIFICATION_DOCTYPE, doc.name, "read", 1)
             frappe.db.commit()
-
         return {"ok": True}
 
     row = _get_recipient_row(doc, frappe.session.user)
 
     if row:
-        row.read = 1
-        row.read_on = now_datetime()
+        frappe.db.set_value(row.doctype, row.name, {
+            "read": 1,
+            "read_on": now_datetime(),
+        }, update_modified=False)
+    else:
+        doc.append("recipients", {
+            "recipient_user": frappe.session.user,
+            "recipient_role": _get_current_role(),
+            "read": 1,
+            "read_on": now_datetime(),
+            "archived": 0,
+            "muted": 0,
+        })
         doc.save(ignore_permissions=True)
-        frappe.db.commit()
+
+    frappe.db.commit()
 
     return {"ok": True}
-
 
 @frappe.whitelist()
 def update_notification_status(name, status=None, read=None):
@@ -1158,11 +1168,34 @@ def reply_to_notification(name=None, message=None, attachment=None):
 
     # Mark other recipients as unread using direct DB updates.
     # This avoids the "document has been modified" save conflict.
+    recipient_users = {
+        row.get("recipient_user")
+        for row in doc.get("recipients") or []
+        if row.get("recipient_user")
+    }
+    
+    if doc.get("created_by_user") and doc.get("created_by_user") not in recipient_users:
+        doc.append("recipients", {
+            "recipient_user": doc.get("created_by_user"),
+            "recipient_role": doc.get("created_by_role") or "Author",
+            "read": 0 if doc.get("created_by_user") != frappe.session.user else 1,
+            "read_on": None,
+            "archived": 0,
+            "muted": 0,
+        })
+        doc.save(ignore_permissions=True)
+        doc.reload()
+    
     for row in doc.get("recipients") or []:
         if row.get("recipient_user") != frappe.session.user:
             frappe.db.set_value(row.doctype, row.name, {
                 "read": 0,
                 "read_on": None,
+            }, update_modified=False)
+        else:
+            frappe.db.set_value(row.doctype, row.name, {
+                "read": 1,
+                "read_on": now_datetime(),
             }, update_modified=False)
 
     _create_conversation_message(
@@ -1371,7 +1404,15 @@ def send_dashboard_notification(
 
     if _field_exists(CONVERSATION_DOCTYPE, "due_date"):
         doc.due_date = due_date
-
+        doc.append("recipients", {
+        "recipient_user": frappe.session.user,
+        "recipient_role": _get_current_role(),
+        "read": 1,
+        "read_on": now_datetime(),
+        "archived": 0,
+        "muted": 0,
+    })
+        
     for recipient_user in recipient_users:
         if recipient_user == frappe.session.user:
             continue
