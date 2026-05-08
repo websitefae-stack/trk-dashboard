@@ -801,7 +801,8 @@ def _format_conversation(doc):
     recipient_row = _get_recipient_row(doc, current_user)
 
     is_read = 1
-
+        "is_archived": 1 if (doc.get("status") or "") == "Archived" else 0,
+        "can_archive": 1 if (doc.get("created_by_user") == frappe.session.user or _is_franchisor_user()) and (doc.get("status") or "") != "Archived" else 0,
     if doc.get("created_by_user") != current_user:
         is_read = int(recipient_row.get("read") or 0) if recipient_row else 0
 
@@ -1089,6 +1090,44 @@ def update_notification_status(name, status=None, read=None):
     frappe.db.commit()
 
     return {"ok": True}
+
+
+@frappe.whitelist()
+def archive_notification(name=None):
+    ensure_logged_in()
+
+    name = _coalesce_str("name", name)
+
+    if not name:
+        frappe.throw(_("Notification not found."))
+
+    doc = ensure_notification_access(name)
+
+    if doc.doctype != CONVERSATION_DOCTYPE:
+        frappe.throw(_("Only dashboard conversations can be archived."))
+
+    if doc.get("created_by_user") != frappe.session.user and not _is_franchisor_user():
+        frappe.throw(_("Only the conversation author can archive this conversation."), frappe.PermissionError)
+
+    doc.status = "Archived"
+    doc.save(ignore_permissions=True)
+
+    _create_conversation_message(
+        conversation=doc.name,
+        message="Conversation archived.",
+        message_type="Status Update",
+        sent_by=frappe.session.user,
+        role_type=_get_current_role(),
+    )
+
+    frappe.db.commit()
+
+    fresh_doc = frappe.get_doc(CONVERSATION_DOCTYPE, doc.name)
+
+    return {
+        "ok": True,
+        "notification": _format_conversation(fresh_doc),
+    }
 
 
 @frappe.whitelist()
