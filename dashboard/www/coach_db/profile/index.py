@@ -15,7 +15,6 @@ def get_context(context):
     redirect_if_wrong_dashboard("coach")
 
     profile_context = get_profile_context("coach")
-
     coach = profile_context["profile_doc"]
 
     context.no_cache = 1
@@ -30,6 +29,7 @@ def get_context(context):
 
     context.dashboard_user_name = get_profile_display_name("coach")
     context.dashboard_notifications_url = "/coach_db/notifications"
+    context.dashboard_base_url = "/coach_db"
 
     context.bank_account = profile_context["bank_account"]
 
