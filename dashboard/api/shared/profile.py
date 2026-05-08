@@ -18,6 +18,8 @@ ROLE_PROFILE_CONFIG = {
         "display_field": "coach_name",
         "email_field": "coach_email",
         "bank_account_field": "bank_account",
+        "can_request_banking_change": 1,
+        "can_edit_banking_directly": 0,
         "banking_change_for": "Coach",
         "banking_link_field": "banking_coach",
         "banking_notification_user": ASHLEY_USER,
@@ -36,6 +38,8 @@ ROLE_PROFILE_CONFIG = {
         "display_field": "coach_name",
         "email_field": "coach_email",
         "bank_account_field": "bank_account",
+        "can_request_banking_change": 0,
+        "can_edit_banking_directly": 1,
         "banking_change_for": "Coach",
         "banking_link_field": "banking_coach",
         "banking_notification_user": ASHLEY_USER,
@@ -54,6 +58,8 @@ ROLE_PROFILE_CONFIG = {
         "display_field": "sw_name",
         "email_field": "sw_email",
         "bank_account_field": "bank_account",
+        "can_request_banking_change": 1,
+        "can_edit_banking_directly": 0,
         "banking_change_for": "Session Worker",
         "banking_link_field": "banking_session_worker",
         "banking_notification_user": OFFICE_USER,
@@ -177,6 +183,8 @@ def get_profile_context(role):
         "profile_doc": profile_doc,
         "user_doc": user_doc,
         "bank_account": bank_account,
+        "can_request_banking_change": config.get("can_request_banking_change", 0),
+        "can_edit_banking_directly": config.get("can_edit_banking_directly", 0),
         "dbs_rows": profile_doc.get(config["legal_parentfields"]["dbs"]) or [],
         "dbs_update_service_rows": profile_doc.get(
             config["legal_parentfields"]["dbs_update_service"]
@@ -244,6 +252,13 @@ def request_my_banking_change(
     ensure_logged_in()
 
     config = get_role_config(role)
+
+    if not config.get("can_request_banking_change"):
+        frappe.throw(
+            _("This dashboard does not use banking change requests."),
+            frappe.PermissionError,
+        )
+
     profile_doc = get_profile_doc(role)
 
     new_banking_details = (new_banking_details or "").strip()
@@ -276,12 +291,17 @@ def request_my_banking_change(
 
     display_name = profile_doc.get(config["display_field"]) or profile_doc.name
 
+    request_title = "{0} Banking Change Request".format(
+        config["banking_change_for"]
+    )
+
     notification_name = create_trk_notification(
         recipient_user=config["banking_notification_user"],
-        notification_type="{0} Banking Change Request".format(
-            config["banking_change_for"]
+        notification_type="Approval Request",
+        message="{0}: {1} submitted a banking change request.".format(
+            request_title,
+            display_name,
         ),
-        message="{0} submitted a banking change request.".format(display_name),
         priority="High",
         reference_doctype=CHANGE_REQUEST_DOCTYPE,
         reference_name=change_request.name,
