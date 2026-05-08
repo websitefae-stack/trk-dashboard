@@ -7,11 +7,24 @@
 
     <div class="dashboard-detail-section">
       <div class="dashboard-detail-section-head notification-collapsible-head">
-        <h2 class="dashboard-detail-section-title" id="notificationTitleText">Notification</h2>
+        <div>
+          <h2 class="dashboard-detail-section-title" id="notificationTitleText">Notification</h2>
 
-        <button type="button" class="dashboard-btn dashboard-btn-light" id="toggleNotificationDetails">
-          Hide Details
-        </button>
+          <div class="dashboard-notification-pill-row" style="margin-top:10px;">
+            <span class="dashboard-priority-pill" id="notificationPriorityText">Normal</span>
+            <span class="dashboard-status-pill" id="notificationStatusText">Open</span>
+          </div>
+        </div>
+
+        <div class="dashboard-detail-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="toggleNotificationDetails">
+            Hide Details
+          </button>
+
+          <button type="button" class="dashboard-btn notification-archive-btn" id="archiveNotificationBtn" style="display:none;">
+            Archive Conversation
+          </button>
+        </div>
       </div>
 
       <input type="hidden" id="notificationDocname" value="{{ notification_docname or '' }}">
@@ -20,32 +33,6 @@
         <div class="dashboard-detail-field">
           <label>Type</label>
           <div class="dashboard-html-block" id="notificationTypeText">—</div>
-        </div>
-
-        <div class="dashboard-detail-field">
-          <label>Status</label>
-          <select id="notificationStatus" class="dashboard-input">
-            <option value="Open">Open</option>
-            <option value="Waiting">Waiting</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Done">Done</option>
-            <option value="Archived">Archived</option>
-          </select>
-        </div>
-
-        <div class="dashboard-detail-field">
-          <label>Status Badge</label>
-          <div class="dashboard-html-block" id="notificationStatusText">—</div>
-        </div>
-
-        <div class="dashboard-detail-field">
-          <label>Read Status</label>
-          <div class="dashboard-html-block" id="notificationReadStatusText">—</div>
-        </div>
-
-        <div class="dashboard-detail-field">
-          <label>Priority</label>
-          <div class="dashboard-html-block" id="notificationPriorityText">—</div>
         </div>
 
         <div class="dashboard-detail-field">
@@ -78,11 +65,9 @@
           <div class="dashboard-html-block" id="notificationLinkedEventText">—</div>
         </div>
 
-        <div class="dashboard-detail-field">
-          <label>Action</label>
-          <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveNotificationStatus">
-            Save Status
-          </button>
+        <div class="dashboard-detail-field dashboard-detail-field-full">
+          <label>Recipients</label>
+          <div id="notificationRecipientsSummary"></div>
         </div>
       </div>
     </div>
@@ -93,14 +78,6 @@
       </div>
 
       <div class="dashboard-html-block" id="notificationMessageText">—</div>
-    </div>
-
-    <div class="dashboard-detail-section">
-      <div class="dashboard-detail-section-head">
-        <h2 class="dashboard-detail-section-title">Recipients</h2>
-      </div>
-
-      <div id="notificationRecipientsSummary"></div>
     </div>
 
     <div class="dashboard-detail-section">
@@ -123,6 +100,15 @@
           class="dashboard-textarea"
           placeholder="Write your reply..."
         ></textarea>
+      </div>
+
+      <div class="dashboard-detail-field">
+        <label for="notificationReplyAttachment">Attachment URL</label>
+        <input
+          id="notificationReplyAttachment"
+          class="dashboard-input"
+          placeholder="Optional attachment URL"
+        >
       </div>
 
       <div class="dashboard-detail-actions">
