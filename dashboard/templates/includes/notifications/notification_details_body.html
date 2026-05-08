@@ -16,6 +16,10 @@
           </div>
         </div>
 
+        <a href="{{ base_url }}/notifications" class="dashboard-btn dashboard-btn-light">
+          Back
+        </a>
+                
         <div class="dashboard-detail-actions">
           <button type="button" class="dashboard-btn dashboard-btn-light" id="toggleNotificationDetails">
             Hide Details
@@ -103,12 +107,16 @@
       </div>
 
       <div class="dashboard-detail-field">
-        <label for="notificationReplyAttachment">Attachment URL</label>
+        <label for="notificationReplyFile">Attachment</label>
         <input
-          id="notificationReplyAttachment"
+          type="file"
+          id="notificationReplyFile"
           class="dashboard-input"
-          placeholder="Optional attachment URL"
         >
+        <input type="hidden" id="notificationReplyAttachment">
+        <div class="dashboard-help" id="notificationAttachmentHelp">
+          Optional. Add a file from your computer.
+        </div>
       </div>
 
       <div class="dashboard-detail-actions">
