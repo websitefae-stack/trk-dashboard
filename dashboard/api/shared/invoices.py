@@ -90,10 +90,17 @@ def _get_coach_options():
         if meta.has_field(fieldname):
             fields.append(fieldname)
 
+    if meta.has_field("coach_name"):
+        order_by = "coach_name asc, name asc"
+    elif meta.has_field("full_name"):
+        order_by = "full_name asc, name asc"
+    else:
+        order_by = "name asc"
+
     rows = frappe.get_all(
         "Coach",
         fields=fields,
-        order_by="coach_name asc, full_name asc, name asc",
+        order_by=order_by,
         limit_page_length=1000,
         ignore_permissions=True,
     )
