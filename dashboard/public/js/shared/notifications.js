@@ -371,24 +371,33 @@
     const openBtn = el("openSendNotification");
     const cancelBtn = el("cancelSendNotification");
     const form = el("sendNotificationForm");
-
+    const toggleArchivedBtn = el("toggleArchivedConversations");
+    const archivedSection = el("archivedConversationsSection");
+  
     if (searchInput) searchInput.addEventListener("input", applyFilters);
     if (statusFilter) statusFilter.addEventListener("change", applyFilters);
     if (typeFilter) typeFilter.addEventListener("change", applyFilters);
-
+  
     if (refreshBtn) {
       refreshBtn.addEventListener("click", function () {
         window.location.reload();
       });
     }
-
+  
+    if (toggleArchivedBtn && archivedSection) {
+      toggleArchivedBtn.addEventListener("click", function () {
+        archivedSection.classList.toggle("is-collapsed");
+      });
+    }
+  
     if (openBtn) openBtn.addEventListener("click", openPanel);
     if (cancelBtn) cancelBtn.addEventListener("click", closePanel);
+  
     if (form && form.dataset.notificationsBound !== "1") {
       form.dataset.notificationsBound = "1";
       form.addEventListener("submit", sendNotification);
     }
-
+  
     bindLinkedClientChange();
     makeRowsClickable();
     applyFilters();
