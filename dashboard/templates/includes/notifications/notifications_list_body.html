@@ -226,8 +226,15 @@
 <div class="dashboard-card" style="margin-top:24px;">
   <div class="dashboard-table-header">
     <div class="dashboard-table-title">Archived Conversations</div>
-    <div class="dashboard-table-count">
-      {{ archived_notifications|length }} archived
+  
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="dashboard-table-count">
+        {{ archived_notifications|length }} archived
+      </div>
+  
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="toggleArchivedConversations">
+        Show / Hide Archived
+      </button>
     </div>
   </div>
 
