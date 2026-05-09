@@ -275,6 +275,54 @@
     renderEventSelect("");
   }
 
+  async function uploadNotificationFile() {
+    const fileInput = el("notificationFile");
+    const attachmentInput = el("notificationAttachment");
+    const help = el("notificationAttachmentHelp");
+  
+    if (!fileInput || !fileInput.files || !fileInput.files.length) {
+      return "";
+    }
+  
+    const file = fileInput.files[0];
+    const formData = new FormData();
+  
+    formData.append("file", file);
+    formData.append("is_private", "1");
+    formData.append("folder", "Home/Attachments");
+  
+    if (help) {
+      help.textContent = "Uploading attachment...";
+    }
+  
+    const response = await fetch("/api/method/upload_file", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "X-Frappe-CSRF-Token": getCsrfToken()
+      },
+      body: formData
+    });
+  
+    const data = await response.json();
+  
+    if (!response.ok || data.exc) {
+      throw new Error("Could not upload attachment.");
+    }
+  
+    const fileUrl = data.message && data.message.file_url ? data.message.file_url : "";
+  
+    if (attachmentInput) {
+      attachmentInput.value = fileUrl;
+    }
+  
+    if (help) {
+      help.textContent = fileUrl ? "Attachment uploaded." : "No attachment uploaded.";
+    }
+  
+    return fileUrl;
+  }
+    
   async function sendNotification(event) {
     event.preventDefault();
 
