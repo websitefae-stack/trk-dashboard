@@ -817,6 +817,12 @@ def _format_conversation(doc):
 
     messages = _get_conversation_messages(doc.name)
 
+    messages = sorted(
+        messages,
+        key=lambda row: row.get("created_on") or "",
+        reverse=True,
+    )
+        
     if not messages:
         messages = [{
             "name": doc.name + "-original",
@@ -1322,7 +1328,9 @@ def send_dashboard_notification(
     reference_name=None,
     requires_response=0,
     due_date=None,
+    attachment=None,
 ):
+    
     ensure_logged_in()
 
     if not _conversation_enabled():
@@ -1346,6 +1354,7 @@ def send_dashboard_notification(
     reference_name = _coalesce_str("reference_name", reference_name)
     due_date = _coalesce_raw("due_date", due_date)
     requires_response = _coalesce_raw("requires_response", requires_response)
+    attachment = _coalesce_str("attachment", attachment)
 
     if not recipient_users:
         frappe.throw(_("Please select at least one recipient."))
