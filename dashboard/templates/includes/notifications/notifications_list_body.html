@@ -1,26 +1,17 @@
 <div class="dashboard-page-header">
   <div>
     <h1 class="dashboard-page-title">Notifications</h1>
-    <p class="dashboard-page-subtitle">
-      Messages, notices, client requests and tasks assigned to you.
-    </p>
+    <p class="dashboard-page-subtitle">Messages, notices, client requests and tasks assigned to you.</p>
   </div>
 
   <div class="dashboard-page-actions">
-    <button type="button" class="dashboard-btn dashboard-btn-light" id="refreshNotifications">
-      Refresh
-    </button>
-
-    <button type="button" class="dashboard-btn dashboard-btn-primary" id="openSendNotification">
-      + New Conversation
-    </button>
+    <button type="button" class="dashboard-btn dashboard-btn-light" id="refreshNotifications">Refresh</button>
+    <button type="button" class="dashboard-btn dashboard-btn-primary" id="openSendNotification">+ New Conversation</button>
   </div>
 </div>
 
 {% if page_error %}
-  <div class="dashboard-notice" style="margin-bottom:20px;">
-    {{ page_error }}
-  </div>
+  <div class="dashboard-notice" style="margin-bottom:20px;">{{ page_error }}</div>
 {% endif %}
 
 <div class="dashboard-card" id="sendNotificationPanel" style="display:none;margin-bottom:20px;">
@@ -61,17 +52,12 @@
       </div>
 
       <div class="dashboard-detail-field dashboard-detail-field-full">
-        <label>
-          <input type="checkbox" id="notificationRequiresResponse">
-          Requires response
-        </label>
+        <label><input type="checkbox" id="notificationRequiresResponse"> Requires response</label>
       </div>
 
       <div class="dashboard-detail-field dashboard-detail-field-full">
         <label>Recipients</label>
-        <div id="notificationRecipients" class="dashboard-help">
-          Open the panel to load available recipients.
-        </div>
+        <div id="notificationRecipients" class="dashboard-help">Open the panel to load available recipients.</div>
       </div>
 
       <div class="dashboard-detail-field">
@@ -92,20 +78,14 @@
         <label for="notificationFile">Attachment</label>
         <input type="file" id="notificationFile" class="dashboard-input">
         <input type="hidden" id="notificationAttachment">
-        <div class="dashboard-help" id="notificationAttachmentHelp">
-          Optional. Add a file from your computer.
-        </div>
+        <div class="dashboard-help" id="notificationAttachmentHelp">Optional. Add a file from your computer.</div>
       </div>
-      
+
       <div class="dashboard-detail-field dashboard-detail-field-full">
         <label for="notificationMessage">Message</label>
-        <textarea
-          id="notificationMessage"
-          class="dashboard-textarea"
-          placeholder="Write the message, request or announcement..."
-          required
-        ></textarea>
+        <textarea id="notificationMessage" class="dashboard-textarea" placeholder="Write the message, request or announcement..." required></textarea>
       </div>
+    </div>
 
     <div class="dashboard-detail-actions" style="margin-top:18px;">
       <button class="dashboard-btn dashboard-btn-primary" type="submit">Send</button>
@@ -144,113 +124,82 @@
   </div>
 </div>
 
-{% set active_notifications = [] %}
-{% set archived_notifications = [] %}
-
-{% for n in notifications %}
-  {% if (n.status or "Open") == "Archived" %}
-    {% set _ = archived_notifications.append(n) %}
-  {% else %}
-    {% set _ = active_notifications.append(n) %}
-  {% endif %}
-{% endfor %}
-
 <div class="dashboard-card">
   <div class="dashboard-table-header">
     <div class="dashboard-table-title">Conversation Board</div>
     <div class="dashboard-table-count" id="notificationCount">
-      {{ active_notifications|length }} conversation{% if active_notifications|length != 1 %}s{% endif %}
+      {{ notifications|length }} conversation{% if notifications|length != 1 %}s{% endif %}
     </div>
   </div>
 
-  {% if active_notifications and active_notifications|length %}
+  {% if notifications and notifications|length %}
     <div class="dashboard-notification-board">
-      {% for n in active_notifications %}
-        {% set read_status = n.read_status or "Read" %}
-        {% set conversation_status = n.status or "Open" %}
-        {% set display_status = "Unread" if read_status == "Unread" else conversation_status %}
-        {% set conversation_type = n.conversation_type or n.notification_type or "Message" %}
-        {% set status_class = display_status|lower|replace(' ', '-') %}
-        {% set priority_class = (n.priority or 'Normal')|lower|replace(' ', '-') %}
+      {% for n in notifications %}
+        {% if (n.status or "Open") != "Archived" %}
+          {% set read_status = n.read_status or "Read" %}
+          {% set display_status = "Unread" if read_status == "Unread" else (n.status or "Open") %}
+          {% set status_class = display_status|lower|replace(' ', '-') %}
+          {% set priority_class = (n.priority or 'Normal')|lower|replace(' ', '-') %}
+          {% set conversation_type = n.conversation_type or n.notification_type or "Message" %}
 
-        <div
-          class="dashboard-card dashboard-notification-row dashboard-notification-card status-border-{{ status_class }}"
-          data-name="{{ n.name }}"
-          data-search="{{ ((n.title or '') ~ ' ' ~ (n.notification_type or '') ~ ' ' ~ (n.message or '') ~ ' ' ~ (n.client or '') ~ ' ' ~ (n.event or '') ~ ' ' ~ (n.created_by_label or '') ~ ' ' ~ (n.reference_name or ''))|lower }}"
-          data-status="{{ display_status }}"
-          data-read-status="{{ read_status }}"
-          data-type="{{ conversation_type }}"
-        >
-          <div class="dashboard-notification-card-heading">
-            <h3 class="dashboard-notification-title">
-              {{ n.title or n.notification_type or "Notification" }}
-            </h3>
+          <div
+            class="dashboard-card dashboard-notification-row dashboard-notification-card status-border-{{ status_class }}"
+            data-name="{{ n.name }}"
+            data-search="{{ ((n.title or '') ~ ' ' ~ (n.notification_type or '') ~ ' ' ~ (n.message or '') ~ ' ' ~ (n.client or '') ~ ' ' ~ (n.event or '') ~ ' ' ~ (n.created_by_label or '') ~ ' ' ~ (n.reference_name or ''))|lower }}"
+            data-status="{{ display_status }}"
+            data-read-status="{{ read_status }}"
+            data-type="{{ conversation_type }}"
+          >
+            <div class="dashboard-notification-card-heading">
+              <h3 class="dashboard-notification-title">{{ n.title or n.notification_type or "Notification" }}</h3>
 
-            <div class="dashboard-notification-pill-row">
-              <span class="dashboard-priority-pill priority-{{ priority_class }}">
-                {{ n.priority or "Normal" }}
-              </span>
-
-              <span class="dashboard-status-pill status-{{ status_class }}">
-                {{ display_status }}
-              </span>
-            </div>
-          </div>
-
-          <div class="dashboard-notification-meta">
-            {% if n.created_by_label %}
-              From: {{ n.created_by_label }}
-            {% elif n.sent_from %}
-              From: {{ n.sent_from }}
-            {% else %}
-              From: —
-            {% endif %}
-          </div>
-
-          <div class="dashboard-notification-footer">
-            <div class="dashboard-notification-footer-left">
-              <div>{{ n.reply_count or 0 }} repl{% if (n.reply_count or 0) == 1 %}y{% else %}ies{% endif %}</div>
-              <div>
-                {% if n.notification_date %}
-                  {{ frappe.format(n.notification_date, {"fieldtype": "Datetime"}) }}
-                {% else %}
-                  —
-                {% endif %}
+              <div class="dashboard-notification-pill-row">
+                <span class="dashboard-priority-pill priority-{{ priority_class }}">{{ n.priority or "Normal" }}</span>
+                <span class="dashboard-status-pill status-{{ status_class }}">{{ display_status }}</span>
               </div>
             </div>
 
-            <a class="dashboard-link-btn" href="{{ base_url }}/notification_details?name={{ n.name }}">
-              Open
-            </a>
+            <div class="dashboard-notification-meta">
+              From: {{ n.created_by_label or n.sent_from or "—" }}
+            </div>
+
+            <div class="dashboard-notification-footer">
+              <div class="dashboard-notification-footer-left">
+                <div>{{ n.reply_count or 0 }} repl{% if (n.reply_count or 0) == 1 %}y{% else %}ies{% endif %}</div>
+                <div>
+                  {% if n.notification_date %}
+                    {{ frappe.format(n.notification_date, {"fieldtype": "Datetime"}) }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </div>
+              </div>
+
+              <a class="dashboard-link-btn" href="{{ base_url }}/notification_details?name={{ n.name }}">Open</a>
+            </div>
           </div>
-        </div>
+        {% endif %}
       {% endfor %}
     </div>
   {% else %}
-    <div class="dashboard-empty">No active conversations found.</div>
+    <div class="dashboard-empty">No conversations found.</div>
   {% endif %}
 </div>
 
-<div class="dashboard-card dashboard-archived-section is-collapsed" style="margin-top:24px;" id="archivedConversationsSection">
+<div class="dashboard-card dashboard-archived-section is-collapsed" id="archivedConversationsSection" style="margin-top:24px;">
   <div class="dashboard-table-header">
     <div class="dashboard-table-title">Archived Conversations</div>
-  
-    <div style="display:flex;align-items:center;gap:12px;">
-      <div class="dashboard-table-count">
-        {{ archived_notifications|length }} archived
-      </div>
-  
-      <button type="button" class="dashboard-btn dashboard-btn-light" id="toggleArchivedConversations">
-        Show / Hide Archived
-      </button>
-    </div>
+
+    <button type="button" class="dashboard-btn dashboard-btn-light" id="toggleArchivedConversations">
+      Show / Hide Archived
+    </button>
   </div>
 
-  {% if archived_notifications and archived_notifications|length %}
-    <div class="dashboard-notification-board dashboard-notification-board-archived">
-      {% for n in archived_notifications %}
-        {% set conversation_type = n.conversation_type or n.notification_type or "Message" %}
+  <div class="dashboard-notification-board dashboard-notification-board-archived">
+    {% for n in notifications %}
+      {% if (n.status or "Open") == "Archived" %}
         {% set priority_class = (n.priority or 'Normal')|lower|replace(' ', '-') %}
+        {% set conversation_type = n.conversation_type or n.notification_type or "Message" %}
 
         <div
           class="dashboard-card dashboard-notification-row dashboard-notification-card status-border-archived"
@@ -261,29 +210,16 @@
           data-type="{{ conversation_type }}"
         >
           <div class="dashboard-notification-card-heading">
-            <h3 class="dashboard-notification-title">
-              {{ n.title or n.notification_type or "Notification" }}
-            </h3>
+            <h3 class="dashboard-notification-title">{{ n.title or n.notification_type or "Notification" }}</h3>
 
             <div class="dashboard-notification-pill-row">
-              <span class="dashboard-priority-pill priority-{{ priority_class }}">
-                {{ n.priority or "Normal" }}
-              </span>
-
-              <span class="dashboard-status-pill status-archived">
-                Archived
-              </span>
+              <span class="dashboard-priority-pill priority-{{ priority_class }}">{{ n.priority or "Normal" }}</span>
+              <span class="dashboard-status-pill status-archived">Archived</span>
             </div>
           </div>
 
           <div class="dashboard-notification-meta">
-            {% if n.created_by_label %}
-              From: {{ n.created_by_label }}
-            {% elif n.sent_from %}
-              From: {{ n.sent_from }}
-            {% else %}
-              From: —
-            {% endif %}
+            From: {{ n.created_by_label or n.sent_from or "—" }}
           </div>
 
           <div class="dashboard-notification-footer">
@@ -298,14 +234,10 @@
               </div>
             </div>
 
-            <a class="dashboard-link-btn" href="{{ base_url }}/notification_details?name={{ n.name }}">
-              Open
-            </a>
+            <a class="dashboard-link-btn" href="{{ base_url }}/notification_details?name={{ n.name }}">Open</a>
           </div>
         </div>
-      {% endfor %}
-    </div>
-  {% else %}
-    <div class="dashboard-empty">No archived conversations found.</div>
-  {% endif %}
+      {% endif %}
+    {% endfor %}
+  </div>
 </div>
