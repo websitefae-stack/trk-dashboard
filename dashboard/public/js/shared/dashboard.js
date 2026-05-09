@@ -14,7 +14,6 @@
 
   function getDashboardType() {
     const path = window.location.pathname || "";
-
     if (path.startsWith("/coach_db")) return "coach";
     if (path.startsWith("/franchisor_db")) return "franchisor";
     return "session_worker";
@@ -22,9 +21,7 @@
 
   async function apiGet(method, args) {
     const params = new URLSearchParams(args || {});
-    const url = `/api/method/${method}${params.toString() ? `?${params.toString()}` : ""}`;
-
-    const response = await fetch(url, {
+    const response = await fetch(`/api/method/${method}?${params.toString()}`, {
       method: "GET",
       credentials: "same-origin"
     });
@@ -58,10 +55,9 @@
     return data.message || {};
   }
 
-  function setText(id, value, fallback) {
+  function setText(id, value) {
     const node = el(id);
-    if (!node) return;
-    node.textContent = value ?? fallback ?? "";
+    if (node) node.textContent = value ?? "";
   }
 
   function escapeHtml(value) {
@@ -73,71 +69,76 @@
       .replace(/'/g, "&#039;");
   }
 
-  function formatMiles(value) {
-    const number = Number(value || 0);
-    return `${number % 1 === 0 ? number.toFixed(0) : number.toFixed(2)} miles`;
-  }
-
   function formatMoney(value, currency) {
     const number = Number(value || 0);
-    const code = currency || "GBP";
-
     try {
       return new Intl.NumberFormat("en-GB", {
         style: "currency",
-        currency: code
+        currency: currency || "GBP"
       }).format(number);
-    } catch (error) {
+    } catch {
       return `£${number.toFixed(2)}`;
     }
+  }
+
+  function formatMiles(value) {
+    const number = Number(value || 0);
+    return `${number % 1 === 0 ? number.toFixed(0) : number.toFixed(2)} miles`;
   }
 
   function formatDisplayDate(value) {
     if (!value) return "";
 
     const text = String(value).trim();
+    const uk = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+
+    if (uk) {
+      return `${uk[1]}/${uk[2]}/${uk[3]}`;
+    }
 
     const date = new Date(text);
     if (Number.isNaN(date.getTime())) return text;
 
     return date.toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "long",
+      day: "2-digit",
+      month: "2-digit",
       year: "numeric"
     });
   }
 
-  function renderUpcomingAppointments(tableBodyId, items, emptyColspan) {
+  function todayIso() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function renderUpcomingAppointments(tableBodyId, items) {
     const tbody = el(tableBodyId);
     if (!tbody) return;
 
     if (!items || !items.length) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="${emptyColspan}" class="dashboard-empty">No upcoming appointments found.</td>
+          <td colspan="4" class="dashboard-empty">No upcoming appointments found.</td>
         </tr>
       `;
       return;
     }
 
     tbody.innerHTML = items.map((item) => {
-      const detailLink = item.detail_link || "#";
-      const dateText = item.display_date || formatDisplayDate(item.date);
+      const link = item.detail_link || "#";
+      const dateText = formatDisplayDate(item.date);
       const timeText = item.time || "";
-      const detailsText = item.appointment_name || "Appointment";
+      const title = item.appointment_name || "Appointment";
 
       return `
         <tr>
           <td class="dashboard-home-date-col">
-            <a class="dashboard-link-btn dashboard-home-date-link" href="${escapeHtml(detailLink)}">
-              ${escapeHtml(dateText)}
-            </a>
+            <a class="dashboard-table-link" href="${escapeHtml(link)}">${escapeHtml(dateText)}</a>
             <div class="dashboard-table-time">${escapeHtml(timeText)}</div>
           </td>
-          <td class="dashboard-home-details-col">${escapeHtml(detailsText)}</td>
+          <td class="dashboard-home-details-col">${escapeHtml(title)}</td>
           <td class="dashboard-home-location-col">${escapeHtml(item.location || "—")}</td>
           <td class="dashboard-text-right dashboard-home-action-col">
-            <a class="dashboard-link-btn" href="${escapeHtml(detailLink)}">View</a>
+            <a class="dashboard-link-btn" href="${escapeHtml(link)}">View</a>
           </td>
         </tr>
       `;
@@ -151,7 +152,7 @@
     if (!items || !items.length) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="6" class="dashboard-empty">No outstanding invoices found.</td>
+          <td colspan="7" class="dashboard-empty">No outstanding invoices found.</td>
         </tr>
       `;
       return;
@@ -160,17 +161,28 @@
     tbody.innerHTML = items.map((item) => {
       return `
         <tr>
-          <td>${escapeHtml(item.name || "")}</td>
+          <td class="dashboard-home-invoice-number-col">
+            <a class="dashboard-table-link" href="${escapeHtml(item.invoice_url || "#")}">
+              ${escapeHtml(item.name || "")}
+            </a>
+          </td>
+          <td>${escapeHtml(formatDisplayDate(item.posting_date))}</td>
           <td>${escapeHtml(item.client_name || "")}</td>
-          <td>${escapeHtml(formatDisplayDate(item.due_date || item.posting_date))}</td>
           <td>${escapeHtml(item.status || "")}</td>
           <td>${escapeHtml(formatMoney(item.outstanding_amount, item.currency))}</td>
+          <td>
+            <input
+              type="date"
+              class="dashboard-home-payment-date"
+              value="${todayIso()}"
+              data-payment-date-for="${escapeHtml(item.name || "")}"
+            >
+          </td>
           <td class="dashboard-text-right">
             <button
               type="button"
               class="dashboard-link-btn"
               data-dashboard-pay-invoice="${escapeHtml(item.name || "")}"
-              data-dashboard-pay-outstanding="${escapeHtml(item.outstanding_amount || 0)}"
             >
               Mark Paid
             </button>
@@ -181,16 +193,16 @@
   }
 
   async function handlePayInvoice(button) {
-    const invoiceName = button.dataset.dashboardPayInvoice || "";
-    const outstanding = Number(button.dataset.dashboardPayOutstanding || 0);
+    const invoice = button.dataset.dashboardPayInvoice || "";
+    if (!invoice) return;
 
-    if (!invoiceName) return;
+    const dateInput = document.querySelector(`[data-payment-date-for="${CSS.escape(invoice)}"]`);
+    const paymentDate = dateInput ? dateInput.value : todayIso();
 
-    const amount = window.prompt("Amount received", outstanding ? outstanding.toFixed(2) : "");
-    if (amount === null) return;
-
-    const paymentDate = window.prompt("Payment date YYYY-MM-DD", new Date().toISOString().slice(0, 10));
-    if (paymentDate === null) return;
+    if (!paymentDate) {
+      alert("Please enter the payment date.");
+      return;
+    }
 
     button.disabled = true;
     button.textContent = "Saving...";
@@ -198,8 +210,7 @@
     try {
       await apiPost(SHARED_API + ".mark_invoice_paid", {
         dashboard_type: getDashboardType(),
-        invoice_name: invoiceName,
-        amount_received: amount,
+        invoice: invoice,
         payment_date: paymentDate
       });
 
@@ -244,27 +255,27 @@
     setText("swTravelPreviousValue", formatMiles(payload.travel_miles_previous ?? 0));
     setText("swTravelCurrentValue", formatMiles(payload.travel_miles_current ?? 0));
 
-    renderUpcomingAppointments("swDashboardUpcomingTableBody", payload.upcoming_appointments || [], 4);
+    renderUpcomingAppointments("swDashboardUpcomingTableBody", payload.upcoming_appointments || []);
   }
 
   function renderCoachFranchisorDashboard(payload) {
     setText("dashboardTotalClients", payload.total_clients ?? 0);
+    setText("dashboardTotalSessionWorkers", payload.total_session_workers ?? 0);
+    setText("dashboardTotalCoaches", payload.total_coaches ?? 0);
+
     setText("dashboardNewClientsPrevious", payload.new_clients_previous_month ?? 0);
     setText("dashboardNewClientsCurrent", payload.new_clients_current_month ?? 0);
 
-    setText("dashboardPreviousMonthLabel", `New Clients ${payload.previous_month_label || "Last Month"}`);
-    setText("dashboardCurrentMonthLabel", `New Clients ${payload.current_month_label || "This Month"}`);
+    setText("dashboardPreviousMonthLabel", `New Clients ${payload.previous_label || "Last Month"}`);
+    setText("dashboardCurrentMonthLabel", `New Clients ${payload.current_label || "This Month"}`);
 
-    setText("dashboardInvoicePreviousLabel", `Invoice Total ${payload.previous_month_label || "Last Month"}`);
-    setText("dashboardInvoiceCurrentLabel", `Invoice Total ${payload.current_month_label || "This Month"}`);
+    setText("dashboardInvoicePreviousLabel", `Invoice Total ${payload.previous_label || "Last Month"}`);
+    setText("dashboardInvoiceCurrentLabel", `Invoice Total ${payload.current_label || "This Month"}`);
 
     setText("dashboardInvoicePreviousValue", formatMoney(payload.monthly_invoice_total_previous || 0, "GBP"));
     setText("dashboardInvoiceCurrentValue", formatMoney(payload.monthly_invoice_total_current || 0, "GBP"));
 
-    setText("dashboardTotalSessionWorkers", payload.total_session_workers ?? 0);
-    setText("dashboardTotalCoaches", payload.total_coaches ?? 0);
-
-    renderUpcomingAppointments("dashboardUpcomingTableBody", payload.upcoming_appointments || [], 4);
+    renderUpcomingAppointments("dashboardUpcomingTableBody", payload.upcoming_appointments || []);
     renderOutstandingInvoices(payload.outstanding_invoices || []);
   }
 
@@ -272,7 +283,8 @@
     const dashboardType = getDashboardType();
 
     const payload = await apiGet(SHARED_API + ".get_dashboard_summary", {
-      dashboard_type: dashboardType
+      dashboard_type: dashboardType,
+      cache_bust: Date.now()
     });
 
     if (dashboardType === "session_worker") {
@@ -286,12 +298,20 @@
     const button = el("refreshDashboard");
     if (!button) return;
 
-    button.addEventListener("click", function () {
-      loadDashboardSummary();
+    button.addEventListener("click", async function () {
+      button.disabled = true;
+      button.textContent = "Refreshing...";
+
+      try {
+        await loadDashboardSummary();
+      } finally {
+        button.disabled = false;
+        button.textContent = "Refresh";
+      }
     });
   }
 
-  async function init() {
+  function init() {
     if (
       !el("sessionWorkerDashboardHome") &&
       !el("coachDashboardHome") &&
@@ -302,12 +322,7 @@
 
     bindRefresh();
     bindInvoicePaymentButtons();
-
-    try {
-      await loadDashboardSummary();
-    } catch (error) {
-      console.error("Could not load dashboard summary", error);
-    }
+    loadDashboardSummary();
   }
 
   if (document.readyState === "loading") {
