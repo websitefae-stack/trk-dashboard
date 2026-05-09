@@ -22,9 +22,29 @@ ROLE_PROFILE_CONFIG = {
         "can_edit_banking_directly": 0,
         "banking_change_for": "Coach",
         "banking_link_field": "banking_coach",
-        "banking_notification_user": ASHLEY_USER,
-        "editable_fields": ["bio", "interest"],
-        "user_update_fields": ["phone", "location", "gender"],
+        "banking_notification_users": [
+            ASHLEY_USER,
+            OFFICE_USER,
+        ],
+        "editable_fields": [
+            "first_name",
+            "middle_name",
+            "last_name",
+            "phone",
+            "gender",
+            "location",
+            "bio",
+            "interest",
+        ],
+        "user_update_fields": [
+            "first_name",
+            "middle_name",
+            "last_name",
+            "phone",
+            "gender",
+            "location",
+            "birth_date",
+        ],
         "legal_parentfields": {
             "dbs": "dbs",
             "dbs_update_service": "dbs_update_services",
@@ -42,9 +62,29 @@ ROLE_PROFILE_CONFIG = {
         "can_edit_banking_directly": 1,
         "banking_change_for": "Coach",
         "banking_link_field": "banking_coach",
-        "banking_notification_user": ASHLEY_USER,
-        "editable_fields": ["bio", "interest"],
-        "user_update_fields": ["phone", "location", "gender"],
+        "banking_notification_users": [
+            ASHLEY_USER,
+            OFFICE_USER,
+        ],
+        "editable_fields": [
+            "first_name",
+            "middle_name",
+            "last_name",
+            "phone",
+            "gender",
+            "location",
+            "bio",
+            "interest",
+        ],
+        "user_update_fields": [
+            "first_name",
+            "middle_name",
+            "last_name",
+            "phone",
+            "gender",
+            "location",
+            "birth_date",
+        ],
         "legal_parentfields": {
             "dbs": "dbs",
             "dbs_update_service": "dbs_update_services",
@@ -62,7 +102,10 @@ ROLE_PROFILE_CONFIG = {
         "can_edit_banking_directly": 0,
         "banking_change_for": "Session Worker",
         "banking_link_field": "banking_session_worker",
-        "banking_notification_user": OFFICE_USER,
+        "banking_notification_users": [
+            OFFICE_USER,
+            ASHLEY_USER,
+        ],
         "editable_fields": [
             "first_name",
             "middle_name",
@@ -73,7 +116,15 @@ ROLE_PROFILE_CONFIG = {
             "bio",
             "interest",
         ],
-        "user_update_fields": ["phone", "location"],
+        "user_update_fields": [
+            "first_name",
+            "middle_name",
+            "last_name",
+            "phone",
+            "gender",
+            "location",
+            "birth_date",
+        ],
         "legal_parentfields": {
             "dbs": "dbs",
             "dbs_update_service": "dbs_update_service",
@@ -154,7 +205,11 @@ def get_profile_display_name(role):
     config = get_role_config(role)
     profile_doc = get_profile_doc(role)
 
-    return profile_doc.get(config["display_field"]) or profile_doc.name
+    return (
+        profile_doc.get(config["display_field"])
+        or frappe.get_cached_value("User", frappe.session.user, "full_name")
+        or profile_doc.name
+    )
 
 
 def get_franchisor_name():
@@ -225,11 +280,13 @@ def update_my_profile(role):
     if linked_user:
         user_updates = {}
 
+        user_meta = frappe.get_meta("User")
+
         for fieldname in config["user_update_fields"]:
-            if frappe.form_dict.get(fieldname) is not None:
+            if frappe.form_dict.get(fieldname) is not None and user_meta.has_field(fieldname):
                 user_updates[fieldname] = frappe.form_dict.get(fieldname)
 
-        if photo_url:
+        if photo_url and user_meta.has_field("user_image"):
             user_updates["user_image"] = photo_url
 
         if user_updates:
@@ -244,10 +301,69 @@ def update_my_profile(role):
 
 
 @frappe.whitelist()
+def update_my_banking_details(
+    role,
+    account_name=None,
+    bank=None,
+    bank_account_no=None,
+    branch_code=None,
+    iban=None,
+):
+    ensure_logged_in()
+
+    config = get_role_config(role)
+
+    if not config.get("can_edit_banking_directly"):
+        frappe.throw(
+            _("You do not have permission to edit banking details directly."),
+            frappe.PermissionError,
+        )
+
+    profile_doc = get_profile_doc(role)
+
+    bank_account_field = config.get("bank_account_field")
+
+    if not bank_account_field or not profile_doc.get(bank_account_field):
+        frappe.throw(_("No bank account linked."))
+
+    bank_account = frappe.get_doc(
+        "Bank Account",
+        profile_doc.get(bank_account_field),
+    )
+
+    bank_meta = frappe.get_meta("Bank Account")
+
+    values = {
+        "account_name": account_name,
+        "bank": bank,
+        "bank_account_no": bank_account_no,
+        "branch_code": branch_code,
+        "iban": iban,
+    }
+
+    for fieldname, value in values.items():
+        if bank_meta.has_field(fieldname):
+            bank_account.set(fieldname, value)
+
+    bank_account.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "ok": 1,
+        "message": "Banking details updated.",
+    }
+
+
+@frappe.whitelist()
 def request_my_banking_change(
     role,
-    new_banking_details=None,
+    account_name=None,
+    bank=None,
+    bank_account_no=None,
+    branch_code=None,
+    iban=None,
     banking_change_reason=None,
+    new_banking_details=None,
 ):
     ensure_logged_in()
 
@@ -261,14 +377,38 @@ def request_my_banking_change(
 
     profile_doc = get_profile_doc(role)
 
-    new_banking_details = (new_banking_details or "").strip()
+    account_name = (account_name or "").strip()
+    bank = (bank or "").strip()
+    bank_account_no = (bank_account_no or "").strip()
+    branch_code = (branch_code or "").strip()
+    iban = (iban or "").strip()
     banking_change_reason = (banking_change_reason or "").strip()
 
-    if not new_banking_details:
-        frappe.throw(_("Please enter the new banking details."))
+    if not account_name:
+        frappe.throw(_("Please enter the account name."))
+
+    if not bank:
+        frappe.throw(_("Please enter the bank name."))
+
+    if not bank_account_no:
+        frappe.throw(_("Please enter the account number."))
+
+    if not branch_code:
+        frappe.throw(_("Please enter the branch code."))
 
     if not frappe.db.exists("DocType", CHANGE_REQUEST_DOCTYPE):
         frappe.throw(_("Change Request DocType does not exist."))
+
+    new_banking_details_text = "\n".join([
+        "Account Name: {0}".format(account_name),
+        "Bank: {0}".format(bank),
+        "Account Number: {0}".format(bank_account_no),
+        "Branch Code: {0}".format(branch_code),
+        "IBAN: {0}".format(iban or "Not provided"),
+    ])
+
+    if new_banking_details:
+        new_banking_details_text = new_banking_details
 
     change_request = frappe.new_doc(CHANGE_REQUEST_DOCTYPE)
     change_request_meta = frappe.get_meta(CHANGE_REQUEST_DOCTYPE)
@@ -276,7 +416,7 @@ def request_my_banking_change(
     values = {
         "banking_change_for": config["banking_change_for"],
         config["banking_link_field"]: profile_doc.name,
-        "new_banking_details": new_banking_details,
+        "new_banking_details": new_banking_details_text,
         "banking_change_reason": banking_change_reason,
         "banking_change_status": "New",
         "change_requested_by": frappe.session.user,
@@ -295,21 +435,49 @@ def request_my_banking_change(
         config["banking_change_for"]
     )
 
-    notification_name = create_trk_notification(
-        recipient_user=config["banking_notification_user"],
-        notification_type="Approval Request",
-        message="{0}: {1} submitted a banking change request.".format(
-            request_title,
-            display_name,
-        ),
-        priority="High",
-        reference_doctype=CHANGE_REQUEST_DOCTYPE,
-        reference_name=change_request.name,
-        coach=profile_doc.name if role in ["coach", "franchisor"] else None,
-        session_worker=profile_doc.name if role == "session_worker" else None,
+    notification_message = """{request_title}
+
+{display_name} has submitted a banking change request.
+
+Requested banking details:
+Account Name: {account_name}
+Bank: {bank}
+Account Number: {bank_account_no}
+Branch Code: {branch_code}
+IBAN: {iban}
+
+Reason / notes:
+{reason}
+
+Please update the bank account, reply when completed, then archive this conversation.""".format(
+        request_title=request_title,
+        display_name=display_name,
+        account_name=account_name,
+        bank=bank,
+        bank_account_no=bank_account_no,
+        branch_code=branch_code,
+        iban=iban or "Not provided",
+        reason=banking_change_reason or "No reason provided.",
     )
 
-    if notification_name:
+    notification_names = []
+
+    for recipient_user in config.get("banking_notification_users") or []:
+        notification_name = create_trk_notification(
+            recipient_user=recipient_user,
+            notification_type="Approval Request",
+            message=notification_message,
+            priority="High",
+            reference_doctype=CHANGE_REQUEST_DOCTYPE,
+            reference_name=change_request.name,
+            coach=profile_doc.name if role in ["coach", "franchisor"] else None,
+            session_worker=profile_doc.name if role == "session_worker" else None,
+        )
+
+        if notification_name:
+            notification_names.append(notification_name)
+
+    if notification_names:
         for fieldname in [
             "notification",
             "notification_log",
@@ -318,7 +486,7 @@ def request_my_banking_change(
             "conversation",
         ]:
             if change_request_meta.has_field(fieldname):
-                change_request.set(fieldname, notification_name)
+                change_request.set(fieldname, notification_names[0])
                 change_request.save(ignore_permissions=True)
                 break
 
@@ -327,7 +495,8 @@ def request_my_banking_change(
     return {
         "ok": 1,
         "name": change_request.name,
-        "notification": notification_name,
+        "notifications": notification_names,
+        "notification": notification_names[0] if notification_names else "",
         "message": "Banking change request submitted successfully.",
     }
 
