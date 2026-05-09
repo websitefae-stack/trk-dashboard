@@ -73,7 +73,7 @@
     const searchInput = el("notificationSearch");
     const statusFilter = el("notificationStatusFilter");
     const typeFilter = el("notificationTypeFilter");
-    const rows = document.querySelectorAll(".dashboard-notification-row");
+    const rows = document.querySelectorAll(".dashboard-card:not(.dashboard-archived-section) .dashboard-notification-row");
     const countEl = el("notificationCount");
 
     const search = searchInput ? searchInput.value.toLowerCase().trim() : "";
