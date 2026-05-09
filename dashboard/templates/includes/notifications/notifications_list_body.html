@@ -89,6 +89,15 @@
       </div>
 
       <div class="dashboard-detail-field dashboard-detail-field-full">
+        <label for="notificationFile">Attachment</label>
+        <input type="file" id="notificationFile" class="dashboard-input">
+        <input type="hidden" id="notificationAttachment">
+        <div class="dashboard-help" id="notificationAttachmentHelp">
+          Optional. Add a file from your computer.
+        </div>
+      </div>
+      
+      <div class="dashboard-detail-field dashboard-detail-field-full">
         <label for="notificationMessage">Message</label>
         <textarea
           id="notificationMessage"
@@ -97,7 +106,6 @@
           required
         ></textarea>
       </div>
-    </div>
 
     <div class="dashboard-detail-actions" style="margin-top:18px;">
       <button class="dashboard-btn dashboard-btn-primary" type="submit">Send</button>
