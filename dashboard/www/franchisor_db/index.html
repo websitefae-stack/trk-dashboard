@@ -20,11 +20,6 @@
       </div>
 
       <div class="dashboard-summary-grid dashboard-home-summary-grid">
-        <a class="dashboard-summary-card dashboard-summary-card-link" href="/franchisor_db/clients">
-          <div class="dashboard-summary-label">Total Clients</div>
-          <div class="dashboard-summary-value" id="dashboardTotalClients">—</div>
-        </a>
-
         <a class="dashboard-summary-card dashboard-summary-card-link" href="/franchisor_db/coaches">
           <div class="dashboard-summary-label">Coaches</div>
           <div class="dashboard-summary-value" id="dashboardTotalCoaches">—</div>
@@ -96,16 +91,17 @@
             <thead>
               <tr>
                 <th>Invoice</th>
+                <th>Date</th>
                 <th>Client</th>
-                <th>Due Date</th>
                 <th>Status</th>
                 <th>Total Outstanding</th>
+                <th>Payment Date</th>
                 <th class="dashboard-text-right">Action</th>
               </tr>
             </thead>
             <tbody id="dashboardOutstandingInvoicesTableBody">
               <tr>
-                <td colspan="6" class="dashboard-empty">Loading invoices...</td>
+                <td colspan="7" class="dashboard-empty">Loading invoices...</td>
               </tr>
             </tbody>
           </table>
