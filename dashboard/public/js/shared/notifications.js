@@ -335,6 +335,7 @@
     const requiresResponseInput = el("notificationRequiresResponse");
     const dueDateInput = el("notificationDueDate");
     const statusMessage = el("sendNotificationMessage");
+    const attachmentInput = el("notificationAttachment");
 
     const recipients = selectedRecipients();
     const title = titleInput ? titleInput.value.trim() : "";
@@ -358,6 +359,17 @@
 
     if (statusMessage) statusMessage.textContent = "Sending...";
 
+    let attachment = "";
+
+    try {
+      attachment = await uploadNotificationFile();
+    } catch (error) {
+      if (statusMessage) {
+        statusMessage.textContent = error.message || "Could not upload attachment.";
+      }
+      return;
+    }
+        
     try {
       const result = await callApi("dashboard.api.shared.notifications.send_dashboard_notification", {
         recipient_users: recipients,
@@ -368,7 +380,8 @@
         linked_client: linkedClient,
         linked_event: linkedEvent,
         requires_response: requiresResponse,
-        due_date: dueDate
+        due_date: dueDate,
+        attachment: attachment || (attachmentInput ? attachmentInput.value : "")
       });
 
       if (statusMessage) {
