@@ -36,6 +36,27 @@
     return match ? decodeURIComponent(match[1]) : "";
   }
 
+  function getServerMessage(data) {
+    if (!data) return "";
+
+    if (typeof data._server_messages === "string" && data._server_messages) {
+      try {
+        const messages = JSON.parse(data._server_messages);
+        if (!Array.isArray(messages) || !messages.length) return "";
+
+        const first = JSON.parse(messages[0]);
+        return first.message || "";
+      } catch (error) {
+        return "";
+      }
+    }
+
+    if (typeof data.message === "string") return data.message;
+    if (data.exception) return String(data.exception);
+
+    return "";
+  }
+
   async function postForm(method, formData) {
     const response = await fetch("/api/method/" + method, {
       method: "POST",
@@ -50,7 +71,7 @@
 
     if (!response.ok || data.exc) {
       console.error(data);
-      throw new Error(data.message || "Could not save.");
+      throw new Error(getServerMessage(data) || data.message || "Could not save.");
     }
 
     return data.message || data;
@@ -71,7 +92,7 @@
 
     if (!response.ok || data.exc) {
       console.error(data);
-      throw new Error(data.message || "Could not save.");
+      throw new Error(getServerMessage(data) || data.message || "Could not save.");
     }
 
     return data.message || data;
@@ -138,33 +159,91 @@
     }
   }
 
-  function initProfileEdit() {
+  async function saveProfile() {
     const config = getProfileConfig();
+    const form = el(config.formId);
+    const message = el(config.messageId);
+
+    if (!form) return null;
+
+    if (message) {
+      message.textContent = "Saving profile...";
+    }
+
+    const formData = new FormData(form);
+    formData.append("role", config.role);
+
+    return postForm(
+      "dashboard.api.shared.profile.update_my_profile",
+      formData
+    );
+  }
+
+  async function saveBankingDetailsIfAllowed() {
+    const config = getProfileConfig();
+    const form = el("bankingDetailsForm");
+    const message = el("bankingDetailsMessage");
+
+    if (!form || form.getAttribute("data-can-edit-directly") !== "1") {
+      return null;
+    }
+
+    if (message) {
+      message.textContent = "Saving banking details...";
+    }
+
+    const formData = new FormData(form);
+
+    return postJson(
+      "dashboard.api.shared.profile.update_my_banking_details",
+      {
+        role: config.role,
+        account_name: formData.get("account_name"),
+        bank: formData.get("bank"),
+        bank_account_no: formData.get("bank_account_no"),
+        branch_code: formData.get("branch_code"),
+        iban: formData.get("iban")
+      }
+    );
+  }
+
+  function initProfileEdit() {
     const editBtn = el("editProfileBtn");
     const cancelBtn = el("cancelProfileEditBtn");
 
     if (editBtn && editBtn.dataset.profileEditBound !== "1") {
       editBtn.dataset.profileEditBound = "1";
 
-      editBtn.addEventListener("click", function (event) {
+      editBtn.addEventListener("click", async function (event) {
         event.preventDefault();
 
-        if (editBtn.classList.contains("is-save-mode")) {
-          const form = el(config.formId);
-
-          if (form) {
-            form.requestSubmit();
-          }
-
-          const bankForm = el("bankingDetailsForm");
-          if (bankForm) {
-            bankForm.requestSubmit();
-          }
-
+        if (!editBtn.classList.contains("is-save-mode")) {
+          setProfileEditMode(true);
           return;
         }
 
-        setProfileEditMode(true);
+        editBtn.disabled = true;
+        editBtn.textContent = "Saving...";
+
+        try {
+          await saveProfile();
+          await saveBankingDetailsIfAllowed();
+
+          setTimeout(function () {
+            window.location.reload();
+          }, 500);
+
+        } catch (error) {
+          const config = getProfileConfig();
+          const message = el(config.messageId) || el("bankingDetailsMessage");
+
+          if (message) {
+            message.textContent = error.message || "Could not save.";
+          }
+
+          editBtn.disabled = false;
+          editBtn.textContent = "Save";
+        }
       });
     }
 
@@ -180,7 +259,6 @@
   function initProfileForm() {
     const config = getProfileConfig();
     const form = el(config.formId);
-    const message = el(config.messageId);
 
     if (!form || form.dataset.profileFormBound === "1") {
       return;
@@ -190,40 +268,12 @@
 
     form.addEventListener("submit", async function (event) {
       event.preventDefault();
-
-      if (message) {
-        message.textContent = "Saving...";
-      }
-
-      try {
-        const formData = new FormData(form);
-        formData.append("role", config.role);
-
-        const result = await postForm(
-          "dashboard.api.shared.profile.update_my_profile",
-          formData
-        );
-
-        if (message) {
-          message.textContent = result.message || "Profile saved.";
-        }
-
-        setTimeout(function () {
-          window.location.reload();
-        }, 700);
-
-      } catch (error) {
-        if (message) {
-          message.textContent = error.message || "Could not save profile.";
-        }
-      }
+      await saveProfile();
     });
   }
 
   function initBankingDetailsForm() {
-    const config = getProfileConfig();
     const form = el("bankingDetailsForm");
-    const message = el("bankingDetailsMessage");
 
     if (!form || form.dataset.bankingDetailsBound === "1") {
       return;
@@ -233,39 +283,7 @@
 
     form.addEventListener("submit", async function (event) {
       event.preventDefault();
-
-      if (!form.getAttribute("data-can-edit-directly")) {
-        return;
-      }
-
-      if (message) {
-        message.textContent = "Saving banking details...";
-      }
-
-      try {
-        const formData = new FormData(form);
-
-        const result = await postJson(
-          "dashboard.api.shared.profile.update_my_banking_details",
-          {
-            role: config.role,
-            account_name: formData.get("account_name"),
-            bank: formData.get("bank"),
-            bank_account_no: formData.get("bank_account_no"),
-            branch_code: formData.get("branch_code"),
-            iban: formData.get("iban")
-          }
-        );
-
-        if (message) {
-          message.textContent = result.message || "Banking details updated.";
-        }
-
-      } catch (error) {
-        if (message) {
-          message.textContent = error.message || "Could not save banking details.";
-        }
-      }
+      await saveBankingDetailsIfAllowed();
     });
   }
 
