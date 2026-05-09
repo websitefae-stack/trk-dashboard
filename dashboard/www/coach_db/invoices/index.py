@@ -1,0 +1,28 @@
+import frappe
+from frappe import _
+
+from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
+from dashboard.api.shared.invoices import get_invoice_page_data
+
+
+def get_context(context):
+    if frappe.session.user == "Guest":
+        frappe.throw(_("Login required"), frappe.PermissionError)
+
+    redirect_if_wrong_dashboard("coach")
+
+    context.no_cache = 1
+    context.page_title = "Invoices"
+    context.active_page = "invoices"
+
+    selected_coach = (frappe.form_dict.get("coach") or "").strip()
+    data = get_invoice_page_data(dashboard_type="coach", selected_coach=selected_coach)
+
+    context.invoices = data.get("invoices", [])
+    context.coach_options = data.get("coach_options", [])
+    context.selected_coach = data.get("selected_coach", "")
+    context.current_coach = data.get("current_coach", "")
+    context.current_coach_label = data.get("current_coach_label", "")
+    context.current_company = data.get("current_company", "")
+    context.is_franchisor = 0
+    context.dashboard_base_path = "/coach_db"
