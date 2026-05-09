@@ -101,3 +101,18 @@
     font-size: 13px;
   }
 }
+
+.status-border-unread {
+  border: 2px solid #007274 !important;
+}
+
+.dashboard-archived-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 14px;
+}
+
+.dashboard-archived-section.is-collapsed .dashboard-notification-board,
+.dashboard-archived-section.is-collapsed .dashboard-empty {
+  display: none;
+}
