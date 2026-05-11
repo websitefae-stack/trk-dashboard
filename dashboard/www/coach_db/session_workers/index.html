@@ -68,7 +68,7 @@
                     <td>
                       <a
                         class="dashboard-inline-link dashboard-session-worker-name-link"
-                        href="/coach_db/session_worker_details?name={{ worker.name | urlencode }}"
+                        href="/coach_db/session_worker_view?name={{ worker.name | urlencode }}"
                       >
                         {{ worker.display_name or worker.name }}
                       </a>
@@ -78,7 +78,7 @@
                     <td>{{ worker.linked_coach_label or current_coach_label or "—" }}</td>
                     <td>{{ worker.linked_clients_count or 0 }}</td>
                     <td class="dashboard-action-cell">
-                      <a class="dashboard-link-btn" href="/coach_db/session_worker_details?name={{ worker.name | urlencode }}">View</a>
+                      <a class="dashboard-link-btn" href="/coach_db/session_worker_view?name={{ worker.name | urlencode }}">View</a>
                     </td>
                   </tr>
                 {% endfor %}
