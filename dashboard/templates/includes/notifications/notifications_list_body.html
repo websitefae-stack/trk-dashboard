@@ -124,9 +124,16 @@
   </div>
 </div>
 
-<div class="dashboard-card">
+<div class="dashboard-card dashboard-board-section" id="mainConversationSection">
   <div class="dashboard-table-header">
-    <div class="dashboard-table-title">Conversation Board</div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div class="dashboard-table-title">Conversation Board</div>
+
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="toggleMainConversations">
+        Show / Hide
+      </button>
+    </div>
+
     <div class="dashboard-table-count" id="notificationCount">
       {{ notifications|length }} conversation{% if notifications|length != 1 %}s{% endif %}
     </div>
