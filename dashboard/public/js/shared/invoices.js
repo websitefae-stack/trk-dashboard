@@ -2,8 +2,15 @@
   "use strict";
 
   function initInvoicesPage() {
-    if (!document.getElementById("invoiceTable")) return;
     if (document.getElementById("invoiceDetailsForm")) return;
+  
+    const hasInvoicePage =
+      document.getElementById("refreshInvoices") ||
+      document.getElementById("invoiceCoachSelector") ||
+      document.getElementById("invoiceSearch") ||
+      document.getElementById("invoiceTable");
+  
+    if (!hasInvoicePage) return;
 
     const el = (id) => document.getElementById(id);
 
@@ -123,7 +130,12 @@
       field.addEventListener(id === "invoiceSearch" ? "input" : "change", renderFilters);
     });
 
-    el("refreshInvoices")?.addEventListener("click", () => window.location.reload());
+    el("refreshInvoices")?.addEventListener("click", function () {
+      const params = new URLSearchParams(window.location.search);
+      params.set("_refresh", Date.now());
+    
+      window.location.href = window.location.pathname + "?" + params.toString();
+    });
 
     el("addInvoice")?.addEventListener("click", function () {
       window.location.href = `${getDashboardBasePath()}/invoice_details?new=1`;
