@@ -7,140 +7,258 @@
     {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
 
     <div class="dashboard-container">
-
       <div class="dashboard-page-header">
         <div>
-          <h1 class="dashboard-page-title">{{ session_worker.sw_name or session_worker.name }}</h1>
-          <p class="dashboard-page-subtitle">Edit linked Session Worker profile, banking, and rates.</p>
+          <h1 class="dashboard-page-title">
+            {{ session_worker.display_name or session_worker.name }}
+          </h1>
+
+          <p class="dashboard-page-subtitle">
+            Session worker details
+          </p>
         </div>
 
-        <div class="dashboard-page-actions">
-          <a href="/coach_db/session_workers" class="dashboard-btn dashboard-btn-light">Back</a>
+        <div class="dashboard-detail-actions dashboard-detail-actions-compact">
+          <a href="{{ back_url }}" class="dashboard-btn dashboard-btn-secondary">
+            Back
+          </a>
         </div>
       </div>
 
-      <div class="dashboard-card">
-        <form id="coachSessionWorkerForm" class="dashboard-edit-locked" enctype="multipart/form-data">
-          <input type="hidden" name="session_worker_name" value="{{ session_worker.name }}">
+      <div class="dashboard-card dashboard-client-detail-card">
 
-          <div class="dashboard-detail-grid dashboard-detail-grid-2">
+        <div class="dashboard-tabs dashboard-client-detail-tabs">
 
-            <div class="dashboard-detail-field">
-              <label>Full Name</label>
-              <input class="dashboard-input" value="{{ session_worker.sw_name or '' }}" readonly>
+          <button
+            type="button"
+            class="dashboard-tab-btn dashboard-session-worker-detail-tab-btn is-active"
+            data-tab-target="session-worker-profile-tab"
+          >
+            Profile
+          </button>
+
+          <button
+            type="button"
+            class="dashboard-tab-btn dashboard-session-worker-detail-tab-btn"
+            data-tab-target="session-worker-clients-tab"
+          >
+            Linked Clients
+          </button>
+
+          <button
+            type="button"
+            class="dashboard-tab-btn dashboard-session-worker-detail-tab-btn"
+            data-tab-target="session-worker-calendar-tab"
+          >
+            Calendar
+          </button>
+
+          <button
+            type="button"
+            class="dashboard-tab-btn dashboard-session-worker-detail-tab-btn"
+            data-tab-target="session-worker-dashboard-tab"
+          >
+            Dashboard
+          </button>
+
+        </div>
+
+        <!-- PROFILE TAB -->
+
+        <div
+          class="dashboard-tab-panel dashboard-session-worker-detail-panel is-active"
+          id="session-worker-profile-tab"
+        >
+
+          <div class="dashboard-detail-section">
+
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">
+                Profile Information
+              </h2>
             </div>
 
-            <div class="dashboard-detail-field">
-              <label>Email</label>
-              <input class="dashboard-input" value="{{ session_worker.sw_email or '' }}" readonly>
-            </div>
+            <div class="dashboard-detail-grid dashboard-detail-grid-2">
 
-            <div class="dashboard-detail-field">
-              <label>First Name</label>
-              <input class="dashboard-input" name="first_name" value="{{ session_worker.first_name or '' }}">
-            </div>
+              <div class="dashboard-detail-field">
+                <label>Name</label>
 
-            <div class="dashboard-detail-field">
-              <label>Middle Name</label>
-              <input class="dashboard-input" name="middle_name" value="{{ session_worker.middle_name or '' }}">
-            </div>
+                <input
+                  class="dashboard-input"
+                  type="text"
+                  value="{{ session_worker.display_name or session_worker.name }}"
+                  readonly
+                >
+              </div>
 
-            <div class="dashboard-detail-field">
-              <label>Last Name</label>
-              <input class="dashboard-input" name="last_name" value="{{ session_worker.last_name or '' }}">
-            </div>
+              <div class="dashboard-detail-field">
+                <label>Mobile</label>
 
-            <div class="dashboard-detail-field">
-              <label>Phone</label>
-              <input class="dashboard-input" name="phone" value="{{ session_worker.phone or '' }}">
-            </div>
+                <input
+                  class="dashboard-input"
+                  type="text"
+                  value="{{ session_worker.mobile or '' }}"
+                  readonly
+                >
+              </div>
 
-            <div class="dashboard-detail-field">
-              <label>Gender</label>
-              <input class="dashboard-input" name="gender" value="{{ session_worker.gender or '' }}">
-            </div>
+              <div class="dashboard-detail-field">
+                <label>Email</label>
 
-            <div class="dashboard-detail-field">
-              <label>Location</label>
-              <input class="dashboard-input" name="location" value="{{ session_worker.location or '' }}">
-            </div>
+                <input
+                  class="dashboard-input"
+                  type="text"
+                  value="{{ session_worker.email or '' }}"
+                  readonly
+                >
+              </div>
 
-            <div class="dashboard-detail-field dashboard-detail-field-full">
-              <label>Bio</label>
-              <textarea class="dashboard-textarea" name="bio">{{ session_worker.bio or '' }}</textarea>
-            </div>
+              <div class="dashboard-detail-field">
+                <label>Linked Coach</label>
 
-            <div class="dashboard-detail-field dashboard-detail-field-full">
-              <label>Interest</label>
-              <textarea class="dashboard-textarea" name="interest">{{ session_worker.interest or '' }}</textarea>
-            </div>
+                <input
+                  class="dashboard-input"
+                  type="text"
+                  value="{{ session_worker.linked_coach_label or '' }}"
+                  readonly
+                >
+              </div>
 
-            <div class="dashboard-detail-field">
-              <label>Bank Name</label>
-              <input class="dashboard-input" name="bank_name" value="{{ session_worker.bank_name or '' }}">
-            </div>
-
-            <div class="dashboard-detail-field">
-              <label>Account Holder Name</label>
-              <input class="dashboard-input" name="account_holder_name" value="{{ session_worker.account_holder_name or '' }}">
-            </div>
-
-            <div class="dashboard-detail-field">
-              <label>Account Number</label>
-              <input class="dashboard-input" name="account_number" value="{{ session_worker.account_number or '' }}">
-            </div>
-
-            <div class="dashboard-detail-field">
-              <label>Sort Code</label>
-              <input class="dashboard-input" name="sort_code" value="{{ session_worker.sort_code or '' }}">
-            </div>
-
-            <div class="dashboard-detail-field">
-              <label>1 on 1 Session Rate</label>
-              <input class="dashboard-input" name="1_on_1_session_rate" value="{{ session_worker.get('1_on_1_session_rate') or '' }}">
-            </div>
-
-            <div class="dashboard-detail-field">
-              <label>Group Session Rate</label>
-              <input class="dashboard-input" name="group_session_rate" value="{{ session_worker.group_session_rate or '' }}">
-            </div>
-
-            <div class="dashboard-detail-field">
-              <label>Workshop Session Rate</label>
-              <input class="dashboard-input" name="workshop_session_rate" value="{{ session_worker.workshop_session_rate or '' }}">
-            </div>
-
-            <div class="dashboard-detail-field">
-              <label>Travel Rate Per Mile</label>
-              <input class="dashboard-input" name="travel_rate_per_mile" value="{{ session_worker.travel_rate_per_mile or '' }}">
-            </div>
-
-            <div class="dashboard-detail-field">
-              <label>Invoice Frequency</label>
-              <select class="dashboard-input" name="invoice_frequency">
-                <option value=""></option>
-                <option value="Weekly" {% if session_worker.invoice_frequency == "Weekly" %}selected{% endif %}>Weekly</option>
-                <option value="Bi-Weekly" {% if session_worker.invoice_frequency == "Bi-Weekly" %}selected{% endif %}>Bi-Weekly</option>
-                <option value="Monthly" {% if session_worker.invoice_frequency == "Monthly" %}selected{% endif %}>Monthly</option>
-              </select>
-            </div>
-
-            <div class="dashboard-detail-field">
-              <label>Invoice Cycle Start Date</label>
-              <input class="dashboard-input" type="date" name="invoice_cycle_start_date" value="{{ session_worker.invoice_cycle_start_date or '' }}">
             </div>
 
           </div>
 
-          <div class="dashboard-detail-actions dashboard-edit-actions" style="margin-top:20px;">
-            <button class="dashboard-btn dashboard-btn-primary" type="button" id="editDetailsBtn">Edit</button>
-            <button class="dashboard-btn dashboard-btn-primary js-save-edit-btn" type="submit" style="display:none;">Save Changes</button>
-            <button class="dashboard-btn dashboard-btn-light js-cancel-edit-btn" type="button" id="cancelDetailsEditBtn" style="display:none;">Cancel</button>
-            <span class="dashboard-help" id="coachSessionWorkerMessage"></span>
-          </div>
-        </form>
-      </div>
+        </div>
 
+        <!-- CLIENTS TAB -->
+
+        <div
+          class="dashboard-tab-panel dashboard-session-worker-detail-panel"
+          id="session-worker-clients-tab"
+        >
+
+          <div class="dashboard-detail-section">
+
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">
+                Linked Clients
+              </h2>
+            </div>
+
+            {% if linked_clients %}
+
+              <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
+
+                <table class="dashboard-table">
+
+                  <thead>
+                    <tr>
+                      <th>Client Name</th>
+                      <th>Primary Coach</th>
+                      <th>Attending Coach</th>
+                      <th>Type</th>
+                      <th>Status</th>
+                      <th class="dashboard-action-col">Action</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+
+                    {% for client in linked_clients %}
+
+                      <tr>
+
+                        <td>
+                          <a
+                            class="dashboard-inline-link"
+                            href="{{ client_details_base_url }}?name={{ client.name | urlencode }}"
+                          >
+                            {{ client.display_name or client.name }}
+                          </a>
+                        </td>
+
+                        <td>
+                          {{ client.primary_coach_label or "—" }}
+                        </td>
+
+                        <td>
+                          {{ client.attending_coach_label or "—" }}
+                        </td>
+
+                        <td>
+                          {{ client.client_type or "—" }}
+                        </td>
+
+                        <td>
+                          {{ client.status or "—" }}
+                        </td>
+
+                        <td class="dashboard-action-cell">
+                          <a
+                            class="dashboard-link-btn"
+                            href="{{ client_details_base_url }}?name={{ client.name | urlencode }}"
+                          >
+                            View
+                          </a>
+                        </td>
+
+                      </tr>
+
+                    {% endfor %}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            {% else %}
+
+              <div class="dashboard-empty">
+                No linked clients found.
+              </div>
+
+            {% endif %}
+
+          </div>
+
+        </div>
+
+        <!-- CALENDAR TAB -->
+
+        <div
+          class="dashboard-tab-panel dashboard-session-worker-detail-panel"
+          id="session-worker-calendar-tab"
+        >
+
+          <div class="dashboard-detail-section">
+
+            <div class="dashboard-empty">
+              Calendar view will be connected in the next step.
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- DASHBOARD TAB -->
+
+        <div
+          class="dashboard-tab-panel dashboard-session-worker-detail-panel"
+          id="session-worker-dashboard-tab"
+        >
+
+          <div class="dashboard-detail-section">
+
+            <div class="dashboard-empty">
+              Session worker dashboard view will be connected after the calendar tab.
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
     </div>
   </div>
 </div>
