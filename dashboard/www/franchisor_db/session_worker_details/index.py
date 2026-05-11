@@ -1,33 +1,43 @@
 import frappe
+from frappe import _
 
+from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
+from dashboard.api.shared.directory import get_franchisor_display_name
 from dashboard.api.shared.session_workers import get_session_workers
 
 
 def get_context(context):
-    context.no_cache = 1
-    context.title = "Session Workers"
-    context.dashboard_scope = "franchisor"
+    if frappe.session.user == "Guest":
+        frappe.throw(_("Login required"), frappe.PermissionError)
+
+    redirect_if_wrong_dashboard("franchisor")
+
+    worker_name = frappe.form_dict.get("name")
+
+    if not worker_name:
+        frappe.throw(_("Session Worker not found."))
 
     data = get_session_workers(scope="franchisor")
+    workers = data.get("session_workers") or []
 
-    context.session_worker_context = data
-    context.session_workers = data.get("session_workers") or []
-    context.current_coach = data.get("current_coach") or ""
-    context.current_coach_label = data.get("current_coach_label") or ""
+    selected_worker = None
 
-    coach_options = {}
+    for worker in workers:
+        if worker.get("name") == worker_name:
+            selected_worker = worker
+            break
 
-    for worker in context.session_workers:
-        for coach in worker.get("linked_coaches") or []:
-            if coach.get("name"):
-                coach_options[coach.get("name")] = coach.get("display_name") or coach.get("name")
+    if not selected_worker:
+        frappe.throw(_("Session Worker not found."))
 
-    context.coach_filter_options = [
-        {
-            "name": name,
-            "display_name": label,
-        }
-        for name, label in sorted(coach_options.items(), key=lambda item: item[1].lower())
-    ]
+    context.no_cache = 1
+    context.page_title = "Session Worker Details"
+    context.active_page = "session_workers"
+    context.dashboard_notifications_url = "/franchisor_db/notifications"
+    context.dashboard_user_name = get_franchisor_display_name()
 
-    return context
+    context.session_worker = selected_worker
+    context.linked_clients = selected_worker.get("linked_clients") or []
+
+    context.back_url = "/franchisor_db/session_workers"
+    context.client_details_base_url = "/franchisor_db/client_details"
