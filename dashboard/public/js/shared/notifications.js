@@ -432,6 +432,8 @@
     const openBtn = el("openSendNotification");
     const cancelBtn = el("cancelSendNotification");
     const form = el("sendNotificationForm");
+    const toggleMainBtn = el("toggleMainConversations");
+    const mainSection = el("mainConversationSection");
     const toggleArchivedBtn = el("toggleArchivedConversations");
     const archivedSection = el("archivedConversationsSection");
   
@@ -444,7 +446,13 @@
         window.location.reload();
       });
     }
-  
+
+    if (toggleMainBtn && mainSection) {
+      toggleMainBtn.addEventListener("click", function () {
+        mainSection.classList.toggle("is-collapsed");
+      });
+    }
+        
     if (toggleArchivedBtn && archivedSection) {
       toggleArchivedBtn.addEventListener("click", function () {
         archivedSection.classList.toggle("is-collapsed");
