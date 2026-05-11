@@ -98,12 +98,19 @@
 
       selector.addEventListener("change", function () {
         const selected = selector.value || "";
+        const currentCoach = selector.dataset.currentCoach || "";
+
         const params = new URLSearchParams(window.location.search);
 
-        if (selected) {
-          params.set("coach", selected);
-        } else {
+        /*
+          Important:
+          The logged-in user's own invoice list is the DEFAULT view.
+          So if the dropdown is blank OR current coach, remove ?coach= entirely.
+        */
+        if (!selected || selected === currentCoach) {
           params.delete("coach");
+        } else {
+          params.set("coach", selected);
         }
 
         window.location.href = window.location.pathname + (params.toString() ? `?${params.toString()}` : "");
