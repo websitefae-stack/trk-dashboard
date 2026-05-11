@@ -54,30 +54,26 @@ def get_client_count_for_coach(coach_name):
     if not coach_name:
         return 0
 
-    filters = []
-
     client_meta = frappe.get_meta(CLIENT_DOCTYPE)
+    or_filters = []
 
     if client_meta.has_field("primary_coach"):
-        filters.append(["primary_coach", "=", coach_name])
+        or_filters.append(["primary_coach", "=", coach_name])
 
     if client_meta.has_field("attending_coach"):
-        filters.append(["attending_coach", "=", coach_name])
+        or_filters.append(["attending_coach", "=", coach_name])
 
-    if not filters:
+    if not or_filters:
         return 0
 
-    return frappe.db.count(
+    client_names = frappe.get_all(
         CLIENT_DOCTYPE,
-        filters={
-            "name": ["in", frappe.get_all(
-                CLIENT_DOCTYPE,
-                or_filters=filters,
-                pluck="name",
-                limit_page_length=5000,
-            )]
-        },
+        or_filters=or_filters,
+        pluck="name",
+        limit_page_length=5000,
     )
+
+    return len(set(client_names))
 
 
 def get_session_worker_count_for_coach(coach_name):
@@ -101,17 +97,14 @@ def get_session_worker_count_for_coach(coach_name):
     if not or_filters:
         return 0
 
-    return frappe.db.count(
+    session_worker_names = frappe.get_all(
         SESSION_WORKER_DOCTYPE,
-        filters={
-            "name": ["in", frappe.get_all(
-                SESSION_WORKER_DOCTYPE,
-                or_filters=or_filters,
-                pluck="name",
-                limit_page_length=5000,
-            )]
-        },
+        or_filters=or_filters,
+        pluck="name",
+        limit_page_length=5000,
     )
+
+    return len(set(session_worker_names))
 
 
 def normalize_coach_row(coach):
@@ -141,6 +134,9 @@ def get_coaches():
     coaches = frappe.get_all(
         COACH_DOCTYPE,
         fields=fields,
+        filters=[
+            ["user", "!=", frappe.session.user],
+        ],
         order_by="coach_name asc",
         limit_page_length=5000,
     )
