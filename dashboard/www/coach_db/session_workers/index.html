@@ -1,126 +1,89 @@
 {% include "dashboard/templates/includes/head/coach_head.html" %}
 
-<div class="dashboard-page dashboard-session-workers-page" data-dashboard-scope="coach">
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
 
-  <div class="dashboard-page-header">
-    <div>
-      <p class="dashboard-eyebrow">Coach Dashboard</p>
-      <h1>Session Workers</h1>
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
 
-      {% if current_coach_label %}
-        <p class="dashboard-subtitle">
-          Showing session workers linked to {{ current_coach_label }}.
-        </p>
-      {% else %}
-        <p class="dashboard-subtitle">
-          Showing session workers linked to your coach profile.
-        </p>
-      {% endif %}
-    </div>
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Session Workers</h1>
+          <p class="dashboard-page-subtitle">Session workers linked to your coach clients</p>
+        </div>
 
-    <div class="dashboard-page-actions">
-      <button type="button" class="dashboard-btn dashboard-btn-secondary" id="toggleSessionWorkerSearch">
-        Search / Filter
-      </button>
+        <div class="dashboard-page-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-secondary" id="refreshSessionWorkers">Refresh</button>
+        </div>
+      </div>
 
-      <button type="button" class="dashboard-btn dashboard-btn-secondary" id="refreshSessionWorkers">
-        Refresh
-      </button>
-    </div>
-  </div>
+      <div class="dashboard-card dashboard-session-worker-filter-card session-worker-filter-panel" id="sessionWorkerFilterPanel">
+        <div class="client-filter-header">
+          <strong>Filters</strong>
+          <button type="button" id="closeSessionWorkerSearch" class="client-filter-close">✕</button>
+        </div>
 
-  <div class="dashboard-filter-panel" id="sessionWorkerFilterPanel">
-    <div class="dashboard-filter-header">
-      <h2>Filter session workers</h2>
-      <button type="button" class="dashboard-filter-close" id="closeSessionWorkerSearch">
-        ×
-      </button>
-    </div>
+        <div class="dashboard-client-filter-body client-filter-row">
+          <div class="dashboard-filter-field">
+            <label for="sessionWorkerSearch">Search</label>
+            <input type="text" class="dashboard-input" id="sessionWorkerSearch" placeholder="Search session workers">
+          </div>
+        </div>
+      </div>
 
-    <div class="dashboard-filter-grid">
-      <div class="dashboard-field">
-        <label for="sessionWorkerSearch">Search</label>
-        <input
-          type="search"
-          id="sessionWorkerSearch"
-          placeholder="Search by name, email, mobile or coach"
-        >
+      <div class="dashboard-card dashboard-session-worker-list-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Session Worker List</div>
+          <div class="dashboard-table-count" id="sessionWorkerCount">
+            {{ session_workers|length }} session worker{% if session_workers|length != 1 %}s{% endif %}
+          </div>
+        </div>
+
+        {% if session_workers %}
+          <div class="dashboard-table-wrap">
+            <table class="dashboard-table dashboard-session-worker-table">
+              <thead>
+                <tr>
+                  <th>Session Worker Name</th>
+                  <th>Mobile</th>
+                  <th>Email</th>
+                  <th>Linked Coach</th>
+                  <th>Linked Clients</th>
+                  <th class="dashboard-action-col">Action</th>
+                </tr>
+              </thead>
+
+              <tbody id="sessionWorkerTable">
+                {% for worker in session_workers %}
+                  <tr
+                    class="dashboard-session-worker-row"
+                    data-name="{{ (worker.display_name or worker.name or '')|lower }}"
+                    data-mobile="{{ (worker.mobile or '')|lower }}"
+                    data-email="{{ (worker.email or '')|lower }}"
+                    data-linked-coach="{{ (worker.linked_coach_label or current_coach_label or '')|lower }}"
+                    data-linked-coach-names="{% for coach in worker.linked_coaches or [] %}{{ coach.name }}{% if not loop.last %}|{% endif %}{% endfor %}"
+                    data-linked-clients-count="{{ worker.linked_clients_count or 0 }}"
+                  >
+                    <td>
+                      <strong>{{ worker.display_name or worker.name }}</strong>
+                    </td>
+                    <td>{{ worker.mobile or "—" }}</td>
+                    <td>{{ worker.email or "—" }}</td>
+                    <td>{{ worker.linked_coach_label or current_coach_label or "—" }}</td>
+                    <td>{{ worker.linked_clients_count or 0 }}</td>
+                    <td class="dashboard-action-cell">
+                      <span class="dashboard-link-btn">View</span>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="dashboard-empty">No session workers found.</div>
+        {% endif %}
       </div>
     </div>
   </div>
-
-  <div class="dashboard-card">
-    <div class="dashboard-card-header">
-      <div>
-        <h2>Session Worker List</h2>
-        <p id="sessionWorkerCount">
-          {{ session_workers|length }} session worker{% if session_workers|length != 1 %}s{% endif %}
-        </p>
-      </div>
-    </div>
-
-    {% if session_workers %}
-
-      <div class="dashboard-table-wrap">
-        <table class="dashboard-table" id="sessionWorkerTable">
-          <thead>
-            <tr>
-              <th>Session Worker Name</th>
-              <th>Mobile</th>
-              <th>Email</th>
-              <th>Linked Coach</th>
-              <th>Linked Clients</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {% for worker in session_workers %}
-              <tr
-                class="dashboard-session-worker-row"
-                data-name="{{ worker.display_name or worker.name }}"
-                data-mobile="{{ worker.mobile or '' }}"
-                data-email="{{ worker.email or '' }}"
-                data-linked-coach="{{ worker.linked_coach_label or '' }}"
-                data-linked-coach-names="{% for coach in worker.linked_coaches or [] %}{{ coach.name }}{% if not loop.last %}|{% endif %}{% endfor %}"
-                data-linked-clients-count="{{ worker.linked_clients_count or 0 }}"
-              >
-                <td data-label="Session Worker Name">
-                  <strong>{{ worker.display_name or worker.name }}</strong>
-                </td>
-
-                <td data-label="Mobile">
-                  {{ worker.mobile or "—" }}
-                </td>
-
-                <td data-label="Email">
-                  {% if worker.email %}
-                    <a href="mailto:{{ worker.email }}">{{ worker.email }}</a>
-                  {% else %}
-                    —
-                  {% endif %}
-                </td>
-
-                <td data-label="Linked Coach">
-                  {{ worker.linked_coach_label or current_coach_label or "—" }}
-                </td>
-
-                <td data-label="Linked Clients">
-                  {{ worker.linked_clients_count or 0 }}
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-
-    {% else %}
-
-      <div class="dashboard-empty-state">
-        <h2>No session workers found</h2>
-        <p>No session workers are currently linked to your coach clients.</p>
-      </div>
-
-    {% endif %}
-  </div>
-
 </div>
