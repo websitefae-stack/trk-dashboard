@@ -23,7 +23,7 @@
   }
 
   function coachMatches(row, filters) {
-    const coachName = (row.dataset.name || "").toLowerCase();
+    const coachName = row.dataset.coachName || row.dataset.name || "";
 
     if (filters.search && !coachName.includes(filters.search)) {
       return false;
@@ -59,11 +59,9 @@
 
   function initRefreshButton() {
     const refreshBtn = el("refreshCoaches");
-
     if (!refreshBtn || refreshBtn.dataset.refreshBound === "1") return;
 
     refreshBtn.dataset.refreshBound = "1";
-
     refreshBtn.addEventListener("click", function () {
       window.location.reload();
     });
@@ -76,7 +74,6 @@
 
     if (toggleBtn && toggleBtn.dataset.searchToggleBound !== "1") {
       toggleBtn.dataset.searchToggleBound = "1";
-
       toggleBtn.addEventListener("click", function () {
         if (panel) panel.classList.add("is-open");
         document.body.classList.add("coach-search-open");
@@ -85,7 +82,6 @@
 
     if (closeBtn && closeBtn.dataset.searchCloseBound !== "1") {
       closeBtn.dataset.searchCloseBound = "1";
-
       closeBtn.addEventListener("click", function () {
         if (panel) panel.classList.remove("is-open");
         document.body.classList.remove("coach-search-open");
@@ -95,13 +91,11 @@
 
   function initAddCoachButton() {
     const addBtn = el("addCoach");
-
     if (!addBtn || addBtn.dataset.addCoachBound === "1") return;
 
     const targetUrl = addBtn.dataset.addCoachUrl || "/app/coach/new-coach";
 
     addBtn.dataset.addCoachBound = "1";
-
     addBtn.addEventListener("click", function () {
       window.location.href = targetUrl;
     });
@@ -112,7 +106,6 @@
       if (link.dataset.coachNameLinkBound === "1") return;
 
       link.dataset.coachNameLinkBound = "1";
-
       link.addEventListener("click", function (event) {
         event.stopPropagation();
       });
@@ -120,9 +113,7 @@
   }
 
   function initCoachesPage() {
-    if (!el("coachTable") && !document.querySelector(".dashboard-coach-row")) {
-      return;
-    }
+    if (!el("coachTable") && !document.querySelector(".dashboard-coach-row")) return;
 
     initCoachFilterEvents();
     initRefreshButton();
