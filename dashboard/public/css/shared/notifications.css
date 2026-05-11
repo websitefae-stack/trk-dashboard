@@ -774,3 +774,63 @@
     justify-content: flex-start;
   }
 }
+
+/* =========================================================
+   NOTIFICATIONS MOBILE / COLLAPSE / MESSAGE FORMATTING
+========================================================= */
+
+.status-border-unread {
+  border: 2px solid #007274 !important;
+}
+
+.dashboard-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dashboard-board-section.is-collapsed .dashboard-notification-board,
+.dashboard-board-section.is-collapsed .dashboard-empty {
+  display: none;
+}
+
+.dashboard-archived-section.is-collapsed .dashboard-notification-board,
+.dashboard-archived-section.is-collapsed .dashboard-empty {
+  display: none;
+}
+
+.notification-detail-grid-compact {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.notification-original-message {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.notification-section-body.is-collapsed {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .dashboard-page-header {
+    gap: 14px;
+  }
+
+  .dashboard-page-actions {
+    flex-direction: row;
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .dashboard-page-actions .dashboard-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: center;
+  }
+
+  .notification-detail-grid-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
