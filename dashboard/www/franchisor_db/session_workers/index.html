@@ -76,7 +76,12 @@
                     data-linked-clients-count="{{ worker.linked_clients_count or 0 }}"
                   >
                     <td>
-                      <strong>{{ worker.display_name or worker.name }}</strong>
+                      <a
+                        class="dashboard-inline-link dashboard-session-worker-name-link"
+                        href="#"
+                      >
+                        {{ worker.display_name or worker.name }}
+                      </a>
                     </td>
                     <td>{{ worker.mobile or "—" }}</td>
                     <td>{{ worker.email or "—" }}</td>
