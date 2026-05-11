@@ -49,8 +49,62 @@ COACH_LABEL_FIELDS = [
 ]
 
 
+PROFILE_FIELD_CONFIG = [
+    {"label": "Name", "fields": ["sw_name", "session_worker_name", "full_name", "name"]},
+    {"label": "First Name", "fields": ["first_name"]},
+    {"label": "Middle Name", "fields": ["middle_name"]},
+    {"label": "Last Name", "fields": ["last_name"]},
+    {"label": "Mobile", "fields": ["mobile", "mobile_no", "phone"]},
+    {"label": "Email", "fields": ["sw_email", "session_worker_email", "email", "email_id", "user"]},
+    {"label": "Linked Coaches", "key": "linked_coach_label"},
+    {"label": "Phone", "fields": ["phone"]},
+    {"label": "Gender", "fields": ["gender"]},
+    {"label": "Location", "fields": ["location"]},
+    {"label": "Birthday", "fields": ["birth_date", "birthday", "date_of_birth"]},
+    {"label": "Bio", "fields": ["bio"], "full_width": 1},
+    {"label": "Interest", "fields": ["interest"], "full_width": 1},
+]
+
+LEGAL_PARENTFIELDS = {
+    "dbs": "dbs",
+    "dbs_update_service": "dbs_update_service",
+    "insurance": "insurance",
+    "indemnity": "indemnity",
+}
+
+LEGAL_LABELS = {
+    "dbs": "DBS",
+    "dbs_update_service": "DBS Update Service",
+    "insurance": "Insurance",
+    "indemnity": "Indemnity",
+}
+
+BILLING_FIELD_CONFIG = [
+    {"label": "Invoice Frequency", "fields": ["invoice_frequency"]},
+    {"label": "Invoice Cycle Start Date", "fields": ["invoice_cycle_start_date"]},
+    {"label": "Billing Type", "fields": ["billing_type"]},
+    {"label": "Hourly Rate", "fields": ["hourly_rate"]},
+    {"label": "Session Rate", "fields": ["session_rate"]},
+]
+
+BANK_ACCOUNT_FIELD_CONFIG = [
+    {"label": "Account Name", "fields": ["account_name"]},
+    {"label": "Bank", "fields": ["bank"]},
+    {"label": "Bank Account No", "fields": ["bank_account_no"]},
+    {"label": "Branch Code", "fields": ["branch_code"]},
+    {"label": "IBAN", "fields": ["iban"]},
+]
+
+
 def has_doctype(doctype):
     return frappe.db.exists("DocType", doctype)
+
+
+def has_field(doctype, fieldname):
+    if not has_doctype(doctype):
+        return False
+
+    return frappe.get_meta(doctype).has_field(fieldname)
 
 
 def get_existing_fields(doctype, candidates):
@@ -76,10 +130,36 @@ def get_first_value(row, fields):
     return ""
 
 
+def get_value_from_config(row, config):
+    if config.get("key"):
+        return row.get(config["key"]) or ""
+
+    for fieldname in config.get("fields") or []:
+        value = row.get(fieldname)
+        if value not in [None, ""]:
+            return value
+
+    return ""
+
+
 def get_session_worker_fields():
     fields = ["name"]
 
     for fieldname in SESSION_WORKER_LABEL_FIELDS + SESSION_WORKER_EMAIL_FIELDS + SESSION_WORKER_MOBILE_FIELDS:
+        if fieldname not in fields:
+            fields.append(fieldname)
+
+    for config in PROFILE_FIELD_CONFIG + BILLING_FIELD_CONFIG:
+        for fieldname in config.get("fields") or []:
+            if fieldname not in fields:
+                fields.append(fieldname)
+
+    extra_fields = [
+        "photo",
+        "bank_account",
+    ]
+
+    for fieldname in extra_fields:
         if fieldname not in fields:
             fields.append(fieldname)
 
@@ -120,12 +200,10 @@ def get_session_worker_label(worker_name):
     if not has_doctype(SESSION_WORKER_DOCTYPE):
         return worker_name
 
-    fields = get_session_worker_fields()
-
     row = frappe.db.get_value(
         SESSION_WORKER_DOCTYPE,
         worker_name,
-        fields,
+        get_session_worker_fields(),
         as_dict=True,
     )
 
@@ -142,12 +220,10 @@ def get_coach_label(coach_name):
     if not has_doctype(COACH_DOCTYPE):
         return coach_name
 
-    fields = get_coach_fields()
-
     row = frappe.db.get_value(
         COACH_DOCTYPE,
         coach_name,
-        fields,
+        get_coach_fields(),
         as_dict=True,
     )
 
@@ -179,7 +255,6 @@ def get_clients_for_coach(coach_name):
 
     fields = get_client_fields()
     rows_by_name = {}
-
     meta = frappe.get_meta(CLIENT_DOCTYPE)
 
     if meta.has_field("primary_coach"):
@@ -338,10 +413,107 @@ def normalize_rows(workers, scope):
 
         rows.append(worker)
 
-    return sorted(
-        rows,
-        key=lambda row: (row.get("display_name") or "").lower(),
+    return sorted(rows, key=lambda row: (row.get("display_name") or "").lower())
+
+
+def build_profile_fields(worker_row):
+    fields = []
+
+    for config in PROFILE_FIELD_CONFIG:
+        fields.append({
+            "label": config.get("label"),
+            "value": get_value_from_config(worker_row, config),
+            "full_width": config.get("full_width", 0),
+        })
+
+    return fields
+
+
+def get_child_rows(doc, parentfield):
+    if not parentfield:
+        return []
+
+    if not doc.meta.has_field(parentfield):
+        return []
+
+    rows = []
+
+    for row in doc.get(parentfield) or []:
+        rows.append(row.as_dict() if hasattr(row, "as_dict") else dict(row))
+
+    return rows
+
+
+def build_legal_sections(doc):
+    sections = []
+
+    for key, parentfield in LEGAL_PARENTFIELDS.items():
+        rows = get_child_rows(doc, parentfield)
+
+        sections.append({
+            "key": key,
+            "label": LEGAL_LABELS.get(key) or key.replace("_", " ").title(),
+            "rows": rows,
+        })
+
+    return sections
+
+
+def build_billing_fields(worker_row):
+    fields = []
+
+    for config in BILLING_FIELD_CONFIG:
+        value = get_value_from_config(worker_row, config)
+
+        if value not in [None, ""]:
+            fields.append({
+                "label": config.get("label"),
+                "value": value,
+            })
+
+    return fields
+
+
+def build_bank_account_fields(doc):
+    bank_account_name = doc.get("bank_account")
+
+    if not bank_account_name:
+        return []
+
+    if not frappe.db.exists("Bank Account", bank_account_name):
+        return []
+
+    fields_to_fetch = ["name"]
+
+    for config in BANK_ACCOUNT_FIELD_CONFIG:
+        for fieldname in config.get("fields") or []:
+            if has_field("Bank Account", fieldname) and fieldname not in fields_to_fetch:
+                fields_to_fetch.append(fieldname)
+
+    bank_account = frappe.db.get_value(
+        "Bank Account",
+        bank_account_name,
+        fields_to_fetch,
+        as_dict=True,
     )
+
+    if not bank_account:
+        return []
+
+    fields = [
+        {
+            "label": "Bank Account",
+            "value": bank_account.get("name"),
+        }
+    ]
+
+    for config in BANK_ACCOUNT_FIELD_CONFIG:
+        fields.append({
+            "label": config.get("label"),
+            "value": get_value_from_config(bank_account, config),
+        })
+
+    return fields
 
 
 @frappe.whitelist()
@@ -366,11 +538,7 @@ def get_session_workers(scope=None):
 
         clients = get_clients_for_coach(coach_name)
         workers = build_worker_map()
-        workers = add_client_context_to_workers(
-            workers,
-            clients,
-            restrict_to_coach=coach_name,
-        )
+        workers = add_client_context_to_workers(workers, clients, restrict_to_coach=coach_name)
 
         return {
             "scope": "coach",
@@ -396,3 +564,54 @@ def get_session_workers(scope=None):
             "current_coach_label": "",
             "session_workers": normalize_rows(workers, scope="franchisor"),
         }
+
+
+@frappe.whitelist()
+def get_session_worker_details(scope=None, worker_name=None):
+    ensure_logged_in()
+
+    scope = (scope or "").strip().lower()
+    worker_name = (worker_name or "").strip()
+
+    if scope not in ["coach", "franchisor"]:
+        frappe.throw(_("Invalid session worker scope."), frappe.PermissionError)
+
+    if not worker_name:
+        frappe.throw(_("Session Worker not found."))
+
+    data = get_session_workers(scope=scope)
+    allowed_workers = data.get("session_workers") or []
+
+    selected_worker = None
+
+    for worker in allowed_workers:
+        if worker.get("name") == worker_name:
+            selected_worker = worker
+            break
+
+    if not selected_worker:
+        frappe.throw(
+            _("You do not have permission to view this session worker."),
+            frappe.PermissionError,
+        )
+
+    if not frappe.db.exists(SESSION_WORKER_DOCTYPE, worker_name):
+        frappe.throw(_("Session Worker not found."))
+
+    doc = frappe.get_doc(SESSION_WORKER_DOCTYPE, worker_name)
+
+    worker_row = doc.as_dict()
+    worker_row.update(selected_worker)
+
+    return {
+        "scope": scope,
+        "session_worker": selected_worker,
+        "profile_fields": build_profile_fields(worker_row),
+        "photo": worker_row.get("photo") or "",
+        "legal_sections": build_legal_sections(doc),
+        "billing_fields": build_billing_fields(worker_row),
+        "bank_account_fields": build_bank_account_fields(doc),
+        "linked_clients": selected_worker.get("linked_clients") or [],
+        "back_url": f"/{scope}_db/session_workers",
+        "client_details_base_url": f"/{scope}_db/client_details",
+    }
