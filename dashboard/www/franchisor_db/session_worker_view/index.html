@@ -1,0 +1,38 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div style="background:#ac455c; color:#ffffff; border-radius:14px; padding:16px 18px; margin-bottom:18px;">
+        <strong>Viewing Session Worker:</strong>
+        {{ session_worker_display_name }}
+
+        <div style="margin-top:6px;">
+          You are viewing this session worker dashboard in read-only mode.
+        </div>
+
+        <div style="margin-top:12px;">
+          <a href="{{ back_url }}" class="dashboard-btn dashboard-btn-secondary">
+            Back to Session Workers
+          </a>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Session Worker View</div>
+        </div>
+
+        <div class="dashboard-empty">
+          Session worker dashboard content will be connected here next.
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
