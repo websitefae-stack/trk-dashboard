@@ -35,7 +35,10 @@
         <div class="dashboard-filter-field">
           <label for="invoiceCoachSelector">View coach invoices</label>
           <select class="dashboard-select" id="invoiceCoachSelector" data-current-coach="{{ current_coach }}">
-            <option value="{{ current_coach }}" {% if not selected_coach %}selected{% endif %}>{{ current_coach_label }}</option>
+            <option value="{{ current_coach }}" {% if not selected_coach %}selected{% endif %}>
+              {{ current_coach_label }}
+            </option>
+        
             {% for coach in coach_options %}
               {% if coach.value != current_coach %}
                 <option value="{{ coach.value }}" {% if selected_coach == coach.value %}selected{% endif %}>
@@ -75,22 +78,24 @@
           <div class="dashboard-table-count" id="invoiceCount">{{ invoices|length }} invoices</div>
         </div>
 
-        {% if invoices and invoices|length %}
-          <div class="dashboard-table-wrap">
-            <table class="dashboard-table">
-              <thead>
-                <tr>
-                  <th>Invoice Date</th>
-                  <th>Invoice Number</th>
-                  <th>Client Name</th>
-                  <th>Status</th>
-                  <th>Invoice Amount</th>
-                  <th>Outstanding</th>
-                  <th class="dashboard-text-right">Action</th>
-                </tr>
-              </thead>
-
-              <tbody id="invoiceTable">
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Invoice Date</th>
+                <th>Invoice Number</th>
+                <th>Client Name</th>
+                <th>Status</th>
+                <th>Invoice Amount</th>
+                <th>Outstanding</th>
+                <th class="dashboard-text-right">Action</th>
+              </tr>
+            </thead>
+        
+            <tbody id="invoiceTable">
+        
+              {% if invoices and invoices|length %}
+        
                 {% for inv in invoices %}
                   <tr
                     class="dashboard-invoice-row"
@@ -102,19 +107,29 @@
                     data-date="{{ inv.posting_date or '' }}"
                   >
                     <td>{{ inv.posting_date or "—" }}</td>
+        
                     <td>
                       <a class="dashboard-table-link" href="{{ inv.details_url }}">
                         {{ inv.name or "—" }}
                       </a>
                     </td>
+        
                     <td>{{ inv.client_name or "—" }}</td>
+        
                     <td>
                       <span class="dashboard-badge {{ inv.status_class }}">
                         {{ inv.status or "—" }}
                       </span>
                     </td>
-                    <td>{{ frappe.format_value(inv.grand_total, {"fieldtype": "Currency", "options": inv.currency}) }}</td>
-                    <td>{{ frappe.format_value(inv.outstanding_amount, {"fieldtype": "Currency", "options": inv.currency}) }}</td>
+        
+                    <td>
+                      {{ frappe.format_value(inv.grand_total, {"fieldtype": "Currency", "options": inv.currency}) }}
+                    </td>
+        
+                    <td>
+                      {{ frappe.format_value(inv.outstanding_amount, {"fieldtype": "Currency", "options": inv.currency}) }}
+                    </td>
+        
                     <td class="dashboard-text-right">
                       <a
                         class="dashboard-link-btn"
@@ -127,9 +142,24 @@
                     </td>
                   </tr>
                 {% endfor %}
-              </tbody>
-            </table>
-          </div>
+        
+              {% else %}
+        
+                <tr>
+                  <td colspan="7" class="dashboard-empty">
+                    No invoices found.
+                  </td>
+                </tr>
+        
+              {% endif %}
+        
+            </tbody>
+          </table>
+        </div>
+        
+        <div id="invoiceEmptyState" class="dashboard-empty" style="display:none;">
+          No invoices found.
+        </div>
 
           <div id="invoiceEmptyState" class="dashboard-empty" style="display:none;">
             No invoices found.
