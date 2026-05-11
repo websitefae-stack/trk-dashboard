@@ -1021,10 +1021,38 @@ def get_notifications(status="All", limit=20):
 
             result.append(_format_conversation(doc))
 
-    result.sort(
-        key=lambda row: row.get("modified") or row.get("notification_date") or "",
-        reverse=True,
-    )
+    response_needed = [
+        row for row in result
+        if int(row.get("requires_response") or 0)
+        and row.get("due_date")
+        and row.get("status") != "Archived"
+    ]
+
+    unread = [
+        row for row in result
+        if row.get("read_status") == "Unread"
+        and row.get("status") != "Archived"
+        and row not in response_needed
+    ]
+
+    open_rows = [
+        row for row in result
+        if row.get("status") != "Archived"
+        and row not in response_needed
+        and row not in unread
+    ]
+
+    archived = [
+        row for row in result
+        if row.get("status") == "Archived"
+    ]
+
+    response_needed.sort(key=lambda row: str(row.get("due_date") or ""))
+    unread.sort(key=lambda row: str(row.get("modified") or row.get("notification_date") or ""), reverse=True)
+    open_rows.sort(key=lambda row: str(row.get("modified") or row.get("notification_date") or ""), reverse=True)
+    archived.sort(key=lambda row: str(row.get("modified") or row.get("notification_date") or ""), reverse=True)
+
+    result = response_needed + unread + open_rows + archived
 
     return result[:limit]
 
@@ -1446,8 +1474,9 @@ def send_dashboard_notification(
         message_type="Message",
         sent_by=frappe.session.user,
         role_type=_get_current_role(),
+        attachment=attachment,
     )
-
+    
     frappe.db.commit()
 
     return {
