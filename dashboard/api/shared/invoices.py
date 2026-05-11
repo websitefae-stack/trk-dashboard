@@ -71,12 +71,18 @@ def _coach_label(coach):
     if not coach:
         return ""
 
-    return (
+    first = (
         coach.get("coach_name")
-        or coach.get("full_name")
-        or coach.get("name")
+        or coach.get("name1")
+        or coach.get("first_name")
         or ""
     )
+
+    last = coach.get("last_name") or ""
+
+    full = " ".join([part for part in [first, last] if part]).strip()
+
+    return full or coach.get("full_name") or coach.get("name") or ""
 
 
 def _get_coach_options():
@@ -86,12 +92,16 @@ def _get_coach_options():
     meta = frappe.get_meta("Coach")
     fields = ["name"]
 
-    for fieldname in ["coach_name", "full_name", "company"]:
+    for fieldname in ["coach_name", "name1", "first_name", "last_name", "full_name"]:
         if meta.has_field(fieldname):
             fields.append(fieldname)
 
     if meta.has_field("coach_name"):
         order_by = "coach_name asc, name asc"
+    elif meta.has_field("name1"):
+        order_by = "name1 asc, last_name asc, name asc" if meta.has_field("last_name") else "name1 asc, name asc"
+    elif meta.has_field("first_name"):
+        order_by = "first_name asc, last_name asc, name asc" if meta.has_field("last_name") else "first_name asc, name asc"
     elif meta.has_field("full_name"):
         order_by = "full_name asc, name asc"
     else:
@@ -105,19 +115,13 @@ def _get_coach_options():
         ignore_permissions=True,
     )
 
-    options = []
-
-    for row in rows:
-        label = _coach_label(row)
-        if row.get("company"):
-            label = f"{label} · {row.get('company')}"
-
-        options.append({
+    return [
+        {
             "value": row.get("name"),
-            "label": label or row.get("name"),
-        })
-
-    return options
+            "label": _coach_label(row),
+        }
+        for row in rows
+    ]
 
 
 def _get_client_fields():
