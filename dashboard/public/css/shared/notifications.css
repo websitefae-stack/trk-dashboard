@@ -834,3 +834,27 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Force notification header buttons side by side on mobile */
+@media (max-width: 768px) {
+  .dashboard-container .dashboard-page-header .dashboard-page-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .dashboard-container .dashboard-page-header .dashboard-page-actions .dashboard-btn {
+    flex: 1 1 0 !important;
+    width: 50% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    white-space: nowrap !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    font-size: 13px !important;
+  }
+}
