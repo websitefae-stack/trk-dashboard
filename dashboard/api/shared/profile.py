@@ -2,7 +2,7 @@ import frappe
 from frappe import _
 from werkzeug.utils import secure_filename
 
-from dashboard.api.shared.notifications import create_trk_notification
+from dashboard.api.shared.notifications import send_dashboard_notification
 
 
 CHANGE_REQUEST_DOCTYPE = "Change Request"
@@ -462,18 +462,25 @@ Please update the bank account, reply when completed, then archive this conversa
 
     notification_names = []
 
-    for recipient_user in config.get("banking_notification_users") or []:
-        notification_name = create_trk_notification(
-            recipient_user=recipient_user,
+    recipient_users = [
+        user for user in (config.get("banking_notification_users") or [])
+        if user
+    ]
+    
+    if recipient_users:
+        notification_result = send_dashboard_notification(
+            recipient_users=recipient_users,
             notification_type="Approval Request",
+            title=request_title,
             message=notification_message,
             priority="High",
             reference_doctype=CHANGE_REQUEST_DOCTYPE,
             reference_name=change_request.name,
-            coach=profile_doc.name if role in ["coach", "franchisor"] else None,
-            session_worker=profile_doc.name if role == "session_worker" else None,
+            requires_response=1,
         )
-
+    
+        notification_name = notification_result.get("name") if notification_result else ""
+    
         if notification_name:
             notification_names.append(notification_name)
 
