@@ -1,0 +1,140 @@
+{% extends "templates/web.html" %}
+
+{% block title %}Session Workers{% endblock %}
+
+{% block head_include %}
+  {% include "dashboard/templates/includes/shared_head.html" %}
+{% endblock %}
+
+{% block page_content %}
+
+<div class="dashboard-page dashboard-session-workers-page" data-dashboard-scope="franchisor">
+
+  <div class="dashboard-page-header">
+    <div>
+      <p class="dashboard-eyebrow">Franchisor Dashboard</p>
+      <h1>Session Workers</h1>
+      <p class="dashboard-subtitle">
+        Showing all session workers and their linked coaches.
+      </p>
+    </div>
+
+    <div class="dashboard-page-actions">
+      <button type="button" class="dashboard-btn dashboard-btn-secondary" id="toggleSessionWorkerSearch">
+        Search / Filter
+      </button>
+
+      <button type="button" class="dashboard-btn dashboard-btn-secondary" id="refreshSessionWorkers">
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <div class="dashboard-filter-panel" id="sessionWorkerFilterPanel">
+    <div class="dashboard-filter-header">
+      <h2>Filter session workers</h2>
+      <button type="button" class="dashboard-filter-close" id="closeSessionWorkerSearch">
+        ×
+      </button>
+    </div>
+
+    <div class="dashboard-filter-grid">
+      <div class="dashboard-field">
+        <label for="sessionWorkerSearch">Search</label>
+        <input
+          type="search"
+          id="sessionWorkerSearch"
+          placeholder="Search by name, email, mobile or coach"
+        >
+      </div>
+
+      <div class="dashboard-field">
+        <label for="sessionWorkerCoachFilter">Linked Coach</label>
+        <select id="sessionWorkerCoachFilter">
+          <option value="All">All coaches</option>
+
+          {% for coach in coach_filter_options %}
+            <option value="{{ coach.name }}">{{ coach.display_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="dashboard-card">
+    <div class="dashboard-card-header">
+      <div>
+        <h2>Session Worker List</h2>
+        <p id="sessionWorkerCount">
+          {{ session_workers|length }} session worker{% if session_workers|length != 1 %}s{% endif %}
+        </p>
+      </div>
+    </div>
+
+    {% if session_workers %}
+
+      <div class="dashboard-table-wrap">
+        <table class="dashboard-table" id="sessionWorkerTable">
+          <thead>
+            <tr>
+              <th>Session Worker Name</th>
+              <th>Mobile</th>
+              <th>Email</th>
+              <th>Linked Coach</th>
+              <th>Linked Clients</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for worker in session_workers %}
+              <tr
+                class="dashboard-session-worker-row"
+                data-name="{{ worker.display_name or worker.name }}"
+                data-mobile="{{ worker.mobile or '' }}"
+                data-email="{{ worker.email or '' }}"
+                data-linked-coach="{{ worker.linked_coach_label or '' }}"
+                data-linked-coach-names="{% for coach in worker.linked_coaches or [] %}{{ coach.name }}{% if not loop.last %}|{% endif %}{% endfor %}"
+                data-linked-clients-count="{{ worker.linked_clients_count or 0 }}"
+              >
+                <td data-label="Session Worker Name">
+                  <strong>{{ worker.display_name or worker.name }}</strong>
+                </td>
+
+                <td data-label="Mobile">
+                  {{ worker.mobile or "—" }}
+                </td>
+
+                <td data-label="Email">
+                  {% if worker.email %}
+                    <a href="mailto:{{ worker.email }}">{{ worker.email }}</a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+
+                <td data-label="Linked Coach">
+                  {{ worker.linked_coach_label or "—" }}
+                </td>
+
+                <td data-label="Linked Clients">
+                  {{ worker.linked_clients_count or 0 }}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+    {% else %}
+
+      <div class="dashboard-empty-state">
+        <h2>No session workers found</h2>
+        <p>No session workers are currently available.</p>
+      </div>
+
+    {% endif %}
+  </div>
+
+</div>
+
+{% endblock %}
