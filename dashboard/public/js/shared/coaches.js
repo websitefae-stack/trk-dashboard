@@ -23,33 +23,9 @@
   }
 
   function coachMatches(row, filters) {
-    const haystack = [
-      row.dataset.name || "",
-      row.dataset.email || "",
-      row.dataset.user || "",
-      row.dataset.company || "",
-      row.dataset.pricelist || "",
-      row.dataset.bankAccount || "",
-      row.dataset.insuranceNumber || ""
-    ].join(" ").toLowerCase();
+    const coachName = (row.dataset.name || "").toLowerCase();
 
-    if (filters.search && !haystack.includes(filters.search)) {
-      return false;
-    }
-
-    if (
-      filters.company &&
-      filters.company !== "All" &&
-      row.dataset.company !== filters.company
-    ) {
-      return false;
-    }
-
-    if (
-      filters.pricelist &&
-      filters.pricelist !== "All" &&
-      row.dataset.pricelist !== filters.pricelist
-    ) {
+    if (filters.search && !coachName.includes(filters.search)) {
       return false;
     }
 
@@ -58,9 +34,7 @@
 
   function getFilters() {
     return {
-      search: (getFilterValue("coachSearch", "") || "").trim().toLowerCase(),
-      company: getFilterValue("coachCompanyFilter", "All"),
-      pricelist: getFilterValue("coachPricelistFilter", "All")
+      search: (getFilterValue("coachSearch", "") || "").trim().toLowerCase()
     };
   }
 
@@ -75,21 +49,12 @@
   }
 
   function initCoachFilterEvents() {
-    [
-      "coachSearch",
-      "coachCompanyFilter",
-      "coachPricelistFilter"
-    ].forEach((id) => {
-      const field = el(id);
+    const field = el("coachSearch");
 
-      if (!field || field.dataset.coachFilterBound === "1") return;
+    if (!field || field.dataset.coachFilterBound === "1") return;
 
-      field.dataset.coachFilterBound = "1";
-
-      const eventName = field.tagName === "SELECT" ? "change" : "input";
-
-      field.addEventListener(eventName, renderCoachFilters);
-    });
+    field.dataset.coachFilterBound = "1";
+    field.addEventListener("input", renderCoachFilters);
   }
 
   function initRefreshButton() {
@@ -114,7 +79,6 @@
 
       toggleBtn.addEventListener("click", function () {
         if (panel) panel.classList.add("is-open");
-
         document.body.classList.add("coach-search-open");
       });
     }
@@ -124,7 +88,6 @@
 
       closeBtn.addEventListener("click", function () {
         if (panel) panel.classList.remove("is-open");
-
         document.body.classList.remove("coach-search-open");
       });
     }
