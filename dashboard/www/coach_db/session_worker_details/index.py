@@ -1,11 +1,9 @@
 import frappe
 from frappe import _
 
-from dashboard.api.shared.permissions import (
-    redirect_if_wrong_dashboard,
-    ensure_coach_can_access_session_worker,
-)
-from dashboard.api.coach.profile import get_coach_display_name
+from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
+from dashboard.api.shared.directory import get_coach_display_name
+from dashboard.api.shared.session_workers import get_session_workers
 
 
 def get_context(context):
@@ -14,17 +12,35 @@ def get_context(context):
 
     redirect_if_wrong_dashboard("coach")
 
-    session_worker_name = frappe.form_dict.get("name")
-    if not session_worker_name:
+    worker_name = frappe.form_dict.get("name")
+
+    if not worker_name:
         frappe.throw(_("Session Worker not found."))
 
-    session_worker = ensure_coach_can_access_session_worker(session_worker_name)
+    data = get_session_workers(scope="coach")
+    workers = data.get("session_workers") or []
+
+    selected_worker = None
+
+    for worker in workers:
+        if worker.get("name") == worker_name:
+            selected_worker = worker
+            break
+
+    if not selected_worker:
+        frappe.throw(
+            _("You do not have permission to view this session worker."),
+            frappe.PermissionError,
+        )
 
     context.no_cache = 1
     context.page_title = "Session Worker Details"
     context.active_page = "session_workers"
-
-    context.dashboard_user_name = get_coach_display_name()
     context.dashboard_notifications_url = "/coach_db/notifications"
+    context.dashboard_user_name = get_coach_display_name()
 
-    context.session_worker = session_worker
+    context.session_worker = selected_worker
+    context.linked_clients = selected_worker.get("linked_clients") or []
+
+    context.back_url = "/coach_db/session_workers"
+    context.client_details_base_url = "/coach_db/client_details"
