@@ -23,14 +23,118 @@
         </div>
       </div>
 
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Dashboard</h1>
+          <p class="dashboard-page-subtitle">
+            Read-only overview for {{ session_worker_display_name }}
+          </p>
+        </div>
+      </div>
+
       <div class="dashboard-card">
         <div class="dashboard-table-header">
-          <div class="dashboard-table-title">Session Worker View</div>
+          <div class="dashboard-table-title">Session Summary</div>
+          <div class="dashboard-table-count">
+            {{ dashboard_summary.invoice_frequency or "Monthly" }}
+          </div>
         </div>
 
-        <div class="dashboard-empty">
-          Session worker dashboard content will be connected here next.
+        <div class="dashboard-detail-grid dashboard-detail-grid-2">
+          <div class="dashboard-detail-section">
+            <h2 class="dashboard-detail-section-title">
+              Previous Period: {{ dashboard_summary.previous_label }}
+            </h2>
+
+            <div class="dashboard-detail-grid dashboard-detail-grid-2">
+              <div class="dashboard-detail-field">
+                <label>One to One</label>
+                <input class="dashboard-input" type="text" value="{{ dashboard_summary.one_to_one_previous or 0 }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Group</label>
+                <input class="dashboard-input" type="text" value="{{ dashboard_summary.group_previous or 0 }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Workshop</label>
+                <input class="dashboard-input" type="text" value="{{ dashboard_summary.workshop_previous or 0 }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Travel Miles</label>
+                <input class="dashboard-input" type="text" value="{{ dashboard_summary.travel_miles_previous or 0 }}" readonly>
+              </div>
+            </div>
+          </div>
+
+          <div class="dashboard-detail-section">
+            <h2 class="dashboard-detail-section-title">
+              Current Period: {{ dashboard_summary.current_label }}
+            </h2>
+
+            <div class="dashboard-detail-grid dashboard-detail-grid-2">
+              <div class="dashboard-detail-field">
+                <label>One to One</label>
+                <input class="dashboard-input" type="text" value="{{ dashboard_summary.one_to_one_current or 0 }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Group</label>
+                <input class="dashboard-input" type="text" value="{{ dashboard_summary.group_current or 0 }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Workshop</label>
+                <input class="dashboard-input" type="text" value="{{ dashboard_summary.workshop_current or 0 }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Travel Miles</label>
+                <input class="dashboard-input" type="text" value="{{ dashboard_summary.travel_miles_current or 0 }}" readonly>
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Upcoming Appointments</div>
+        </div>
+
+        {% if dashboard_summary.upcoming_appointments %}
+          <div class="dashboard-table-wrap">
+            <table class="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Date / Time</th>
+                  <th>Client</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Location</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {% for appointment in dashboard_summary.upcoming_appointments %}
+                  <tr>
+                    <td>
+                      {{ frappe.format(appointment.starts_on, {"fieldtype": "Datetime"}) if appointment.starts_on else "—" }}
+                    </td>
+                    <td>{{ appointment.client_display or appointment.client or "—" }}</td>
+                    <td>{{ appointment.session_type or appointment.appointment_type or "—" }}</td>
+                    <td>{{ appointment.status or appointment.appointment_status or "—" }}</td>
+                    <td>{{ appointment.location or "—" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="dashboard-empty">No upcoming appointments found.</div>
+        {% endif %}
       </div>
 
     </div>
