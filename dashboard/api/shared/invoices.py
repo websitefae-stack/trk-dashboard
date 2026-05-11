@@ -1306,9 +1306,19 @@ def send_invoice_email(docname, recipient=None, reply_to=None, subject=None, mes
 
     subject = (subject or f"Invoice {doc.name}").strip()
     message = (message or f"Please find attached invoice {doc.name}.").strip()
+    message = "<p>" + "</p><p>".join(
+        line.strip() for line in message.splitlines() if line.strip()
+    ) + "</p>"
     reply_to = (reply_to or "").strip()
 
-    attachments = [frappe.attach_print("Sales Invoice", doc.name)]
+    attachments = [
+        frappe.attach_print(
+            "Sales Invoice",
+            doc.name,
+            print_format="Resilient Invoice",
+            letterhead="Resilient Kid",
+        )
+    ]
 
     kwargs = {
         "recipients": [recipient],
