@@ -302,6 +302,13 @@ def get_invoice_page_data(dashboard_type=None, selected_coach=None):
         frappe.throw(_("Your user is not linked to a Coach record."), frappe.PermissionError)
 
     selected_coach = (selected_coach or "").strip()
+    current_coach_name = (current_coach.get("name") or "").strip()
+
+    # IMPORTANT:
+    # The current user's own invoices are the default view.
+    # If the dropdown sends the current coach name, treat it the same as no selected coach.
+    if selected_coach == current_coach_name:
+        selected_coach = ""
 
     client_rows = _get_clients_for_invoice_scope(
         current_coach=current_coach,
@@ -313,7 +320,7 @@ def get_invoice_page_data(dashboard_type=None, selected_coach=None):
 
     return {
         "dashboard_type": dashboard_type,
-        "current_coach": current_coach.get("name"),
+        "current_coach": current_coach_name,
         "current_coach_label": _coach_label(current_coach),
         "current_company": current_coach.get("company") or "",
         "selected_coach": selected_coach,
