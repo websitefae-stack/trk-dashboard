@@ -1,12 +1,4 @@
-{% extends "templates/web.html" %}
-
-{% block title %}Session Workers{% endblock %}
-
-{% block head_include %}
-  {% include "dashboard/templates/includes/shared_head.html" %}
-{% endblock %}
-
-{% block page_content %}
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
 
 <div class="dashboard-page dashboard-session-workers-page" data-dashboard-scope="franchisor">
 
@@ -136,5 +128,3 @@
   </div>
 
 </div>
-
-{% endblock %}
