@@ -927,3 +927,50 @@
     display: none !important;
   }
 }
+
+/* =========================================================
+   COACH LIST MOBILE TABLE
+========================================================= */
+
+@media (max-width: 768px) {
+  .dashboard-coach-table thead {
+    display: none;
+  }
+
+  .dashboard-coach-table,
+  .dashboard-coach-table tbody,
+  .dashboard-coach-table tr,
+  .dashboard-coach-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .dashboard-coach-table tr.dashboard-coach-row {
+    border: 1px solid #D9E6E6;
+    border-radius: 14px;
+    margin-bottom: 12px;
+    padding: 12px;
+    background: #FFFFFF;
+  }
+
+  .dashboard-coach-table tr.dashboard-coach-row td {
+    border: 0;
+    padding: 4px 0;
+  }
+
+  .dashboard-coach-table tr.dashboard-coach-row td:nth-child(1),
+  .dashboard-coach-table tr.dashboard-coach-row td:nth-child(3) {
+    display: block;
+  }
+
+  .dashboard-coach-table tr.dashboard-coach-row td:nth-child(2),
+  .dashboard-coach-table tr.dashboard-coach-row td:nth-child(4),
+  .dashboard-coach-table tr.dashboard-coach-row td:nth-child(5),
+  .dashboard-coach-table tr.dashboard-coach-row td:nth-child(6) {
+    display: none;
+  }
+
+  .dashboard-coach-table .dashboard-coach-name-link {
+    font-weight: 700;
+  }
+}
