@@ -60,6 +60,9 @@
                   <tr
                     class="dashboard-coach-row"
                     data-name="{{ display_name|lower }}"
+                    data-coach-name="{{ display_name|lower }}"
+                    data-email="{{ (coach.coach_email or '')|lower }}"
+                    data-mobile="{{ (coach.mobile or '')|lower }}"
                   >
                     <td>
                       <a class="dashboard-inline-link dashboard-coach-name-link" href="/franchisor_db/coach_details?name={{ coach.name | urlencode }}">
