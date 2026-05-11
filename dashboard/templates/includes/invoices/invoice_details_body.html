@@ -1,457 +1,358 @@
 <div class="dashboard-container">
+  <style>
+    .invoice-detail-shell {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
 
-  <input type="hidden" id="csrfToken" value="{{ frappe.session.csrf_token }}">
-  <input type="hidden" id="invoiceDocname" value="{{ doc.name or '' }}">
-  <input type="hidden" id="invoiceDocstatus" value="{{ doc.docstatus or 0 }}">
-  <input type="hidden" id="invoice_status" value="{{ doc.status or 'Draft' }}">
-  <input type="hidden" id="invoice_contact_email_hidden" value="{{ contact_email or '' }}">
-  <input type="hidden" id="coachPhoneValue" value="{{ current_user_phone or '' }}">
+    .invoice-hero {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 20px;
+    }
 
-  <script id="invoiceInitialItems" type="application/json">
-    {{ initial_items_json or "[]" }}
-  </script>
+    .invoice-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
 
-  <script id="invoiceInitialClientDefaults" type="application/json">
-    {{ initial_client_defaults_json or "{}" }}
-  </script>
+    .invoice-items-table .dashboard-textarea {
+      min-height: 72px;
+    }
+
+    .invoice-summary-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 20px;
+    }
+
+    .invoice-summary-box {
+      background: #fbfcfd;
+      border: 1px solid #D9E6E6;
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .invoice-summary-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid #edf2f4;
+    }
+
+    .invoice-summary-line:last-child {
+      border-bottom: 0;
+    }
+
+    .invoice-package-warning {
+      border: 1px solid #f4b400;
+      background: #fff8e1;
+      color: #5f4700;
+    }
+
+    .invoice-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(67, 75, 73, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 1000;
+    }
+
+    .invoice-modal-backdrop[hidden] {
+      display: none !important;
+    }
+
+    .invoice-modal-card {
+      width: min(720px, 100%);
+      background: #FFFFFF;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 16px 40px rgba(67, 75, 73, 0.16);
+    }
+
+    .invoice-modal-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 980px) {
+      .invoice-hero,
+      .invoice-summary-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .invoice-meta-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 
   <div class="dashboard-page-header">
     <div>
-      <h1 class="dashboard-page-title" id="invoicePageTitle">
-        {{ doc.name or "New Invoice" }}
-      </h1>
-
-      <p class="dashboard-page-subtitle">
-        Create and manage invoices
-      </p>
+      <h1 class="dashboard-page-title" id="invoicePageTitle">{{ page_title }}</h1>
+      <p class="dashboard-page-subtitle">Create, review, submit, and email invoices from the dashboard.</p>
     </div>
 
     <div class="dashboard-page-actions">
+      <a href="{{ dashboard_base_path }}/invoices" class="dashboard-btn dashboard-btn-light">Back to Invoices</a>
 
-      <span
-        id="invoiceStatusBadge"
-        class="dashboard-badge {% if doc.status == 'Paid' %}dashboard-status-active{% elif doc.docstatus == 0 %}dashboard-status-onhold{% else %}dashboard-status-archived{% endif %}"
-      >
-        {{ doc.status or "Draft" }}
-      </span>
-
-      <a
-        href="{{ dashboard_base_path }}/invoices"
-        class="dashboard-btn dashboard-btn-light"
-      >
-        Back to Invoices
-      </a>
-
-      <button
-        type="button"
-        class="dashboard-btn dashboard-btn-light"
-        id="openEmailInvoice"
-        {% if doc.docstatus != 1 %}style="display:none;"{% endif %}
-      >
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="openEmailInvoice" {% if doc.docstatus != 1 %}style="display:none;"{% endif %}>
         Email Invoice
       </button>
 
-      <button
-        type="button"
-        class="dashboard-btn dashboard-btn-light"
-        id="saveInvoiceDraft"
-        {% if doc.docstatus != 0 %}style="display:none;"{% endif %}
-      >
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="saveInvoiceDraft" {% if doc.docstatus != 0 %}style="display:none;"{% endif %}>
         Save Draft
       </button>
 
-      <button
-        type="button"
-        class="dashboard-btn"
-        id="submitInvoice"
-        {% if doc.docstatus != 0 %}style="display:none;"{% endif %}
-      >
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="submitInvoice" {% if doc.docstatus != 0 %}style="display:none;"{% endif %}>
         Submit Invoice
       </button>
-
     </div>
   </div>
 
-  <div
-    id="openPackageWarning"
-    class="dashboard-alert dashboard-alert-warning"
-    hidden
-    style="margin-bottom:20px;"
-  ></div>
+  <div id="openPackageWarning" class="dashboard-card invoice-package-warning" hidden></div>
 
-  <div class="dashboard-grid dashboard-grid-2">
+  <form id="invoiceDetailsForm" class="invoice-detail-shell">
+    <input type="hidden" id="csrfToken" value="{{ frappe.session.csrf_token }}">
+    <input type="hidden" id="invoiceDocname" value="{{ docname or '' }}">
+    <input type="hidden" id="invoiceDocstatus" value="{{ doc.docstatus or 0 }}">
+    <input type="hidden" id="invoice_status" value="{{ doc.status or ('Draft' if doc.docstatus == 0 else 'Submitted' if doc.docstatus == 1 else 'Cancelled') }}">
+    <input type="hidden" id="invoice_contact_email_hidden" value="{{ contact_email or '' }}">
+    <input type="hidden" id="coachPhoneValue" value="{{ current_user_phone or '' }}">
 
-    <div class="dashboard-card">
+    <script type="application/json" id="invoiceInitialItems">{{ initial_items_json }}</script>
+    <script type="application/json" id="invoiceInitialClientDefaults">{{ initial_client_defaults_json or "{}" }}</script>
 
-      <div class="dashboard-card-header">
-        <h3 class="dashboard-card-title">Invoice Details</h3>
-      </div>
-
-      <div class="dashboard-form-grid">
-
-        <div class="dashboard-form-field">
-          <label>Invoice Number</label>
-
-          <input
-            type="text"
-            class="dashboard-input"
-            id="invoice_name"
-            value="{{ doc.name or '' }}"
-            readonly
-          >
+    <div class="invoice-hero">
+      <section class="dashboard-card">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Invoice Header</h2>
         </div>
 
-        <div class="dashboard-form-field">
-          <label>Status</label>
+        <div class="invoice-meta-grid">
+          <div class="dashboard-detail-field">
+            <label for="invoice_naming_series">Series</label>
+            <input type="text" id="invoice_naming_series" class="dashboard-input" value="{{ doc.naming_series or '' }}" readonly>
+          </div>
 
-          <input
-            type="text"
-            class="dashboard-input"
-            value="{{ doc.status or 'Draft' }}"
-            readonly
-          >
+          <div class="dashboard-detail-field">
+            <label for="invoice_name">Invoice Number</label>
+            <input type="text" id="invoice_name" class="dashboard-input" value="{{ doc.name or '' }}" readonly>
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="invoice_posting_date">Posting Date</label>
+            <input type="date" id="invoice_posting_date" class="dashboard-input" value="{{ doc.posting_date or '' }}" readonly>
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="invoice_due_date">Due Date</label>
+            <input
+              type="date"
+              id="invoice_due_date"
+              class="dashboard-input"
+              value="{{ doc.due_date or '' }}"
+              data-invoice-field="1"
+              data-fieldname="due_date"
+              data-meta-readonly="0"
+            >
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label>Status</label>
+            <div class="dashboard-checkbox-wrap">
+              <span
+                id="invoiceStatusBadge"
+                class="dashboard-badge {% if doc.status == 'Paid' %}dashboard-status-active{% elif doc.docstatus == 0 or doc.status == 'Partly Paid' %}dashboard-status-onhold{% else %}dashboard-status-archived{% endif %}"
+              >
+                {{ doc.status or ("Draft" if doc.docstatus == 0 else "Submitted" if doc.docstatus == 1 else "Cancelled") }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-card">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Bill To</h2>
         </div>
 
-        <div class="dashboard-form-field">
-          <label>Posting Date</label>
+        <div class="invoice-meta-grid">
+          <div class="dashboard-detail-field">
+            <label for="invoice_custom_client">Client <span class="dashboard-required">*</span></label>
+            <select
+              id="invoice_custom_client"
+              class="dashboard-select"
+              data-invoice-field="1"
+              data-fieldname="custom_client"
+              data-link-doctype="Client"
+              data-current-value="{{ doc.custom_client or '' }}"
+              data-meta-readonly="0"
+            >
+              <option value=""></option>
+              {% if doc.custom_client %}
+                <option value="{{ doc.custom_client }}" selected>{{ client_label or doc.custom_client }}</option>
+              {% endif %}
+            </select>
+          </div>
 
-          <input
-            type="date"
-            class="dashboard-input"
-            id="invoice_posting_date"
-            value="{{ doc.posting_date or '' }}"
-            readonly
-          >
+          <div class="dashboard-detail-field">
+            <label for="invoice_customer">Billing Contact <span class="dashboard-required">*</span></label>
+            <select
+              id="invoice_customer"
+              class="dashboard-select"
+              data-invoice-field="1"
+              data-fieldname="customer"
+              data-link-doctype="Customer"
+              data-current-value="{{ doc.customer or '' }}"
+              data-meta-readonly="0"
+            >
+              <option value=""></option>
+              {% if doc.customer %}
+                <option value="{{ doc.customer }}" selected>{{ billing_contact_label or customer_label or doc.customer }}</option>
+              {% endif %}
+            </select>
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="invoice_price_list">Price List</label>
+            <input type="text" id="invoice_price_list" class="dashboard-input" value="{{ price_list or '' }}" readonly>
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="invoice_company">Company</label>
+            <input type="text" id="invoice_company" class="dashboard-input" value="{{ company_label or doc.company or '' }}" readonly>
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="invoice_coach_label">Coach</label>
+            <input type="text" id="invoice_coach_label" class="dashboard-input" value="{{ coach_label or '' }}" readonly>
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="invoice_contact_email">Billing Contact Email</label>
+            <input type="email" id="invoice_contact_email" class="dashboard-input" value="{{ contact_email or '' }}" readonly>
+          </div>
+
+          <div class="dashboard-detail-field dashboard-detail-field-full">
+            <label for="invoice_bank_display">Selected Banking Details</label>
+            <textarea id="invoice_bank_display" class="dashboard-textarea" readonly>{{ bank_display_text or '' }}</textarea>
+          </div>
         </div>
-
-        <div class="dashboard-form-field">
-          <label>Due Date</label>
-
-          <input
-            type="date"
-            class="dashboard-input"
-            id="invoice_due_date"
-            data-invoice-field="1"
-            value="{{ doc.due_date or '' }}"
-          >
-        </div>
-
-        <div class="dashboard-form-field">
-          <label>Naming Series</label>
-
-          <input
-            type="text"
-            class="dashboard-input"
-            id="invoice_naming_series"
-            value="{{ doc.naming_series or '' }}"
-            readonly
-          >
-        </div>
-
-      </div>
+      </section>
     </div>
 
-    <div class="dashboard-card">
-
-      <div class="dashboard-card-header">
-        <h3 class="dashboard-card-title">Billing Information</h3>
+    <section class="dashboard-card invoice-items-table">
+      <div class="dashboard-detail-section-head">
+        <h2 class="dashboard-detail-section-title">Invoice Items</h2>
       </div>
 
-      <div class="dashboard-form-grid">
-
-        <div class="dashboard-form-field">
-          <label>Client</label>
-
-          <select
-            class="dashboard-select"
-            id="invoice_custom_client"
-            data-link-doctype="Client"
-            data-current-value="{{ doc.custom_client or '' }}"
-            data-invoice-field="1"
-          >
-            <option value=""></option>
-          </select>
-        </div>
-
-        <div class="dashboard-form-field">
-          <label>Billing Contact</label>
-
-          <select
-            class="dashboard-select"
-            id="invoice_customer"
-            data-link-doctype="Customer"
-            data-current-value="{{ doc.customer or '' }}"
-            data-invoice-field="1"
-          >
-            <option value=""></option>
-          </select>
-        </div>
-
-        <div class="dashboard-form-field">
-          <label>Company</label>
-
-          <input
-            type="text"
-            class="dashboard-input"
-            id="invoice_company"
-            value="{{ company_label or '' }}"
-            readonly
-          >
-        </div>
-
-        <div class="dashboard-form-field">
-          <label>Price List</label>
-
-          <input
-            type="text"
-            class="dashboard-input"
-            id="invoice_price_list"
-            value="{{ price_list or '' }}"
-            readonly
-          >
-        </div>
-
-        <div class="dashboard-form-field">
-          <label>Coach</label>
-
-          <input
-            type="text"
-            class="dashboard-input"
-            id="invoice_coach_label"
-            value="{{ coach_label or '' }}"
-            readonly
-          >
-        </div>
-
-        <div class="dashboard-form-field">
-          <label>Contact Email</label>
-
-          <input
-            type="text"
-            class="dashboard-input"
-            id="invoice_contact_email"
-            value="{{ contact_email or '' }}"
-            readonly
-          >
-        </div>
-
+      <div class="dashboard-table-wrap">
+        <table class="dashboard-table">
+          <thead>
+            <tr>
+              <th style="width: 24%;">Item Code</th>
+              <th>Description / Notes</th>
+              <th style="width: 10%;">Qty</th>
+              <th style="width: 14%;">Rate</th>
+              <th style="width: 14%;">Amount</th>
+              <th style="width: 12%;" class="dashboard-text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody id="invoiceItemsBody"></tbody>
+        </table>
       </div>
 
-      <div class="dashboard-form-field" style="margin-top:20px;">
-        <label>Bank Details</label>
-
-        <textarea
-          class="dashboard-textarea"
-          id="invoice_bank_display"
-          rows="4"
-          readonly
-        >{{ bank_display_text or '' }}</textarea>
+      <div style="margin-top: 16px;">
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="addInvoiceItem">Add Item</button>
       </div>
+    </section>
 
-    </div>
-
-  </div>
-
-  <div class="dashboard-card" style="margin-top:24px;">
-
-    <div class="dashboard-table-header">
-
-      <div>
-        <h3 class="dashboard-card-title">Invoice Items</h3>
-      </div>
-
-      <div>
-        <button
-          type="button"
-          class="dashboard-btn dashboard-btn-light"
-          id="addInvoiceItem"
-        >
-          Add Item
-        </button>
-      </div>
-
-    </div>
-
-    <div class="dashboard-table-wrap">
-
-      <table class="dashboard-table">
-
-        <thead>
-          <tr>
-            <th style="width:180px;">Item</th>
-            <th>Description</th>
-            <th style="width:120px;">Qty</th>
-            <th style="width:140px;">Rate</th>
-            <th style="width:140px;">Amount</th>
-            <th style="width:120px;"></th>
-          </tr>
-        </thead>
-
-        <tbody id="invoiceItemsBody"></tbody>
-
-      </table>
-
-    </div>
-
-  </div>
-
-  <div class="dashboard-grid dashboard-grid-2" style="margin-top:24px;">
-
-    <div class="dashboard-card">
-
-      <div class="dashboard-card-header">
-        <h3 class="dashboard-card-title">Notes</h3>
-      </div>
-
-      <div class="dashboard-form-field">
-
-        <textarea
-          class="dashboard-textarea"
-          rows="8"
-          placeholder="Additional invoice notes..."
-          readonly
-        ></textarea>
-
-      </div>
-
-    </div>
-
-    <div class="dashboard-card">
-
-      <div class="dashboard-card-header">
-        <h3 class="dashboard-card-title">Totals</h3>
-      </div>
-
-      <div class="dashboard-form-grid">
-
-        <div class="dashboard-form-field">
-          <label>Grand Total</label>
-
-          <input
-            type="text"
-            class="dashboard-input"
-            id="invoice_grand_total"
-            value="{{ doc.grand_total or 0 }}"
-            readonly
-          >
+    <section class="invoice-summary-grid">
+      <div class="dashboard-card">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Notes</h2>
         </div>
 
-        <div class="dashboard-form-field">
-          <label>Outstanding Amount</label>
-
-          <input
-            type="text"
-            class="dashboard-input"
-            id="invoice_outstanding_amount"
-            value="{{ doc.outstanding_amount or 0 }}"
-            readonly
-          >
-        </div>
-
-        <div class="dashboard-form-field">
-          <label>Paid Amount</label>
-
-          <input
-            type="text"
-            class="dashboard-input"
-            id="invoice_paid_amount"
-            value="{{ doc.paid_amount or 0 }}"
-            readonly
-          >
-        </div>
-
+        <p class="dashboard-page-subtitle" style="margin: 0;">
+          Client, billing contact, price list, company, coach, and banking details are resolved from the selected client. Travel is added automatically when the client has travel charged ticked and mileage is above the free mileage threshold.
+        </p>
       </div>
 
-    </div>
+      <div class="dashboard-card">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Totals</h2>
+        </div>
 
-  </div>
+        <div class="invoice-summary-box">
+          <div class="invoice-summary-line">
+            <span>Grand Total</span>
+            <span>
+              <input type="text" id="invoice_grand_total" class="dashboard-input" value="{{ frappe.format_value(doc.grand_total or 0, {'fieldtype': 'Currency'}) if doc.name else '0.00' }}" readonly>
+            </span>
+          </div>
 
+          <div class="invoice-summary-line">
+            <span>Paid Amount</span>
+            <span>
+              <input type="text" id="invoice_paid_amount" class="dashboard-input" value="{{ frappe.format_value(doc.paid_amount or 0, {'fieldtype': 'Currency'}) if doc.name else '0.00' }}" readonly>
+            </span>
+          </div>
+
+          <div class="invoice-summary-line">
+            <span>Outstanding Amount</span>
+            <span>
+              <input type="text" id="invoice_outstanding_amount" class="dashboard-input" value="{{ frappe.format_value(doc.outstanding_amount or 0, {'fieldtype': 'Currency'}) if doc.name else '0.00' }}" readonly>
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </form>
 </div>
 
-<div
-  id="invoiceEmailModal"
-  class="dashboard-modal"
-  hidden
-  style="display:none;"
->
-
-  <div class="dashboard-modal-card">
-
-    <div class="dashboard-modal-header">
-
-      <h3>Email Invoice</h3>
-
-      <button
-        type="button"
-        class="dashboard-btn dashboard-btn-light"
-        id="closeInvoiceEmailModal"
-      >
-        Close
-      </button>
-
+<div class="invoice-modal-backdrop" id="invoiceEmailModal" hidden style="display:none;">
+  <div class="invoice-modal-card">
+    <div class="dashboard-detail-section-head">
+      <h2 class="dashboard-detail-section-title">Email Invoice</h2>
     </div>
 
-    <div class="dashboard-form-grid">
-
-      <div class="dashboard-form-field">
-        <label>Recipient</label>
-
-        <input
-          type="email"
-          class="dashboard-input"
-          id="emailRecipient"
-          value="{{ contact_email or '' }}"
-        >
+    <div class="dashboard-detail-grid dashboard-detail-grid-1">
+      <div class="dashboard-detail-field">
+        <label for="emailRecipient">Send To</label>
+        <input type="email" id="emailRecipient" class="dashboard-input" value="{{ contact_email or '' }}">
       </div>
 
-      <div class="dashboard-form-field">
-        <label>Reply To</label>
-
-        <input
-          type="email"
-          class="dashboard-input"
-          id="emailReplyTo"
-          value="{{ current_user_email or '' }}"
-        >
+      <div class="dashboard-detail-field">
+        <label for="emailReplyTo">Reply To</label>
+        <input type="email" id="emailReplyTo" class="dashboard-input" value="{{ current_user_email or '' }}">
       </div>
 
-      <div class="dashboard-form-field dashboard-form-field-full">
-        <label>Subject</label>
-
-        <input
-          type="text"
-          class="dashboard-input"
-          id="emailSubject"
-        >
+      <div class="dashboard-detail-field">
+        <label for="emailSubject">Subject</label>
+        <input type="text" id="emailSubject" class="dashboard-input" value="Invoice {{ doc.name or '' }}">
       </div>
 
-      <div class="dashboard-form-field dashboard-form-field-full">
-        <label>Message</label>
+      <div class="dashboard-detail-field">
+        <label for="emailMessage">Message</label>
+        <textarea id="emailMessage" class="dashboard-textarea">Hi there,
 
-        <textarea
-          class="dashboard-textarea"
-          rows="12"
-          id="emailMessage"
-        ></textarea>
+I hope you’re doing well.</textarea>
       </div>
-
     </div>
 
-    <div
-      class="dashboard-page-actions"
-      style="margin-top:20px;justify-content:flex-end;"
-    >
-
-      <button
-        type="button"
-        class="dashboard-btn"
-        id="sendInvoiceEmail"
-      >
-        Send Email
-      </button>
-
+    <div class="invoice-modal-actions">
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="closeInvoiceEmailModal">Cancel</button>
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendInvoiceEmail">Send Email</button>
     </div>
-
   </div>
-
 </div>
