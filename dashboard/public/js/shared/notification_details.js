@@ -535,8 +535,16 @@
   function bindEvents() {
     const saveBtn = el("saveNotificationStatus");
     const replyBtn = el("sendNotificationReplyBtn");
+  
     const toggleDetailsBtn = el("toggleNotificationDetails");
     const detailsMeta = el("notificationDetailsMeta");
+  
+    const toggleOriginalBtn = el("toggleOriginalMessage");
+    const originalBody = el("notificationOriginalMessageBody");
+  
+    const toggleReplyBtn = el("toggleNotificationReply");
+    const replyBody = el("notificationReplyBody");
+  
     const archiveBtn = el("archiveNotificationBtn");
   
     if (saveBtn) {
@@ -547,15 +555,26 @@
       replyBtn.addEventListener("click", sendReply);
     }
   
-    if (archiveBtn) {
-      archiveBtn.addEventListener("click", archiveNotification);
-    }
-  
     if (toggleDetailsBtn && detailsMeta) {
       toggleDetailsBtn.addEventListener("click", function () {
-        const isCollapsed = detailsMeta.classList.toggle("is-collapsed");
-        toggleDetailsBtn.textContent = isCollapsed ? "Show Details" : "Hide Details";
+        detailsMeta.classList.toggle("is-hidden");
       });
+    }
+  
+    if (toggleOriginalBtn && originalBody) {
+      toggleOriginalBtn.addEventListener("click", function () {
+        originalBody.classList.toggle("is-hidden");
+      });
+    }
+  
+    if (toggleReplyBtn && replyBody) {
+      toggleReplyBtn.addEventListener("click", function () {
+        replyBody.classList.toggle("is-hidden");
+      });
+    }
+  
+    if (archiveBtn) {
+      archiveBtn.addEventListener("click", archiveConversation);
     }
   }
   
