@@ -1315,7 +1315,6 @@ def send_invoice_email(docname, recipient=None, reply_to=None, subject=None, mes
         frappe.attach_print(
             "Sales Invoice",
             doc.name,
-            print_format="Resilient Invoice",
             letterhead="Resilient Kid",
         )
     ]
