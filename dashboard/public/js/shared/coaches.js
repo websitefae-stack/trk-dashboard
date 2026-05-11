@@ -23,9 +23,12 @@
   }
 
   function coachMatches(row, filters) {
-    const coachName = row.dataset.coachName || row.dataset.name || "";
+    const haystack = [
+      row.dataset.name || "",
+      row.dataset.coachName || ""
+    ].join(" ").toLowerCase();
 
-    if (filters.search && !coachName.includes(filters.search)) {
+    if (filters.search && !haystack.includes(filters.search)) {
       return false;
     }
 
@@ -49,12 +52,17 @@
   }
 
   function initCoachFilterEvents() {
-    const field = el("coachSearch");
+    [
+      "coachSearch"
+    ].forEach((id) => {
+      const field = el(id);
+      if (!field || field.dataset.coachFilterBound === "1") return;
 
-    if (!field || field.dataset.coachFilterBound === "1") return;
+      field.dataset.coachFilterBound = "1";
 
-    field.dataset.coachFilterBound = "1";
-    field.addEventListener("input", renderCoachFilters);
+      const eventName = field.tagName === "SELECT" ? "change" : "input";
+      field.addEventListener(eventName, renderCoachFilters);
+    });
   }
 
   function initRefreshButton() {
@@ -120,7 +128,6 @@
     initCoachSearchToggle();
     initAddCoachButton();
     initClickableCoachRows();
-
     renderCoachFilters();
   }
 
