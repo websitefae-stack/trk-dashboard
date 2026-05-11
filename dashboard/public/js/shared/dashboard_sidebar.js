@@ -1,6 +1,12 @@
 (function () {
   "use strict";
 
+  if (window.__trkDashboardSidebarLoaded) {
+    return;
+  }
+
+  window.__trkDashboardSidebarLoaded = true;
+
   function qs(selector) {
     return document.querySelector(selector);
   }
@@ -45,36 +51,28 @@
   }
 
   function openSidebar() {
-    const sidebar = qs(".dashboard-sidebar");
-    const overlay = qs(".dashboard-sidebar-overlay");
-
-    if (sidebar) sidebar.classList.add("is-open");
-    if (overlay) overlay.classList.add("is-open");
+    document.body.classList.add("dashboard-menu-open");
   }
 
   function closeSidebar() {
-    const sidebar = qs(".dashboard-sidebar");
-    const overlay = qs(".dashboard-sidebar-overlay");
-
-    if (sidebar) sidebar.classList.remove("is-open");
-    if (overlay) overlay.classList.remove("is-open");
+    document.body.classList.remove("dashboard-menu-open");
   }
 
   async function loadNotificationBadges() {
     const badges = qsa(".js-notification-badge");
-  
+
     if (!badges.length) return;
-  
+
     try {
       const data = await callApi(
         "dashboard.api.shared.notifications.get_dashboard_notification_summary",
         {}
       );
-  
+
       if (!data) return;
-  
+
       const unreadCount = Number(data.unread_count || 0);
-  
+
       badges.forEach(function (badge) {
         badge.classList.remove(
           "dashboard-status-unread",
@@ -82,23 +80,23 @@
           "dashboard-status-active",
           "dashboard-status-onhold"
         );
-  
+
         if (unreadCount > 0) {
           badge.style.display = "inline-flex";
           badge.textContent = unreadCount;
-  
+
           badge.classList.add(
             "dashboard-badge",
             "dashboard-status-unread"
           );
-  
+
           return;
         }
-  
+
         badge.textContent = "0";
         badge.style.display = "none";
       });
-  
+
     } catch (error) {
       console.error("Notification badge error", error);
     }
@@ -123,21 +121,31 @@
     const overlay = qs(".dashboard-sidebar-overlay");
     const logoutBtn = qs("#dashboardLogoutBtn");
 
-    if (menuBtn) {
+    if (menuBtn && menuBtn.dataset.sidebarBound !== "1") {
+      menuBtn.dataset.sidebarBound = "1";
       menuBtn.addEventListener("click", openSidebar);
     }
 
-    if (closeBtn) {
+    if (closeBtn && closeBtn.dataset.sidebarBound !== "1") {
+      closeBtn.dataset.sidebarBound = "1";
       closeBtn.addEventListener("click", closeSidebar);
     }
 
-    if (overlay) {
+    if (overlay && overlay.dataset.sidebarBound !== "1") {
+      overlay.dataset.sidebarBound = "1";
       overlay.addEventListener("click", closeSidebar);
     }
 
-    if (logoutBtn) {
+    if (logoutBtn && logoutBtn.dataset.logoutBound !== "1") {
+      logoutBtn.dataset.logoutBound = "1";
       logoutBtn.addEventListener("click", logout);
     }
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") {
+        closeSidebar();
+      }
+    });
   }
 
   function init() {
