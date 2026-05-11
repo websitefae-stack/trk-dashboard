@@ -858,3 +858,73 @@
     font-size: 13px !important;
   }
 }
+
+/* =========================================================
+   NOTIFICATION DETAIL IMPROVEMENTS
+========================================================= */
+
+.notification-detail-grid-compact {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.notification-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.notification-section-body.is-hidden {
+  display: none;
+}
+
+.notification-original-message {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+#notificationMessageText {
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+
+.notification-collapsible-head {
+  align-items: flex-start;
+}
+
+.notification-collapsible-head .dashboard-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 980px) {
+  .notification-detail-grid-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+
+  .notification-section-head {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .notification-collapsible-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .notification-collapsible-head .dashboard-detail-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .notification-detail-grid-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
