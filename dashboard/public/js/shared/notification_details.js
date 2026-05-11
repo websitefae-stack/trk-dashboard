@@ -574,7 +574,7 @@
     }
   
     if (archiveBtn) {
-      archiveBtn.addEventListener("click", archiveConversation);
+      archiveBtn.addEventListener("click", archiveNotification);
     }
   }
   
