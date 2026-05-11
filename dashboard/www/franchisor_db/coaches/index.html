@@ -1,0 +1,127 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Coaches</h1>
+          <p class="dashboard-page-subtitle">Franchisor coach overview</p>
+        </div>
+
+        <div class="dashboard-page-actions dashboard-coach-top-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-secondary" id="refreshCoaches">Refresh</button>
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="addCoach">+ Add Coach</button>
+        </div>
+      </div>
+
+      <div class="dashboard-card dashboard-coach-filter-card coach-filter-panel" id="coachFilterPanel">
+        <div class="coach-filter-header">
+          <strong>Filters</strong>
+          <button type="button" id="closeCoachSearch" class="coach-filter-close">✕</button>
+        </div>
+
+        <div class="dashboard-coach-filter-body coach-filter-row">
+          <div class="dashboard-filter-field dashboard-filter-search">
+            <label for="coachSearch">Search Coach</label>
+            <input type="text" class="dashboard-input" id="coachSearch" placeholder="Search by name, email, company, or user">
+          </div>
+
+          <div class="dashboard-filter-field">
+            <label for="coachCompanyFilter">Company</label>
+            <select class="dashboard-select" id="coachCompanyFilter">
+              <option value="All">All companies</option>
+              {% set companies = [] %}
+              {% for coach in coaches %}
+                {% if coach.company and coach.company not in companies %}
+                  {% set _ = companies.append(coach.company) %}
+                  <option value="{{ coach.company }}">{{ coach.company }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="dashboard-filter-field">
+            <label for="coachPricelistFilter">Pricelist</label>
+            <select class="dashboard-select" id="coachPricelistFilter">
+              <option value="All">All pricelists</option>
+              {% set pricelists = [] %}
+              {% for coach in coaches %}
+                {% if coach.pricelist and coach.pricelist not in pricelists %}
+                  {% set _ = pricelists.append(coach.pricelist) %}
+                  <option value="{{ coach.pricelist }}">{{ coach.pricelist }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard-card dashboard-coach-list-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Coach List</div>
+          <div class="dashboard-table-count" id="coachCount">{{ coaches|length }} coaches</div>
+        </div>
+
+        {% if coaches %}
+          <div class="dashboard-table-wrap">
+            <table class="dashboard-table dashboard-coach-table">
+              <thead>
+                <tr>
+                  <th>Coach Name</th>
+                  <th>Email</th>
+                  <th>User</th>
+                  <th>Company</th>
+                  <th>Bank Account</th>
+                  <th>Pricelist</th>
+                  <th>Insurance Expiry</th>
+                  <th class="dashboard-action-col">Action</th>
+                </tr>
+              </thead>
+
+              <tbody id="coachTable">
+                {% for coach in coaches %}
+                  {% set display_name = coach.display_name or coach.coach_name or coach.name %}
+                  {% set company = coach.company or "Not set" %}
+                  {% set pricelist = coach.pricelist or "Not set" %}
+
+                  <tr
+                    class="dashboard-coach-row"
+                    data-name="{{ display_name|lower }}"
+                    data-email="{{ (coach.coach_email or '')|lower }}"
+                    data-user="{{ (coach.user or '')|lower }}"
+                    data-company="{{ company }}"
+                    data-pricelist="{{ pricelist }}"
+                    data-bank-account="{{ coach.bank_account or '' }}"
+                    data-insurance-number="{{ coach.insurance_number or '' }}"
+                  >
+                    <td>
+                      <a class="dashboard-inline-link dashboard-coach-name-link" href="/franchisor_db/coach_details?name={{ coach.name | urlencode }}">
+                        {{ display_name }}
+                      </a>
+                    </td>
+                    <td>{{ coach.coach_email or "—" }}</td>
+                    <td>{{ coach.user or "—" }}</td>
+                    <td>{{ company }}</td>
+                    <td>{{ coach.bank_account or "—" }}</td>
+                    <td>{{ pricelist }}</td>
+                    <td>{{ coach.insurance_expiry_date or "—" }}</td>
+                    <td class="dashboard-action-cell">
+                      <a class="dashboard-link-btn" href="/franchisor_db/coach_details?name={{ coach.name | urlencode }}">View</a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="dashboard-empty">No coaches found.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
