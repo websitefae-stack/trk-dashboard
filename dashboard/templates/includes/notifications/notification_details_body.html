@@ -16,11 +16,11 @@
           </div>
         </div>
 
-        <a href="{{ base_url }}/notifications" class="dashboard-btn dashboard-btn-light">
-          Back
-        </a>
-                
         <div class="dashboard-detail-actions">
+          <a href="{{ base_url }}/notifications" class="dashboard-btn dashboard-btn-light">
+            Back
+          </a>
+
           <button type="button" class="dashboard-btn dashboard-btn-primary" id="toggleNotificationDetails">
             Hide Details
           </button>
@@ -77,11 +77,57 @@
     </div>
 
     <div class="dashboard-detail-section">
-      <div class="dashboard-detail-section-head">
+      <div class="dashboard-detail-section-head notification-section-head">
         <h2 class="dashboard-detail-section-title">Original Message</h2>
+
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="toggleOriginalMessage">
+          Hide / Show
+        </button>
       </div>
 
-      <div class="dashboard-html-block" id="notificationMessageText">—</div>
+      <div class="dashboard-html-block notification-section-body notification-original-message" id="notificationOriginalMessageBody">
+        <div id="notificationMessageText">—</div>
+      </div>
+    </div>
+
+    <div class="dashboard-detail-section" id="notificationReplySection">
+      <div class="dashboard-detail-section-head notification-section-head">
+        <h2 class="dashboard-detail-section-title">Reply</h2>
+
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="toggleNotificationReply">
+          Hide / Show
+        </button>
+      </div>
+
+      <div class="notification-section-body" id="notificationReplyBody">
+        <div class="dashboard-detail-field">
+          <label for="notificationReplyText">Your Reply</label>
+          <textarea
+            id="notificationReplyText"
+            class="dashboard-textarea"
+            placeholder="Write your reply..."
+          ></textarea>
+        </div>
+
+        <div class="dashboard-detail-field">
+          <label for="notificationReplyFile">Attachment</label>
+          <input
+            type="file"
+            id="notificationReplyFile"
+            class="dashboard-input"
+          >
+          <input type="hidden" id="notificationReplyAttachment">
+          <div class="dashboard-help" id="notificationAttachmentHelp">
+            Optional. Add a file from your computer.
+          </div>
+        </div>
+
+        <div class="dashboard-detail-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendNotificationReplyBtn">
+            Send Reply
+          </button>
+        </div>
+      </div>
     </div>
 
     <div class="dashboard-detail-section">
@@ -90,40 +136,6 @@
       </div>
 
       <div id="notificationTimeline"></div>
-    </div>
-
-    <div class="dashboard-detail-section" id="notificationReplySection">
-      <div class="dashboard-detail-section-head">
-        <h2 class="dashboard-detail-section-title">Reply</h2>
-      </div>
-
-      <div class="dashboard-detail-field">
-        <label for="notificationReplyText">Your Reply</label>
-        <textarea
-          id="notificationReplyText"
-          class="dashboard-textarea"
-          placeholder="Write your reply..."
-        ></textarea>
-      </div>
-
-      <div class="dashboard-detail-field">
-        <label for="notificationReplyFile">Attachment</label>
-        <input
-          type="file"
-          id="notificationReplyFile"
-          class="dashboard-input"
-        >
-        <input type="hidden" id="notificationReplyAttachment">
-        <div class="dashboard-help" id="notificationAttachmentHelp">
-          Optional. Add a file from your computer.
-        </div>
-      </div>
-
-      <div class="dashboard-detail-actions">
-        <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendNotificationReplyBtn">
-          Send Reply
-        </button>
-      </div>
     </div>
 
   </div>
