@@ -35,7 +35,7 @@
         <div class="dashboard-filter-field">
           <label for="invoiceCoachSelector">View coach invoices</label>
           <select class="dashboard-select" id="invoiceCoachSelector" data-current-coach="{{ current_coach }}">
-            <option value="">{{ current_coach_label }}</option>
+            <option value="{{ current_coach }}" {% if not selected_coach %}selected{% endif %}>{{ current_coach_label }}</option>
             {% for coach in coach_options %}
               {% if coach.value != current_coach %}
                 <option value="{{ coach.value }}" {% if selected_coach == coach.value %}selected{% endif %}>
