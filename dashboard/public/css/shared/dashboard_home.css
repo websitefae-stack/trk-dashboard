@@ -128,10 +128,65 @@
   }
 
   .dashboard-home-invoices-table {
-    min-width: 820px;
+    min-width: 520px;
   }
 
   .dashboard-home-appointments-table {
-    min-width: 620px;
+    min-width: 420px;
+  }
+
+  /* Appointments mobile: show Date + Location only */
+  .dashboard-home-appointments-table th:nth-child(2),
+  .dashboard-home-appointments-table td:nth-child(2),
+  .dashboard-home-appointments-table th:nth-child(4),
+  .dashboard-home-appointments-table td:nth-child(4) {
+    display: none;
+  }
+
+  .dashboard-home-appointments-table th:nth-child(1),
+  .dashboard-home-appointments-table td:nth-child(1) {
+    width: 50%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .dashboard-home-appointments-table th:nth-child(3),
+  .dashboard-home-appointments-table td:nth-child(3) {
+    width: 50%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  /* Invoices mobile: show Date + Status + Total Outstanding only */
+  .dashboard-home-invoices-table th:nth-child(1),
+  .dashboard-home-invoices-table td:nth-child(1),
+  .dashboard-home-invoices-table th:nth-child(3),
+  .dashboard-home-invoices-table td:nth-child(3),
+  .dashboard-home-invoices-table th:nth-child(6),
+  .dashboard-home-invoices-table td:nth-child(6),
+  .dashboard-home-invoices-table th:nth-child(7),
+  .dashboard-home-invoices-table td:nth-child(7) {
+    display: none;
+  }
+
+  .dashboard-home-invoices-table th:nth-child(2),
+  .dashboard-home-invoices-table td:nth-child(2) {
+    width: 34%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .dashboard-home-invoices-table th:nth-child(4),
+  .dashboard-home-invoices-table td:nth-child(4) {
+    width: 33%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .dashboard-home-invoices-table th:nth-child(5),
+  .dashboard-home-invoices-table td:nth-child(5) {
+    width: 33%;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }
