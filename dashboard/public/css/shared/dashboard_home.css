@@ -85,12 +85,12 @@
 
 .dashboard-home-invoices-table th:nth-child(2),
 .dashboard-home-invoices-table td:nth-child(2) {
-  width: 140px;
+  width: 160px;
 }
 
 .dashboard-home-invoices-table th:nth-child(3),
 .dashboard-home-invoices-table td:nth-child(3) {
-  width: 170px;
+  width: 130px;
 }
 
 .dashboard-home-invoices-table th:nth-child(4),
