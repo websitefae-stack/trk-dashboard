@@ -79,6 +79,20 @@
     return "";
   }
 
+  function getViewModeParams() {
+    const root =
+      document.getElementById("sessionWorkerCalendarShell") ||
+      document.getElementById("sessionWorkerCalendarDetailsShell");
+  
+    const params = new URLSearchParams(window.location.search);
+  
+    return {
+      isViewMode: root && String(root.dataset.viewMode || "0") === "1",
+      viewAs: (root && root.dataset.viewAs) || params.get("view_as") || "",
+      viewer: params.get("viewer") || ""
+    };
+  }
+    
   function getSelectedCalendarForFromPage() {
     if (state.dashboardType === "session_worker") return "";
 
@@ -309,6 +323,8 @@
 
     state.selectedCalendarFor = getSelectedCalendarForFromPage();
 
+    const viewMode = getViewModeParams();
+
     apiGet(SHARED_API + ".get_calendar_bootstrap", {
       dashboard_type: state.dashboardType,
       week_start: formatDateKey(getWeekStart(state.currentDate)),
@@ -316,7 +332,9 @@
       date: formatDateKey(state.currentDate),
       calendar_for: state.selectedCalendarFor,
       selected_calendar_for: state.selectedCalendarFor,
-      selected_worker: state.selectedCalendarFor
+      selected_worker: state.selectedCalendarFor,
+      view_as: viewMode.viewAs,
+      viewer: viewMode.viewer
     }).then(function (message) {
       state.events = Array.isArray(message.events)
         ? message.events.filter(function (event) {
@@ -686,8 +704,9 @@
     const isPrivate = Number(event.is_private || 0) === 1;
 
     let actions = "";
+    const viewMode = getViewModeParams();
 
-    if (!isPrivate) {
+    if (!isPrivate && !viewMode.isViewMode) {
       actions =
         '<div class="dashboard-detail-actions" style="margin-top:16px;">'
         + '<button type="button" class="dashboard-btn dashboard-btn-primary" data-calendar-action="edit-session" data-event="' + escapeHtml(event.name || "") + '">Edit Session</button>'
@@ -720,7 +739,9 @@
       return "/franchisor_db/calendar_details?event=" + encodeURIComponent(eventName || "");
     }
 
-    return "/session_worker_db/calendar_details?event=" + encodeURIComponent(eventName || "");
+    const params = new URLSearchParams(window.location.search);
+    params.set("event", eventName || "");
+    return "/session_worker_db/calendar_details?" + params.toString();
   }
 
   function renderDetailsEmptyState() {
