@@ -35,6 +35,17 @@
     return params.get(name) || "";
   }
 
+  function getViewModeParams() {
+    const root = document.getElementById("sessionWorkerCalendarDetailsShell");
+    const params = new URLSearchParams(window.location.search);
+  
+    return {
+      isViewMode: root && String(root.dataset.viewMode || "0") === "1",
+      viewAs: (root && root.dataset.viewAs) || params.get("view_as") || "",
+      viewer: params.get("viewer") || ""
+    };
+  }
+    
   function escapeHtml(value) {
     return String(value == null ? "" : value)
       .replace(/&/g, "&amp;")
@@ -208,9 +219,13 @@
     showNotice("Loading session details...");
 
     try {
+      const viewMode = getViewModeParams();
+
       const data = await apiGet(SHARED_API + ".get_event_details", {
         dashboard_type: state.dashboardType,
-        event: state.eventName
+        event: state.eventName,
+        view_as: viewMode.viewAs,
+        viewer: viewMode.viewer
       });
 
       state.eventData = data;
@@ -427,6 +442,14 @@
   }
 
   function bindEvents() {
+    const viewMode = getViewModeParams();
+
+    if (viewMode.isViewMode) {
+      if (el("trkDetailEditBtn")) el("trkDetailEditBtn").style.display = "none";
+      if (el("trkSaveClientNoteBtn")) el("trkSaveClientNoteBtn").style.display = "none";
+      if (el("trkClientNoteText")) el("trkClientNoteText").setAttribute("readonly", "readonly");
+      return;
+    }
     if (el("trkDetailEditBtn")) el("trkDetailEditBtn").addEventListener("click", openEditModal);
     if (el("trkDetailEditModalClose")) el("trkDetailEditModalClose").addEventListener("click", closeEditModal);
     if (el("trkDetailEditModalCancel")) el("trkDetailEditModalCancel").addEventListener("click", closeEditModal);
