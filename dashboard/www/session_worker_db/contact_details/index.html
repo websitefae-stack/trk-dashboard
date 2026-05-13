@@ -7,6 +7,22 @@
     {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
 
     <div class="dashboard-container">
+      {% if session_worker_is_view_mode %}
+        <div style="background:#ac455c; color:#ffffff; border-radius:14px; padding:16px 18px; margin-bottom:18px;">
+          <strong>Viewing Session Worker:</strong>
+          {{ session_worker_view_display_name }}
+      
+          <div style="margin-top:6px;">
+            You are viewing this session worker dashboard in read-only mode.
+          </div>
+      
+          <div style="margin-top:12px;">
+            <a href="{{ session_worker_view_return_to }}" class="dashboard-btn dashboard-btn-secondary">
+              Back to Session Workers
+            </a>
+          </div>
+        </div>
+      {% endif %}
       <div class="dashboard-page-header">
         <div>
           <h1 class="dashboard-page-title">{{ contact_display_name }}</h1>
@@ -14,7 +30,7 @@
         </div>
       
         <div class="dashboard-detail-actions dashboard-detail-actions-compact">
-          <a href="/session_worker_db/contacts" class="dashboard-btn dashboard-btn-secondary">Back</a>
+          <a href="/session_worker_db/contacts{{ session_worker_view_query or '' }}" class="dashboard-btn dashboard-btn-secondary">Back</a>
           <button type="button" class="dashboard-btn dashboard-btn-light" id="refreshContactDetails">Refresh</button>
         </div>
       </div>
@@ -29,7 +45,9 @@
           <div class="dashboard-tabs dashboard-contact-detail-tabs">
             <button type="button" class="dashboard-tab-btn is-active" data-tab-target="contact-details-tab">Details</button>
             <button type="button" class="dashboard-tab-btn" data-tab-target="contact-linked-clients-tab">Linked Clients</button>
-            <button type="button" class="dashboard-tab-btn" data-tab-target="contact-change-tab">Change Request</button>
+            {% if not session_worker_is_view_mode %}
+              <button type="button" class="dashboard-tab-btn" data-tab-target="contact-change-tab">Change Request</button>
+            {% endif %}
           </div>
 
           <div class="dashboard-tab-panel is-active" id="contact-details-tab">
@@ -94,7 +112,7 @@
                       {% for client in linked_clients %}
                         <tr>
                           <td>
-                            <a class="dashboard-inline-link" href="/session_worker_db/client_details?name={{ client.name }}">
+                            <a class="dashboard-inline-link" href="/session_worker_db/client_details?name={{ client.name }}{{ '&' + session_worker_view_query[1:] if session_worker_view_query else '' }}">
                               {{ client.display_name }}
                             </a>
                           </td>
@@ -122,6 +140,8 @@
               </div>
             </section>
           </div>
+
+          {% if not session_worker_is_view_mode %}
 
           <div class="dashboard-tab-panel" id="contact-change-tab">
             <section class="dashboard-detail-section">
@@ -179,3 +199,5 @@
     </div>
   </div>
 </div>
+
+{% endif %}
