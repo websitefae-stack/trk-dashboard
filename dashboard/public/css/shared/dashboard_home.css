@@ -46,91 +46,56 @@
   text-decoration: none;
 }
 
-.dashboard-home-panel .dashboard-table-wrap {
-  min-height: 0 !important;
-  height: auto !important;
-  max-height: none !important;
-}
-
-.dashboard-home-panel .dashboard-table {
-  width: 100%;
-  margin-bottom: 0;
-  table-layout: fixed;
-}
-
-.dashboard-home-panel .dashboard-table th,
-.dashboard-home-panel .dashboard-table td {
-  padding-top: 14px;
-  padding-bottom: 14px;
-  vertical-align: middle;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.dashboard-table-link {
-  color: #008F8C;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.dashboard-table-link:hover {
-  color: #007A77;
-  text-decoration: underline;
-}
-
-/* =========================================================
-   APPOINTMENTS TABLE DESKTOP
-========================================================= */
-
 .dashboard-home-appointments-table {
-  width: 100%;
   table-layout: fixed;
+  width: 100%;
 }
 
 .dashboard-home-appointments-table .dashboard-home-date-col {
-  width: 145px;
+  width: 150px;
 }
 
 .dashboard-home-appointments-table .dashboard-home-details-col {
   width: auto;
+  min-width: 360px;
 }
 
 .dashboard-home-appointments-table .dashboard-home-location-col {
-  width: 155px;
+  width: 170px;
 }
 
 .dashboard-home-appointments-table .dashboard-home-action-col {
   width: 90px;
 }
 
-/* =========================================================
-   INVOICES TABLE DESKTOP
-========================================================= */
+.dashboard-home-date-link {
+  display: inline-block;
+  font-weight: 700;
+}
 
 .dashboard-home-invoices-table {
-  width: 100%;
   table-layout: fixed;
+  width: 100%;
 }
 
 .dashboard-home-invoices-table th:nth-child(1),
 .dashboard-home-invoices-table td:nth-child(1) {
-  width: 170px;
+  width: 150px;
 }
 
 .dashboard-home-invoices-table th:nth-child(2),
 .dashboard-home-invoices-table td:nth-child(2) {
-  width: 150px;
+  width: 140px;
 }
 
 .dashboard-home-invoices-table th:nth-child(3),
 .dashboard-home-invoices-table td:nth-child(3) {
-  width: 180px;
+  width: 170px;
 }
 
 .dashboard-home-invoices-table th:nth-child(4),
 .dashboard-home-invoices-table td:nth-child(4) {
-  width: 105px;
+  width: 130px;
 }
 
 .dashboard-home-invoices-table th:nth-child(5),
@@ -140,12 +105,12 @@
 
 .dashboard-home-invoices-table th:nth-child(6),
 .dashboard-home-invoices-table td:nth-child(6) {
-  width: 145px;
+  width: 150px;
 }
 
 .dashboard-home-invoices-table th:nth-child(7),
 .dashboard-home-invoices-table td:nth-child(7) {
-  width: 105px;
+  width: 110px;
 }
 
 .dashboard-home-payment-date {
@@ -157,124 +122,16 @@
   background: #FFFFFF;
 }
 
-/* =========================================================
-   MOBILE DASHBOARD HOME TABLES
-========================================================= */
-
 @media (max-width: 860px) {
   .dashboard-home-panel .dashboard-table-wrap {
-    overflow-x: visible;
+    overflow-x: auto;
   }
 
-  .dashboard-home-appointments-table,
   .dashboard-home-invoices-table {
-    table-layout: fixed;
-    width: 100%;
+    min-width: 820px;
   }
 
-  .dashboard-home-appointments-table thead,
-  .dashboard-home-invoices-table thead {
-    display: table-header-group;
-  }
-
-  .dashboard-home-appointments-table th,
-  .dashboard-home-appointments-table td,
-  .dashboard-home-invoices-table th,
-  .dashboard-home-invoices-table td {
-    display: table-cell;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    vertical-align: top;
-    padding: 10px 8px;
-  }
-
-  /* Appointments mobile: show Date + Location only */
-  .dashboard-home-appointments-table th:nth-child(1),
-  .dashboard-home-appointments-table td:nth-child(1) {
-    display: table-cell;
-    width: 52%;
-  }
-
-  .dashboard-home-appointments-table th:nth-child(3),
-  .dashboard-home-appointments-table td:nth-child(3) {
-    display: table-cell;
-    width: 48%;
-  }
-
-  .dashboard-home-appointments-table th:nth-child(2),
-  .dashboard-home-appointments-table td:nth-child(2),
-  .dashboard-home-appointments-table th:nth-child(4),
-  .dashboard-home-appointments-table td:nth-child(4) {
-    display: none;
-  }
-
-  /* Invoices mobile: show Invoice Date + Amount + Status only */
-  .dashboard-home-invoices-table th:nth-child(2),
-  .dashboard-home-invoices-table td:nth-child(2) {
-    display: table-cell;
-    width: 38%;
-  }
-
-  .dashboard-home-invoices-table th:nth-child(5),
-  .dashboard-home-invoices-table td:nth-child(5) {
-    display: table-cell;
-    width: 32%;
-  }
-
-  .dashboard-home-invoices-table th:nth-child(4),
-  .dashboard-home-invoices-table td:nth-child(4) {
-    display: table-cell;
-    width: 30%;
-  }
-
-  .dashboard-home-invoices-table th:nth-child(1),
-  .dashboard-home-invoices-table td:nth-child(1),
-  .dashboard-home-invoices-table th:nth-child(3),
-  .dashboard-home-invoices-table td:nth-child(3),
-  .dashboard-home-invoices-table th:nth-child(6),
-  .dashboard-home-invoices-table td:nth-child(6),
-  .dashboard-home-invoices-table th:nth-child(7),
-  .dashboard-home-invoices-table td:nth-child(7) {
-    display: none;
-  }
-}
-
-  /* =========================================================
-     APPOINTMENTS MOBILE
-     SHOW:
-     - DATE
-     - LOCATION
-  ========================================================= */
-
-  .dashboard-home-appointments-table td:nth-child(1),
-  .dashboard-home-appointments-table td:nth-child(3) {
-    display: block;
-  }
-
-  .dashboard-home-appointments-table td:nth-child(2),
-  .dashboard-home-appointments-table td:nth-child(4) {
-    display: none;
-  }
-
-  /* =========================================================
-     INVOICES MOBILE
-     SHOW:
-     - INVOICE DATE
-     - AMOUNT
-     - STATUS
-  ========================================================= */
-
-  .dashboard-home-invoices-table td:nth-child(2),
-  .dashboard-home-invoices-table td:nth-child(4),
-  .dashboard-home-invoices-table td:nth-child(5) {
-    display: block;
-  }
-
-  .dashboard-home-invoices-table td:nth-child(1),
-  .dashboard-home-invoices-table td:nth-child(3),
-  .dashboard-home-invoices-table td:nth-child(6),
-  .dashboard-home-invoices-table td:nth-child(7) {
-    display: none;
+  .dashboard-home-appointments-table {
+    min-width: 620px;
   }
 }
