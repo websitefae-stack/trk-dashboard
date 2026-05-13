@@ -271,11 +271,58 @@
           </div>
 
           <div class="dashboard-tab-panel" id="client-appointments-tab">
+
+            <div class="dashboard-detail-section">
+              <div class="dashboard-detail-section-head">
+                <h2 class="dashboard-detail-section-title">Session Pack Summary</h2>
+              </div>
+          
+              <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
+                <table class="dashboard-table dashboard-client-pack-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Package Balance</th>
+                      <th>Service Item</th>
+                      <th>Purchased</th>
+                      <th>Booked</th>
+                      <th>Used</th>
+                      <th>Avail</th>
+                      <th>To Add</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+          
+                  <tbody>
+                    {% if package_balances %}
+                      {% for balance in package_balances %}
+                        <tr>
+                          <td>{{ frappe.format(balance.display_date, {"fieldtype": "Date"}) if balance.display_date else "—" }}</td>
+                          <td>{{ balance.name }}</td>
+                          <td>{{ balance.service_item or "—" }}</td>
+                          <td>{{ (balance.qty_purchased or 0)|int }}</td>
+                          <td>{{ (balance.qty_booked or 0)|int }}</td>
+                          <td>{{ (balance.qty_used or 0)|int }}</td>
+                          <td>{{ (balance.qty_available or 0)|int }}</td>
+                          <td>{{ (balance.appointments_to_add or 0)|int }}</td>
+                          <td>{{ balance.status or "—" }}</td>
+                        </tr>
+                      {% endfor %}
+                    {% else %}
+                      <tr>
+                        <td colspan="9" class="dashboard-empty">No session packs found.</td>
+                      </tr>
+                    {% endif %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          
             <div class="dashboard-detail-section client-appointments-section">
               <div class="dashboard-detail-section-head">
                 <h2 class="dashboard-detail-section-title">Appointments</h2>
               </div>
-
+          
               <div class="dashboard-table-wrap client-appointments-table-wrap">
                 <table class="dashboard-table client-appointments-table dashboard-client-appointment-table">
                   <thead>
@@ -283,19 +330,63 @@
                       <th>Date / Time</th>
                       <th>Type</th>
                       <th>Status</th>
+                      <th>Progress</th>
                       <th>Location</th>
                       <th class="dashboard-action-col">Action</th>
                     </tr>
                   </thead>
-
+          
                   <tbody id="clientAppointmentsTableBody">
-                    <tr>
-                      <td colspan="5" class="dashboard-empty">Loading appointments...</td>
-                    </tr>
+                    {% if client_appointments %}
+                      {% for appointment in client_appointments %}
+                        <tr class="dashboard-client-appointment-row"
+                            data-appointment-status="{{ (appointment.display_status or appointment.status or '')|lower }}">
+                          <td>
+                            <div class="dashboard-table-date">
+                              {{ frappe.format(appointment.appointment_start, {"fieldtype": "Date"}) if appointment.appointment_start else "—" }}
+                            </div>
+                            <div class="dashboard-table-time">
+                              {{ frappe.format(appointment.appointment_start, {"fieldtype": "Time"}) if appointment.appointment_start else "" }}
+                            </div>
+                          </td>
+          
+                          <td>
+                            {% if appointment.view_link %}
+                              <a class="dashboard-inline-link" href="{{ appointment.view_link }}">
+                                {{ appointment.item_display_name or appointment.item or "—" }}
+                              </a>
+                            {% else %}
+                              {{ appointment.item_display_name or appointment.item or "—" }}
+                            {% endif %}
+                          </td>
+          
+                          <td>{{ appointment.display_status or appointment.status or "—" }}</td>
+          
+                          <td>
+                            {{ appointment.display_progress or "" }}
+                          </td>
+          
+                          <td>{{ appointment.location or "—" }}</td>
+          
+                          <td class="dashboard-action-cell">
+                            {% if appointment.view_link %}
+                              <a class="dashboard-link-btn" href="{{ appointment.view_link }}">View</a>
+                            {% else %}
+                              —
+                            {% endif %}
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    {% else %}
+                      <tr>
+                        <td colspan="6" class="dashboard-empty">No appointments found.</td>
+                      </tr>
+                    {% endif %}
                   </tbody>
                 </table>
               </div>
             </div>
+          
           </div>
 
         </form>
