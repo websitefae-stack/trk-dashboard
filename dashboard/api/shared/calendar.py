@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 from frappe.utils import add_to_date, getdate, get_datetime, get_fullname
+from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
 
 
 DASHBOARD_ADMIN_USERS = [
@@ -1228,6 +1229,33 @@ def _get_context_for_dashboard(dashboard_type):
     return _get_current_session_worker_context(frappe.session.user)
 
 
+def _get_context_for_calendar_request(dashboard_type, view_as=None, viewer=None):
+    if dashboard_type != SESSION_WORKER_DASHBOARD:
+        return _get_context_for_dashboard(dashboard_type)
+
+    view_as = (view_as or "").strip()
+    viewer = (viewer or "").strip().lower()
+
+    if not view_as:
+        return _get_context_for_dashboard(dashboard_type)
+
+    view_mode = get_session_worker_view_mode(
+        scope=viewer,
+        worker_name=view_as,
+    )
+
+    return {
+        "user": frappe.session.user,
+        "worker_doctype": "Session Worker",
+        "worker_name": view_mode.get("view_worker_name"),
+        "worker_label": view_mode.get("view_worker_display_name"),
+        "resolution_note": "Read-only session worker calendar view.",
+        "is_dashboard_admin": False,
+        "is_view_mode": 1,
+        "view_scope": viewer,
+    }
+    
+
 def _get_current_worker_name_and_label(dashboard_type, selected_calendar_for, context):
     if dashboard_type == COACH_DASHBOARD:
         return (
@@ -1242,11 +1270,26 @@ def _get_current_worker_name_and_label(dashboard_type, selected_calendar_for, co
 
 
 @frappe.whitelist(allow_guest=False)
-def get_calendar_bootstrap(week_start=None, view=None, date=None, selected_worker=None, selected_calendar_for=None, calendar_for=None, dashboard_type=None):
+def get_calendar_bootstrap(
+    week_start=None,
+    view=None,
+    date=None,
+    selected_worker=None,
+    selected_calendar_for=None,
+    calendar_for=None,
+    dashboard_type=None,
+    view_as=None,
+    viewer=None,
+):
+    
     _require_logged_in_user()
 
     dashboard_type = _normalise_dashboard_type(dashboard_type)
-    context = _get_context_for_dashboard(dashboard_type)
+    context = _get_context_for_calendar_request(
+        dashboard_type=dashboard_type,
+        view_as=view_as,
+        viewer=viewer,
+    )
 
     selected_calendar_for = selected_calendar_for or calendar_for or selected_worker
 
@@ -1298,11 +1341,15 @@ def get_calendar_bootstrap(week_start=None, view=None, date=None, selected_worke
 
 
 @frappe.whitelist(allow_guest=False)
-def get_event_details(event=None, dashboard_type=None):
+def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None):
     _require_logged_in_user()
 
     dashboard_type = _normalise_dashboard_type(dashboard_type)
-    context = _get_context_for_dashboard(dashboard_type)
+    context = _get_context_for_calendar_request(
+        dashboard_type=dashboard_type,
+        view_as=view_as,
+        viewer=viewer,
+    )
 
     event_name = _coalesce_str("event", event)
     if not event_name:
