@@ -7,4 +7,8 @@
 {% set profile_display_name = profile_doc.sw_name or user_doc.full_name or "" %}
 {% set profile_email = profile_doc.sw_email or user_doc.email or "" %}
 
+{% if session_worker_is_view_mode %}
+  {% set profile_is_read_only_view = 1 %}
+{% endif %}
+
 {% include "dashboard/templates/includes/profile/profile_body.html" %}
