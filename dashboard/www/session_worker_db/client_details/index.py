@@ -3,6 +3,7 @@ from frappe import _
 
 from dashboard.api.shared.client_details import (
     get_client_context_data,
+    get_client_for_context,
     get_session_worker_name,
 )
 from dashboard.api.shared.session_worker_view_mode import (
@@ -60,7 +61,7 @@ def get_context(context):
         frappe.throw(_("Client not found."))
 
     if context.session_worker_is_view_mode:
-        ensure_view_client_access(
+        client = ensure_view_client_access(
             client_name=client_name,
             worker_name=view_mode.get("view_worker_name"),
         )
@@ -72,6 +73,8 @@ def get_context(context):
             enforce_access=False,
         )
     else:
+        client = get_client_for_context(client_name)
+
         data = get_client_context_data(
             client_name=client_name,
             is_new=False,
@@ -82,17 +85,6 @@ def get_context(context):
     for key, value in data.items():
         context[key] = value
 
-    context.client_details_role = "session_worker"
-    context.client_details_base_url = "/session_worker_db"
-    context.client_details_api_base = "dashboard.api.shared.client_details"
-
-    if context.session_worker_is_view_mode:
-        context.client_details_storage_key = "session_worker_view_client_details_active_tab"
-        context.client_details_can_edit = 0
-        context.client_details_can_invoice = 0
-        context.client_details_can_request_change = 0
-    else:
-        context.client_details_storage_key = "session_worker_client_details_active_tab"
-        context.client_details_can_edit = 0
-        context.client_details_can_invoice = 0
-        context.client_details_can_request_change = 1
+    context.client = client.as_dict()
+    context.client_docname = client.name
+    context.client_title = client.get("full_name") or client.name
