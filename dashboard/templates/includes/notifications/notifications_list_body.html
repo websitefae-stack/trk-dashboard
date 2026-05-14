@@ -186,7 +186,7 @@
                 </div>
               </div>
 
-              <a class="dashboard-link-btn" href="{{ base_url }}/notification_details?name={{ n.name }}">Open</a>
+              <a class="dashboard-link-btn" href="{{ base_url }}/notification_details?name={{ n.name }}{{ '&' + session_worker_view_query[1:] if session_worker_view_query else '' }}">Open</a>
             </div>
           </div>
         {% endif %}
@@ -245,7 +245,7 @@
               </div>
             </div>
 
-            <a class="dashboard-link-btn" href="{{ base_url }}/notification_details?name={{ n.name }}">Open</a>
+            <a class="dashboard-link-btn" href="{{ base_url }}/notification_details?name={{ n.name }}{{ '&' + session_worker_view_query[1:] if session_worker_view_query else '' }}">Open</a>
           </div>
         </div>
       {% endif %}
