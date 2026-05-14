@@ -994,6 +994,72 @@ def _conversation_matches_status(doc, status):
     return True
 
 
+def _get_session_worker_user_from_docname(worker_name):
+    if not worker_name or not frappe.db.exists("Session Worker", worker_name):
+        return ""
+
+    meta = frappe.get_meta("Session Worker")
+
+    for fieldname in ["user", "user_id", "email", "session_worker_email", "sw_email"]:
+        if meta.has_field(fieldname):
+            value = frappe.db.get_value("Session Worker", worker_name, fieldname)
+            if value:
+                return value
+
+    return ""
+
+
+def get_notifications_for_user(user, status="All", limit=20):
+    original_user = frappe.session.user
+
+    try:
+        frappe.session.user = user
+        return get_notifications(status=status, limit=limit)
+    finally:
+        frappe.session.user = original_user
+
+
+def get_notification_summary_for_user(user, limit=5):
+    notifications = get_notifications_for_user(user=user, status="All", limit=500)
+
+    unread_count = 0
+    open_count = 0
+
+    for row in notifications:
+        if row.get("read_status") == "Unread":
+            unread_count += 1
+
+        if row.get("status") not in ["Done", "Archived", "Closed"]:
+            open_count += 1
+
+    return {
+        "unread_count": unread_count,
+        "open_count": open_count,
+        "latest": notifications[:int(limit or 5)],
+    }
+
+
+def get_notification_list_for_session_worker_doc(worker_name, status="All", limit=200):
+    user = _get_session_worker_user_from_docname(worker_name)
+
+    if not user:
+        return []
+
+    return get_notifications_for_user(user=user, status=status, limit=limit)
+
+
+def get_notification_summary_for_session_worker_doc(worker_name, limit=5):
+    user = _get_session_worker_user_from_docname(worker_name)
+
+    if not user:
+        return {
+            "unread_count": 0,
+            "open_count": 0,
+            "latest": [],
+        }
+
+    return get_notification_summary_for_user(user=user, limit=limit)
+    
 @frappe.whitelist()
 def get_notifications(status="All", limit=20):
     ensure_logged_in()
