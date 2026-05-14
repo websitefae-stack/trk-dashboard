@@ -32,10 +32,6 @@ def get_context(context):
 
     if context.session_worker_is_view_mode:
         context.dashboard_user_name = context.session_worker_view_display_name
-        frappe.throw(
-            _("Notification detail read-only view will be connected after the notifications API is updated."),
-            frappe.PermissionError,
-        )
     else:
         try:
             context.dashboard_user_name = get_user_display_name()
