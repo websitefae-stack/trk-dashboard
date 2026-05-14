@@ -6,7 +6,9 @@
 
   <div class="dashboard-page-actions">
     <button type="button" class="dashboard-btn dashboard-btn-light" id="refreshNotifications">Refresh</button>
-    <button type="button" class="dashboard-btn dashboard-btn-primary" id="openSendNotification">+ New Conversation</button>
+    {% if not session_worker_is_view_mode %}
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="openSendNotification">+ New Conversation</button>
+    {% endif %}
   </div>
 </div>
 
@@ -14,6 +16,7 @@
   <div class="dashboard-notice" style="margin-bottom:20px;">{{ page_error }}</div>
 {% endif %}
 
+{% if not session_worker_is_view_mode %}
 <div class="dashboard-card" id="sendNotificationPanel" style="display:none;margin-bottom:20px;">
   <div class="dashboard-detail-section-head">
     <h2 class="dashboard-detail-section-title">New Conversation</h2>
@@ -94,6 +97,7 @@
     </div>
   </form>
 </div>
+{% endif %}
 
 <div class="dashboard-card notification-filter-row" style="margin-bottom:20px;">
   <div class="dashboard-filter-field">
