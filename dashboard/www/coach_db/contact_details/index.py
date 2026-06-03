@@ -14,7 +14,10 @@ def get_context(context):
     view_as = frappe.form_dict.get("view_as")
     viewer = frappe.form_dict.get("viewer")
 
-    view_mode = get_coach_view_mode(scope=viewer, coach_name=view_as)
+    view_mode = get_coach_view_mode(
+        scope=viewer,
+        coach_name=view_as,
+    )
 
     context.no_cache = 1
     context.active_page = "contacts"
@@ -30,6 +33,7 @@ def get_context(context):
         context.dashboard_user_name = context.coach_view_display_name
     else:
         redirect_if_wrong_dashboard("coach")
+
         context.dashboard_user_name = frappe.db.get_value(
             "Coach",
             get_current_coach_name(),
@@ -39,7 +43,7 @@ def get_context(context):
     data = get_contact_context(
         scope="coach",
         contact_name=frappe.form_dict.get("name"),
-        is_new=False if context.coach_is_view_mode else bool(frappe.form_dict.get("new")),
+        is_new=bool(frappe.form_dict.get("new")),
     )
 
     context.page_title = data["contact_display_name"]
