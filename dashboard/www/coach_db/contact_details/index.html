@@ -101,7 +101,7 @@
                       {% for client in linked_clients %}
                         <tr>
                           <td>
-                            <a class="dashboard-inline-link" href="/coach_db/client_details?name={{ client.name }}">
+                            <a class="dashboard-inline-link" href="/coach_db/client_details?name={{ client.name | urlencode }}{{ coach_view_query | replace('?', '&') if coach_is_view_mode else '' }}">
                               {{ client.display_name }}
                             </a>
                             <div class="dashboard-client-type-mobile">{{ client.status or "—" }}</div>
@@ -121,7 +121,7 @@
                             {% endif %}
                           </td>
                           <td class="dashboard-action-cell">
-                            <a class="dashboard-link-btn" href="/coach_db/client_details?name={{ client.name }}">View</a>
+                            <a class="dashboard-link-btn" href="/coach_db/client_details?name={{ client.name | urlencode }}{{ coach_view_query | replace('?', '&') if coach_is_view_mode else '' }}">View</a>
                           </td>
                         </tr>
                       {% endfor %}
@@ -161,7 +161,7 @@
                       {% for client in billing_clients %}
                         <tr>
                           <td>
-                            <a class="dashboard-inline-link" href="/coach_db/client_details?name={{ client.name }}">
+                            <a class="dashboard-inline-link" href="/coach_db/client_details?name={{ client.name | urlencode }}{{ coach_view_query | replace('?', '&') if coach_is_view_mode else '' }}">
                               {{ client.display_name }}
                             </a>
           
