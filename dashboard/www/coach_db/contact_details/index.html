@@ -16,7 +16,7 @@
         </div>
 
         <div class="dashboard-detail-actions dashboard-detail-actions-compact">
-          <a href="/coach_db/contacts" class="dashboard-btn dashboard-btn-secondary">Back</a>
+          <a href="/coach_db/contacts{{ coach_view_query or '' }}" class="dashboard-btn dashboard-btn-secondary">Back</a>
           <button type="button" class="dashboard-btn dashboard-btn-light" id="refreshContactDetails">Refresh</button>
           <button type="button" class="dashboard-btn dashboard-btn-primary" id="editContact">
             {% if is_new %}Save Contact{% else %}Edit Contact{% endif %}
@@ -214,7 +214,7 @@
                       {% for invoice in contact_invoices %}
                         <tr>
                           <td>
-                            <a class="dashboard-inline-link" href="/coach_db/invoice_details?name={{ invoice.name }}">
+                            <a class="dashboard-inline-link" href="/coach_db/invoice_details?name={{ invoice.name | urlencode }}{{ coach_view_query | replace('?', '&') if coach_is_view_mode else '' }}">
                               {{ invoice.name }}
                             </a>
           
@@ -234,7 +234,7 @@
                           <td>{{ frappe.format_value(invoice.outstanding_amount or 0, {"fieldtype": "Currency"}) }}</td>
           
                           <td class="dashboard-action-cell">
-                            <a class="dashboard-link-btn" href="/coach_db/invoice_details?name={{ invoice.name }}">
+                            <a class="dashboard-link-btn" href="/coach_db/invoice_details?name={{ invoice.name | urlencode }}{{ coach_view_query | replace('?', '&') if coach_is_view_mode else '' }}">
                               View
                             </a>
                           </td>
