@@ -38,7 +38,7 @@ def get_context(context):
     context.client_details_storage_key = "coach_client_details_active_tab"
 
     client_name = frappe.form_dict.get("name")
-    is_new = frappe.form_dict.get("new")
+    is_new = bool(frappe.form_dict.get("new"))
 
     if context.coach_is_view_mode:
         context.dashboard_user_name = context.coach_view_display_name
@@ -68,7 +68,7 @@ def get_context(context):
 
         data = get_client_context_data(
             client_name=client_name,
-            is_new=bool(is_new),
+            is_new=is_new,
             base_url="/coach_db",
             enforce_access=True,
         )
