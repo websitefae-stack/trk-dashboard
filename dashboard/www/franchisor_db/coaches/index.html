@@ -65,7 +65,7 @@
                     data-mobile="{{ (coach.mobile or '')|lower }}"
                   >
                     <td>
-                      <a class="dashboard-inline-link dashboard-coach-name-link" href="/franchisor_db/coach_details?name={{ coach.name | urlencode }}">
+                      <a class="dashboard-inline-link dashboard-coach-name-link" href="/coach_db/profile?view_as={{ coach.name | urlencode }}&viewer=franchisor&return_to=/franchisor_db/coaches">
                         {{ display_name }}
                       </a>
                     </td>
@@ -74,7 +74,7 @@
                     <td>{{ coach.client_count or 0 }}</td>
                     <td>{{ coach.session_worker_count or 0 }}</td>
                     <td class="dashboard-action-cell">
-                      <a class="dashboard-link-btn" href="/franchisor_db/coach_details?name={{ coach.name | urlencode }}">View</a>
+                      <a class="dashboard-link-btn" href="/coach_db/profile?view_as={{ coach.name | urlencode }}&viewer=franchisor&return_to=/franchisor_db/coaches">View</a>
                     </td>
                   </tr>
                 {% endfor %}
