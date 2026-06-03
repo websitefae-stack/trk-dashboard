@@ -20,9 +20,11 @@
             Today
           </button>
 
-          <button type="button" class="dashboard-btn dashboard-btn-primary" id="trkCalendarNewBtn">
-            + Book Session
-          </button>
+          {% if not coach_is_view_mode %}
+            <button type="button" class="dashboard-btn dashboard-btn-primary" id="trkCalendarNewBtn">
+              + Book Session
+            </button>
+          {% endif %}
         </div>
       </div>
 
