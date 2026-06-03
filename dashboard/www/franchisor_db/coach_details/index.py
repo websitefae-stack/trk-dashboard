@@ -2,7 +2,6 @@ import frappe
 from frappe import _
 
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
-from dashboard.api.shared.contact_details import get_contact_context
 
 
 def get_franchisor_display_name():
@@ -22,19 +21,20 @@ def get_context(context):
 
     redirect_if_wrong_dashboard("franchisor")
 
-    is_new = bool(frappe.form_dict.get("new"))
+    coach_name = frappe.form_dict.get("name")
 
-    data = get_contact_context(
-        scope="franchisor",
-        contact_name=frappe.form_dict.get("name"),
-        is_new=is_new,
-    )
+    if not coach_name:
+        frappe.throw(_("Coach not found."))
+
+    if not frappe.db.exists("Coach", coach_name):
+        frappe.throw(_("Coach not found."))
+
+    coach = frappe.get_doc("Coach", coach_name)
 
     context.no_cache = 1
-    context.page_title = data["contact_display_name"]
-    context.active_page = "contacts"
+    context.page_title = coach.coach_name or coach.name
+    context.active_page = "coaches"
     context.dashboard_user_name = get_franchisor_display_name()
     context.dashboard_notifications_url = "/franchisor_db/notifications"
 
-    for key, value in data.items():
-        context[key] = value
+    context.coach = coach
