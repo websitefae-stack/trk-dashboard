@@ -1,3 +1,5 @@
+{% set view_suffix = coach_view_query | replace('?', '&') if coach_is_view_mode else '' %}
+
 <script>
   window.TRKClientDetailsRole = {
     role: "{{ client_details_role }}",
@@ -26,15 +28,17 @@
         </div>
 
         <div class="dashboard-detail-actions dashboard-detail-actions-compact">
-          <a href="/coach_db/clients" class="dashboard-btn dashboard-btn-secondary">Back</a>
+          <a href="/coach_db/clients{{ coach_view_query or '' }}" class="dashboard-btn dashboard-btn-secondary">Back</a>
 
-          <button type="button" class="dashboard-btn dashboard-btn-light" id="createClientInvoice">
-            Create Invoice
-          </button>
+          {% if not coach_is_view_mode %}
+            <button type="button" class="dashboard-btn dashboard-btn-light" id="createClientInvoice">
+              Create Invoice
+            </button>
 
-          <button type="button" class="dashboard-btn dashboard-btn-primary" id="editClient">
-            Edit Client
-          </button>
+            <button type="button" class="dashboard-btn dashboard-btn-primary" id="editClient">
+              Edit Client
+            </button>
+          {% endif %}
         </div>
       </div>
 
@@ -65,12 +69,14 @@
                 <div class="dashboard-detail-section">
                   <div class="dashboard-detail-section-head">
                     <h2 class="dashboard-detail-section-title">Billing Contact</h2>
-                  
-                    <div class="dashboard-detail-actions">
-                      <a class="dashboard-btn dashboard-btn-light" href="/coach_db/contact_details?new=1">
-                        Add Contact
-                      </a>
-                    </div>
+
+                    {% if not coach_is_view_mode %}
+                      <div class="dashboard-detail-actions">
+                        <a class="dashboard-btn dashboard-btn-light" href="/coach_db/contact_details?new=1">
+                          Add Contact
+                        </a>
+                      </div>
+                    {% endif %}
                   </div>
 
                   {% if billing_contact %}
@@ -90,7 +96,7 @@
                           <tr>
                             <td>
                               {% if billing_contact.link %}
-                                <a class="dashboard-inline-link" href="{{ billing_contact.link }}">
+                                <a class="dashboard-inline-link" href="{{ billing_contact.link }}{{ view_suffix }}">
                                   {{ billing_contact.display_name }}
                                 </a>
                               {% else %}
@@ -106,7 +112,7 @@
                             <td>{{ billing_contact.relationship or "—" }}</td>
                             <td class="dashboard-action-cell">
                               {% if billing_contact.link %}
-                                <a class="dashboard-link-btn" href="{{ billing_contact.link }}">View</a>
+                                <a class="dashboard-link-btn" href="{{ billing_contact.link }}{{ view_suffix }}">View</a>
                               {% else %}
                                 —
                               {% endif %}
@@ -123,12 +129,14 @@
                 <div class="dashboard-detail-section">
                   <div class="dashboard-detail-section-head">
                     <h2 class="dashboard-detail-section-title">Client Contacts</h2>
-                  
-                    <div class="dashboard-detail-actions">
-                      <a class="dashboard-btn dashboard-btn-light" href="/coach_db/contact_details?new=1">
-                        Add Contact
-                      </a>
-                    </div>
+
+                    {% if not coach_is_view_mode %}
+                      <div class="dashboard-detail-actions">
+                        <a class="dashboard-btn dashboard-btn-light" href="/coach_db/contact_details?new=1">
+                          Add Contact
+                        </a>
+                      </div>
+                    {% endif %}
                   </div>
 
                   <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
@@ -149,7 +157,7 @@
                             <tr>
                               <td>
                                 {% if contact.link %}
-                                  <a class="dashboard-inline-link" href="{{ contact.link }}">
+                                  <a class="dashboard-inline-link" href="{{ contact.link }}{{ view_suffix }}">
                                     {{ contact.contact_name or "—" }}
                                   </a>
                                 {% else %}
@@ -165,7 +173,7 @@
                               <td>{{ contact.company or "—" }}</td>
                               <td class="dashboard-action-cell">
                                 {% if contact.link %}
-                                  <a class="dashboard-link-btn" href="{{ contact.link }}">View</a>
+                                  <a class="dashboard-link-btn" href="{{ contact.link }}{{ view_suffix }}">View</a>
                                 {% else %}
                                   —
                                 {% endif %}
@@ -183,22 +191,24 @@
                 </div>
 
               {% elif tab.custom == "notes" %}
-                <div class="dashboard-detail-section">
-                  <div class="dashboard-detail-section-head">
-                    <h2 class="dashboard-detail-section-title">Add Note</h2>
-                  </div>
+                {% if not coach_is_view_mode %}
+                  <div class="dashboard-detail-section">
+                    <div class="dashboard-detail-section-head">
+                      <h2 class="dashboard-detail-section-title">Add Note</h2>
+                    </div>
 
-                  <div class="dashboard-detail-field">
-                    <label for="newClientNoteText">Note</label>
-                    <textarea id="newClientNoteText" class="dashboard-textarea" placeholder="Write a client note"></textarea>
-                  </div>
+                    <div class="dashboard-detail-field">
+                      <label for="newClientNoteText">Note</label>
+                      <textarea id="newClientNoteText" class="dashboard-textarea" placeholder="Write a client note"></textarea>
+                    </div>
 
-                  <div class="dashboard-detail-actions" style="margin-top: 14px;">
-                    <button type="button" class="dashboard-btn dashboard-btn-primary" id="addClientNote">
-                      Add Note
-                    </button>
+                    <div class="dashboard-detail-actions" style="margin-top: 14px;">
+                      <button type="button" class="dashboard-btn dashboard-btn-primary" id="addClientNote">
+                        Add Note
+                      </button>
+                    </div>
                   </div>
-                </div>
+                {% endif %}
 
                 <div class="dashboard-detail-section">
                   <div class="dashboard-detail-section-head">
@@ -314,7 +324,7 @@
                               </td>
                               <td>
                                 {% if appointment.view_link %}
-                                  <a class="dashboard-inline-link" href="{{ appointment.view_link }}">
+                                  <a class="dashboard-inline-link" href="{{ appointment.view_link }}{{ view_suffix }}">
                                     {{ appointment.item_display_name or appointment.item or "—" }}
                                   </a>
                                 {% else %}
@@ -326,7 +336,7 @@
                               <td class="dashboard-appointment-location-cell">{{ appointment.location or "—" }}</td>
                               <td class="dashboard-action-cell">
                                 {% if appointment.view_link %}
-                                  <a class="dashboard-link-btn" href="{{ appointment.view_link }}">View</a>
+                                  <a class="dashboard-link-btn" href="{{ appointment.view_link }}{{ view_suffix }}">View</a>
                                 {% else %}
                                   —
                                 {% endif %}
@@ -409,7 +419,7 @@
                           {% for invoice in client_invoices %}
                             <tr>
                               <td>
-                                <a class="dashboard-inline-link" href="/coach_db/invoice_details?name={{ invoice.name }}">
+                                <a class="dashboard-inline-link" href="/coach_db/invoice_details?name={{ invoice.name | urlencode }}{{ view_suffix }}">
                                   {{ invoice.name }}
                                 </a>
                               </td>
@@ -419,7 +429,7 @@
                               <td>{{ frappe.format_value(invoice.grand_total or 0, {"fieldtype": "Currency"}) }}</td>
                               <td>{{ frappe.format_value(invoice.outstanding_amount or 0, {"fieldtype": "Currency"}) }}</td>
                               <td class="dashboard-action-cell">
-                                <a class="dashboard-link-btn" href="/coach_db/invoice_details?name={{ invoice.name }}">View</a>
+                                <a class="dashboard-link-btn" href="/coach_db/invoice_details?name={{ invoice.name | urlencode }}{{ view_suffix }}">View</a>
                               </td>
                             </tr>
                           {% endfor %}
