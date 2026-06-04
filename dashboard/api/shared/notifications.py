@@ -795,6 +795,40 @@ def ensure_notification_access(notification_name):
 
     frappe.throw(_("Notification not found."))
 
+def ensure_notification_access_for_user(notification_name, user):
+    ensure_logged_in()
+
+    user = (user or "").strip()
+
+    if not notification_name:
+        frappe.throw(_("Notification not found."))
+
+    if not user:
+        frappe.throw(_("User not found."), frappe.PermissionError)
+
+    if _conversation_enabled() and frappe.db.exists(CONVERSATION_DOCTYPE, notification_name):
+        doc = frappe.get_doc(CONVERSATION_DOCTYPE, notification_name)
+
+        if doc.get("created_by_user") == user:
+            return doc
+
+        if _user_is_recipient(doc, user):
+            return doc
+
+        if _is_franchisor_user(user):
+            return doc
+
+        frappe.throw(_("You do not have permission to access this notification."), frappe.PermissionError)
+
+    if frappe.db.exists(NOTIFICATION_DOCTYPE, notification_name):
+        doc = frappe.get_doc(NOTIFICATION_DOCTYPE, notification_name)
+
+        if _field_exists(NOTIFICATION_DOCTYPE, "for_user") and doc.get("for_user") and doc.get("for_user") != user:
+            frappe.throw(_("You do not have permission to access this notification."), frappe.PermissionError)
+
+        return doc
+
+    frappe.throw(_("Notification not found."))
 
 def _format_conversation(doc):
     current_user = frappe.session.user
