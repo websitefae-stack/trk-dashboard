@@ -365,6 +365,23 @@ def _coach_can_view_client(client_row, coach_context):
     return client_row.get("primary_coach") == coach_name or client_row.get("attending_coach") == coach_name
 
 
+def _session_worker_view_can_see_client_details(client_row, context):
+    if not context.get("is_view_mode"):
+        return True
+
+    view_scope = (context.get("view_scope") or "").strip().lower()
+
+    if view_scope == FRANCHISOR_DASHBOARD:
+        return True
+
+    if view_scope != COACH_DASHBOARD:
+        return False
+
+    coach_context = _get_current_coach_context(frappe.session.user)
+
+    return _coach_can_view_client(client_row or {}, coach_context)
+
+
 def _client_belongs_to_session_worker(client_name, worker_context):
     if not client_name or not frappe.db.exists("Client", client_name):
         return False
@@ -1125,7 +1142,7 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
         return {
             "id": row.get("name"),
             "name": row.get("name"),
-            "title": "Unavailable",
+            "title": "APPOINTMENT",
             "client_name": "",
             "date": start_dt.strftime("%Y-%m-%d"),
             "start_time": start_dt.strftime("%H:%M"),
@@ -1139,6 +1156,34 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
             "return_trip_required": 0,
             "total_travel_miles": 0,
             "worker": "Me" if selected_calendar_for == COACH_ME_VALUE else _get_session_worker_label(selected_calendar_for),
+            "location": "",
+            "notes": "",
+            "record_url": "",
+            "session_number": 0,
+            "total_sessions": 0,
+            "progress_text": "",
+            "booking_warning": "This appointment belongs to another coach. Details are hidden.",
+            "is_private": 1,
+        }
+
+    if dashboard_type == SESSION_WORKER_DASHBOARD and not _session_worker_view_can_see_client_details(client_row or {}, context):
+        return {
+            "id": row.get("name"),
+            "name": row.get("name"),
+            "title": "APPOINTMENT",
+            "client_name": "",
+            "date": start_dt.strftime("%Y-%m-%d"),
+            "start_time": start_dt.strftime("%H:%M"),
+            "end_time": end_dt.strftime("%H:%M") if end_dt else start_dt.strftime("%H:%M"),
+            "status": "Booked",
+            "ui_status": "Booked",
+            "type": "General",
+            "billing_type": "",
+            "travel_charged": 0,
+            "travel_miles_one_way": 0,
+            "return_trip_required": 0,
+            "total_travel_miles": 0,
+            "worker": context.get("worker_label") or "Session Worker",
             "location": "",
             "notes": "",
             "record_url": "",
@@ -1362,6 +1407,9 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
     if dashboard_type == SESSION_WORKER_DASHBOARD:
         if client and not _client_belongs_to_session_worker(client, context):
             frappe.throw(_("You do not have permission to view this session."), frappe.PermissionError)
+
+        if not _session_worker_view_can_see_client_details(client_row or {}, context):
+            frappe.throw(_("This appointment belongs to another coach. Details are hidden."), frappe.PermissionError)
 
     if dashboard_type == COACH_DASHBOARD:
         if not client_row or not _coach_can_view_client(client_row, context):
