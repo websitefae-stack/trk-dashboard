@@ -28,6 +28,7 @@ def get_context(context):
     context.active_page = "notifications"
     context.dashboard_notifications_url = "/session_worker_db/notifications"
     context.base_url = "/session_worker_db"
+    context.dashboard_base_url = "/session_worker_db"
 
     context.session_worker_view_mode = view_mode
     context.session_worker_view_query = view_mode.get("query_string") or ""
@@ -45,21 +46,44 @@ def get_context(context):
         try:
             context.dashboard_user_name = get_user_display_name()
         except Exception:
-            context.dashboard_user_name = frappe.get_cached_value("User", frappe.session.user, "full_name") or ""
+            context.dashboard_user_name = frappe.get_cached_value(
+                "User",
+                frappe.session.user,
+                "full_name",
+            ) or ""
 
     try:
         if context.session_worker_is_view_mode:
             worker_name = view_mode.get("view_worker_name")
-            summary = get_notification_summary_for_session_worker_doc(worker_name, limit=5)
+
+            summary = get_notification_summary_for_session_worker_doc(
+                worker_name,
+                limit=5,
+            )
+
             context.unread_count = summary.get("unread_count", 0)
-            context.notifications = get_notification_list_for_session_worker_doc(worker_name, status="All", limit=200)
+
+            context.notifications = get_notification_list_for_session_worker_doc(
+                worker_name,
+                status="All",
+                limit=200,
+            )
+
         else:
             summary = get_notification_summary_for_page(limit=5)
             context.unread_count = summary.get("unread_count", 0)
-            context.notifications = get_notification_list_for_page(status="All", limit=200)
+
+            context.notifications = get_notification_list_for_page(
+                status="All",
+                limit=200,
+            )
 
     except Exception:
-        frappe.log_error(frappe.get_traceback(), "Session Worker Notifications Page Error")
+        frappe.log_error(
+            frappe.get_traceback(),
+            "Session Worker Notifications Page Error",
+        )
+
         context.notifications = []
         context.unread_count = 0
         context.page_error = _("Unable to load notifications.")
