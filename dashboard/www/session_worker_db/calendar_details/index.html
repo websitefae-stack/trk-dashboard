@@ -1,12 +1,20 @@
 {% include "dashboard/templates/includes/head/session_worker_head.html" %}
 
-<div class="dashboard-page" id="sessionWorkerCalendarDetailsShell" data-dashboard-type="session_worker">
+<div
+  class="dashboard-page"
+  id="sessionWorkerCalendarDetailsShell"
+  data-dashboard-type="session_worker"
+  data-view-mode="{{ session_worker_is_view_mode or 0 }}"
+  data-view-as="{{ session_worker_view_worker_name or '' }}"
+  data-view-query="{{ session_worker_view_query or '' }}"
+>
   {% include "dashboard/templates/includes/sidebar/session_worker_sidebar.html" %}
 
   <div class="dashboard-main">
     {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
 
     <div class="dashboard-container">
+
       {% if session_worker_is_view_mode %}
         <div style="background:#ac455c; color:#ffffff; border-radius:14px; padding:16px 18px; margin-bottom:18px;">
           <strong>Viewing Session Worker:</strong>
@@ -27,7 +35,13 @@
       <div class="dashboard-page-header">
         <div>
           <h1 class="dashboard-page-title">Session Details</h1>
-          <p class="dashboard-page-subtitle">View session details and notes.</p>
+          <p class="dashboard-page-subtitle">
+            {% if session_worker_is_view_mode %}
+              View session details in read-only mode.
+            {% else %}
+              View session details and add client notes inside the Session Worker Dashboard.
+            {% endif %}
+          </p>
         </div>
 
         <div class="dashboard-page-actions">
