@@ -2,7 +2,10 @@ import frappe
 from frappe import _
 
 from dashboard.api.shared.directory import get_user_display_name
-from dashboard.api.shared.notifications import ensure_notification_access
+from dashboard.api.shared.notifications import (
+    ensure_notification_access,
+    ensure_notification_access_for_user,
+)
 from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
 
 
@@ -23,6 +26,7 @@ def get_context(context):
     context.active_page = "notifications"
     context.dashboard_notifications_url = "/session_worker_db/notifications"
     context.base_url = "/session_worker_db"
+    context.dashboard_base_url = "/session_worker_db"
 
     context.session_worker_view_mode = view_mode
     context.session_worker_view_query = view_mode.get("query_string") or ""
@@ -36,14 +40,61 @@ def get_context(context):
         try:
             context.dashboard_user_name = get_user_display_name()
         except Exception:
-            context.dashboard_user_name = frappe.get_cached_value("User", frappe.session.user, "full_name") or ""
+            context.dashboard_user_name = frappe.get_cached_value(
+                "User",
+                frappe.session.user,
+                "full_name",
+            ) or ""
 
     docname = frappe.form_dict.get("name")
 
     if not docname:
         frappe.throw(_("Notification not found."))
 
-    notification = ensure_notification_access(docname)
+    if context.session_worker_is_view_mode:
+        view_worker_name = view_mode.get("view_worker_name")
+        view_user = get_session_worker_user(view_worker_name)
+
+        if not view_user:
+            frappe.throw(_("Session worker user not found."), frappe.PermissionError)
+
+        notification = ensure_notification_access_for_user(
+            docname,
+            view_user,
+        )
+    else:
+        notification = ensure_notification_access(docname)
 
     context.notification = notification.as_dict()
     context.notification_docname = notification.name
+
+
+def get_session_worker_user(worker_name):
+    worker_name = (worker_name or "").strip()
+
+    if not worker_name:
+        return ""
+
+    if not frappe.db.exists("Session Worker", worker_name):
+        return ""
+
+    meta = frappe.get_meta("Session Worker")
+
+    for fieldname in [
+        "user",
+        "user_id",
+        "email",
+        "session_worker_email",
+        "sw_email",
+    ]:
+        if meta.has_field(fieldname):
+            value = frappe.db.get_value(
+                "Session Worker",
+                worker_name,
+                fieldname,
+            )
+
+            if value:
+                return value
+
+    return ""
