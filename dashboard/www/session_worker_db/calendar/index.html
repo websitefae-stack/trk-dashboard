@@ -1,19 +1,12 @@
 {% include "dashboard/templates/includes/head/session_worker_head.html" %}
 
-<div
-  class="dashboard-page"
-  id="sessionWorkerCalendarShell"
-  data-dashboard-type="session_worker"
-  data-view-mode="{{ session_worker_is_view_mode or 0 }}"
-  data-view-as="{{ session_worker_view_worker_name or '' }}"
->
+<div class="dashboard-page" data-dashboard-type="session_worker">
   {% include "dashboard/templates/includes/sidebar/session_worker_sidebar.html" %}
 
   <div class="dashboard-main">
     {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
 
     <div class="dashboard-container">
-
       {% if session_worker_is_view_mode %}
         <div style="background:#ac455c; color:#ffffff; border-radius:14px; padding:16px 18px; margin-bottom:18px;">
           <strong>Viewing Session Worker:</strong>
@@ -34,130 +27,17 @@
       <div class="dashboard-page-header">
         <div>
           <h1 class="dashboard-page-title">Calendar</h1>
-          <p class="dashboard-page-subtitle">
-            {% if session_worker_is_view_mode %}
-              View this session worker’s calendar in read-only mode.
-            {% else %}
-              Book, update and manage sessions inside the Session Worker Dashboard.
-            {% endif %}
-          </p>
-        </div>
-
-        <div class="dashboard-page-actions trk-calendar-header-actions">
-          <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarTodayBtn">
-            Today
-          </button>
-
-          {% if not session_worker_is_view_mode %}
-            <button type="button" class="dashboard-btn dashboard-btn-primary" id="trkCalendarNewBtn">
-              + Book Session
-            </button>
-          {% endif %}
+          <p class="dashboard-page-subtitle">View sessions and appointments.</p>
         </div>
       </div>
 
-      <div id="sessionWorkerCalendarRoot" class="trk-calendar-page">
-        <div class="dashboard-card trk-calendar-toolbar">
-
-          <div class="trk-calendar-toolbar-main">
-            <div class="trk-calendar-nav">
-              <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarPrevBtn">
-                ◀ Prev
-              </button>
-
-              <button type="button" class="trk-calendar-range trk-calendar-date-picker-btn" id="trkCalendarDatePickerBtn">
-                <span id="trkCalendarRangeLabel">Week</span>
-              </button>
-
-              <input
-                type="date"
-                id="trkCalendarDatePicker"
-                class="trk-calendar-date-picker-input"
-              >
-
-              <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarNextBtn">
-                Next ▶
-              </button>
-            </div>
-
-            <div class="trk-calendar-view-switch">
-              <button type="button" class="dashboard-tab-btn" id="trkCalendarDayViewBtn">
-                Day
-              </button>
-
-              <button type="button" class="dashboard-tab-btn is-active" id="trkCalendarWeekViewBtn">
-                Week
-              </button>
-
-              <button type="button" class="dashboard-tab-btn" id="trkCalendarMonthViewBtn">
-                Month
-              </button>
-            </div>
-          </div>
-
-          <div class="trk-calendar-toolbar-sub">
-            <div class="trk-calendar-legend">
-              <span class="trk-calendar-legend-item">
-                <i class="trk-calendar-dot" style="background:#E94763;"></i>
-                Therapy Session
-              </span>
-
-              <span class="trk-calendar-legend-item">
-                <i class="trk-calendar-dot" style="background:#FF8438;"></i>
-                Parent Check-In
-              </span>
-
-              <span class="trk-calendar-legend-item">
-                <i class="trk-calendar-dot" style="background:#00A19E;"></i>
-                Initial Consultation
-              </span>
-
-              <span class="trk-calendar-legend-item">
-                <i class="trk-calendar-dot" style="background:#D5DA39;"></i>
-                General
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div class="trk-calendar-layout">
-          <div class="dashboard-card trk-calendar-board-card">
-
-            <div class="trk-calendar-board" id="trkCalendarBoard">
-              <div class="trk-calendar-time-column" id="trkCalendarTimeColumn"></div>
-
-              <div class="trk-calendar-grid-wrap">
-                <div class="trk-calendar-day-header" id="trkCalendarDayHeader"></div>
-                <div class="trk-calendar-day-grid" id="trkCalendarDayGrid"></div>
-              </div>
-            </div>
-
-            <div class="trk-calendar-loading" id="trkCalendarLoading">
-              Loading calendar…
-            </div>
-          </div>
-
-          <aside class="dashboard-card trk-calendar-sidepanel">
-            <div class="trk-calendar-sidepanel-head">
-              <h2 class="trk-calendar-sidepanel-title">Session Details</h2>
-            </div>
-
-            <div class="trk-calendar-sidepanel-body" id="trkCalendarDetailsBody">
-              <div class="dashboard-empty">
-                Select a calendar item to view its details.
-              </div>
-            </div>
-          </aside>
-        </div>
-      </div>
+      <div
+        id="trkCalendarApp"
+        data-dashboard-type="session_worker"
+        data-view-query="{{ session_worker_view_query or '' }}"
+        data-view-worker="{{ session_worker_view_worker_name or '' }}"
+        data-is-view-mode="{{ session_worker_is_view_mode or 0 }}"
+      ></div>
     </div>
   </div>
 </div>
-
-{% if not session_worker_is_view_mode %}
-  {% include "dashboard/templates/includes/calendar/booking_modal.html" %}
-  {% include "dashboard/templates/includes/calendar/edit_modal.html" %}
-  {% include "dashboard/templates/includes/calendar/note_modal.html" %}
-{% endif %}
-
-<div class="trk-calendar-toast" id="trkCalendarToast"></div>
