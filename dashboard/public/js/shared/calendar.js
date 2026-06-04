@@ -733,13 +733,22 @@
     
     if (!isPrivate) {
       
-      actions =
-        '<div class="dashboard-detail-actions" style="margin-top:16px;">'
-        + '<button type="button" class="dashboard-btn dashboard-btn-primary" data-calendar-action="edit-session" data-event="' + escapeHtml(event.name || "") + '">Edit Session</button>'
-        + '<button type="button" class="dashboard-btn dashboard-btn-light" data-calendar-action="add-note" data-event="' + escapeHtml(event.name || "") + '">Add Note</button>'
-        + '<a class="dashboard-link-btn" href="' + escapeHtml(detailsUrl) + '">Open details page ↗</a>'
-        + '</div>';
-    }
+      let actions = "";
+
+      if (!isPrivate) {
+        actions =
+          '<div class="dashboard-detail-actions" style="margin-top:16px;">';
+      
+        if (!viewMode.isViewMode) {
+          actions +=
+            '<button type="button" class="dashboard-btn dashboard-btn-primary" data-calendar-action="edit-session" data-event="' + escapeHtml(event.name || "") + '">Edit Session</button>'
+            + '<button type="button" class="dashboard-btn dashboard-btn-light" data-calendar-action="add-note" data-event="' + escapeHtml(event.name || "") + '">Add Note</button>';
+        }
+      
+        actions +=
+          '<a class="dashboard-link-btn" href="' + escapeHtml(detailsUrl) + '">Open details page ↗</a>'
+          + '</div>';
+      }
 
     body.innerHTML =
       '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Client / Session</div><div class="trk-calendar-detail-value">' + escapeHtml(event.title || "Session") + '</div></div>' +
