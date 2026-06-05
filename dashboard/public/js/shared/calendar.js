@@ -248,12 +248,7 @@
 
         if (row) {
           state.selectedEvent = row;
-        
-          if (Number(row.is_private || 0) === 1) {
-            renderPrivateAppointmentDetails(row);
-          } else {
-            renderDetails(row);
-          }
+          renderDetails(row);
         }
       }
     });
@@ -592,23 +587,17 @@
       eventNode.style.height = height + "px";
 
       eventNode.innerHTML =
-        '<span class="trk-calendar-event-title">' +
-        escapeHtml(Number(event.is_private || 0) === 1 ? "APPOINTMENT" : (event.title || "Session")) +
-        '</span>' +
+        '<span class="trk-calendar-event-title">' + escapeHtml(event.title || "Session") + '</span>' +
         '<span class="trk-calendar-event-time">' + escapeHtml((event.start_time || "") + " - " + (event.end_time || "")) + '</span>' +
         getCalendarEventProgressHtml(event);
 
       eventNode.addEventListener("click", function (clickEvent) {
         clickEvent.stopPropagation();
-      
+
         state.selectedEvent = event;
-      
-        if (Number(event.is_private || 0) === 1) {
-          renderPrivateAppointmentDetails(event);
-        } else {
-          renderDetails(event);
-        }
+        renderDetails(event);
       });
+
       dayColumn.appendChild(eventNode);
     });
   }
@@ -687,10 +676,7 @@
 
       cellEvents.forEach(function (row) {
         const style = TYPE_STYLES[row.type] || TYPE_STYLES["Therapy Session"];
-        const monthLabel =
-          Number(row.is_private || 0) === 1
-            ? "APPOINTMENT"
-            : getMonthEventLabel(row);
+        const monthLabel = getMonthEventLabel(row);
 
         html += '<button type="button"'
           + ' data-calendar-month-event="' + escapeHtml(row.name || "") + '"'
@@ -714,41 +700,20 @@
     const body = document.getElementById("trkCalendarDetailsBody");
     if (!body) return;
 
-    let detailsUrl = event.record_url || getDefaultDetailsUrl(event.name || "");
-
-    const viewMode = getViewModeParams();
-    
-    if (viewMode.isViewMode) {
-      const joiner = detailsUrl.indexOf("?") === -1 ? "?" : "&";
-    
-      detailsUrl =
-        detailsUrl +
-        joiner +
-        "view_as=" + encodeURIComponent(viewMode.viewAs) +
-        "&viewer=" + encodeURIComponent(viewMode.viewer);
-    }
+    const detailsUrl = event.record_url || getDefaultDetailsUrl(event.name || "");
     const isPrivate = Number(event.is_private || 0) === 1;
 
     let actions = "";
-    
-    if (!isPrivate) {
-      
-      let actions = "";
+    const viewMode = getViewModeParams();
 
-      if (!isPrivate) {
-        actions =
-          '<div class="dashboard-detail-actions" style="margin-top:16px;">';
-      
-        if (!viewMode.isViewMode) {
-          actions +=
-            '<button type="button" class="dashboard-btn dashboard-btn-primary" data-calendar-action="edit-session" data-event="' + escapeHtml(event.name || "") + '">Edit Session</button>'
-            + '<button type="button" class="dashboard-btn dashboard-btn-light" data-calendar-action="add-note" data-event="' + escapeHtml(event.name || "") + '">Add Note</button>';
-        }
-      
-        actions +=
-          '<a class="dashboard-link-btn" href="' + escapeHtml(detailsUrl) + '">Open details page ↗</a>'
-          + '</div>';
-      }
+    if (!isPrivate && !viewMode.isViewMode) {
+      actions =
+        '<div class="dashboard-detail-actions" style="margin-top:16px;">'
+        + '<button type="button" class="dashboard-btn dashboard-btn-primary" data-calendar-action="edit-session" data-event="' + escapeHtml(event.name || "") + '">Edit Session</button>'
+        + '<button type="button" class="dashboard-btn dashboard-btn-light" data-calendar-action="add-note" data-event="' + escapeHtml(event.name || "") + '">Add Note</button>'
+        + '<a class="dashboard-link-btn" href="' + escapeHtml(detailsUrl) + '">Open details page ↗</a>'
+        + '</div>';
+    }
 
     body.innerHTML =
       '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Client / Session</div><div class="trk-calendar-detail-value">' + escapeHtml(event.title || "Session") + '</div></div>' +
@@ -779,17 +744,6 @@
     return "/session_worker_db/calendar_details?" + params.toString();
   }
 
-  function renderPrivateAppointmentDetails(event) {
-    const body = document.getElementById("trkCalendarDetailsBody");
-    if (!body) return;
-  
-    body.innerHTML =
-      '<div class="dashboard-empty">' +
-        '<strong>APPOINTMENT</strong><br><br>' +
-        'This appointment belongs to a client linked to another coach. Details are hidden.' +
-      '</div>';
-  }
-    
   function renderDetailsEmptyState() {
     const body = document.getElementById("trkCalendarDetailsBody");
     if (!body) return;
