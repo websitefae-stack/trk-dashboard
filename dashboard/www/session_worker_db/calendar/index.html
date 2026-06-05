@@ -6,7 +6,6 @@
   data-dashboard-type="session_worker"
   data-view-mode="{{ session_worker_is_view_mode or 0 }}"
   data-view-as="{{ session_worker_view_worker_name or '' }}"
-  data-view-query="{{ session_worker_view_query or '' }}"
 >
   {% include "dashboard/templates/includes/sidebar/session_worker_sidebar.html" %}
 
@@ -59,16 +58,6 @@
 
       <div id="sessionWorkerCalendarRoot" class="trk-calendar-page">
         <div class="dashboard-card trk-calendar-toolbar">
-
-          <div class="trk-calendar-toolbar-sub">
-            <div class="trk-calendar-field" style="min-width:260px;width:100%;">
-              <label for="trkCoachCalendarWorkerSelect">Session Worker</label>
-
-              <select id="trkCoachCalendarWorkerSelect" class="dashboard-select">
-                <option value="">Loading session workers...</option>
-              </select>
-            </div>
-          </div>
 
           <div class="trk-calendar-toolbar-main">
             <div class="trk-calendar-nav">
