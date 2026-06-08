@@ -24,7 +24,8 @@ def get_context(context):
     context.no_cache = 1
     context.page_title = "Client Details"
     context.active_page = "clients"
-    context.dashboard_notifications_url = "/coach_db/notifications"
+    context.dashboard_notifications_url = "/coach_db/notifications" + (view_mode.get("query_string") or "")
+    context.dashboard_base_url = "/coach_db"
 
     context.coach_view_mode = view_mode
     context.coach_view_query = view_mode.get("query_string") or ""
@@ -90,9 +91,17 @@ def ensure_view_coach_can_access_client(client_name, coach_name):
     if not frappe.db.exists("Client", client_name):
         frappe.throw(_("Client not found."))
 
-    client_coach = frappe.db.get_value("Client", client_name, "coach")
+    client = frappe.db.get_value(
+        "Client",
+        client_name,
+        ["primary_coach", "attending_coach"],
+        as_dict=True,
+    )
 
-    if client_coach != coach_name:
+    if not client:
+        frappe.throw(_("Client not found."))
+
+    if client.get("primary_coach") != coach_name and client.get("attending_coach") != coach_name:
         frappe.throw(
             _("You do not have permission to view this client for this coach."),
             frappe.PermissionError,
