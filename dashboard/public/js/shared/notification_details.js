@@ -189,34 +189,42 @@
       + '</a>';
   }
 
-  async function loadNotification() {
-    state.notificationName = getQueryParam("name");
-
-    if (!state.notificationName) {
-      const hidden = el("notificationDocname");
-      state.notificationName = hidden ? hidden.value : "";
+    async function loadNotification() {
+      state.notificationName = getQueryParam("name");
+  
+      if (!state.notificationName) {
+        const hidden = el("notificationDocname");
+        state.notificationName = hidden ? hidden.value : "";
+      }
+  
+      if (!state.notificationName) {
+        showNotice("Notification not found.");
+        return;
+      }
+  
+      showNotice("Loading notification...");
+  
+      try {
+        const payload = {
+          name: state.notificationName
+        };
+  
+        const viewAs = getQueryParam("view_as");
+        const viewer = getQueryParam("viewer");
+  
+        if (viewAs) payload.view_as = viewAs;
+        if (viewer) payload.viewer = viewer;
+  
+        const data = await callApi("dashboard.api.shared.notifications.get_notification_detail", payload);
+  
+        state.notification = data;
+        renderNotification(data);
+        showContent();
+      } catch (error) {
+        console.error("Could not load notification", error);
+        showNotice(error.message || "Could not load notification.");
+      }
     }
-
-    if (!state.notificationName) {
-      showNotice("Notification not found.");
-      return;
-    }
-
-    showNotice("Loading notification...");
-
-    try {
-      const data = await callApi("dashboard.api.shared.notifications.get_notification_detail", {
-        name: state.notificationName
-      });
-
-      state.notification = data;
-      renderNotification(data);
-      showContent();
-    } catch (error) {
-      console.error("Could not load notification", error);
-      showNotice(error.message || "Could not load notification.");
-    }
-  }
 
   function renderPriorityPill(priority) {
     const node = el("notificationPriorityText");
