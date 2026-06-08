@@ -700,7 +700,7 @@
     const body = document.getElementById("trkCalendarDetailsBody");
     if (!body) return;
 
-    const detailsUrl = event.record_url || getDefaultDetailsUrl(event.name || "");
+    const detailsUrl = getDefaultDetailsUrl(event.name || "");
     const isPrivate = Number(event.is_private || 0) === 1;
 
     let actions = "";
