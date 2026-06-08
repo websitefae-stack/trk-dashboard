@@ -20,7 +20,7 @@ def get_context(context):
     context.no_cache = 1
     context.active_page = "calendar"
     context.dashboard_type = "session_worker"
-    context.dashboard_notifications_url = "/session_worker_db/notifications"
+    context.dashboard_notifications_url = "/session_worker_db/notifications" + (view_mode.get("query_string") or "")
 
     context.session_worker_view_mode = view_mode
     context.session_worker_view_query = view_mode.get("query_string") or ""
