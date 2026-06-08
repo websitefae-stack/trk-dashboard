@@ -2,7 +2,7 @@ import frappe
 from frappe import _
 
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
-from dashboard.api.shared.clients import get_clients, get_client_types
+from dashboard.api.shared.clients import get_clients, get_client_types, normalize_client_row, CLIENT_FIELDS
 from dashboard.api.shared.directory import get_coach_display_name, get_session_workers
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 
@@ -22,7 +22,8 @@ def get_context(context):
     context.no_cache = 1
     context.page_title = "Clients"
     context.active_page = "clients"
-    context.dashboard_notifications_url = "/coach_db/notifications"
+    context.dashboard_notifications_url = "/coach_db/notifications" + (view_mode.get("query_string") or "")
+    context.dashboard_base_url = "/coach_db"
 
     context.coach_view_mode = view_mode
     context.coach_view_query = view_mode.get("query_string") or ""
@@ -44,51 +45,72 @@ def get_context(context):
 
 
 def get_clients_for_view_coach(coach_name):
+    coach_name = (coach_name or "").strip()
+
     if not coach_name:
         return []
 
-    rows = frappe.get_all(
+    rows_by_name = {}
+
+    for row in frappe.get_all(
         "Client",
-        filters={"coach": coach_name},
-        fields=[
-            "name",
-            "full_name",
-            "preferred_name",
-            "mobile",
-            "email",
-            "session_worker",
-            "client_type",
-            "status",
-        ],
+        filters={"primary_coach": coach_name},
+        fields=CLIENT_FIELDS,
         order_by="full_name asc",
+        limit_page_length=5000,
+        ignore_permissions=True,
+    ):
+        rows_by_name[row.name] = row
+
+    for row in frappe.get_all(
+        "Client",
+        filters={"attending_coach": coach_name},
+        fields=CLIENT_FIELDS,
+        order_by="full_name asc",
+        limit_page_length=5000,
+        ignore_permissions=True,
+    ):
+        rows_by_name[row.name] = row
+
+    return [
+        normalize_client_row(row, include_permissions=False)
+        for row in sorted(
+            rows_by_name.values(),
+            key=lambda r: (r.get("full_name") or r.get("name1") or r.get("name") or "").lower(),
+        )
+    ]
+
+
+def get_session_workers_for_view_coach(coach_name):
+    coach_name = (coach_name or "").strip()
+
+    if not coach_name:
+        return []
+
+    client_rows = frappe.get_all(
+        "Client",
+        filters=[
+            ["Client", "primary_coach", "=", coach_name],
+            "or",
+            ["Client", "attending_coach", "=", coach_name],
+        ],
+        fields=["session_worker"],
         limit_page_length=5000,
         ignore_permissions=True,
     )
 
-    clients = []
+    worker_names = sorted({
+        row.get("session_worker")
+        for row in client_rows
+        if row.get("session_worker")
+    })
 
-    for row in rows:
-        clients.append({
-            "name": row.name,
-            "display_name": row.full_name or row.preferred_name or row.name,
-            "full_name": row.full_name,
-            "preferred_name": row.preferred_name,
-            "mobile": row.mobile,
-            "email": row.email,
-            "session_worker": row.session_worker,
-            "client_type": row.client_type,
-            "status": row.status or "Archived",
-        })
-
-    return clients
-
-
-def get_session_workers_for_view_coach(coach_name):
-    if not coach_name:
+    if not worker_names:
         return []
 
     rows = frappe.get_all(
         "Session Worker",
+        filters={"name": ["in", worker_names]},
         fields=["name", "sw_name"],
         order_by="sw_name asc",
         limit_page_length=5000,
