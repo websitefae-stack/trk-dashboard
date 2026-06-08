@@ -1157,8 +1157,52 @@ def get_notifications(status="All", limit=20):
     return result[:limit]
 
 
+def _format_conversation_for_user(doc, user):
+    original_user = frappe.session.user
+
+    try:
+        frappe.session.user = user
+        return _format_conversation(doc)
+    finally:
+        frappe.session.user = original_user
+
+
 @frappe.whitelist()
-def get_notification_detail(name):
+def get_notification_detail(name=None, view_as=None, viewer=None):
+    ensure_logged_in()
+
+    name = _coalesce_str("name", name)
+    view_as = _coalesce_str("view_as", view_as)
+    viewer = _coalesce_str("viewer", viewer)
+
+    if not name:
+        frappe.throw(_("Notification not found."))
+
+    if view_as:
+        from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
+
+        view_mode = get_session_worker_view_mode(
+            scope=viewer,
+            worker_name=view_as,
+        )
+
+        if not view_mode.get("is_view_mode"):
+            frappe.throw(_("You do not have permission to view this session worker."), frappe.PermissionError)
+
+        view_user = _get_session_worker_user_from_docname(
+            view_mode.get("view_worker_name")
+        )
+
+        if not view_user:
+            frappe.throw(_("Session worker user not found."), frappe.PermissionError)
+
+        doc = ensure_notification_access_for_user(name, view_user)
+
+        if doc.doctype == CONVERSATION_DOCTYPE:
+            return _format_conversation_for_user(doc, view_user)
+
+        return _format_notification_log(doc.as_dict())
+
     doc = ensure_notification_access(name)
 
     if doc.doctype == CONVERSATION_DOCTYPE:
