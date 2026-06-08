@@ -156,8 +156,19 @@
         event.stopPropagation();
       });
     });
-  }
 
+    qsa(".dashboard-client-unauthorised").forEach((button) => {
+      if (button.dataset.clientUnauthorisedBound === "1") return;
+
+      button.dataset.clientUnauthorisedBound = "1";
+      button.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        alert("You are not authorised to view this client.");
+      });
+    });
+  }
   function initClientsPage() {
     if (!el("clientTable") && !document.querySelector(".dashboard-client-row")) return;
 
