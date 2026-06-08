@@ -114,6 +114,21 @@
     }
   }
 
+  function initUnauthorisedContacts() {
+    qsa(".dashboard-contact-unauthorised").forEach(function (button) {
+      if (button.dataset.contactUnauthorisedBound === "1") return;
+
+      button.dataset.contactUnauthorisedBound = "1";
+
+      button.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        alert("You are not authorised to view this contact.");
+      });
+    });
+  }
+
   function initContactsPage() {
     if (!el("contactTable") && !el("refreshContacts")) return;
 
@@ -122,6 +137,7 @@
     initRefreshButton();
     initAddButton();
     initScopeFilter();
+    initUnauthorisedContacts();
 
     renderFilters();
     updateContactCount();
