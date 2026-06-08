@@ -970,7 +970,7 @@ def _get_event_rows_for_dashboard(dashboard_type, range_start_date, range_end_da
 
             filters = base_filters + [
                 ["Event", "custom_client", "in", list(client_map.keys())],
-                ["Event", "owner", "=", frappe.session.user],
+                ["Event", "owner", "=", context.get("view_as_user") or frappe.session.user],
             ]
 
             rows = frappe.get_all(
@@ -1025,7 +1025,7 @@ def _get_event_rows_for_dashboard(dashboard_type, range_start_date, range_end_da
     if dashboard_type == FRANCHISOR_DASHBOARD:
         if selected_calendar_for == FRANCHISOR_ME_VALUE:
             filters = base_filters + [
-                ["Event", "owner", "=", frappe.session.user],
+                ["Event", "owner", "=", context.get("view_as_user") or frappe.session.user],
             ]
 
             rows = frappe.get_all(
