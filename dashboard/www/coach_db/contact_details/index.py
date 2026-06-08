@@ -21,7 +21,8 @@ def get_context(context):
 
     context.no_cache = 1
     context.active_page = "contacts"
-    context.dashboard_notifications_url = "/coach_db/notifications"
+    context.dashboard_notifications_url = "/coach_db/notifications" + (view_mode.get("query_string") or "")
+    context.dashboard_base_url = "/coach_db"
 
     context.coach_view_mode = view_mode
     context.coach_view_query = view_mode.get("query_string") or ""
@@ -44,6 +45,7 @@ def get_context(context):
         scope="coach",
         contact_name=frappe.form_dict.get("name"),
         is_new=bool(frappe.form_dict.get("new")),
+        view_coach_name=view_mode.get("view_coach_name") if context.coach_is_view_mode else None,
     )
 
     context.page_title = data["contact_display_name"]
