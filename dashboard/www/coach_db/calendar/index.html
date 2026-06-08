@@ -1,12 +1,35 @@
 {% include "dashboard/templates/includes/head/coach_head.html" %}
 
-<div class="dashboard-page" id="sessionWorkerCalendarShell">
+<div
+  class="dashboard-page"
+  id="sessionWorkerCalendarShell"
+  data-dashboard-type="coach"
+  data-view-mode="{{ coach_is_view_mode or 0 }}"
+  data-view-as="{{ view_as_coach or '' }}"
+  data-viewer="franchisor"
+>
   {% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
 
   <div class="dashboard-main">
     {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
 
     <div class="dashboard-container">
+      {% if coach_is_view_mode %}
+        <div style="background:#ac455c; color:#ffffff; border-radius:14px; padding:16px 18px; margin-bottom:18px;">
+          <strong>Viewing Coach:</strong>
+          {{ coach_view_display_name }}
+
+          <div style="margin-top:6px;">
+            You are viewing this coach dashboard in read-only mode.
+          </div>
+
+          <div style="margin-top:12px;">
+            <a href="{{ coach_view_return_to }}" class="dashboard-btn dashboard-btn-secondary">
+              Back to Coaches
+            </a>
+          </div>
+        </div>
+      {% endif %}
       <div class="dashboard-page-header">
         <div>
           <h1 class="dashboard-page-title">Calendar</h1>
@@ -31,15 +54,17 @@
       <div id="sessionWorkerCalendarRoot" class="trk-calendar-page">
         <div class="dashboard-card trk-calendar-toolbar">
 
-          <div class="trk-calendar-toolbar-sub">
-            <div class="trk-calendar-field" style="min-width:260px;width:100%;">
-              <label for="trkCoachCalendarWorkerSelect">Session Worker</label>
+          {% if not coach_is_view_mode %}
+            <div class="trk-calendar-toolbar-sub">
+              <div class="trk-calendar-field" style="min-width:260px;width:100%;">
+                <label for="trkCoachCalendarWorkerSelect">Session Worker</label>
 
-              <select id="trkCoachCalendarWorkerSelect" class="dashboard-select">
-                <option value="">Loading session workers...</option>
-              </select>
+                <select id="trkCoachCalendarWorkerSelect" class="dashboard-select">
+                  <option value="">Loading session workers...</option>
+                </select>
+              </div>
             </div>
-          </div>
+          {% endif %}
 
           <div class="trk-calendar-toolbar-main">
             <div class="trk-calendar-nav">
@@ -136,8 +161,10 @@
   </div>
 </div>
 
-{% include "dashboard/templates/includes/calendar/booking_modal.html" %}
-{% include "dashboard/templates/includes/calendar/edit_modal.html" %}
-{% include "dashboard/templates/includes/calendar/note_modal.html" %}
+{% if not coach_is_view_mode %}
+  {% include "dashboard/templates/includes/calendar/booking_modal.html" %}
+  {% include "dashboard/templates/includes/calendar/edit_modal.html" %}
+  {% include "dashboard/templates/includes/calendar/note_modal.html" %}
+{% endif %}
 
 <div class="trk-calendar-toast" id="trkCalendarToast"></div>
