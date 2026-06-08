@@ -29,6 +29,11 @@
 
   function getDashboardBaseUrl() {
     const path = window.location.pathname || "";
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.get("view_as") && params.get("viewer")) {
+      return "/session_worker_db";
+    }
 
     if (path.indexOf("/coach_db/") === 0) return "/coach_db";
     if (path.indexOf("/session_worker_db/") === 0) return "/session_worker_db";
