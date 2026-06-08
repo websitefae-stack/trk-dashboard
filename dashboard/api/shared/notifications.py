@@ -1043,6 +1043,21 @@ def _get_session_worker_user_from_docname(worker_name):
     return ""
 
 
+def _get_coach_user_from_docname(coach_name):
+    if not coach_name or not frappe.db.exists("Coach", coach_name):
+        return ""
+
+    meta = frappe.get_meta("Coach")
+
+    for fieldname in ["user", "user_id", "email", "coach_email"]:
+        if meta.has_field(fieldname):
+            value = frappe.db.get_value("Coach", coach_name, fieldname)
+            if value:
+                return value
+
+    return ""
+
+
 def get_notifications_for_user(user, status="All", limit=20):
     original_user = frappe.session.user
 
@@ -1178,30 +1193,56 @@ def get_notification_detail(name=None, view_as=None, viewer=None):
     if not name:
         frappe.throw(_("Notification not found."))
 
-    if view_as:
-        from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
+    if view_as and viewer == "franchisor":
+        if frappe.db.exists("Coach", view_as):
+            from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 
-        view_mode = get_session_worker_view_mode(
-            scope=viewer,
-            worker_name=view_as,
-        )
+            view_mode = get_coach_view_mode(
+                scope=viewer,
+                coach_name=view_as,
+            )
 
-        if not view_mode.get("is_view_mode"):
-            frappe.throw(_("You do not have permission to view this session worker."), frappe.PermissionError)
+            if not view_mode.get("is_view_mode"):
+                frappe.throw(_("You do not have permission to view this coach."), frappe.PermissionError)
 
-        view_user = _get_session_worker_user_from_docname(
-            view_mode.get("view_worker_name")
-        )
+            view_user = _get_coach_user_from_docname(
+                view_mode.get("view_coach_name")
+            )
 
-        if not view_user:
-            frappe.throw(_("Session worker user not found."), frappe.PermissionError)
+            if not view_user:
+                frappe.throw(_("Coach user not found."), frappe.PermissionError)
 
-        doc = ensure_notification_access_for_user(name, view_user)
+            doc = ensure_notification_access_for_user(name, view_user)
 
-        if doc.doctype == CONVERSATION_DOCTYPE:
-            return _format_conversation_for_user(doc, view_user)
+            if doc.doctype == CONVERSATION_DOCTYPE:
+                return _format_conversation_for_user(doc, view_user)
 
-        return _format_notification_log(doc.as_dict())
+            return _format_notification_log(doc.as_dict())
+
+        if frappe.db.exists("Session Worker", view_as):
+            from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
+
+            view_mode = get_session_worker_view_mode(
+                scope=viewer,
+                worker_name=view_as,
+            )
+
+            if not view_mode.get("is_view_mode"):
+                frappe.throw(_("You do not have permission to view this session worker."), frappe.PermissionError)
+
+            view_user = _get_session_worker_user_from_docname(
+                view_mode.get("view_worker_name")
+            )
+
+            if not view_user:
+                frappe.throw(_("Session worker user not found."), frappe.PermissionError)
+
+            doc = ensure_notification_access_for_user(name, view_user)
+
+            if doc.doctype == CONVERSATION_DOCTYPE:
+                return _format_conversation_for_user(doc, view_user)
+
+            return _format_notification_log(doc.as_dict())
 
     doc = ensure_notification_access(name)
 
