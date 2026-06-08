@@ -6,6 +6,8 @@ from dashboard.api.shared.directory import get_coach_display_name
 from dashboard.api.shared.notifications import (
     get_notification_list_for_page,
     get_notification_summary_for_page,
+    get_notifications_for_user,
+    get_notification_summary_for_user,
 )
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 
@@ -25,7 +27,8 @@ def get_context(context):
     context.no_cache = 1
     context.page_title = "Notifications"
     context.active_page = "notifications"
-    context.dashboard_notifications_url = "/coach_db/notifications"
+    context.dashboard_notifications_url = "/coach_db/notifications" + (view_mode.get("query_string") or "")
+    context.dashboard_base_url = "/coach_db"
     context.base_url = "/coach_db"
 
     context.coach_view_mode = view_mode
@@ -56,14 +59,26 @@ def get_context(context):
             )
 
     try:
-        summary = get_notification_summary_for_page(limit=5)
+        if context.coach_is_view_mode:
+            coach_user = get_coach_user_from_docname(view_mode.get("view_coach_name"))
 
-        context.unread_count = summary.get("unread_count", 0)
+            if not coach_user:
+                frappe.throw(_("Coach user not found."), frappe.PermissionError)
 
-        context.notifications = get_notification_list_for_page(
-            status="All",
-            limit=200,
-        )
+            summary = get_notification_summary_for_user(coach_user, limit=5)
+            context.unread_count = summary.get("unread_count", 0)
+            context.notifications = get_notifications_for_user(
+                user=coach_user,
+                status="All",
+                limit=200,
+            )
+        else:
+            summary = get_notification_summary_for_page(limit=5)
+            context.unread_count = summary.get("unread_count", 0)
+            context.notifications = get_notification_list_for_page(
+                status="All",
+                limit=200,
+            )
 
     except Exception:
         frappe.log_error(
@@ -74,3 +89,18 @@ def get_context(context):
         context.notifications = []
         context.unread_count = 0
         context.page_error = _("Unable to load notifications.")
+
+
+def get_coach_user_from_docname(coach_name):
+    if not coach_name or not frappe.db.exists("Coach", coach_name):
+        return ""
+
+    meta = frappe.get_meta("Coach")
+
+    for fieldname in ["user", "user_id", "email", "coach_email"]:
+        if meta.has_field(fieldname):
+            value = frappe.db.get_value("Coach", coach_name, fieldname)
+            if value:
+                return value
+
+    return ""
