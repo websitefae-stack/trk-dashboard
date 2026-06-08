@@ -399,20 +399,37 @@
     }
   }
 
-  function makeRowsClickable() {
-    const baseUrl = getDashboardBaseUrl();
-
-    document.querySelectorAll(".dashboard-notification-row").forEach(function (row) {
-      row.addEventListener("click", function (event) {
-        if (event.target.closest("a, button, input, select, textarea")) return;
-
-        const name = row.getAttribute("data-name") || "";
-        if (!name) return;
-
-        window.location.href = baseUrl + "/notification_details?name=" + encodeURIComponent(name);
+    function getViewModeQueryString() {
+      const params = new URLSearchParams(window.location.search);
+      const keep = new URLSearchParams();
+  
+      ["view_as", "viewer"].forEach(function (key) {
+        const value = params.get(key);
+        if (value) keep.set(key, value);
       });
-    });
-  }
+  
+      const query = keep.toString();
+      return query ? "&" + query : "";
+    }
+  
+    function makeRowsClickable() {
+      const baseUrl = getDashboardBaseUrl();
+      const viewModeQuery = getViewModeQueryString();
+  
+      document.querySelectorAll(".dashboard-notification-row").forEach(function (row) {
+        row.addEventListener("click", function (event) {
+          if (event.target.closest("a, button, input, select, textarea")) return;
+  
+          const name = row.getAttribute("data-name") || "";
+          if (!name) return;
+  
+          window.location.href = baseUrl
+            + "/notification_details?name="
+            + encodeURIComponent(name)
+            + viewModeQuery;
+        });
+      });
+    }
 
   function bindLinkedClientChange() {
     const clientSelect = el("notificationLinkedClient");
