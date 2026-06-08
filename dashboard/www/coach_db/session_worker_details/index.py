@@ -67,4 +67,19 @@ def get_context(context):
         + (context.coach_view_query or "")
     )
 
+        return_to = (
+        "/coach_db/session_worker_details?name="
+        + frappe.utils.quote(worker_name)
+        + (context.coach_view_query.replace("?", "&") if context.coach_view_query else "")
+    )
+
+    context.session_worker_dashboard_url = (
+        "/session_worker_db"
+        + "?view_as="
+        + frappe.utils.quote(worker_name)
+        + "&viewer=coach"
+        + "&return_to="
+        + frappe.utils.quote(return_to)
+    )
+
     context.client_details_base_url = "/coach_db/client_details"
