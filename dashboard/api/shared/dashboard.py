@@ -715,7 +715,7 @@ def _get_upcoming_appointments(dashboard_type, context, limit=8):
     elif dashboard_type == COACH_DASHBOARD:
         # Dashboard appointments must only be this coach user's own appointments.
         # Do NOT pull appointments through linked clients.
-        filters["owner"] = frappe.session.user
+        filters["owner"] = context.get("view_as_user") or frappe.session.user
         filters["starts_on"] = [">=", f"{today()} 00:00:00"]
 
         if _event_has_field("custom_session_worker"):
@@ -723,7 +723,7 @@ def _get_upcoming_appointments(dashboard_type, context, limit=8):
 
     elif dashboard_type == FRANCHISOR_DASHBOARD:
         # Dashboard appointments must only be this franchisor user's own appointments.
-        filters["owner"] = frappe.session.user
+        filters["owner"] = context.get("view_as_user") or frappe.session.user
         filters["starts_on"] = [">=", f"{today()} 00:00:00"]
 
         if _event_has_field("custom_session_worker"):
@@ -1083,6 +1083,15 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
         context["is_dashboard_admin"] = 0
         context["is_view_mode"] = 1
         context["view_scope"] = viewer
+        context["view_as_user"] = frappe.db.get_value(
+            "Coach",
+            view_mode.get("view_coach_name"),
+            "user",
+        ) or frappe.db.get_value(
+            "Coach",
+            view_mode.get("view_coach_name"),
+            "coach_email",
+        ) or ""
         
     current_month_start, current_month_end = _get_current_month_range()
     previous_month_start, previous_month_end = _get_previous_month_range()
