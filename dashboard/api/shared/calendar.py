@@ -1121,31 +1121,52 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
     custom_client = row.get("custom_client")
     client_row = client_map.get(custom_client) if client_map else None
 
+    is_private_for_viewing_coach = False
+
     if dashboard_type == COACH_DASHBOARD and not _coach_can_view_client(client_row or {}, context):
+        is_private_for_viewing_coach = True
+
+    if (
+        dashboard_type == SESSION_WORKER_DASHBOARD
+        and int(context.get("is_view_mode") or 0)
+        and (context.get("view_scope") or "").lower() == "coach"
+        and not context.get("is_dashboard_admin")
+    ):
+        coach_name = (context.get("viewer_coach_name") or "").strip()
+
+        if not coach_name:
+            is_private_for_viewing_coach = True
+        else:
+            is_private_for_viewing_coach = not (
+                (client_row or {}).get("primary_coach") == coach_name
+                or (client_row or {}).get("attending_coach") == coach_name
+            )
+
+    if is_private_for_viewing_coach:
         return {
             "id": row.get("name"),
             "name": row.get("name"),
-            "title": "Unavailable",
+            "title": "Private",
             "client_name": "",
             "date": start_dt.strftime("%Y-%m-%d"),
             "start_time": start_dt.strftime("%H:%M"),
             "end_time": end_dt.strftime("%H:%M") if end_dt else start_dt.strftime("%H:%M"),
-            "status": "Booked",
-            "ui_status": "Booked",
-            "type": "General",
+            "status": raw_status,
+            "ui_status": ui_status,
+            "type": "",
             "billing_type": "",
             "travel_charged": 0,
             "travel_miles_one_way": 0,
             "return_trip_required": 0,
             "total_travel_miles": 0,
-            "worker": "Me" if selected_calendar_for == COACH_ME_VALUE else _get_session_worker_label(selected_calendar_for),
+            "worker": context.get("worker_label") or "Session Worker",
             "location": "",
             "notes": "",
             "record_url": "",
             "session_number": 0,
             "total_sessions": 0,
             "progress_text": "",
-            "booking_warning": "This appointment belongs to another coach. Details are hidden.",
+            "booking_warning": "",
             "is_private": 1,
         }
 
@@ -1169,6 +1190,8 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
     else:
         worker_label = context.get("worker_label") or ""
 
+    record_url = f"{_get_record_base_url(dashboard_type)}?event={row.get('name')}"
+
     return {
         "id": row.get("name"),
         "name": row.get("name"),
@@ -1188,7 +1211,7 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
         "worker": worker_label,
         "location": row.get("location") or "",
         "notes": row.get("description") or "",
-        "record_url": f"{_get_record_base_url(dashboard_type)}?event={row.get('name')}",
+        "record_url": record_url,
         "session_number": int(row.get("custom_session_number") or 0),
         "total_sessions": int(row.get("custom_total_sessions") or 0),
         "progress_text": row.get("custom_progress_text") or "",
@@ -1244,15 +1267,22 @@ def _get_context_for_calendar_request(dashboard_type, view_as=None, viewer=None)
         worker_name=view_as,
     )
 
+    if not view_mode.get("is_view_mode"):
+        frappe.throw(_("You do not have permission to view this session worker."), frappe.PermissionError)
+
+    coach_context = _get_current_coach_context(frappe.session.user)
+
     return {
         "user": frappe.session.user,
         "worker_doctype": "Session Worker",
         "worker_name": view_mode.get("view_worker_name"),
         "worker_label": view_mode.get("view_worker_display_name"),
         "resolution_note": "Read-only session worker calendar view.",
-        "is_dashboard_admin": False,
+        "is_dashboard_admin": True if viewer in ["franchisor", "admin"] or _is_dashboard_admin() else False,
         "is_view_mode": 1,
         "view_scope": viewer,
+        "viewer_coach_name": coach_context.get("coach_name") or "",
+        "viewer_coach_label": coach_context.get("coach_label") or "",
     }
     
 
