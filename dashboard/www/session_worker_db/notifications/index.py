@@ -26,7 +26,7 @@ def get_context(context):
     context.no_cache = 1
     context.page_title = "Notifications"
     context.active_page = "notifications"
-    context.dashboard_notifications_url = "/session_worker_db/notifications"
+    context.dashboard_notifications_url = "/session_worker_db/notifications" + (view_mode.get("query_string") or "")
     context.base_url = "/session_worker_db"
     context.dashboard_base_url = "/session_worker_db"
 
