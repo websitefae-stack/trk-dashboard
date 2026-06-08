@@ -1,13 +1,38 @@
 {% include "dashboard/templates/includes/head/coach_head.html" %}
 <link rel="stylesheet" href="/assets/dashboard/css/shared/dashboard_home.css">
 
-<div class="dashboard-page" id="coachDashboardHome">
+<div
+  class="dashboard-page"
+  id="coachDashboardHome"
+  data-dashboard-type="coach"
+  data-view-mode="{{ coach_is_view_mode or 0 }}"
+  data-view-as="{{ coach_view_coach_name or '' }}"
+  data-viewer="franchisor"
+>
   {% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
 
   <div class="dashboard-main">
     {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
 
     <div class="dashboard-container">
+
+      {% if coach_is_view_mode %}
+        <div style="background:#ac455c; color:#ffffff; border-radius:14px; padding:16px 18px; margin-bottom:18px;">
+          <strong>Viewing Coach:</strong>
+          {{ coach_view_display_name }}
+
+          <div style="margin-top:6px;">
+            You are viewing this coach dashboard in read-only mode.
+          </div>
+
+          <div style="margin-top:12px;">
+            <a href="{{ coach_view_return_to }}" class="dashboard-btn dashboard-btn-secondary">
+              Back to Coaches
+            </a>
+          </div>
+        </div>
+      {% endif %}
+
       <div class="dashboard-page-header">
         <div>
           <h1 class="dashboard-page-title">Dashboard</h1>
@@ -20,7 +45,7 @@
       </div>
 
       <div class="dashboard-summary-grid dashboard-home-summary-grid">
-        <a class="dashboard-summary-card dashboard-summary-card-link" href="/coach_db/clients">
+        <a class="dashboard-summary-card dashboard-summary-card-link" href="/coach_db/clients{{ coach_view_query or '' }}">
           <div class="dashboard-summary-label">Total Clients</div>
           <div class="dashboard-summary-value" id="dashboardTotalClients">—</div>
         </a>
@@ -35,7 +60,7 @@
           <div class="dashboard-summary-value" id="dashboardNewClientsCurrent">—</div>
         </div>
 
-        <a class="dashboard-summary-card dashboard-summary-card-link" href="/coach_db/session_workers">
+        <a class="dashboard-summary-card dashboard-summary-card-link" href="/coach_db/session_workers{{ coach_view_query or '' }}">
           <div class="dashboard-summary-label">Session Workers</div>
           <div class="dashboard-summary-value" id="dashboardTotalSessionWorkers">—</div>
         </a>
@@ -55,7 +80,7 @@
         <div class="dashboard-table-header">
           <div class="dashboard-table-title">Upcoming Appointments</div>
           <div class="dashboard-table-count">
-            <a class="dashboard-link-btn" href="/coach_db/calendar">View Calendar</a>
+            <a class="dashboard-link-btn" href="/coach_db/calendar{{ coach_view_query or '' }}">View Calendar</a>
           </div>
         </div>
 
@@ -82,7 +107,7 @@
         <div class="dashboard-table-header">
           <div class="dashboard-table-title">Outstanding Invoices</div>
           <div class="dashboard-table-count">
-            <a class="dashboard-link-btn" href="/coach_db/invoices">View Invoices</a>
+            <a class="dashboard-link-btn" href="/coach_db/invoices{{ coach_view_query or '' }}">View Invoices</a>
           </div>
         </div>
 
@@ -111,3 +136,11 @@
     </div>
   </div>
 </div>
+
+<script>
+  window.TRK_COACH_VIEW_MODE = {
+    isViewMode: {{ coach_is_view_mode or 0 }},
+    viewAs: "{{ coach_view_coach_name or '' }}",
+    viewer: "franchisor"
+  };
+</script>
