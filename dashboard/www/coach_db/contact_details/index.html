@@ -7,6 +7,22 @@
     {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
 
     <div class="dashboard-container">
+      {% if coach_is_view_mode %}
+        <div style="background:#ac455c; color:#ffffff; border-radius:14px; padding:16px 18px; margin-bottom:18px;">
+          <strong>Viewing Coach:</strong>
+          {{ coach_view_display_name }}
+
+          <div style="margin-top:6px;">
+            You are viewing this coach dashboard in read-only mode.
+          </div>
+
+          <div style="margin-top:12px;">
+            <a href="{{ coach_view_return_to }}" class="dashboard-btn dashboard-btn-secondary">
+              Back to Coaches
+            </a>
+          </div>
+        </div>
+      {% endif %}
       <div class="dashboard-page-header">
         <div>
           <h1 class="dashboard-page-title" id="contactPageTitle">
@@ -18,9 +34,11 @@
         <div class="dashboard-detail-actions dashboard-detail-actions-compact">
           <a href="/coach_db/contacts{{ coach_view_query or '' }}" class="dashboard-btn dashboard-btn-secondary">Back</a>
           <button type="button" class="dashboard-btn dashboard-btn-light" id="refreshContactDetails">Refresh</button>
-          <button type="button" class="dashboard-btn dashboard-btn-primary" id="editContact">
-            {% if is_new %}Save Contact{% else %}Edit Contact{% endif %}
-          </button>
+          {% if not coach_is_view_mode %}
+            <button type="button" class="dashboard-btn dashboard-btn-primary" id="editContact">
+              {% if is_new %}Save Contact{% else %}Edit Contact{% endif %}
+            </button>
+          {% endif %}
         </div>
       </div>
 
