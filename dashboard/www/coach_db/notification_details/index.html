@@ -7,6 +7,23 @@
     {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
 
     <div class="dashboard-container">
+      {% if coach_is_view_mode %}
+        <div style="background:#ac455c; color:#ffffff; border-radius:14px; padding:16px 18px; margin-bottom:18px;">
+          <strong>Viewing Coach:</strong>
+          {{ coach_view_display_name }}
+
+          <div style="margin-top:6px;">
+            You are viewing this coach dashboard in read-only mode.
+          </div>
+
+          <div style="margin-top:12px;">
+            <a href="{{ coach_view_return_to }}" class="dashboard-btn dashboard-btn-secondary">
+              Back to Coaches
+            </a>
+          </div>
+        </div>
+      {% endif %}
+
       {% set base_url = dashboard_base_url or "/coach_db" %}
 
       {% include "dashboard/templates/includes/notifications/notification_details_body.html" %}
