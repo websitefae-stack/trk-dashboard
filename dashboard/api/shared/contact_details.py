@@ -66,7 +66,7 @@ def get_contact_customer_names(contact):
     return customers
 
 
-def get_linked_clients(contact, scope):
+def get_linked_clients(contact, scope, view_coach_name=None):
     if not contact or not contact.name:
         return []
 
@@ -92,7 +92,7 @@ def get_linked_clients(contact, scope):
         limit_page_length=5000,
     )
 
-    current_coach = get_current_coach_name()
+    current_coach = (view_coach_name or "").strip() or get_current_coach_name()
     current_sw = get_current_session_worker_name()
 
     rows = []
@@ -184,7 +184,7 @@ def get_contact_invoices(linked_clients):
     } for row in invoices]
 
 
-def get_contact_context(scope, contact_name=None, is_new=False):
+def get_contact_context(scope, contact_name=None, is_new=False, view_coach_name=None):
     ensure_logged_in()
 
     if is_new:
@@ -209,7 +209,11 @@ def get_contact_context(scope, contact_name=None, is_new=False):
         frappe.throw(_("Contact not found."))
 
     contact = frappe.get_doc("Contact", contact_name)
-    linked_clients = get_linked_clients(contact, scope)
+    linked_clients = get_linked_clients(
+        contact,
+        scope,
+        view_coach_name=view_coach_name,
+    )
 
     if scope in ("session_worker", "coach"):
         if not linked_clients:
