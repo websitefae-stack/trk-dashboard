@@ -3,6 +3,7 @@ from frappe import _
 
 from dashboard.api.shared.contacts import get_contacts_for_scope
 from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
+from dashboard.api.shared.permissions import is_franchisor_user
 
 
 def get_current_coach_name():
@@ -37,10 +38,12 @@ def get_context(context):
         worker_name=view_as,
     )
 
+    viewer_scope = (viewer or "").strip().lower()
+
     context.no_cache = 1
     context.page_title = "Contacts"
     context.active_page = "contacts"
-    context.dashboard_notifications_url = "/session_worker_db/notifications"
+    context.dashboard_notifications_url = "/session_worker_db/notifications" + (view_mode.get("query_string") or "")
 
     context.session_worker_view_mode = view_mode
     context.session_worker_view_query = view_mode.get("query_string") or ""
@@ -48,13 +51,27 @@ def get_context(context):
     context.session_worker_view_return_to = view_mode.get("return_to") or ""
     context.session_worker_view_display_name = view_mode.get("view_worker_display_name") or ""
 
-    context.viewer_coach_name = get_current_coach_name()
+    context.viewer_scope = viewer_scope
+    context.viewer_coach_name = ""
+
+    viewer_is_franchisor = viewer_scope in ["franchisor", "admin"] or is_franchisor_user()
 
     if context.session_worker_is_view_mode:
         context.dashboard_user_name = context.session_worker_view_display_name
-        context.contacts = get_contacts_for_view_session_worker(
+
+        contacts = get_contacts_for_view_session_worker(
             view_mode.get("view_worker_name")
         )
+
+        if viewer_is_franchisor:
+            context.contacts = mark_all_contacts_viewable(contacts)
+        else:
+            context.viewer_coach_name = get_current_coach_name()
+            context.contacts = mark_contacts_for_coach_view(
+                contacts,
+                context.viewer_coach_name,
+            )
+
     else:
         context.dashboard_user_name = frappe.db.get_value(
             "Session Worker",
@@ -62,7 +79,35 @@ def get_context(context):
             "sw_name",
         ) or frappe.session.user
 
-        context.contacts = get_contacts_for_scope("session_worker")
+        contacts = get_contacts_for_scope("session_worker")
+        context.contacts = mark_all_contacts_viewable(contacts)
+
+
+def mark_all_contacts_viewable(contacts):
+    for contact in contacts or []:
+        contact["can_view_contact"] = 1
+
+    return contacts or []
+
+
+def mark_contacts_for_coach_view(contacts, coach_name):
+    coach_name = (coach_name or "").strip()
+
+    for contact in contacts or []:
+        can_view = 0
+
+        if coach_name:
+            for linked_client in contact.get("linked_clients") or []:
+                if (
+                    linked_client.get("primary_coach") == coach_name
+                    or linked_client.get("attending_coach") == coach_name
+                ):
+                    can_view = 1
+                    break
+
+        contact["can_view_contact"] = can_view
+
+    return contacts or []
 
 
 def get_contacts_for_view_session_worker(worker_name):
@@ -147,6 +192,7 @@ def get_contacts_for_view_session_worker(worker_name):
             "linked_client_text": ", ".join(
                 [c.get("display_name") for c in linked_clients if c.get("display_name")]
             ),
+            "can_view_contact": 0,
         })
 
     return rows
