@@ -94,6 +94,12 @@
   }
     
   function getSelectedCalendarForFromPage() {
+    const viewMode = getViewModeParams();
+
+    if (state.dashboardType === "coach" && viewMode.isViewMode) {
+      return COACH_ME_VALUE;
+    }
+    
     if (state.dashboardType === "session_worker") return "";
 
     const params = new URLSearchParams(window.location.search);
@@ -744,7 +750,15 @@
 
   function getDefaultDetailsUrl(eventName) {
     if (state.dashboardType === "coach") {
-      return "/coach_db/calendar_details?event=" + encodeURIComponent(eventName || "");
+      const params = new URLSearchParams(window.location.search);
+      params.set("event", eventName || "");
+      params.delete("calendar_for");
+      params.delete("selected_calendar_for");
+      params.delete("selected_worker");
+      params.delete("view");
+      params.delete("date");
+
+      return "/coach_db/calendar_details?" + params.toString();
     }
 
     if (state.dashboardType === "franchisor") {
