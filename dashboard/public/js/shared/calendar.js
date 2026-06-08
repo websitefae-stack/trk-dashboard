@@ -706,12 +706,18 @@
     let actions = "";
     const viewMode = getViewModeParams();
 
-    if (!isPrivate && !viewMode.isViewMode) {
+    if (!isPrivate) {
       actions =
-        '<div class="dashboard-detail-actions" style="margin-top:16px;">'
-        + '<button type="button" class="dashboard-btn dashboard-btn-primary" data-calendar-action="edit-session" data-event="' + escapeHtml(event.name || "") + '">Edit Session</button>'
-        + '<button type="button" class="dashboard-btn dashboard-btn-light" data-calendar-action="add-note" data-event="' + escapeHtml(event.name || "") + '">Add Note</button>'
-        + '<a class="dashboard-link-btn" href="' + escapeHtml(detailsUrl) + '">Open details page ↗</a>'
+        '<div class="dashboard-detail-actions" style="margin-top:16px;">';
+
+      if (!viewMode.isViewMode) {
+        actions +=
+          '<button type="button" class="dashboard-btn dashboard-btn-primary" data-calendar-action="edit-session" data-event="' + escapeHtml(event.name || "") + '">Edit Session</button>'
+          + '<button type="button" class="dashboard-btn dashboard-btn-light" data-calendar-action="add-note" data-event="' + escapeHtml(event.name || "") + '">Add Note</button>';
+      }
+
+      actions +=
+        '<a class="dashboard-link-btn" href="' + escapeHtml(detailsUrl) + '">Open details page ↗</a>'
         + '</div>';
     }
 
@@ -721,12 +727,18 @@
       '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Time</div><div class="trk-calendar-detail-value">' + escapeHtml((event.start_time || "") + " - " + (event.end_time || "")) + '</div></div>' +
       '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Status</div><div class="trk-calendar-detail-value"><span class="dashboard-badge ' + getBadgeClass(event.ui_status) + '">' + escapeHtml(event.ui_status || "Booked") + '</span></div></div>' +
       '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Worker</div><div class="trk-calendar-detail-value">' + escapeHtml(event.worker || state.currentWorkerLabel || "Current Session Worker") + '</div></div>' +
-      '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Type</div><div class="trk-calendar-detail-value">' + escapeHtml(event.type || "Session") + '</div></div>' +
-      getSessionProgressDetailHtml(event) +
-      getBookingWarningDetailHtml(event) +
-      '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Billing Type</div><div class="trk-calendar-detail-value">' + escapeHtml(event.billing_type || "Non-Billable") + '</div></div>' +
-      '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Travel Charged</div><div class="trk-calendar-detail-value">' + (Number(event.travel_charged || 0) ? "Yes" : "No") + '</div></div>' +
-      '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Location</div><div class="trk-calendar-detail-value">' + escapeHtml(event.location || "Not set") + '</div></div>' +
+      (
+        isPrivate
+          ? ''
+          : (
+              '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Type</div><div class="trk-calendar-detail-value">' + escapeHtml(event.type || "Session") + '</div></div>' +
+              getSessionProgressDetailHtml(event) +
+              getBookingWarningDetailHtml(event) +
+              '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Billing Type</div><div class="trk-calendar-detail-value">' + escapeHtml(event.billing_type || "Non-Billable") + '</div></div>' +
+              '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Travel Charged</div><div class="trk-calendar-detail-value">' + (Number(event.travel_charged || 0) ? "Yes" : "No") + '</div></div>' +
+              '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Location</div><div class="trk-calendar-detail-value">' + escapeHtml(event.location || "Not set") + '</div></div>'
+            )
+      ) +
       actions;
   }
 
