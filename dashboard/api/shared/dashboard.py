@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 from frappe.utils import today, getdate, get_datetime, add_to_date, flt, nowdate, get_fullname
+from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 
 
 DASHBOARD_ADMIN_USERS = [
@@ -1058,12 +1059,31 @@ def _get_linked_session_worker_count_for_coach(context):
 # =========================================================
 
 @frappe.whitelist()
-def get_dashboard_summary(dashboard_type=None):
+def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
     _require_logged_in_user()
 
     dashboard_type = _normalise_dashboard_type(dashboard_type)
+
+    view_as = _coalesce_str("view_as", view_as)
+    viewer = _coalesce_str("viewer", viewer)
+
     context = _get_context_for_dashboard(dashboard_type)
 
+    if dashboard_type == COACH_DASHBOARD and view_as:
+        view_mode = get_coach_view_mode(
+            scope=viewer,
+            coach_name=view_as,
+        )
+
+        if not view_mode.get("is_view_mode"):
+            frappe.throw(_("You do not have permission to view this coach."), frappe.PermissionError)
+
+        context["coach_name"] = view_mode.get("view_coach_name")
+        context["coach_label"] = view_mode.get("view_coach_display_name")
+        context["is_dashboard_admin"] = 0
+        context["is_view_mode"] = 1
+        context["view_scope"] = viewer
+        
     current_month_start, current_month_end = _get_current_month_range()
     previous_month_start, previous_month_end = _get_previous_month_range()
 
