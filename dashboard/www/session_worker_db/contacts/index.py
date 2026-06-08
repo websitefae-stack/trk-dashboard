@@ -5,6 +5,26 @@ from dashboard.api.shared.contacts import get_contacts_for_scope
 from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
 
 
+def get_current_coach_name():
+    if not frappe.db.exists("DocType", "Coach"):
+        return ""
+
+    meta = frappe.get_meta("Coach")
+
+    for fieldname in ["user", "user_id", "email", "coach_email"]:
+        if meta.has_field(fieldname):
+            coach = frappe.db.get_value(
+                "Coach",
+                {fieldname: frappe.session.user},
+                "name",
+            )
+
+            if coach:
+                return coach
+
+    return ""
+
+
 def get_context(context):
     if frappe.session.user == "Guest":
         frappe.throw(_("Login required"), frappe.PermissionError)
@@ -27,6 +47,8 @@ def get_context(context):
     context.session_worker_is_view_mode = view_mode.get("is_view_mode") or 0
     context.session_worker_view_return_to = view_mode.get("return_to") or ""
     context.session_worker_view_display_name = view_mode.get("view_worker_display_name") or ""
+
+    context.viewer_coach_name = get_current_coach_name()
 
     if context.session_worker_is_view_mode:
         context.dashboard_user_name = context.session_worker_view_display_name
