@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_to_date, getdate, get_datetime, get_fullname
 from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
+from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 
 
 DASHBOARD_ADMIN_USERS = [
@@ -1253,11 +1254,38 @@ def _get_context_for_dashboard(dashboard_type):
 
 
 def _get_context_for_calendar_request(dashboard_type, view_as=None, viewer=None):
-    if dashboard_type != SESSION_WORKER_DASHBOARD:
-        return _get_context_for_dashboard(dashboard_type)
-
     view_as = (view_as or "").strip()
     viewer = (viewer or "").strip().lower()
+
+    if dashboard_type == COACH_DASHBOARD and view_as:
+        view_mode = get_coach_view_mode(
+            scope=viewer,
+            coach_name=view_as,
+        )
+
+        if not view_mode.get("is_view_mode"):
+            frappe.throw(_("You do not have permission to view this coach."), frappe.PermissionError)
+
+        coach_name = view_mode.get("view_coach_name")
+        coach_user = (
+            frappe.db.get_value("Coach", coach_name, "user")
+            or frappe.db.get_value("Coach", coach_name, "coach_email")
+            or ""
+        )
+
+        return {
+            "user": frappe.session.user,
+            "coach_name": coach_name,
+            "coach_label": view_mode.get("view_coach_display_name"),
+            "resolution_note": "Read-only coach calendar view.",
+            "is_dashboard_admin": False,
+            "is_view_mode": 1,
+            "view_scope": viewer,
+            "view_as_user": coach_user,
+        }
+
+    if dashboard_type != SESSION_WORKER_DASHBOARD:
+        return _get_context_for_dashboard(dashboard_type)
 
     if not view_as:
         return _get_context_for_dashboard(dashboard_type)
