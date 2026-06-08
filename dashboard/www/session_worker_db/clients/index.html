@@ -100,24 +100,37 @@
                   {% set row_type = c.client_type or "Not set" %}
                   {% set coach_label = namespace(value=c.primary_coach_label or "Not set") %}
 
+                  {% set can_view_client = true %}
+                  {% if session_worker_is_view_mode and viewer_coach_name %}
+                    {% if c.primary_coach != viewer_coach_name and c.attending_coach != viewer_coach_name %}
+                      {% set can_view_client = false %}
+                    {% endif %}
+                  {% endif %}
+
                   <tr
                     class="dashboard-client-row"
                     data-name="{{ display_name|lower }}"
                     data-preferred="{{ (c.preferred_name or '')|lower }}"
-                    data-email="{{ (c.email or '')|lower }}"
-                    data-mobile="{{ (c.mobile or '')|lower }}"
+                    data-email="{{ (c.email or '')|lower if can_view_client else '' }}"
+                    data-mobile="{{ (c.mobile or '')|lower if can_view_client else '' }}"
                     data-status="{{ row_status }}"
                     data-type="{{ row_type }}"
                     data-coach="{{ coach_label.value|lower }}"
                   >
                     <td>
-                      <a class="dashboard-inline-link dashboard-client-name-link" href="/session_worker_db/client_details?name={{ c.name | urlencode }}{{ '&' + session_worker_view_query[1:] if session_worker_view_query else '' }}">
-                        {{ display_name }}
-                      </a>
+                      {% if can_view_client %}
+                        <a class="dashboard-inline-link dashboard-client-name-link" href="/session_worker_db/client_details?name={{ c.name | urlencode }}{{ '&' + session_worker_view_query[1:] if session_worker_view_query else '' }}">
+                          {{ display_name }}
+                        </a>
+                      {% else %}
+                        <button type="button" class="dashboard-inline-link dashboard-client-unauthorised" style="border:0;background:none;padding:0;cursor:pointer;">
+                          {{ display_name }}
+                        </button>
+                      {% endif %}
                     </td>
 
-                    <td>{{ c.mobile or "—" }}</td>
-                    <td>{{ c.email or "—" }}</td>
+                    <td>{{ c.mobile if can_view_client else "Private" }}</td>
+                    <td>{{ c.email if can_view_client else "Private" }}</td>
                     <td>{{ coach_label.value }}</td>
                     <td>{{ row_type }}</td>
                     <td>
@@ -126,7 +139,11 @@
                       </span>
                     </td>
                     <td class="dashboard-action-cell">
-                      <a class="dashboard-link-btn" href="/session_worker_db/client_details?name={{ c.name | urlencode }}{{ '&' + session_worker_view_query[1:] if session_worker_view_query else '' }}">View</a>
+                      {% if can_view_client %}
+                        <a class="dashboard-link-btn" href="/session_worker_db/client_details?name={{ c.name | urlencode }}{{ '&' + session_worker_view_query[1:] if session_worker_view_query else '' }}">View</a>
+                      {% else %}
+                        —
+                      {% endif %}
                     </td>
                   </tr>
                 {% endfor %}
