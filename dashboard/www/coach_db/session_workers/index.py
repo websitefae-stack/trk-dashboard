@@ -95,13 +95,12 @@ def get_session_workers_for_view_coach(coach_name, coach_view_query=""):
         "Session Worker",
         filters={"name": ["in", worker_names]},
         fields=[
+            "name",
             "sw_name",
-            "full_name",
             "sw_email",
             "phone",
-            "status",
         ],
-        order_by="sw_name asc, session_worker_name asc, full_name asc, name asc",
+        order_by="sw_name asc, name asc",
         limit_page_length=5000,
         ignore_permissions=True,
     )
@@ -113,22 +112,11 @@ def get_session_workers_for_view_coach(coach_name, coach_view_query=""):
 
         workers.append({
             "name": row.name,
-            "display_name": (
-                row.get("sw_name")
-                or row.get("session_worker_name")
-                or row.get("full_name")
-                or row.name
-            ),
+            "display_name": row.get("sw_name") or row.name,
             "sw_name": row.get("sw_name") or "",
-            "email": (
-                row.get("sw_email")
-                or row.get("session_worker_email")
-                or row.get("email")
-                or ""
-            ),
-            "mobile": row.get("mobile") or row.get("phone") or "",
+            "email": row.get("sw_email") or "",
+            "mobile": row.get("phone") or "",
             "phone": row.get("phone") or "",
-            "status": row.get("status") or "",
             "linked_clients": linked_clients,
             "linked_clients_count": len(linked_clients),
             "linked_coach_label": context_safe_coach_label(coach_name),
