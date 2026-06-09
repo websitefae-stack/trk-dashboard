@@ -441,6 +441,20 @@
     });
   }
 
+    function initShortBioCounter() {
+      const field = el("profile_short_bio");
+      const counter = el("shortBioCount");
+  
+      if (!field || !counter) return;
+  
+      function update() {
+        counter.textContent = String((field.value || "").length);
+      }
+  
+      field.addEventListener("input", update);
+      update();
+    }
+    
   function init() {
     const page = document.querySelector("[data-profile-role]");
 
@@ -451,6 +465,7 @@
     initTabs();
     initProfileEdit();
     initProfileForm();
+    initShortBioCounter();
     initBankingDetailsForm();
     initBankingChangeRequest();
     initLegalForms();
