@@ -156,6 +156,72 @@
                 <textarea class="dashboard-textarea js-profile-editable" name="interest" readonly>{{ profile_doc.interest or '' }}</textarea>
               </div>
 
+              <div class="dashboard-detail-field dashboard-detail-field-full">
+                <h3>Website Profile</h3>
+                <p class="dashboard-page-subtitle">
+                  These details appear on your public coach profile page.
+                </p>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Area</label>
+                <input
+                  class="dashboard-input js-profile-editable"
+                  name="location"
+                  value="{{ profile_doc.location or user_doc.location or '' }}"
+                  readonly
+                >
+                <small>Only add your main area. Do not add “and surrounding areas”.</small>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Short Description</label>
+                <textarea
+                  class="dashboard-textarea js-profile-editable"
+                  id="profile_short_bio"
+                  name="short_bio"
+                  maxlength="200"
+                  rows="3"
+                  readonly
+                >{{ profile_doc.short_bio or '' }}</textarea>
+                <small><span id="shortBioCount">0</span>/200 characters</small>
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full">
+                <label>About Section</label>
+                <textarea class="dashboard-textarea js-profile-editable" name="full_bio" rows="7" readonly>{{ profile_doc.full_bio or '' }}</textarea>
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full">
+                <label>My Story</label>
+                <textarea class="dashboard-textarea js-profile-editable" name="why_i_joined" rows="7" readonly>{{ profile_doc.why_i_joined or '' }}</textarea>
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full">
+                <label>Skills and Strengths</label>
+                <textarea class="dashboard-textarea js-profile-editable" name="skills_strenghts" rows="7" readonly>{{ profile_doc.skills_strenghts or '' }}</textarea>
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-full">
+                <label>Message From The Coach</label>
+                <textarea class="dashboard-textarea js-profile-editable" name="message_from_coach" rows="5" readonly>{{ profile_doc.message_from_coach or '' }}</textarea>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Facebook URL</label>
+                <input class="dashboard-input js-profile-editable" name="facebook_url" value="{{ profile_doc.facebook_url or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>Instagram URL</label>
+                <input class="dashboard-input js-profile-editable" name="instagram_url" value="{{ profile_doc.instagram_url or '' }}" readonly>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label>LinkedIn URL</label>
+                <input class="dashboard-input js-profile-editable" name="linkedin_url" value="{{ profile_doc.linkedin_url or '' }}" readonly>
+              </div>
+              
             </div>
 
             <div class="dashboard-detail-actions js-profile-save-actions" style="margin-top:20px; display:none;">
