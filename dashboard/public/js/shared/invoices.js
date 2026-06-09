@@ -65,7 +65,14 @@
 
   function openInvoiceDetails(name) {
     if (!name) return;
-    window.location.href = `${getDashboardBasePath()}/invoice_details?name=${encodeURIComponent(name)}`;
+
+    const params = new URLSearchParams(window.location.search);
+    params.set("name", name);
+
+    params.delete("coach");
+    params.delete("_refresh");
+
+    window.location.href = `${getDashboardBasePath()}/invoice_details?${params.toString()}`;
   }
 
   function initRowNavigation() {
