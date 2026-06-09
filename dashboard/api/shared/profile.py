@@ -91,7 +91,7 @@ ROLE_PROFILE_CONFIG = {
             "facebook_url",
             "instagram_url",
             "linkedin_url",
-        ],,
+        ],
         "user_update_fields": [
             "first_name",
             "middle_name",
