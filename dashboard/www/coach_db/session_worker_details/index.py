@@ -67,7 +67,7 @@ def get_context(context):
         + (context.coach_view_query or "")
     )
 
-        return_to = (
+    return_to = (
         "/coach_db/session_worker_details?name="
         + frappe.utils.quote(worker_name)
         + (context.coach_view_query.replace("?", "&") if context.coach_view_query else "")
