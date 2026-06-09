@@ -17,9 +17,12 @@
           <button type="button" class="dashboard-btn dashboard-btn-secondary" id="refreshContacts">
             Refresh
           </button>
-          <button type="button" class="dashboard-btn dashboard-btn-primary" id="addContact" data-url="/franchisor_db/contact_details?new=1">
-            Add Contact
-          </button>
+        
+          {% if not coach_is_view_mode %}
+            <button type="button" class="dashboard-btn dashboard-btn-primary" id="addContact" data-url="/coach_db/contact_details?new=1">
+              Add Contact
+            </button>
+          {% endif %}
         </div>
       </div>
 
