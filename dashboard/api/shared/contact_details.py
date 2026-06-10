@@ -293,152 +293,95 @@ def save_contact_for_scope(scope, docname=None, data=None):
 
     payload = parse_payload(data)
 
+    linked_client = (payload.get("linked_client") or "").strip()
+    relationship_type = (payload.get("relationship_type") or "").strip()
+    is_billing_contact = int(payload.get("is_billing_contact") or 0)
+
+    email = (payload.get("email_id") or "").strip()
+
     if docname:
         ensure_contact_access(docname, scope)
         contact = frappe.get_doc("Contact", docname)
     else:
-        email = (payload.get("email_id") or "").strip()
-    
-        existing_contact = ""
-        if email:
-            existing_contact = frappe.db.get_value(
-                "Contact",
-                {"email_id": email},
-                "name",
-            )
-    
-        if existing_contact:
-            contact = frappe.get_doc("Contact", existing_contact)
-        else:
-            contact = frappe.new_doc("Contact")
+        existing_contact = frappe.db.get_value("Contact", {"email_id": email}, "name") if email else None
+        contact = frappe.get_doc("Contact", existing_contact) if existing_contact else frappe.new_doc("Contact")
 
     for fieldname in EDITABLE_CONTACT_FIELDS:
         if fieldname in payload and contact.meta.has_field(fieldname):
             contact.set(fieldname, payload.get(fieldname))
-    
+
     first_name = (payload.get("first_name") or "").strip()
     last_name = (payload.get("last_name") or "").strip()
     full_name = (payload.get("full_name") or "").strip()
-    
+
     if not full_name:
-        full_name = " ".join([part for part in [first_name, last_name] if part]).strip()
-    
-    if full_name and contact.meta.has_field("full_name"):
+        full_name = " ".join([p for p in [first_name, last_name] if p]).strip()
+
+    contact.first_name = first_name
+    contact.last_name = last_name
+
+    if full_name:
         contact.full_name = full_name
-    
+
+    contact.is_billing_contact = is_billing_contact
+
     if not (contact.get("first_name") or contact.get("full_name") or contact.get("company_name")):
         frappe.throw(_("Please enter at least a First Name, Full Name or Company Name."))
 
-    if contact.get("is_billing_contact") and not contact.get("custom_customer"):
+    contact.save(ignore_permissions=True)
 
+    if is_billing_contact and not contact.get("custom_customer"):
         customer_doc = frappe.new_doc("Customer")
-    
         customer_doc.customer_type = "Individual"
+        customer_doc.customer_name = contact_display_name(contact)
 
-        if contact.get("email_id"):
-            customer_doc.email_id = contact.email_id
-        
-        if contact.get("mobile_no"):
-            customer_doc.mobile_no = contact.mobile_no
-    
-        customer_doc.customer_name = (
-            contact.get("full_name")
-            or " ".join(
-                filter(
-                    None,
-                    [
-                        contact.get("first_name"),
-                        contact.get("last_name"),
-                    ]
-                )
-            )
-        )
-    
         customer_doc.save(ignore_permissions=True)
-    
+
         contact.custom_customer = customer_doc.name
+        contact.is_billing_contact = 1
 
         contact.append("links", {
             "link_doctype": "Customer",
             "link_name": customer_doc.name,
         })
 
-        if contact.meta.has_field("is_billing_contact"):
-            contact.is_billing_contact = 1
-    
-    # Ensure billing flag is set correctly on Contact
-    if contact.get("custom_customer"):
-        contact.is_billing_contact = 1
-    
-    contact.save(ignore_permissions=True)
-    
-    if contact.get("custom_customer"):
+        contact.save(ignore_permissions=True)
 
-        customer_name = contact.get("custom_customer")
-    
-        if frappe.db.exists("Customer", customer_name):
-    
-            customer_doc = frappe.get_doc(
-                "Customer",
-                customer_name,
-            )
-    
-            customer_doc.customer_name = (
-                contact.get("full_name")
-                or customer_doc.customer_name
-            )
-    
-            if hasattr(customer_doc, "email_id"):
-                customer_doc.email_id = contact.get("email_id")
-    
-            if hasattr(customer_doc, "mobile_no"):
-                customer_doc.mobile_no = contact.get("mobile_no")
-    
-            customer_doc.save(ignore_permissions=True)
+    if contact.get("custom_customer") and frappe.db.exists("Customer", contact.get("custom_customer")):
+        customer_doc = frappe.get_doc("Customer", contact.get("custom_customer"))
+        customer_doc.customer_name = contact_display_name(contact)
+        customer_doc.save(ignore_permissions=True)
 
-    linked_client = (payload.get("linked_client") or "").strip()
-    relationship_type = (payload.get("relationship_type") or "").strip()
-    
     if linked_client and frappe.db.exists("Client", linked_client):
-    
         client = frappe.get_doc("Client", linked_client)
-    
+
         existing_row = None
-    
+
         for row in client.get("client_contacts") or []:
-            if row.contact == contact.name:
+            if row.get("contact") == contact.name:
                 existing_row = row
                 break
-    
+
         if not existing_row:
             existing_row = client.append("client_contacts", {})
-    
+
         existing_row.contact = contact.name
         existing_row.contact_name = contact_display_name(contact)
-        existing_row.email_id = contact.email_id or ""
-        existing_row.phone = contact.mobile_no or ""
+        existing_row.email_id = contact.get("email_id") or ""
+        existing_row.phone = contact.get("mobile_no") or ""
         existing_row.relationship_type = relationship_type
-        existing_row.is_billing_contact = contact.is_billing_contact
-    
+        existing_row.is_billing_contact = is_billing_contact
+
         if hasattr(existing_row, "customer"):
-            existing_row.customer = contact.custom_customer or ""
-        
-        if contact.get("is_billing_contact") and contact.get("custom_customer"):
-            client.billing_contact = contact.custom_customer
-        
-        # Ensure Contact has a Dynamic Link to the Client
-        client_link_exists = False
-        
-        for link in contact.get("links") or []:
-            if link.get("link_doctype") == "Client" and link.get("link_name") == client.name:
-                client_link_exists = True
-                break
-        
-        if not client_link_exists:
-            contact.save(ignore_permissions=True)
-    
+            existing_row.customer = contact.get("custom_customer") or ""
+
+        if is_billing_contact and contact.get("custom_customer"):
+            client.billing_contact = contact.get("custom_customer")
+
+        client.save(ignore_permissions=True)
+
     frappe.db.commit()
-    
+
     return {
         "name": contact.name,
         "display_name": contact_display_name(contact),
