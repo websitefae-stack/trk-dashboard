@@ -51,13 +51,15 @@
           <input type="hidden" id="contactBaseUrl" value="{{ contact_details_base_url }}">
           <input type="hidden" id="saveContactMethod" value="{{ contact_details_save_method }}">
 
-          <div class="dashboard-tabs dashboard-contact-detail-tabs">
-            <button type="button" class="dashboard-tab-btn is-active" data-tab-target="contact-details-tab">Details</button>
-            <button type="button" class="dashboard-tab-btn" data-tab-target="contact-linked-clients-tab">Linked Clients</button>
-            <button type="button" class="dashboard-tab-btn" data-tab-target="contact-billing-tab">Billing / Invoices</button>
-          </div>
+          {% if not is_new %}
+            <div class="dashboard-tabs dashboard-contact-detail-tabs">
+              <button type="button" class="dashboard-tab-btn is-active" data-tab-target="contact-details-tab">Details</button>
+              <button type="button" class="dashboard-tab-btn" data-tab-target="contact-linked-clients-tab">Linked Clients</button>
+              <button type="button" class="dashboard-tab-btn" data-tab-target="contact-billing-tab">Billing / Invoices</button>
+            </div>
+          {% endif %}
 
-          <div class="dashboard-tab-panel is-active" id="contact-details-tab">
+          <div class="dashboard-tab-panel is-active" id="contact-details-tab" style="display:block!important;visibility:visible!important;">
             <section class="dashboard-detail-section">
               <div class="dashboard-detail-section-head">
                 <h2 class="dashboard-detail-section-title">Contact Details</h2>
@@ -97,6 +99,7 @@
             </section>
           </div>
 
+          {% if not is_new %}
           <div class="dashboard-tab-panel" id="contact-linked-clients-tab">
             <section class="dashboard-detail-section">
               <div class="dashboard-detail-section-head">
@@ -157,7 +160,9 @@
               </div>
             </section>
           </div>
+          {% endif %}
 
+          {% if not is_new %}
           <div class="dashboard-tab-panel" id="contact-billing-tab">
               <section class="dashboard-detail-section">
                 <div class="dashboard-detail-section-head">
@@ -274,6 +279,7 @@
               </div>
             </section>
           </div>
+          {% endif %}
         </form>
       </div>
     </div>
