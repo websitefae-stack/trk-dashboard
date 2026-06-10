@@ -358,8 +358,17 @@ def save_contact_for_scope(scope, docname=None, data=None):
     
         contact.custom_customer = customer_doc.name
 
+        contact.append("links", {
+            "link_doctype": "Customer",
+            "link_name": customer_doc.name,
+        })
+
         if contact.meta.has_field("is_billing_contact"):
             contact.is_billing_contact = 1
+    
+    # Ensure billing flag is set correctly on Contact
+    if contact.get("custom_customer"):
+        contact.is_billing_contact = 1
     
     contact.save(ignore_permissions=True)
     
@@ -417,7 +426,16 @@ def save_contact_for_scope(scope, docname=None, data=None):
         if contact.get("is_billing_contact") and contact.get("custom_customer"):
             client.billing_contact = contact.custom_customer
         
-        client.save(ignore_permissions=True)
+        # Ensure Contact has a Dynamic Link to the Client
+        client_link_exists = False
+        
+        for link in contact.get("links") or []:
+            if link.get("link_doctype") == "Client" and link.get("link_name") == client.name:
+                client_link_exists = True
+                break
+        
+        if not client_link_exists:
+            contact.save(ignore_permissions=True)
     
     frappe.db.commit()
     
