@@ -408,9 +408,8 @@ def save_contact_for_scope(scope, docname=None, data=None):
     return {
         "name": contact.name,
         "display_name": contact_display_name(contact),
+        "customer": contact.get("custom_customer") or "",
     }
-
-
 
 
 @frappe.whitelist()
