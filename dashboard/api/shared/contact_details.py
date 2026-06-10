@@ -201,6 +201,12 @@ def get_contact_context(scope, contact_name=None, is_new=False, view_coach_name=
             "is_new": 1,
             "linked_clients": [],
             "contact_invoices": [],
+            "clients": frappe.get_all(
+                "Client",
+                fields=["name", "full_name"],
+                order_by="full_name asc",
+                limit_page_length=5000,
+            ),
             "contact_details_scope": scope,
             "contact_details_base_url": get_base_url_for_scope(scope),
             "contact_details_save_method": "dashboard.api.shared.contact_details.save_contact",
