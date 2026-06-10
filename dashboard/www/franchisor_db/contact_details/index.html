@@ -138,6 +138,21 @@
                     readonly
                   >
                 </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="contact_company_name">Company Name</label>
+                  <input
+                    id="contact_company_name"
+                    type="text"
+                    class="dashboard-input"
+                    value="{{ (contact or {}).get('company_name') or '' }}"
+                    data-contact-field="1"
+                    data-fieldname="company_name"
+                    data-fieldtype="Data"
+                    data-meta-readonly="0"
+                    readonly
+                  >
+                </div>
               
                 <div class="dashboard-detail-field">
                   <label>Address Line 1</label>
