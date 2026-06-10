@@ -313,27 +313,52 @@ def save_contact_for_scope(scope, docname=None, data=None):
     first_name = (payload.get("first_name") or "").strip()
     last_name = (payload.get("last_name") or "").strip()
     full_name = (payload.get("full_name") or "").strip()
-
+    email = (payload.get("email_id") or "").strip()
+    mobile = (payload.get("mobile_no") or "").strip()
+    company_name = (payload.get("company_name") or "").strip()
+    
     if not full_name:
         full_name = " ".join([p for p in [first_name, last_name] if p]).strip()
-
+    
+    if not full_name and company_name:
+        full_name = company_name
+    
+    if not full_name and email:
+        full_name = email
+    
+    if full_name and not first_name:
+        first_name = full_name
+    
     contact.first_name = first_name
     contact.last_name = last_name
-
-    if full_name:
-        contact.full_name = full_name
-
+    contact.full_name = full_name
+    contact.email_id = email
+    contact.mobile_no = mobile
+    contact.company_name = company_name
     contact.is_billing_contact = is_billing_contact
 
     if not (contact.get("first_name") or contact.get("full_name") or contact.get("company_name")):
         frappe.throw(_("Please enter at least a First Name, Full Name or Company Name."))
-
+    
+    if not contact.get("full_name"):
+        contact.full_name = (
+            contact.get("first_name")
+            or contact.get("company_name")
+            or contact.get("email_id")
+            or contact.name
+        )
+    
     contact.save(ignore_permissions=True)
 
     if is_billing_contact and not contact.get("custom_customer"):
         customer_doc = frappe.new_doc("Customer")
         customer_doc.customer_type = "Individual"
-        customer_doc.customer_name = contact_display_name(contact)
+        customer_doc.customer_name = (
+            contact.get("full_name")
+            or contact.get("company_name")
+            or contact.get("email_id")
+            or contact.name
+        )
 
         customer_doc.save(ignore_permissions=True)
 
@@ -349,7 +374,12 @@ def save_contact_for_scope(scope, docname=None, data=None):
 
     if contact.get("custom_customer") and frappe.db.exists("Customer", contact.get("custom_customer")):
         customer_doc = frappe.get_doc("Customer", contact.get("custom_customer"))
-        customer_doc.customer_name = contact_display_name(contact)
+        customer_doc.customer_name = (
+            contact.get("full_name")
+            or contact.get("company_name")
+            or contact.get("email_id")
+            or contact.name
+        )
         customer_doc.save(ignore_permissions=True)
 
     if linked_client and frappe.db.exists("Client", linked_client):
