@@ -334,8 +334,24 @@ def save_contact_for_scope(scope, docname=None, data=None):
     contact.full_name = full_name
     contact.email_id = email
     contact.mobile_no = mobile
+    contact.phone = mobile
     contact.company_name = company_name
     contact.is_billing_contact = is_billing_contact
+    
+    # Ensure ERPNext child tables also store email/mobile
+    if email:
+        contact.email_ids = []
+        contact.append("email_ids", {
+            "email_id": email,
+            "is_primary": 1,
+        })
+    
+    if mobile:
+        contact.phone_nos = []
+        contact.append("phone_nos", {
+            "phone": mobile,
+            "is_primary_mobile_no": 1,
+        })
 
     if not (contact.get("first_name") or contact.get("full_name") or contact.get("company_name")):
         frappe.throw(_("Please enter at least a First Name, Full Name or Company Name."))
@@ -380,6 +396,7 @@ def save_contact_for_scope(scope, docname=None, data=None):
             or contact.get("email_id")
             or contact.name
         )
+    
         customer_doc.save(ignore_permissions=True)
 
     if linked_client and frappe.db.exists("Client", linked_client):
