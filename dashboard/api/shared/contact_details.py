@@ -258,6 +258,11 @@ def save_contact_for_scope(scope, docname=None, data=None):
 
     payload = parse_payload(data)
 
+    linked_client = payload.get("linked_client")
+    relationship_type = payload.get("relationship_type")
+    is_billing_contact = int(payload.get("is_billing_contact") or 0)
+    customer = payload.get("customer")
+
     if docname:
         ensure_contact_access(docname, scope)
         contact = frappe.get_doc("Contact", docname)
