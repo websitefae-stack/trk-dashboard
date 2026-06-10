@@ -297,7 +297,20 @@ def save_contact_for_scope(scope, docname=None, data=None):
         ensure_contact_access(docname, scope)
         contact = frappe.get_doc("Contact", docname)
     else:
-        contact = frappe.new_doc("Contact")
+        email = (payload.get("email_id") or "").strip()
+    
+        existing_contact = ""
+        if email:
+            existing_contact = frappe.db.get_value(
+                "Contact",
+                {"email_id": email},
+                "name",
+            )
+    
+        if existing_contact:
+            contact = frappe.get_doc("Contact", existing_contact)
+        else:
+            contact = frappe.new_doc("Contact")
 
     for fieldname in EDITABLE_CONTACT_FIELDS:
         if fieldname in payload and contact.meta.has_field(fieldname):
@@ -400,7 +413,10 @@ def save_contact_for_scope(scope, docname=None, data=None):
     
         if hasattr(existing_row, "customer"):
             existing_row.customer = contact.custom_customer or ""
-    
+        
+        if contact.get("is_billing_contact") and contact.get("custom_customer"):
+            client.billing_contact = contact.custom_customer
+        
         client.save(ignore_permissions=True)
     
     frappe.db.commit()
