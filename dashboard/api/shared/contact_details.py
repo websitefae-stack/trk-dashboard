@@ -19,6 +19,8 @@ EDITABLE_CONTACT_FIELDS = [
     "mobile_no",
     "designation",
     "company_name",
+    "is_billing_contact",
+    "custom_customer",
 ]
 
 
@@ -297,6 +299,29 @@ def save_contact_for_scope(scope, docname=None, data=None):
     if not (contact.get("first_name") or contact.get("full_name") or contact.get("company_name")):
         frappe.throw(_("Please enter at least a First Name, Full Name or Company Name."))
 
+    if contact.get("is_billing_contact") and not contact.get("custom_customer"):
+
+        customer = frappe.new_doc("Customer")
+    
+        customer.customer_type = "Individual"
+    
+        customer.customer_name = (
+            contact.get("full_name")
+            or " ".join(
+                filter(
+                    None,
+                    [
+                        contact.get("first_name"),
+                        contact.get("last_name"),
+                    ],
+                )
+            )
+        )
+    
+        customer.save(ignore_permissions=True)
+    
+        contact.custom_customer = customer.name
+        
     contact.save(ignore_permissions=True)
 
     if linked_client and frappe.db.exists("Client", linked_client):
