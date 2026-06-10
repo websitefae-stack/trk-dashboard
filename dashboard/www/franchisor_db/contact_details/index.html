@@ -140,14 +140,83 @@
                 </div>
               
                 <div class="dashboard-detail-field">
-                  <label for="contact_company_name">Company Name</label>
+                  <label>Address Line 1</label>
                   <input
-                    id="contact_company_name"
                     type="text"
                     class="dashboard-input"
-                    value="{{ (contact or {}).get('company_name') or '' }}"
+                    value="{{ (contact or {}).get('address_line1') or '' }}"
                     data-contact-field="1"
-                    data-fieldname="company_name"
+                    data-fieldname="address_line1"
+                    data-fieldtype="Data"
+                    data-meta-readonly="0"
+                    readonly
+                  >
+                </div>
+                
+                <div class="dashboard-detail-field">
+                  <label>Address Line 2</label>
+                  <input
+                    type="text"
+                    class="dashboard-input"
+                    value="{{ (contact or {}).get('address_line2') or '' }}"
+                    data-contact-field="1"
+                    data-fieldname="address_line2"
+                    data-fieldtype="Data"
+                    data-meta-readonly="0"
+                    readonly
+                  >
+                </div>
+                
+                <div class="dashboard-detail-field">
+                  <label>City</label>
+                  <input
+                    type="text"
+                    class="dashboard-input"
+                    value="{{ (contact or {}).get('city') or '' }}"
+                    data-contact-field="1"
+                    data-fieldname="city"
+                    data-fieldtype="Data"
+                    data-meta-readonly="0"
+                    readonly
+                  >
+                </div>
+                
+                <div class="dashboard-detail-field">
+                  <label>County</label>
+                  <input
+                    type="text"
+                    class="dashboard-input"
+                    value="{{ (contact or {}).get('county') or '' }}"
+                    data-contact-field="1"
+                    data-fieldname="county"
+                    data-fieldtype="Data"
+                    data-meta-readonly="0"
+                    readonly
+                  >
+                </div>
+                
+                <div class="dashboard-detail-field">
+                  <label>Postcode</label>
+                  <input
+                    type="text"
+                    class="dashboard-input"
+                    value="{{ (contact or {}).get('pincode') or '' }}"
+                    data-contact-field="1"
+                    data-fieldname="pincode"
+                    data-fieldtype="Data"
+                    data-meta-readonly="0"
+                    readonly
+                  >
+                </div>
+                
+                <div class="dashboard-detail-field">
+                  <label>Country</label>
+                  <input
+                    type="text"
+                    class="dashboard-input"
+                    value="{{ (contact or {}).get('country') or '' }}"
+                    data-contact-field="1"
+                    data-fieldname="country"
                     data-fieldtype="Data"
                     data-meta-readonly="0"
                     readonly
