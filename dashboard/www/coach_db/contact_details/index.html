@@ -64,32 +64,35 @@
               </div>
 
               <div class="dashboard-detail-grid dashboard-detail-grid-2">
-                {% set fields = [
-                  ["first_name", "First Name", "text"],
-                  ["last_name", "Last Name", "text"],
-                  ["email_id", "Email Address", "email"],
-                  ["mobile_no", "Mobile No", "text"],
-                  ["designation", "Designation", "text"],
-                  ["company_name", "Company Name", "text"]
-                ] %}
-
-                {% for fieldname, label, input_type in fields %}
-                  <div class="dashboard-detail-field">
-                    <label for="contact_{{ fieldname }}">{{ label }}</label>
-                    <input
-                      id="contact_{{ fieldname }}"
-                      name="{{ fieldname }}"
-                      type="{{ input_type }}"
-                      class="dashboard-input"
-                      value="{{ (contact or {}).get(fieldname) or '' }}"
-                      data-contact-field="1"
-                      data-fieldname="{{ fieldname }}"
-                      data-fieldtype="Data"
-                      data-meta-readonly="0"
-                      readonly
-                    >
-                  </div>
-                {% endfor %}
+                <div class="dashboard-detail-field">
+                  <label for="contact_first_name">First Name</label>
+                  <input id="contact_first_name" type="text" class="dashboard-input" value="{{ contact.get('first_name') or '' }}" data-contact-field="1" data-fieldname="first_name" data-fieldtype="Data" data-meta-readonly="0" readonly>
+                </div>
+                
+                <div class="dashboard-detail-field">
+                  <label for="contact_last_name">Last Name</label>
+                  <input id="contact_last_name" type="text" class="dashboard-input" value="{{ contact.get('last_name') or '' }}" data-contact-field="1" data-fieldname="last_name" data-fieldtype="Data" data-meta-readonly="0" readonly>
+                </div>
+                
+                <div class="dashboard-detail-field">
+                  <label for="contact_email_id">Email Address</label>
+                  <input id="contact_email_id" type="email" class="dashboard-input" value="{{ contact.get('email_id') or '' }}" data-contact-field="1" data-fieldname="email_id" data-fieldtype="Data" data-meta-readonly="0" readonly>
+                </div>
+                
+                <div class="dashboard-detail-field">
+                  <label for="contact_mobile_no">Mobile No</label>
+                  <input id="contact_mobile_no" type="text" class="dashboard-input" value="{{ contact.get('mobile_no') or '' }}" data-contact-field="1" data-fieldname="mobile_no" data-fieldtype="Data" data-meta-readonly="0" readonly>
+                </div>
+                
+                <div class="dashboard-detail-field">
+                  <label for="contact_designation">Designation</label>
+                  <input id="contact_designation" type="text" class="dashboard-input" value="{{ contact.get('designation') or '' }}" data-contact-field="1" data-fieldname="designation" data-fieldtype="Data" data-meta-readonly="0" readonly>
+                </div>
+                
+                <div class="dashboard-detail-field">
+                  <label for="contact_company_name">Company Name</label>
+                  <input id="contact_company_name" type="text" class="dashboard-input" value="{{ contact.get('company_name') or '' }}" data-contact-field="1" data-fieldname="company_name" data-fieldtype="Data" data-meta-readonly="0" readonly>
+                </div>
               </div>
             </section>
           </div>
