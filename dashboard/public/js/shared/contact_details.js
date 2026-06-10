@@ -406,6 +406,25 @@
     }
   }
 
+  function toggleCustomerField() {
+    const billing = document.getElementById("is_billing_contact");
+    const customer = document.getElementById("customer_field_wrapper");
+  
+    if (!billing || !customer) return;
+  
+    customer.style.display = billing.checked ? "" : "none";
+  }
+  
+  function initBillingContactToggle() {
+    const billing = document.getElementById("is_billing_contact");
+  
+    if (!billing) return;
+  
+    billing.addEventListener("change", toggleCustomerField);
+  
+    toggleCustomerField();
+  }
+    
   function init() {
     if (!el("contactDetailsForm")) return;
 
@@ -413,6 +432,7 @@
     initTabs();
     initEdit();
     initNewContactFullNameBuilder();
+    initBillingContactToggle();
     initRefreshBack();
     initChangeRequest();
     forceNewContactDetailsVisible();
