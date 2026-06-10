@@ -169,10 +169,17 @@
 
     let savedTab = "";
 
-    try {
-      savedTab = sessionStorage.getItem(getStorageKey()) || "";
-    } catch (e) {
-      savedTab = "";
+    if (window.location.search.indexOf("new=1") !== -1) {
+      savedTab = "contact-details-tab";
+      try {
+        sessionStorage.setItem(getStorageKey(), savedTab);
+      } catch (e) {}
+    } else {
+      try {
+        savedTab = sessionStorage.getItem(getStorageKey()) || "";
+      } catch (e) {
+        savedTab = "";
+      }
     }
 
     const savedButton = savedTab
