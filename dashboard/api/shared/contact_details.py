@@ -19,8 +19,19 @@ EDITABLE_CONTACT_FIELDS = [
     "mobile_no",
     "designation",
     "company_name",
+
+    # billing contact fields
     "is_billing_contact",
     "custom_customer",
+
+    # address fields
+    "address_line1",
+    "address_line2",
+    "city",
+    "county",
+    "state",
+    "pincode",
+    "country",
 ]
 
 
@@ -205,8 +216,13 @@ def get_contact_context(scope, contact_name=None, is_new=False, view_coach_name=
             "contact_invoices": [],
             "clients": frappe.get_all(
                 "Client",
-                fields=["name", "full_name"],
-                order_by="full_name asc",
+                fields=[
+                    "name",
+                    "full_name",
+                    "name1",
+                    "last_name"
+                ],
+                order_by="full_name asc, name1 asc",
                 limit_page_length=5000,
             ),
             "contact_details_scope": scope,
@@ -311,6 +327,46 @@ def save_contact_for_scope(scope, docname=None, data=None):
         customer_doc.save(ignore_permissions=True)
     
         contact.custom_customer = customer_doc.name
+        
+        contact.save(ignore_permissions=True)
+
+        linked_client = (payload.get("linked_client") or "").strip()
+        relationship_type = (payload.get("relationship_type") or "").strip()
+        
+        if linked_client and frappe.db.exists("Client", linked_client):
+        
+            client = frappe.get_doc("Client", linked_client)
+        
+            existing_row = None
+        
+            for row in client.get("client_contacts") or []:
+                if row.contact == contact.name:
+                    existing_row = row
+                    break
+        
+            if not existing_row:
+                existing_row = client.append("client_contacts", {})
+        
+            existing_row.contact = contact.name
+            existing_row.contact_name = contact_display_name(contact)
+            existing_row.email_id = contact.email_id or ""
+            existing_row.phone = contact.mobile_no or ""
+            existing_row.relationship_type = relationship_type
+            existing_row.is_billing_contact = contact.is_billing_contact
+        
+            if hasattr(existing_row, "customer"):
+                existing_row.customer = contact.custom_customer or ""
+        
+            client.save(ignore_permissions=True)
+        
+        frappe.db.commit()
+        
+        return {
+            "name": contact.name,
+            "display_name": contact_display_name(contact),
+        }
+
+
 
 
 @frappe.whitelist()
