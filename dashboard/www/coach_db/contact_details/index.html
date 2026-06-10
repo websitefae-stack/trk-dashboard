@@ -78,9 +78,10 @@
                     <label for="contact_{{ fieldname }}">{{ label }}</label>
                     <input
                       id="contact_{{ fieldname }}"
+                      name="{{ fieldname }}"
                       type="{{ input_type }}"
                       class="dashboard-input"
-                      value="{{ contact.get(fieldname) or '' }}"
+                      value="{{ (contact or {}).get(fieldname) or '' }}"
                       data-contact-field="1"
                       data-fieldname="{{ fieldname }}"
                       data-fieldtype="Data"
