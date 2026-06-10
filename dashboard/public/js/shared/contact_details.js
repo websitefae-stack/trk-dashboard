@@ -258,11 +258,16 @@
         data: JSON.stringify(collectContactData())
       });
 
-      const msg = result.message || {};
+     const msg = result.message || {};
 
+      if (msg.customer) {
+        const customerField = getContactField("custom_customer");
+        if (customerField) customerField.value = msg.customer;
+      }
+      
       if (msg.name && el("contactDocname")) {
         el("contactDocname").value = msg.name;
-
+      
         if (window.location.search.indexOf("new=1") !== -1) {
           window.history.replaceState(
             {},
