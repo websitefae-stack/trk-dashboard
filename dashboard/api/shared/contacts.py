@@ -89,7 +89,6 @@ def get_allowed_clients(scope, coach_scope="my"):
         "primary_coach",
         "attending_coach",
         "session_worker",
-        "billing_contact",
     ]
 
     if scope == "session_worker":
@@ -171,11 +170,16 @@ def get_contact_names_from_clients(clients, include_billing_contact=True):
             if row.get("contact"):
                 contact_names.add(row.get("contact"))
 
-        if include_billing_contact and client.get("billing_contact"):
-            billing_contact = get_contact_from_customer(client.get("billing_contact"))
+        for row in client_doc.get("client_contacts") or []:
 
-            if billing_contact:
-                contact_names.add(billing_contact)
+            if row.get("is_billing_contact") and row.get("customer"):
+        
+                billing_contact = get_contact_from_customer(
+                    row.get("customer")
+                )
+        
+                if billing_contact:
+                    contact_names.add(billing_contact)
 
     return sorted(contact_names)
 
@@ -196,11 +200,23 @@ def get_linked_clients_for_contact(contact_name, clients):
                 linked = True
                 break
 
-        if not linked and client.get("billing_contact"):
-            billing_contact = get_contact_from_customer(client.get("billing_contact"))
+        if not linked:
 
-            if billing_contact == contact_name:
-                linked = True
+            for row in client_doc.get("client_contacts") or []:
+        
+                if not row.get("is_billing_contact"):
+                    continue
+        
+                if not row.get("customer"):
+                    continue
+        
+                billing_contact = get_contact_from_customer(
+                    row.get("customer")
+                )
+        
+                if billing_contact == contact_name:
+                    linked = True
+                    break
 
         if linked:
             linked_clients.append({
