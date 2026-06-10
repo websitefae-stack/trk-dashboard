@@ -156,15 +156,23 @@
 
                 <div class="dashboard-detail-field">
                   <label>Linked Client</label>
-                  <input
-                    type="text"
-                    class="dashboard-input"
+                
+                  <select
+                    class="dashboard-select"
                     data-contact-field="1"
                     data-fieldname="linked_client"
-                    data-fieldtype="Data"
+                    data-fieldtype="Link"
                     data-meta-readonly="0"
-                    readonly
+                    disabled
                   >
+                    <option value="">Select Client</option>
+                
+                    {% for client in clients %}
+                      <option value="{{ client.name }}">
+                        {{ client.full_name or client.name }}
+                      </option>
+                    {% endfor %}
+                  </select>
                 </div>
                 
                 <div class="dashboard-detail-field">
