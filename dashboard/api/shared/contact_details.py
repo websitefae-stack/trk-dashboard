@@ -12,6 +12,7 @@ from dashboard.api.shared.permissions import ensure_logged_in
 
 
 EDITABLE_CONTACT_FIELDS = [
+    "full_name",
     "first_name",
     "last_name",
     "email_id",
@@ -264,11 +265,21 @@ def save_contact_for_scope(scope, docname=None, data=None):
         contact = frappe.new_doc("Contact")
 
     for fieldname in EDITABLE_CONTACT_FIELDS:
-        if fieldname in payload:
+        if fieldname in payload and contact.meta.has_field(fieldname):
             contact.set(fieldname, payload.get(fieldname))
-
-    if not (contact.get("first_name") or contact.get("company_name")):
-        frappe.throw(_("Please enter at least a First Name or Company Name."))
+    
+    first_name = (payload.get("first_name") or "").strip()
+    last_name = (payload.get("last_name") or "").strip()
+    full_name = (payload.get("full_name") or "").strip()
+    
+    if not full_name:
+        full_name = " ".join([part for part in [first_name, last_name] if part]).strip()
+    
+    if full_name and contact.meta.has_field("full_name"):
+        contact.full_name = full_name
+    
+    if not (contact.get("first_name") or contact.get("full_name") or contact.get("company_name")):
+        frappe.throw(_("Please enter at least a First Name, Full Name or Company Name."))
 
     contact.save(ignore_permissions=True)
     frappe.db.commit()
