@@ -344,13 +344,78 @@
     });
   }
 
+  function getContactField(fieldname) {
+    return document.querySelector('[data-fieldname="' + fieldname + '"]');
+  }
+
+  function isNewContactPage() {
+    return el("contactIsNew") && el("contactIsNew").value === "1";
+  }
+
+  function updateNewContactFullName() {
+    if (!isNewContactPage()) return;
+
+    const fullNameField = getContactField("full_name");
+    if (!fullNameField) return;
+
+    const first = (getContactField("first_name") && getContactField("first_name").value) || "";
+    const last = (getContactField("last_name") && getContactField("last_name").value) || "";
+
+    if (!fullNameField.value || fullNameField.dataset.autoBuilt === "1") {
+      fullNameField.value = [first, last].map(function (part) {
+        return String(part || "").trim();
+      }).filter(Boolean).join(" ");
+
+      fullNameField.dataset.autoBuilt = "1";
+    }
+  }
+
+  function initNewContactFullNameBuilder() {
+    if (!isNewContactPage()) return;
+
+    ["first_name", "last_name"].forEach(function (fieldname) {
+      const field = getContactField(fieldname);
+      if (!field) return;
+
+      field.addEventListener("input", updateNewContactFullName);
+      field.addEventListener("change", updateNewContactFullName);
+    });
+
+    const fullNameField = getContactField("full_name");
+    if (fullNameField) {
+      fullNameField.addEventListener("input", function () {
+        fullNameField.dataset.autoBuilt = fullNameField.value ? "0" : "1";
+      });
+    }
+
+    updateNewContactFullName();
+  }
+
+  function forceNewContactDetailsVisible() {
+    if (!isNewContactPage()) return;
+
+    const panel = el("contact-details-tab");
+    if (panel) {
+      panel.classList.add("is-active");
+      panel.classList.add("dashboard-tab-panel-active");
+      panel.removeAttribute("hidden");
+      panel.removeAttribute("aria-hidden");
+      panel.style.setProperty("display", "block", "important");
+      panel.style.setProperty("visibility", "visible", "important");
+      panel.style.setProperty("opacity", "1", "important");
+    }
+  }
+
   function init() {
     if (!el("contactDetailsForm")) return;
 
+    forceNewContactDetailsVisible();
     initTabs();
     initEdit();
+    initNewContactFullNameBuilder();
     initRefreshBack();
     initChangeRequest();
+    forceNewContactDetailsVisible();
   }
 
   if (document.readyState === "loading") {
