@@ -153,6 +153,71 @@
                     readonly
                   >
                 </div>
+
+                <div class="dashboard-detail-field">
+                  <label>Linked Client</label>
+                  <input
+                    type="text"
+                    class="dashboard-input"
+                    data-contact-field="1"
+                    data-fieldname="linked_client"
+                    data-fieldtype="Data"
+                    data-meta-readonly="0"
+                    readonly
+                  >
+                </div>
+                
+                <div class="dashboard-detail-field">
+                  <label>Relationship Type</label>
+                  <select
+                    class="dashboard-select"
+                    data-contact-field="1"
+                    data-fieldname="relationship_type"
+                    data-fieldtype="Select"
+                    data-meta-readonly="0"
+                    disabled
+                  >
+                    <option value="">Select</option>
+                    <option value="Self">Self</option>
+                    <option value="Parent/Guardian">Parent/Guardian</option>
+                    <option value="Billing Contact">Billing Contact</option>
+                    <option value="School Admin">School Admin</option>
+                    <option value="School Staff">School Staff</option>
+                    <option value="Company Admin">Company Admin</option>
+                    <option value="Company Billing">Company Billing</option>
+                    <option value="Employee">Employee</option>
+                    <option value="Referrer">Referrer</option>
+                    <option value="Emergency Contact">Emergency Contact</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                
+                <div class="dashboard-detail-field">
+                  <label>
+                    <input
+                      type="checkbox"
+                      data-contact-field="1"
+                      data-fieldname="is_billing_contact"
+                      data-fieldtype="Check"
+                      data-meta-readonly="0"
+                      disabled
+                    >
+                    Billing Contact
+                  </label>
+                </div>
+                
+                <div class="dashboard-detail-field">
+                  <label>Customer</label>
+                  <input
+                    type="text"
+                    class="dashboard-input"
+                    data-contact-field="1"
+                    data-fieldname="customer"
+                    data-fieldtype="Data"
+                    data-meta-readonly="0"
+                    readonly
+                  >
+                </div>
               
               </div>
             </section>
