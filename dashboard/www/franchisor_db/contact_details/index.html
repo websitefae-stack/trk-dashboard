@@ -153,52 +153,6 @@
                     readonly
                   >
                 </div>
-
-                <div class="dashboard-detail-field">
-                  <label>Linked Client</label>
-                
-                  <select
-                    class="dashboard-select"
-                    data-contact-field="1"
-                    data-fieldname="linked_client"
-                    data-fieldtype="Link"
-                    data-meta-readonly="0"
-                    disabled
-                  >
-                    <option value="">Select Client</option>
-                
-                    {% for client in clients %}
-                      <option value="{{ client.name }}">
-                        {{ client.full_name or client.name }}
-                      </option>
-                    {% endfor %}
-                  </select>
-                </div>
-                
-                <div class="dashboard-detail-field">
-                  <label>Relationship Type</label>
-                  <select
-                    class="dashboard-select"
-                    data-contact-field="1"
-                    data-fieldname="relationship_type"
-                    data-fieldtype="Select"
-                    data-meta-readonly="0"
-                    disabled
-                  >
-                    <option value="">Select</option>
-                    <option value="Self">Self</option>
-                    <option value="Parent/Guardian">Parent/Guardian</option>
-                    <option value="Billing Contact">Billing Contact</option>
-                    <option value="School Admin">School Admin</option>
-                    <option value="School Staff">School Staff</option>
-                    <option value="Company Admin">Company Admin</option>
-                    <option value="Company Billing">Company Billing</option>
-                    <option value="Employee">Employee</option>
-                    <option value="Referrer">Referrer</option>
-                    <option value="Emergency Contact">Emergency Contact</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
                 
                 <label>
                   <input
@@ -220,9 +174,9 @@
                     type="text"
                     class="dashboard-input"
                     data-contact-field="1"
-                    data-fieldname="customer"
+                    data-fieldname="custom_customer"
                     data-fieldtype="Data"
-                    data-meta-readonly="0"
+                    data-meta-readonly="1"
                     readonly
                   >
                 </div>
