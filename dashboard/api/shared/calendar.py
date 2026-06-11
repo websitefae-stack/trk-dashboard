@@ -780,6 +780,42 @@ def _get_doc_value_by_candidates(doc, candidates, default=None):
             return value
     return default
 
+def _get_therapy_location_text(location_name):
+    if not location_name:
+        return ""
+
+    if not frappe.db.exists("Therapy Location", location_name):
+        return location_name
+
+    location_doc = frappe.get_doc("Therapy Location", location_name)
+
+    location_type = (location_doc.get("location_type") or "").strip()
+
+    if location_type == "Online":
+        return "Google Meet"
+
+    parts = [
+        location_doc.get("address_line_1"),
+        location_doc.get("address_line_2"),
+        location_doc.get("city"),
+        location_doc.get("postal_code"),
+    ]
+
+    address = ", ".join([p.strip() for p in parts if p and p.strip()])
+
+    return address or location_doc.get("location_name") or location_name
+
+
+def _get_client_therapy_location(client_doc):
+    if not client_doc:
+        return "", ""
+
+    therapy_location = ""
+
+    if client_doc.meta.has_field("therapy_location"):
+        therapy_location = client_doc.get("therapy_location") or ""
+
+    return therapy_location, _get_therapy_location_text(therapy_location)
 
 def _get_client_travel_defaults(client_doc):
     travel_charged = _get_doc_value_by_candidates(
@@ -1581,6 +1617,9 @@ def create_booking(
     if _event_has_field("status"):
         event.status = "Open"
 
+    if _event_has_field("custom_therapy_location"):
+        event.custom_therapy_location = therapy_location
+    
     if _event_has_field("location"):
         event.location = location
 
