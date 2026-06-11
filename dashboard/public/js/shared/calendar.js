@@ -216,6 +216,12 @@
       });
     }
 
+    const locationTypeSelect = document.getElementById("trkCalendarLocationType");
+
+    if (locationTypeSelect) {
+      locationTypeSelect.addEventListener("change", syncBookingFields);
+    }
+
     const editTypeSelect = document.getElementById("trkEditType");
     if (editTypeSelect) {
       editTypeSelect.addEventListener("change", syncEditFields);
@@ -838,7 +844,15 @@
       ? (getValue("trkCalendarTravelCharged") || "0")
       : (getValue("trkCalendarTravelChargedSingle") || "0");
 
-    const location = getValue("trkCalendarLocation");
+    const locationType = getValue("trkCalendarLocationType") || "client_default";
+
+    let location = "";
+    
+    if (locationType === "online") {
+      location = "Google Meet";
+    } else if (locationType === "other") {
+      location = getValue("trkCalendarLocation");
+    }
     const notes = getValue("trkCalendarNotes");
 
     if (!clientId) {
@@ -985,6 +999,7 @@
     setValue("trkCalendarBillingType", "");
     setValue("trkCalendarTravelCharged", "0");
     setValue("trkCalendarTravelChargedSingle", "0");
+    setValue("trkCalendarLocationType", "client_default");
     setValue("trkCalendarLocation", "");
     setValue("trkCalendarNotes", "");
 
@@ -1061,12 +1076,19 @@
   function syncBookingFields() {
     const type = getValue("trkCalendarType");
     const isGeneral = type === "General";
-
+  
     toggleDisplay("trkCalendarBillingTypeRow", isGeneral);
     toggleDisplay("trkCalendarTravelRow", !isGeneral);
-
+  
     if (!isGeneral) {
       setValue("trkCalendarBillingType", "");
+    }
+  
+    const locationType = getValue("trkCalendarLocationType") || "client_default";
+    toggleDisplay("trkCalendarLocationManualRow", locationType === "other");
+  
+    if (locationType !== "other") {
+      setValue("trkCalendarLocation", "");
     }
   }
 
