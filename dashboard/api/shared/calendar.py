@@ -1591,7 +1591,14 @@ def create_booking(
         )
 
     client_doc = frappe.get_doc("Client", client)
+
+    therapy_location, therapy_location_text = _get_client_therapy_location(client_doc)
+    
+    if not location:
+        location = therapy_location_text
+    
     client_travel = _get_client_travel_defaults(client_doc)
+    
     final_travel_charged = _to_int(travel_charged, default=int(client_travel.get("travel_charged") or 0))
 
     if _event_has_field("custom_travel_charged"):
