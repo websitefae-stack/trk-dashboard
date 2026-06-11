@@ -585,9 +585,42 @@ def link_existing_contact_to_client(client_name=None, contact_name=None, relatio
     existing_row.relationship_type = relationship_type
     existing_row.is_billing_contact = is_billing_contact
 
-    if is_billing_contact and contact.get("custom_customer"):
-        existing_row.customer = contact.get("custom_customer")
-        client.billing_contact = contact.get("custom_customer")
+    if is_billing_contact:
+        if not contact.get("custom_customer"):
+            customer_doc = frappe.new_doc("Customer")
+            customer_doc.customer_type = "Individual"
+            customer_doc.customer_name = (
+                contact.get("full_name")
+                or " ".join(filter(None, [contact.get("first_name"), contact.get("last_name")])).strip()
+                or contact.get("company_name")
+                or contact.get("email_id")
+                or contact.name
+            )
+            customer_doc.save(ignore_permissions=True)
+    
+            contact.custom_customer = customer_doc.name
+    
+            if contact.meta.has_field("is_billing_contact"):
+                contact.is_billing_contact = 1
+    
+            contact.append("links", {
+                "link_doctype": "Customer",
+                "link_name": customer_doc.name,
+            })
+    
+            contact.save(ignore_permissions=True)
+    
+        existing_row.customer = contact.get("custom_customer") or ""
+        client.billing_contact = contact.get("custom_customer") or ""
+
+        client_type_map = {
+        "Kid": "Kids",
+        "Adult": "Adults",
+        "Uni Student": "Uni Students",
+    }
+    
+    if client.get("client_type") in client_type_map:
+        client.client_type = client_type_map[client.get("client_type")]
 
     client.save(ignore_permissions=True)
     frappe.db.commit()
