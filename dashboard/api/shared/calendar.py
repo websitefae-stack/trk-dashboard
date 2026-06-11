@@ -1715,6 +1715,12 @@ def update_session(
 
     if _event_has_field("location"):
         event_doc.location = location
+    
+    if _event_has_field("custom_therapy_location") and client:
+        client_doc = frappe.get_doc("Client", client)
+    
+        if client_doc.meta.has_field("therapy_location"):
+            event_doc.custom_therapy_location = client_doc.get("therapy_location") or ""
 
     if _event_has_field("event_type"):
         event_doc.event_type = "Public"
