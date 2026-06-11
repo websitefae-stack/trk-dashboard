@@ -222,6 +222,12 @@
       locationTypeSelect.addEventListener("change", syncBookingFields);
     }
 
+    const bookingClientSelect = document.getElementById("trkCalendarClientSelect");
+
+    if (bookingClientSelect) {
+      bookingClientSelect.addEventListener("change", syncBookingFields);
+    }
+
     const editTypeSelect = document.getElementById("trkEditType");
     if (editTypeSelect) {
       editTypeSelect.addEventListener("change", syncEditFields);
@@ -801,13 +807,19 @@
   function renderClientOptions() {
     const select = document.getElementById("trkCalendarClientSelect");
     if (!select) return;
-
+  
     let html = '<option value="">Select a client</option>';
-
+  
     state.clients.forEach(function (client) {
-      html += '<option value="' + escapeHtml(client.value) + '">' + escapeHtml(client.label) + '</option>';
+      html += '<option'
+        + ' value="' + escapeHtml(client.value) + '"'
+        + ' data-therapy-location="' + escapeHtml(client.therapy_location || "") + '"'
+        + ' data-therapy-location-label="' + escapeHtml(client.therapy_location_label || client.therapy_location || "") + '"'
+        + '>'
+        + escapeHtml(client.label)
+        + '</option>';
     });
-
+  
     select.innerHTML = html;
   }
 
@@ -1084,9 +1096,29 @@
       setValue("trkCalendarBillingType", "");
     }
   
+    const clientSelect = document.getElementById("trkCalendarClientSelect");
+    const selectedClientOption = clientSelect && clientSelect.selectedIndex >= 0
+      ? clientSelect.options[clientSelect.selectedIndex]
+      : null;
+    
+    const locationTypeSelect = document.getElementById("trkCalendarLocationType");
     const locationType = getValue("trkCalendarLocationType") || "client_default";
+    
+    if (locationTypeSelect) {
+      const clientDefaultOption = locationTypeSelect.querySelector('option[value="client_default"]');
+      const locationLabel = selectedClientOption
+        ? selectedClientOption.dataset.therapyLocationLabel || ""
+        : "";
+    
+      if (clientDefaultOption) {
+        clientDefaultOption.textContent = locationLabel
+          ? locationLabel
+          : "Client Therapy Location";
+      }
+    }
+    
     toggleDisplay("trkCalendarLocationManualRow", locationType === "other");
-  
+    
     if (locationType !== "other") {
       setValue("trkCalendarLocation", "");
     }
