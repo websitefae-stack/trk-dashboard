@@ -39,7 +39,7 @@ def get_client_types():
         if df.fieldtype == "Select" and df.options:
             return [x.strip() for x in df.options.split("\n") if x.strip()]
 
-    return ["Kid", "Teen", "Adult", "Uni Student", "School", "Company", "Franchise"]
+    return ["Kids", "Teen", "Uni Students", "Adults", "School", "Company", "Franchise"]
 
 
 def build_display_name(client):
