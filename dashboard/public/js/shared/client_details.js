@@ -661,29 +661,27 @@
   }
   
   function initExistingContactModal() {
-    const openBtn = el("selectExistingContact");
-    const modal = el("existingContactModal");
-    const closeBtn = el("closeExistingContactModal");
+    const buttons = qsa(".select-existing-contact-btn");
+    const panel = el("existingContactPanel");
     const cancelBtn = el("cancelExistingContact");
     const linkBtn = el("linkExistingContact");
   
-    if (!openBtn || !modal) return;
+    if (!buttons.length || !panel) return;
   
-    openBtn.addEventListener("click", function (event) {
-      event.preventDefault();
-      modal.classList.add("is-open");
-      document.body.classList.add("dashboard-modal-open");
-      loadExistingContactOptions();
+    buttons.forEach(function (button) {
+      button.addEventListener("click", function (event) {
+        event.preventDefault();
+        panel.style.display = "block";
+        loadExistingContactOptions();
+      });
     });
   
-    function closeModal(event) {
-      if (event) event.preventDefault();
-      modal.classList.remove("is-open");
-      document.body.classList.remove("dashboard-modal-open");
+    if (cancelBtn) {
+      cancelBtn.addEventListener("click", function (event) {
+        event.preventDefault();
+        panel.style.display = "none";
+      });
     }
-  
-    if (closeBtn) closeBtn.addEventListener("click", closeModal);
-    if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
   
     if (linkBtn) {
       linkBtn.addEventListener("click", async function (event) {
