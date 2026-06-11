@@ -231,9 +231,13 @@ def get_contact_context(scope, contact_name=None, is_new=False, view_coach_name=
         }
 
     if not contact_name:
-        frappe.throw(_("Contact not found."))
+        frappe.throw(_("Contact not found. Missing contact name in URL."))
 
+    if not frappe.db.exists("Contact", contact_name):
+        frappe.throw(_("Contact not found: {0}").format(contact_name))
+    
     contact = frappe.get_doc("Contact", contact_name)
+    
     linked_clients = get_linked_clients(
         contact,
         scope,
