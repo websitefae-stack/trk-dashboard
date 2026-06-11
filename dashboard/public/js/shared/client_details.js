@@ -633,6 +633,94 @@
     }
   }
 
+  async function loadExistingContactOptions() {
+    const select = el("existingContactSelect");
+    if (!select) return;
+  
+    select.innerHTML = '<option value="">Loading...</option>';
+  
+    try {
+      const contacts = await apiPost("get_link_options", {
+        doctype: "Contact",
+        limit_page_length: 5000
+      });
+  
+      select.innerHTML = '<option value="">Select Contact</option>';
+  
+      (contacts || []).forEach(function (row) {
+        if (!row.name) return;
+  
+        const option = document.createElement("option");
+        option.value = row.name;
+        option.textContent = getOptionLabel(row);
+        select.appendChild(option);
+      });
+    } catch (error) {
+      select.innerHTML = '<option value="">Could not load contacts</option>';
+    }
+  }
+  
+  function initExistingContactModal() {
+    const openBtn = el("selectExistingContact");
+    const modal = el("existingContactModal");
+    const closeBtn = el("closeExistingContactModal");
+    const cancelBtn = el("cancelExistingContact");
+    const linkBtn = el("linkExistingContact");
+  
+    if (!openBtn || !modal) return;
+  
+    openBtn.addEventListener("click", function (event) {
+      event.preventDefault();
+      modal.classList.add("is-open");
+      document.body.classList.add("dashboard-modal-open");
+      loadExistingContactOptions();
+    });
+  
+    function closeModal(event) {
+      if (event) event.preventDefault();
+      modal.classList.remove("is-open");
+      document.body.classList.remove("dashboard-modal-open");
+    }
+  
+    if (closeBtn) closeBtn.addEventListener("click", closeModal);
+    if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+  
+    if (linkBtn) {
+      linkBtn.addEventListener("click", async function (event) {
+        event.preventDefault();
+  
+        const contactName = el("existingContactSelect") ? el("existingContactSelect").value : "";
+        const relationshipType = el("existingContactRelationship") ? el("existingContactRelationship").value : "";
+        const isBilling = el("existingContactBilling") && el("existingContactBilling").checked ? 1 : 0;
+  
+        if (!contactName) {
+          showError("Please select a contact.");
+          return;
+        }
+  
+        try {
+          linkBtn.disabled = true;
+          linkBtn.textContent = "Linking...";
+  
+          await apiPost("link_existing_contact_to_client", {
+            client_name: getClientName(),
+            contact_name: contactName,
+            relationship_type: relationshipType,
+            is_billing_contact: isBilling
+          });
+  
+          showSuccess("Contact linked");
+          window.location.reload();
+        } catch (error) {
+          showError(error.message || "Could not link contact.");
+        } finally {
+          linkBtn.disabled = false;
+          linkBtn.textContent = "Link Contact";
+        }
+      });
+    }
+  }
+
   function init() {
     if (!el("clientDetailsForm")) return;
 
@@ -643,6 +731,7 @@
     initLinkOptions();
     initFullNameBuilder();
     initChangeRequest();
+    initExistingContactModal();
 
     if (roleConfig.role === "session_worker") {
       loadSessionWorkerContacts();
