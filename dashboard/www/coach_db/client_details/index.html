@@ -569,6 +569,49 @@
 
             </div>
           {% endfor %}
+          <div class="dashboard-modal" id="existingContactModal">
+            <div class="dashboard-modal-card">
+              <div class="dashboard-modal-header">
+                <h3>Select Existing Contact</h3>
+                <button type="button" class="dashboard-modal-close" id="closeExistingContactModal">×</button>
+              </div>
+          
+              <div class="dashboard-modal-body">
+                <div class="dashboard-detail-field">
+                  <label>Contact</label>
+                  <select class="dashboard-select" id="existingContactSelect"></select>
+                </div>
+          
+                <div class="dashboard-detail-field">
+                  <label>Relationship Type</label>
+                  <select class="dashboard-select" id="existingContactRelationship">
+                    <option value="">Select</option>
+                    <option value="Self">Self</option>
+                    <option value="Parent/Guardian">Parent/Guardian</option>
+                    <option value="Billing Contact">Billing Contact</option>
+                    <option value="School Admin">School Admin</option>
+                    <option value="School Staff">School Staff</option>
+                    <option value="Company Admin">Company Admin</option>
+                    <option value="Company Billing">Company Billing</option>
+                    <option value="Employee">Employee</option>
+                    <option value="Referrer">Referrer</option>
+                    <option value="Emergency Contact">Emergency Contact</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+          
+                <label>
+                  <input type="checkbox" id="existingContactBilling">
+                  Billing Contact
+                </label>
+              </div>
+          
+              <div class="dashboard-modal-footer">
+                <button type="button" class="dashboard-btn dashboard-btn-secondary" id="cancelExistingContact">Cancel</button>
+                <button type="button" class="dashboard-btn dashboard-btn-primary" id="linkExistingContact">Link Contact</button>
+              </div>
+            </div>
+          </div>
         </form>
       </div>
     </div>
