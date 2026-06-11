@@ -430,9 +430,10 @@ def save_contact_for_scope(scope, docname=None, data=None):
             client.billing_contact = contact.get("custom_customer")
         
         client_type_map = {
-            "Kid": "Kids",
-            "Adult": "Adults",
-            "Uni Student": "Uni Students",
+            "Kid": "Kid",
+            "Teen": "Teen",
+            "Adult": "Adult",
+            "Uni Student": "Uni Student",
         }
         
         if client.get("client_type") in client_type_map:
