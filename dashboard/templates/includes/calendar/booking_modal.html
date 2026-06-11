@@ -95,15 +95,27 @@
         </div>
       </div>
 
-      <div class="trk-calendar-field">
-        <label for="trkCalendarLocation">Location</label>
-
-        <input
-          type="text"
-          id="trkCalendarLocation"
-          class="dashboard-input"
-          placeholder="Optional"
-        >
+      <div class="trk-calendar-form-row">
+        <div class="trk-calendar-field">
+          <label for="trkCalendarLocationType">Location Type</label>
+      
+          <select id="trkCalendarLocationType" class="dashboard-select">
+            <option value="client_default" selected>Client Default</option>
+            <option value="online">Online - Google Meet</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      
+        <div class="trk-calendar-field" id="trkCalendarLocationManualRow" style="display:none;">
+          <label for="trkCalendarLocation">Manual Location</label>
+      
+          <input
+            type="text"
+            id="trkCalendarLocation"
+            class="dashboard-input"
+            placeholder="Enter location"
+          >
+        </div>
       </div>
 
       <div class="trk-calendar-field">
