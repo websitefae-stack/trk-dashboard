@@ -100,7 +100,7 @@
                     data-session-worker="{{ c.session_worker_name or '' }}"
                   >
                     <td>
-                      <a class="dashboard-client-name-link dashboard-contact-name-link" href="/franchisor_db/contact_details?name={{ c.name }}">
+                      <a class="dashboard-client-name-link dashboard-contact-name-link" href="/franchisor_db/contact_details?name={{ c.name | urlencode }}">
                         {{ c.display_name or c.name }}
                       </a>
                     </td>
@@ -109,7 +109,7 @@
                     <td>{{ c.linked_client_text or "—" }}</td>
                     <td>{{ c.coach_name or "—" }}</td>
                     <td class="dashboard-action-cell">
-                      <a class="dashboard-link-btn" href="/franchisor_db/contact_details?name={{ c.name }}">View</a>
+                      <a class="dashboard-link-btn" href="/franchisor_db/contact_details?name={{ c.name | urlencode }}">View</a>
                     </td>
                   </tr>
                 {% endfor %}
