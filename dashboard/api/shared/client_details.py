@@ -597,30 +597,21 @@ def link_existing_contact_to_client(client_name=None, contact_name=None, relatio
                 or contact.name
             )
             customer_doc.save(ignore_permissions=True)
-    
+
             contact.custom_customer = customer_doc.name
-    
+
             if contact.meta.has_field("is_billing_contact"):
                 contact.is_billing_contact = 1
-    
+
             contact.append("links", {
                 "link_doctype": "Customer",
                 "link_name": customer_doc.name,
             })
-    
+
             contact.save(ignore_permissions=True)
-    
+
         existing_row.customer = contact.get("custom_customer") or ""
         client.billing_contact = contact.get("custom_customer") or ""
-
-        client_type_map = {
-        "Kid": "Kids",
-        "Adult": "Adults",
-        "Uni Student": "Uni Students",
-    }
-    
-    if client.get("client_type") in client_type_map:
-        client.client_type = client_type_map[client.get("client_type")]
 
     client.save(ignore_permissions=True)
     frappe.db.commit()
