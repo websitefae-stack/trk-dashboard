@@ -359,12 +359,20 @@ def get_or_create_contact_for_customer(customer_name):
     if not frappe.db.exists("Customer", customer_name):
         return None
 
+    customer_fields = ["name", "customer_name"]
+
+    customer_meta = frappe.get_meta("Customer")
+    
+    for fieldname in ["email_id", "mobile_no", "phone"]:
+        if customer_meta.has_field(fieldname):
+            customer_fields.append(fieldname)
+    
     customer = frappe.db.get_value(
         "Customer",
         customer_name,
-        ["name", "customer_name", "email_id", "mobile_no", "phone"],
+        customer_fields,
         as_dict=True,
-    )
+    ) or {}
 
     contact = frappe.new_doc("Contact")
     contact.first_name = customer.get("customer_name") or customer.get("name")
@@ -535,6 +543,56 @@ def get_session_notes(doc):
     )
 
     return notes
+
+
+@frappe.whitelist()
+def link_existing_contact_to_client(client_name=None, contact_name=None, relationship_type=None, is_billing_contact=0):
+    require_logged_in_user()
+    ensure_client_access(client_name)
+
+    client_name = (client_name or "").strip()
+    contact_name = (contact_name or "").strip()
+    relationship_type = (relationship_type or "").strip()
+    is_billing_contact = int(is_billing_contact or 0)
+
+    if not client_name or not frappe.db.exists("Client", client_name):
+        frappe.throw(_("Client not found."))
+
+    if not contact_name or not frappe.db.exists("Contact", contact_name):
+        frappe.throw(_("Contact not found."))
+
+    client = frappe.get_doc("Client", client_name)
+    contact = frappe.get_doc("Contact", contact_name)
+
+    existing_row = None
+
+    for row in client.get("client_contacts") or []:
+        if row.get("contact") == contact.name:
+            existing_row = row
+            break
+
+    if not existing_row:
+        existing_row = client.append("client_contacts", {})
+
+    existing_row.contact = contact.name
+    existing_row.contact_name = (
+        contact.get("full_name")
+        or " ".join(filter(None, [contact.get("first_name"), contact.get("last_name")])).strip()
+        or contact.name
+    )
+    existing_row.email_id = contact.get("email_id") or ""
+    existing_row.phone = contact.get("mobile_no") or contact.get("phone") or ""
+    existing_row.relationship_type = relationship_type
+    existing_row.is_billing_contact = is_billing_contact
+
+    if is_billing_contact and contact.get("custom_customer"):
+        existing_row.customer = contact.get("custom_customer")
+        client.billing_contact = contact.get("custom_customer")
+
+    client.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": 1}
 
 
 @frappe.whitelist()
