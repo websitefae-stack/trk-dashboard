@@ -1106,7 +1106,15 @@ def add_client_note(client_name, note_text, session_date=None, session_type=None
     if not doc.meta.has_field("session_notes"):
         frappe.throw(_("No session notes child table was found on Client."))
 
+    # Fix any existing note rows missing mandatory client field
+    for existing_child in doc.get("session_notes") or []:
+        if existing_child.meta.has_field("client") and not existing_child.get("client"):
+            existing_child.client = doc.name
+
     child = doc.append("session_notes", {})
+
+    if child.meta.has_field("client"):
+        child.client = doc.name
 
     if child.meta.has_field("notes"):
         child.notes = note_text
@@ -1128,8 +1136,7 @@ def add_client_note(client_name, note_text, session_date=None, session_type=None
     frappe.db.commit()
 
     return {"ok": 1, "message": _("Note added successfully.")}
-
-
+    
 def get_client_context_data(client_name=None, is_new=False, base_url="/coach_db", enforce_access=True):
     require_logged_in_user()
 
