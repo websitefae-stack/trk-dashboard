@@ -424,7 +424,16 @@ def save_contact_for_scope(scope, docname=None, data=None):
 
         if is_billing_contact and contact.get("custom_customer"):
             client.billing_contact = contact.get("custom_customer")
-
+        
+        client_type_map = {
+            "Kid": "Kids",
+            "Adult": "Adults",
+            "Uni Student": "Uni Students",
+        }
+        
+        if client.get("client_type") in client_type_map:
+            client.client_type = client_type_map[client.get("client_type")]
+        
         client.save(ignore_permissions=True)
 
     frappe.db.commit()
