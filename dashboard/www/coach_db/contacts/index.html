@@ -83,7 +83,7 @@
                     data-linked-clients="{{ (c.linked_client_text or '')|lower }}"
                   >
                     <td>
-                      <a class="dashboard-client-name-link dashboard-contact-name-link" href="/coach_db/contact_details?name={{ c.name }}{{ coach_view_query | replace('?', '&') if coach_is_view_mode else '' }}">
+                      <a class="dashboard-client-name-link dashboard-contact-name-link" href="/coach_db/contact_details?name={{ c.name | urlencode }}{{ coach_view_query | replace('?', '&') if coach_is_view_mode else '' }}">
                         {{ c.display_name or c.name }}
                       </a>
                     </td>
@@ -91,7 +91,7 @@
                     <td>{{ c.email_id or "—" }}</td>
                     <td>{{ c.linked_client_text or "—" }}</td>
                     <td class="dashboard-action-cell">
-                      <a class="dashboard-link-btn" href="/coach_db/contact_details?name={{ c.name }}{{ coach_view_query | replace('?', '&') if coach_is_view_mode else '' }}">View</a>
+                      <a class="dashboard-link-btn" href="/coach_db/contact_details?name={{ c.name | urlencode }}{{ coach_view_query | replace('?', '&') if coach_is_view_mode else '' }}">View</a>
                     </td>
                   </tr>
                 {% endfor %}
