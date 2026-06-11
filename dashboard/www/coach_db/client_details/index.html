@@ -636,4 +636,66 @@
       </div>
     </div>
   </div>
+
+  <div class="trk-calendar-modal-backdrop" id="therapyLocationModal">
+    <div class="trk-calendar-modal">
+      <div class="trk-calendar-modal-head">
+        <h3>Add Therapy Location</h3>
+  
+        <button type="button" class="trk-calendar-icon-btn" id="therapyLocationModalClose">
+          ✕
+        </button>
+      </div>
+  
+      <div class="trk-calendar-modal-body">
+        <div class="trk-calendar-field">
+          <label for="newTherapyLocationName">Location Name *</label>
+          <input type="text" id="newTherapyLocationName" class="dashboard-input">
+        </div>
+  
+        <div class="trk-calendar-field">
+          <label for="newTherapyLocationType">Location Type *</label>
+          <select id="newTherapyLocationType" class="dashboard-select">
+            <option value="">Select</option>
+            <option value="Home">Home</option>
+            <option value="School">School</option>
+            <option value="Online">Online</option>
+            <option value="Office">Office</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+  
+        <div class="trk-calendar-field">
+          <label for="newTherapyAddress1">Address Line 1</label>
+          <input type="text" id="newTherapyAddress1" class="dashboard-input">
+        </div>
+  
+        <div class="trk-calendar-field">
+          <label for="newTherapyAddress2">Address Line 2</label>
+          <input type="text" id="newTherapyAddress2" class="dashboard-input">
+        </div>
+  
+        <div class="trk-calendar-field">
+          <label for="newTherapyCity">City</label>
+          <input type="text" id="newTherapyCity" class="dashboard-input">
+        </div>
+  
+        <div class="trk-calendar-field">
+          <label for="newTherapyPostalCode">Postal Code</label>
+          <input type="text" id="newTherapyPostalCode" class="dashboard-input">
+        </div>
+      </div>
+  
+      <div class="trk-calendar-modal-foot">
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="therapyLocationModalCancel">
+          Cancel
+        </button>
+  
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveTherapyLocationBtn">
+          Save Location
+        </button>
+      </div>
+    </div>
+  </div>
+    
 </div>
