@@ -626,7 +626,9 @@ def link_existing_contact_to_client(client_name=None, contact_name=None, relatio
 @frappe.whitelist()
 def get_client_notes(client_name):
     require_logged_in_user()
-    ensure_client_access(client_name)
+
+    if not client_name or not frappe.db.exists("Client", client_name):
+        frappe.throw(_("Client not found."))
 
     doc = frappe.get_doc("Client", client_name)
     return get_session_notes(doc)
@@ -880,11 +882,32 @@ def get_client_appointment_rows(client_name, calendar_detail_base_url="/coach_db
 
 
 @frappe.whitelist()
+@frappe.whitelist()
 def get_client_appointments(client_name, calendar_detail_base_url="/coach_db/calendar_details"):
     require_logged_in_user()
-    ensure_client_access(client_name)
 
     if not client_name:
+        return []
+
+    if not frappe.db.exists("Client", client_name):
+        frappe.throw(_("Client not found."))
+
+    appointment_rows = get_client_appointment_rows(client_name, calendar_detail_base_url)
+
+    if appointment_rows:
+        return appointment_rows
+
+    event_rows = get_event_client_appointments(client_name, calendar_detail_base_url)
+    if event_rows is not None:
+        return event_rows
+
+    return []
+
+def get_client_appointments_for_context(client_name, calendar_detail_base_url="/coach_db/calendar_details"):
+    if not client_name:
+        return []
+
+    if not frappe.db.exists("Client", client_name):
         return []
 
     appointment_rows = get_client_appointment_rows(client_name, calendar_detail_base_url)
@@ -893,6 +916,7 @@ def get_client_appointments(client_name, calendar_detail_base_url="/coach_db/cal
         return appointment_rows
 
     event_rows = get_event_client_appointments(client_name, calendar_detail_base_url)
+
     if event_rows is not None:
         return event_rows
 
@@ -968,9 +992,18 @@ def get_client_invoices(client_name):
     if not client_name or not frappe.db.exists("DocType", "Sales Invoice"):
         return []
 
+    invoice_meta = frappe.get_meta("Sales Invoice")
+
+    filters = {}
+
+    if invoice_meta.has_field("custom_client"):
+        filters["custom_client"] = client_name
+    else:
+        return []
+
     return frappe.get_all(
         "Sales Invoice",
-        filters={"custom_client": client_name},
+        filters=filters,
         fields=[
             "name",
             "posting_date",
@@ -983,6 +1016,7 @@ def get_client_invoices(client_name):
         ],
         order_by="posting_date desc, creation desc",
         limit_page_length=200,
+        ignore_permissions=True,
     )
 
 
@@ -1148,7 +1182,9 @@ def save_client(docname=None, data=None):
 @frappe.whitelist()
 def add_client_note(client_name, note_text, session_date=None, session_type=None):
     require_logged_in_user()
-    ensure_client_access(client_name)
+
+    if not client_name or not frappe.db.exists("Client", client_name):
+        frappe.throw(_("Client not found."))
 
     note_text = (note_text or "").strip()
 
@@ -1213,7 +1249,7 @@ def get_client_context_data(client_name=None, is_new=False, base_url="/coach_db"
         "billing_contact": get_billing_contact(doc, f"{base_url}/contact_details"),
         "client_contacts": get_client_contacts_for_context(doc, f"{base_url}/contact_details"),
         "session_notes": get_session_notes(doc),
-        "client_appointments": get_client_appointments(
+        "client_appointments": get_client_appointments_for_context(
             doc.name if is_existing_client else "",
             f"{base_url}/calendar_details",
         ) if is_existing_client else [],
