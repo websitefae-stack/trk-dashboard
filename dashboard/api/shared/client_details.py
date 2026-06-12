@@ -81,13 +81,13 @@ LAYOUT = [
                     {"label": "Pronouns", "candidates": ["pronouns"]},
                 ],
             },
-            {
+           {
                 "title": "Medical",
                 "columns": 2,
                 "fields": [
-                    {"label": "Diagnosis", "candidates": ["diagnosis"]},
-                    {"label": "Neurodiverse Status", "candidates": ["neurodiverse_status"]},
+                    {"label": "Diagnosis", "candidates": ["diagnosis"], "full_width": True},
                     {"label": "Allergies", "candidates": ["allergies"]},
+                    {"label": "Neurodiverse Status", "candidates": ["neurodiverse_status"]},
                     {"label": "Neurodiverse Information", "candidates": ["neurodiverse_information"]},
                 ],
             },
