@@ -48,6 +48,53 @@ def get_client_display_name(client):
         or ""
     )
 
+def get_customer_address(customer_name):
+    if not customer_name:
+        return ""
+
+    address_name = frappe.db.get_value(
+        "Address",
+        {"link_doctype": "Customer", "link_name": customer_name},
+        "name",
+    )
+
+    if address_name:
+        return address_name
+
+    address_name = frappe.db.get_value(
+        "Dynamic Link",
+        {
+            "parenttype": "Address",
+            "link_doctype": "Customer",
+            "link_name": customer_name,
+        },
+        "parent",
+    )
+
+    return address_name or ""
+
+
+def link_address_to_contact(address_name, contact_name):
+    if not address_name or not contact_name:
+        return
+
+    if not frappe.db.exists("Address", address_name):
+        return
+
+    address = frappe.get_doc("Address", address_name)
+
+    existing_links = {
+        (row.link_doctype, row.link_name)
+        for row in address.get("links") or []
+    }
+
+    if ("Contact", contact_name) not in existing_links:
+        address.append("links", {
+            "link_doctype": "Contact",
+            "link_name": contact_name,
+        })
+        address.save(ignore_permissions=True)
+
 
 def get_contact_from_customer(customer_name):
     if not customer_name:
@@ -60,6 +107,11 @@ def get_contact_from_customer(customer_name):
     )
 
     if contact:
+        address_name = get_customer_address(customer_name)
+        if address_name:
+            frappe.db.set_value(CONTACT_DOCTYPE, contact, "address", address_name)
+            link_address_to_contact(address_name, contact)
+
         return contact
 
     links = frappe.get_all(
@@ -73,7 +125,52 @@ def get_contact_from_customer(customer_name):
         limit_page_length=1,
     )
 
-    return links[0] if links else ""
+    if links:
+        contact = links[0]
+        address_name = get_customer_address(customer_name)
+        if address_name:
+            frappe.db.set_value(CONTACT_DOCTYPE, contact, "address", address_name)
+            link_address_to_contact(address_name, contact)
+
+        return contact
+
+    if not frappe.db.exists("Customer", customer_name):
+        return ""
+
+    customer = frappe.get_doc("Customer", customer_name)
+
+    contact_doc = frappe.new_doc(CONTACT_DOCTYPE)
+    contact_doc.first_name = customer.customer_name or customer.name
+    contact_doc.full_name = customer.customer_name or customer.name
+    contact_doc.company_name = customer.customer_name or ""
+    contact_doc.is_billing_contact = 1
+    contact_doc.custom_customer = customer.name
+
+    address_name = get_customer_address(customer.name)
+
+    if address_name:
+        contact_doc.address = address_name
+
+    contact_doc.append("links", {
+        "link_doctype": "Customer",
+        "link_name": customer.name,
+    })
+
+    contact_doc.insert(ignore_permissions=True)
+
+    if address_name:
+        link_address_to_contact(address_name, contact_doc.name)
+
+    customer.customer_primary_contact = contact_doc.name
+
+    if address_name:
+        customer.customer_primary_address = address_name
+
+    customer.save(ignore_permissions=True)
+
+    frappe.db.commit()
+
+    return contact_doc.name
 
 
 def get_allowed_clients(scope, coach_scope="my"):
@@ -171,15 +268,17 @@ def get_contact_names_from_clients(clients, include_billing_contact=True):
                 contact_names.add(row.get("contact"))
 
         for row in client_doc.get("client_contacts") or []:
-
             if row.get("is_billing_contact") and row.get("customer"):
-        
-                billing_contact = get_contact_from_customer(
-                    row.get("customer")
-                )
-        
+                billing_contact = get_contact_from_customer(row.get("customer"))
+
                 if billing_contact:
                     contact_names.add(billing_contact)
+
+        if include_billing_contact and client_doc.get("billing_contact"):
+            billing_contact = get_contact_from_customer(client_doc.get("billing_contact"))
+
+            if billing_contact:
+                contact_names.add(billing_contact)
 
     return sorted(contact_names)
 
@@ -199,6 +298,12 @@ def get_linked_clients_for_contact(contact_name, clients):
             if row.get("contact") == contact_name:
                 linked = True
                 break
+
+        if not linked and client_doc.get("billing_contact"):
+            billing_contact = get_contact_from_customer(client_doc.get("billing_contact"))
+
+            if billing_contact == contact_name:
+                linked = True
 
         if not linked:
 
