@@ -87,8 +87,10 @@ LAYOUT = [
                 "columns": 2,
                 "fields": [
                     {"label": "Neurodiverse Status", "candidates": ["neurodiverse_status"]},
-                    {"label": "Neurodiverse Information", "candidates": ["neurodiverse_information"], "full_width": True},
-                    {"label": "Allergies", "candidates": ["allergies"], "full_width": True},
+                    {"label": "Allergies", "candidates": ["allergies"]},
+            
+                    {"label": "Neurodiverse Information", "candidates": ["neurodiverse_information"]},
+                    {"label": "Diagnosis", "candidates": ["diagnosis"]},
                 ],
             },
         ],
@@ -1035,6 +1037,54 @@ def get_link_options(doctype, txt=None, limit_page_length=500):
 
     return filtered
 
+def calculate_age_from_dob(date_of_birth):
+    if not date_of_birth:
+        return None
+
+    dob = frappe.utils.getdate(date_of_birth)
+    today = frappe.utils.getdate()
+
+    age = today.year - dob.year
+
+    if (today.month, today.day) < (dob.month, dob.day):
+        age -= 1
+
+    return age
+
+
+def get_client_type_from_age(age):
+    if age is None:
+        return ""
+
+    if age < 12:
+        return "Kid"
+    if age < 18:
+        return "Teen"
+    if age <= 21:
+        return "Uni Student"
+
+    return "Adult"
+
+
+def apply_age_and_client_type(doc):
+    if not doc.meta.has_field("date_of_birth"):
+        return
+
+    dob = doc.get("date_of_birth")
+
+    if not dob:
+        if doc.meta.has_field("age"):
+            doc.age = None
+        return
+
+    age = calculate_age_from_dob(dob)
+
+    if doc.meta.has_field("age"):
+        doc.age = age
+
+    if doc.meta.has_field("client_type"):
+        doc.client_type = get_client_type_from_age(age)
+
 
 @frappe.whitelist()
 def save_client(docname=None, data=None):
@@ -1084,7 +1134,9 @@ def save_client(docname=None, data=None):
 
     if is_new_client:
         set_full_name_from_parts(doc, payload)
-
+    
+    apply_age_and_client_type(doc)
+    
     sync_billing_contact_to_client_contacts(doc)
 
     doc.save(ignore_permissions=True)
