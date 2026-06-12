@@ -193,7 +193,7 @@ def build_field(df, doc, config, is_new=False):
         "is_check": df.fieldtype == "Check",
         "is_select": df.fieldtype == "Select",
         "is_link": df.fieldtype == "Link",
-        "is_full_width": bool(config.get("full_width")) or df.fieldtype in TEXTAREA_TYPES,
+        "is_full_width": bool(config.get("full_width")),
         "is_table": df.fieldtype == "Table",
         "table_rows": [row.as_dict() for row in doc.get(df.fieldname)] if df.fieldtype == "Table" else [],
     }
@@ -783,6 +783,7 @@ def get_event_client_appointments(client_name, calendar_detail_base_url="/coach_
         fields=fields,
         order_by="starts_on desc",
         limit_page_length=500,
+        ignore_permissions=True,
     )
 
     result = []
@@ -1011,18 +1012,36 @@ def get_client_invoices(client_name):
     if not client_name or not frappe.db.exists("DocType", "Sales Invoice"):
         return []
 
+    invoice_names = set()
+
     invoice_meta = frappe.get_meta("Sales Invoice")
 
-    filters = {}
-
     if invoice_meta.has_field("custom_client"):
-        filters["custom_client"] = client_name
-    else:
+        invoice_names.update(frappe.get_all(
+            "Sales Invoice",
+            filters={"custom_client": client_name},
+            pluck="name",
+            limit_page_length=500,
+            ignore_permissions=True,
+        ))
+
+    if frappe.db.exists("DocType", "Client Package Balance"):
+        for row in frappe.get_all(
+            "Client Package Balance",
+            filters={"client": client_name},
+            fields=["sales_invoice"],
+            limit_page_length=500,
+            ignore_permissions=True,
+        ):
+            if row.get("sales_invoice"):
+                invoice_names.add(row.get("sales_invoice"))
+
+    if not invoice_names:
         return []
 
     return frappe.get_all(
         "Sales Invoice",
-        filters=filters,
+        filters={"name": ["in", list(invoice_names)]},
         fields=[
             "name",
             "posting_date",
@@ -1034,7 +1053,7 @@ def get_client_invoices(client_name):
             "docstatus",
         ],
         order_by="posting_date desc, creation desc",
-        limit_page_length=200,
+        limit_page_length=500,
         ignore_permissions=True,
     )
 
@@ -1047,6 +1066,8 @@ def get_link_display_fields(doctype):
     fields = ["name"]
 
     for fieldname in [
+        "diagnosis_name",
+        "diagnoses",
         "coach_name",
         "sw_name",
         "session_worker_name",
@@ -1200,17 +1221,32 @@ def save_client(docname=None, data=None):
             if not isinstance(row_data, dict):
                 continue
 
-            diagnoses = (row_data.get("diagnoses") or "").strip()
+            selected_diagnosis = (row_data.get("diagnoses") or "").strip()
+            new_diagnosis = (row_data.get("new_diagnosis") or "").strip()
             note = (row_data.get("note") or "").strip()
             date = row_data.get("date") or None
 
-            if not diagnoses and not note and not date:
+            diagnosis_value = selected_diagnosis or new_diagnosis
+
+            if not diagnosis_value and not note and not date:
                 continue
+
+            if new_diagnosis and frappe.db.exists("DocType", "Diagnosis Option"):
+                if not frappe.db.exists("Diagnosis Option", new_diagnosis):
+                    diagnosis_doc = frappe.new_doc("Diagnosis Option")
+
+                    if diagnosis_doc.meta.has_field("diagnosis_name"):
+                        diagnosis_doc.diagnosis_name = new_diagnosis
+
+                    diagnosis_doc.insert(ignore_permissions=True)
+                    diagnosis_value = diagnosis_doc.name
+                else:
+                    diagnosis_value = new_diagnosis
 
             child = doc.append("diagnosis", {})
 
             if child.meta.has_field("diagnoses"):
-                child.diagnoses = diagnoses
+                child.diagnoses = diagnosis_value
 
             if child.meta.has_field("note"):
                 child.note = note
