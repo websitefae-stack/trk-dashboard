@@ -43,18 +43,35 @@
         <input type="hidden" id="csrfToken" value="{{ frappe.session.csrf_token or '' }}">
 
         <div class="dashboard-tabs dashboard-client-detail-tabs">
-          {% for tab in tabs %}
-            <button
-              type="button"
-              class="dashboard-tab-btn dashboard-client-detail-tab-btn {% if loop.first %}is-active{% endif %}"
-              data-tab-target="tab-{{ loop.index }}"
-            >
-              <span class="dashboard-tab-label-full">{{ tab.label }}</span>
-              <span class="dashboard-tab-label-short">
-                {% if tab.label == "Administration" %}Admin{% else %}{{ tab.label }}{% endif %}
-              </span>
-            </button>
-          {% endfor %}
+          <button type="button" class="dashboard-tab-btn dashboard-client-detail-tab-btn is-active" data-tab-target="tab-1">
+            <span class="dashboard-tab-label-full">Details</span>
+            <span class="dashboard-tab-label-short">Details</span>
+          </button>
+        
+          <button type="button" class="dashboard-tab-btn dashboard-client-detail-tab-btn" data-tab-target="tab-2">
+            <span class="dashboard-tab-label-full">Administration</span>
+            <span class="dashboard-tab-label-short">Admin</span>
+          </button>
+        
+          <button type="button" class="dashboard-tab-btn dashboard-client-detail-tab-btn" data-tab-target="tab-3">
+            <span class="dashboard-tab-label-full">Contacts</span>
+            <span class="dashboard-tab-label-short">Contacts</span>
+          </button>
+        
+          <button type="button" class="dashboard-tab-btn dashboard-client-detail-tab-btn" data-tab-target="tab-4">
+            <span class="dashboard-tab-label-full">Notes</span>
+            <span class="dashboard-tab-label-short">Notes</span>
+          </button>
+        
+          <button type="button" class="dashboard-tab-btn dashboard-client-detail-tab-btn" data-tab-target="tab-5">
+            <span class="dashboard-tab-label-full">Appointments</span>
+            <span class="dashboard-tab-label-short">Appts</span>
+          </button>
+        
+          <button type="button" class="dashboard-tab-btn dashboard-client-detail-tab-btn" data-tab-target="tab-6">
+            <span class="dashboard-tab-label-full">Billing</span>
+            <span class="dashboard-tab-label-short">Billing</span>
+          </button>
         </div>
 
         <form id="clientDetailsForm" class="dashboard-detail-form" onsubmit="return false;">
