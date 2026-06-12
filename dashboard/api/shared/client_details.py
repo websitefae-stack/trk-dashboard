@@ -511,7 +511,26 @@ def get_client_contacts_for_context(doc, contact_detail_base_url="/coach_db/cont
     if not doc or not doc.name:
         return []
 
-    return get_client_contacts(doc.name, contact_detail_base_url)
+    contacts = []
+
+    for row in doc.get("client_contacts") or []:
+        contact_name = row.get("contact")
+        contact_data = get_contact_data(contact_name)
+
+        contacts.append({
+            "name": contact_name,
+            "contact": contact_name,
+            "display_name": row.get("contact_name") or contact_data.get("display_name") or contact_name or "Contact",
+            "contact_name": row.get("contact_name") or contact_data.get("display_name") or contact_name or "Contact",
+            "mobile": row.get("phone") or contact_data.get("phone") or "",
+            "phone": row.get("phone") or contact_data.get("phone") or "",
+            "email": row.get("email_id") or contact_data.get("email") or "",
+            "company": contact_data.get("company") or "",
+            "relationship": row.get("relationship") or row.get("relation") or "",
+            "link": f"{contact_detail_base_url}?name={contact_name}" if contact_name else "",
+        })
+
+    return contacts
 
 
 def get_session_notes(doc):
@@ -921,6 +940,25 @@ def get_client_appointments_for_context(client_name, calendar_detail_base_url="/
 
     return []
 
+def get_client_appointments_for_context(client_name, calendar_detail_base_url="/coach_db/calendar_details"):
+    if not client_name:
+        return []
+
+    if not frappe.db.exists("Client", client_name):
+        return []
+
+    appointment_rows = get_client_appointment_rows(client_name, calendar_detail_base_url)
+
+    if appointment_rows:
+        return appointment_rows
+
+    event_rows = get_event_client_appointments(client_name, calendar_detail_base_url)
+
+    if event_rows is not None:
+        return event_rows
+
+    return []
+
 
 def whole_number(value):
     try:
@@ -963,13 +1001,14 @@ def get_package_balances(client_name):
         if frappe.db.has_column("Client Package Balance", fieldname):
             fields.append(fieldname)
 
-    rows = frappe.get_all(
-        "Client Package Balance",
-        filters={"client": client_name},
-        fields=fields,
-        order_by="creation desc",
-        limit_page_length=200,
-    )
+        rows = frappe.get_all(
+            "Client Package Balance",
+            filters={"client": client_name},
+            fields=fields,
+            order_by="appointment_start desc, creation desc",
+            limit_page_length=200,
+            ignore_permissions=True,
+        )
 
     for row in rows:
         purchased = whole_number(row.get("qty_purchased"))
