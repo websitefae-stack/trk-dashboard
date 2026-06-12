@@ -441,23 +441,22 @@ def save_contact_for_scope(scope, docname=None, data=None):
             or contact.get("email_id")
             or contact.name
         )
-
-        contact.save(ignore_permissions=True)
-
-        upsert_contact_address(
-            contact=contact,
-            customer_name=contact.get("custom_customer") or "",
-        )
-
+        customer_doc.insert(ignore_permissions=True)
+    
         contact.custom_customer = customer_doc.name
         contact.is_billing_contact = 1
-
+    
         contact.append("links", {
             "link_doctype": "Customer",
             "link_name": customer_doc.name,
         })
-
+    
         contact.save(ignore_permissions=True)
+    
+        upsert_contact_address(
+            contact=contact,
+            customer_name=customer_doc.name,
+        )
 
     if contact.get("custom_customer") and frappe.db.exists("Customer", contact.get("custom_customer")):
         customer_doc = frappe.get_doc("Customer", contact.get("custom_customer"))
