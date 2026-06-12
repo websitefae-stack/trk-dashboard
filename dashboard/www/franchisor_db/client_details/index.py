@@ -35,7 +35,7 @@ def get_context(context):
         client_name=client_name,
         is_new=bool(is_new),
         base_url="/franchisor_db",
-        enforce_access=True,
+        enforce_access=False,
     )
 
     for key, value in data.items():
