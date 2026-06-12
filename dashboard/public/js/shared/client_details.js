@@ -282,6 +282,45 @@
       .join(" ");
   }
 
+    function calculateAgeFromDob(dobValue) {
+      if (!dobValue) return "";
+  
+      const dob = new Date(dobValue);
+  
+      if (Number.isNaN(dob.getTime())) return "";
+  
+      const today = new Date();
+  
+      let age = today.getFullYear() - dob.getFullYear();
+      const monthDiff = today.getMonth() - dob.getMonth();
+  
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+        age--;
+      }
+  
+      return age;
+    }
+  
+    function updateAgeFromDateOfBirth() {
+      const dobField = getField("date_of_birth");
+      const ageField = getField("age");
+  
+      if (!dobField || !ageField) return;
+  
+      ageField.value = calculateAgeFromDob(dobField.value);
+    }
+  
+    function initAgeBuilder() {
+      const dobField = getField("date_of_birth");
+  
+      if (!dobField) return;
+  
+      dobField.addEventListener("input", updateAgeFromDateOfBirth);
+      dobField.addEventListener("change", updateAgeFromDateOfBirth);
+  
+      updateAgeFromDateOfBirth();
+    }
+
   function initFullNameBuilder() {
     if (!isNewClientPage()) return;
 
@@ -728,6 +767,7 @@
     initAddNote();
     initLinkOptions();
     initFullNameBuilder();
+    initAgeBuilder();
     initChangeRequest();
     initExistingContactModal();
 
