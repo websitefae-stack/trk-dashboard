@@ -763,6 +763,30 @@
         });
       });
     }
+
+    function initDiagnosisRows() {
+      const button = el("addDiagnosisRow");
+      const body = el("diagnosisTableBody");
+  
+      if (!button || !body) return;
+  
+      button.addEventListener("click", function (event) {
+        event.preventDefault();
+  
+        const emptyRow = body.querySelector("[data-diagnosis-empty-row='1']");
+        if (emptyRow) emptyRow.remove();
+  
+        const row = document.createElement("tr");
+        row.setAttribute("data-diagnosis-row", "1");
+  
+        row.innerHTML =
+          '<td><input class="dashboard-input" data-diagnosis-field="diagnoses"></td>' +
+          '<td><input class="dashboard-input" data-diagnosis-field="note"></td>' +
+          '<td><input type="date" class="dashboard-input" data-diagnosis-field="date"></td>';
+  
+        body.appendChild(row);
+      });
+    }
   
   function initExistingContactModal() {
     const buttons = qsa(".select-existing-contact-btn");
@@ -835,6 +859,7 @@
     initAgeBuilder();
     initChangeRequest();
     initExistingContactModal();
+    initDiagnosisRows();
     initSaveBeforeNewContactLinks();
 
     if (roleConfig.role === "session_worker") {
