@@ -151,7 +151,15 @@
 
           <div class="dashboard-detail-field">
             <label for="invoice_posting_date">Posting Date</label>
-            <input type="date" id="invoice_posting_date" class="dashboard-input" value="{{ doc.posting_date or '' }}" readonly>
+            <input
+              type="date"
+              id="invoice_posting_date"
+              class="dashboard-input"
+              value="{{ doc.posting_date or '' }}"
+              data-invoice-field="1"
+              data-fieldname="posting_date"
+              data-meta-readonly="0"
+            >
           </div>
 
           <div class="dashboard-detail-field">
