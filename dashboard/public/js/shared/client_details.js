@@ -238,22 +238,36 @@
     document.body.classList.toggle("client-edit-mode", !!isEditing);
   }
 
-  function collectClientData() {
-    const data = {};
-
-    qsa("[data-client-field='1']").forEach(function (field) {
-      const fieldname = field.dataset.fieldname;
-      if (!fieldname) return;
-
-      if (field.type === "checkbox") {
-        data[fieldname] = field.checked ? 1 : 0;
-      } else {
-        data[fieldname] = field.value;
+    function collectClientData() {
+      const data = {};
+  
+      qsa("[data-client-field='1']").forEach(function (field) {
+        const fieldname = field.dataset.fieldname;
+        if (!fieldname) return;
+  
+        if (field.type === "checkbox") {
+          data[fieldname] = field.checked ? 1 : 0;
+        } else {
+          data[fieldname] = field.value;
+        }
+      });
+  
+      const diagnosisRows = [];
+  
+      qsa("[data-diagnosis-row='1']").forEach(function (row) {
+        diagnosisRows.push({
+          diagnoses: row.querySelector("[data-diagnosis-field='diagnoses']") ? row.querySelector("[data-diagnosis-field='diagnoses']").value : "",
+          note: row.querySelector("[data-diagnosis-field='note']") ? row.querySelector("[data-diagnosis-field='note']").value : "",
+          date: row.querySelector("[data-diagnosis-field='date']") ? row.querySelector("[data-diagnosis-field='date']").value : ""
+        });
+      });
+  
+      if (diagnosisRows.length) {
+        data.diagnosis = diagnosisRows;
       }
-    });
-
-    return data;
-  }
+  
+      return data;
+    }
 
   function isNewClientPage() {
     const params = new URLSearchParams(window.location.search);
