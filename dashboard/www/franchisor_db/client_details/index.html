@@ -67,7 +67,11 @@
                     <h2 class="dashboard-detail-section-title">Billing Contact</h2>
                   
                     <div class="dashboard-detail-actions">
-                      <a class="dashboard-btn dashboard-btn-light" href="/franchisor_db/contact_details?new=1&client={{ client_docname | urlencode }}">
+                      <a
+                        class="dashboard-btn dashboard-btn-light"
+                        href="/franchisor_db/contact_details?new=1&client={{ client_docname | urlencode }}"
+                        data-save-client-before-contact="1"
+                      >
                         Add New Contact
                       </a>
                   </div>
@@ -124,7 +128,11 @@
                     <h2 class="dashboard-detail-section-title">Client Contacts</h2>
                   
                     <div class="dashboard-detail-actions">
-                      <a class="dashboard-btn dashboard-btn-light" href="/franchisor_db/contact_details?new=1&client={{ client_docname | urlencode }}">
+                      <a
+                        class="dashboard-btn dashboard-btn-light"
+                        href="/franchisor_db/contact_details?new=1&client={{ client_docname | urlencode }}"
+                        data-save-client-before-contact="1"
+                      >
                         Add New Contact
                       </a>
                       
