@@ -848,6 +848,7 @@ def get_client_appointment_rows(client_name, calendar_detail_base_url="/coach_db
         ],
         order_by="appointment_start desc, creation desc",
         limit_page_length=200,
+        ignore_permissions=True,
     )
 
     result = []
@@ -900,7 +901,6 @@ def get_client_appointment_rows(client_name, calendar_detail_base_url="/coach_db
 
 
 @frappe.whitelist()
-@frappe.whitelist()
 def get_client_appointments(client_name, calendar_detail_base_url="/coach_db/calendar_details"):
     require_logged_in_user()
 
@@ -921,24 +921,6 @@ def get_client_appointments(client_name, calendar_detail_base_url="/coach_db/cal
 
     return []
 
-def get_client_appointments_for_context(client_name, calendar_detail_base_url="/coach_db/calendar_details"):
-    if not client_name:
-        return []
-
-    if not frappe.db.exists("Client", client_name):
-        return []
-
-    appointment_rows = get_client_appointment_rows(client_name, calendar_detail_base_url)
-
-    if appointment_rows:
-        return appointment_rows
-
-    event_rows = get_event_client_appointments(client_name, calendar_detail_base_url)
-
-    if event_rows is not None:
-        return event_rows
-
-    return []
 
 def get_client_appointments_for_context(client_name, calendar_detail_base_url="/coach_db/calendar_details"):
     if not client_name:
@@ -958,8 +940,6 @@ def get_client_appointments_for_context(client_name, calendar_detail_base_url="/
         return event_rows
 
     return []
-
-
 def whole_number(value):
     try:
         return int(float(value or 0))
@@ -1001,14 +981,14 @@ def get_package_balances(client_name):
         if frappe.db.has_column("Client Package Balance", fieldname):
             fields.append(fieldname)
 
-        rows = frappe.get_all(
-            "Client Package Balance",
-            filters={"client": client_name},
-            fields=fields,
-            order_by="appointment_start desc, creation desc",
-            limit_page_length=200,
-            ignore_permissions=True,
-        )
+    rows = frappe.get_all(
+        "Client Package Balance",
+        filters={"client": client_name},
+        fields=fields,
+        order_by="creation desc",
+        limit_page_length=200,
+        ignore_permissions=True,
+    )
 
     for row in rows:
         purchased = whole_number(row.get("qty_purchased"))
