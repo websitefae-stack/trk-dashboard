@@ -688,6 +688,7 @@
     return {
       customer: el("invoice_customer")?.value || "",
       custom_client: el("invoice_custom_client")?.value || "",
+      posting_date: el("invoice_posting_date")?.value || "",
       due_date: el("invoice_due_date")?.value || "",
       items: qsa("#invoiceItemsBody tr").map((row) => ({
         item_code: row.querySelector("[data-item-field='item_code']")?.value || "",
