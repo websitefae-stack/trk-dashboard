@@ -106,7 +106,6 @@ LAYOUT = [
                     {"label": "Primary Coach", "candidates": ["primary_coach"]},
                     {"label": "Attending Coach", "candidates": ["attending_coach"]},
                     {"label": "Session Worker", "candidates": ["session_worker"]},
-                    {"label": "Billing Contact", "candidates": ["billing_contact"]},
                     {"label": "Coach Banking Details", "candidates": ["coach_banking_details"]},
                     {"label": "Pricelist", "candidates": ["pricelist", "price_list"]},
                     {"label": "Company", "candidates": ["company"]},
