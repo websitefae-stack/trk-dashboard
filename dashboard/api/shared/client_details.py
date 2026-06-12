@@ -25,7 +25,6 @@ SKIP_FIELDTYPES = {
     "Fold",
     "Heading",
     "Image",
-    "Table",
     "Table MultiSelect",
 }
 
@@ -197,6 +196,8 @@ def build_field(df, doc, config, is_new=False):
         "is_select": df.fieldtype == "Select",
         "is_link": df.fieldtype == "Link",
         "is_full_width": bool(config.get("full_width")) or df.fieldtype in TEXTAREA_TYPES,
+        "is_table": df.fieldtype == "Table",
+        "table_rows": [row.as_dict() for row in doc.get(df.fieldname)] if df.fieldtype == "Table" else [],
     }
 
 
