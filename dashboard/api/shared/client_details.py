@@ -940,6 +940,7 @@ def get_client_appointments_for_context(client_name, calendar_detail_base_url="/
         return event_rows
 
     return []
+    
 def whole_number(value):
     try:
         return int(float(value or 0))
@@ -1184,38 +1185,38 @@ def save_client(docname=None, data=None):
 
         doc.set(fieldname, value)
 
-        if doc.meta.has_field("diagnosis") and "diagnosis" in payload:
-            doc.set("diagnosis", [])
-    
-            diagnosis_rows = payload.get("diagnosis") or []
-    
-            if isinstance(diagnosis_rows, str):
-                try:
-                    diagnosis_rows = json.loads(diagnosis_rows)
-                except Exception:
-                    diagnosis_rows = []
-    
-            for row_data in diagnosis_rows:
-                if not isinstance(row_data, dict):
-                    continue
-    
-                diagnoses = (row_data.get("diagnoses") or "").strip()
-                note = (row_data.get("note") or "").strip()
-                date = row_data.get("date") or None
-    
-                if not diagnoses and not note and not date:
-                    continue
-    
-                child = doc.append("diagnosis", {})
-    
-                if child.meta.has_field("diagnoses"):
-                    child.diagnoses = diagnoses
-    
-                if child.meta.has_field("note"):
-                    child.note = note
-    
-                if child.meta.has_field("date"):
-                    child.date = date
+    if doc.meta.has_field("diagnosis") and "diagnosis" in payload:
+        doc.set("diagnosis", [])
+
+        diagnosis_rows = payload.get("diagnosis") or []
+
+        if isinstance(diagnosis_rows, str):
+            try:
+                diagnosis_rows = json.loads(diagnosis_rows)
+            except Exception:
+                diagnosis_rows = []
+
+        for row_data in diagnosis_rows:
+            if not isinstance(row_data, dict):
+                continue
+
+            diagnoses = (row_data.get("diagnoses") or "").strip()
+            note = (row_data.get("note") or "").strip()
+            date = row_data.get("date") or None
+
+            if not diagnoses and not note and not date:
+                continue
+
+            child = doc.append("diagnosis", {})
+
+            if child.meta.has_field("diagnoses"):
+                child.diagnoses = diagnoses
+
+            if child.meta.has_field("note"):
+                child.note = note
+
+            if child.meta.has_field("date"):
+                child.date = date
 
     if is_new_client:
         set_full_name_from_parts(doc, payload)
