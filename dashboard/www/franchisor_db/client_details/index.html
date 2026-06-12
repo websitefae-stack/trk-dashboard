@@ -511,7 +511,36 @@
                           <div class="dashboard-detail-field {% if item.is_full_width %}dashboard-detail-field-full{% endif %}">
                             <label for="field_{{ item.fieldname }}">{{ item.label }}</label>
 
-                            {% if item.is_check %}
+                            {% if item.is_table %}
+                              <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
+                                <table class="dashboard-table">
+                                  <thead>
+                                    <tr>
+                                      <th>Diagnosis</th>
+                                      <th>Note</th>
+                                      <th>Date</th>
+                                    </tr>
+                                  </thead>
+                            
+                                  <tbody>
+                                    {% if item.table_rows %}
+                                      {% for row in item.table_rows %}
+                                        <tr>
+                                          <td>{{ row.diagnoses or "—" }}</td>
+                                          <td>{{ row.note or "—" }}</td>
+                                          <td>{{ frappe.format(row.date, {"fieldtype": "Date"}) if row.date else "—" }}</td>
+                                        </tr>
+                                      {% endfor %}
+                                    {% else %}
+                                      <tr>
+                                        <td colspan="3" class="dashboard-empty">No diagnosis records found.</td>
+                                      </tr>
+                                    {% endif %}
+                                  </tbody>
+                                </table>
+                              </div>
+                            
+                            {% elif item.is_check %}
                               <div class="dashboard-checkbox-wrap">
                                 <input
                                   type="checkbox"
