@@ -86,9 +86,9 @@ LAYOUT = [
                 "columns": 2,
                 "fields": [
                     {"label": "Diagnosis", "candidates": ["diagnosis"], "full_width": True},
-                    {"label": "Allergies", "candidates": ["allergies"]},
-                    {"label": "Neurodiverse Status", "candidates": ["neurodiverse_status"]},
                     {"label": "Neurodiverse Information", "candidates": ["neurodiverse_information"]},
+                    {"label": "Neurodiverse Status", "candidates": ["neurodiverse_status"]},
+                    {"label": "Allergies", "candidates": ["allergies"]},
                 ],
             },
         ],
