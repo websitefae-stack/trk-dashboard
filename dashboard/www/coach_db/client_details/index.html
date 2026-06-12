@@ -88,7 +88,11 @@
 
                     {% if not coach_is_view_mode %}
                       <div class="dashboard-detail-actions">
-                        <a class="dashboard-btn dashboard-btn-light" href="/coach_db/contact_details?new=1&client={{ client_docname | urlencode }}">
+                        <a
+                          class="dashboard-btn dashboard-btn-light"
+                          href="/coach_db/contact_details?new=1&client={{ client_docname | urlencode }}"
+                          data-save-client-before-contact="1"
+                        >
                           Add New Contact
                         </a>
                       
@@ -150,8 +154,11 @@
                   {% if not coach_is_view_mode %}
                     <div class="dashboard-detail-actions">
                 
-                      <a class="dashboard-btn dashboard-btn-light"
-                         href="/coach_db/contact_details?new=1&client={{ client_docname | urlencode }}">
+                      <a
+                        class="dashboard-btn dashboard-btn-light"
+                        href="/coach_db/contact_details?new=1&client={{ client_docname | urlencode }}"
+                        data-save-client-before-contact="1"
+                      >
                         Add New Contact
                       </a>
                 
