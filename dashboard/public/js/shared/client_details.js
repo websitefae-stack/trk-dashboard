@@ -238,36 +238,40 @@
     document.body.classList.toggle("client-edit-mode", !!isEditing);
   }
 
-    function collectClientData() {
-      const data = {};
-  
-      qsa("[data-client-field='1']").forEach(function (field) {
-        const fieldname = field.dataset.fieldname;
-        if (!fieldname) return;
-  
-        if (field.type === "checkbox") {
-          data[fieldname] = field.checked ? 1 : 0;
-        } else {
-          data[fieldname] = field.value;
-        }
-      });
-  
-      const diagnosisRows = [];
-  
-      qsa("[data-diagnosis-row='1']").forEach(function (row) {
-        diagnosisRows.push({
-          diagnoses: row.querySelector("[data-diagnosis-field='diagnoses']") ? row.querySelector("[data-diagnosis-field='diagnoses']").value : "",
-          note: row.querySelector("[data-diagnosis-field='note']") ? row.querySelector("[data-diagnosis-field='note']").value : "",
-          date: row.querySelector("[data-diagnosis-field='date']") ? row.querySelector("[data-diagnosis-field='date']").value : ""
+      function collectClientData() {
+        const data = {};
+    
+        qsa("[data-client-field='1']").forEach(function (field) {
+          const fieldname = field.dataset.fieldname;
+          if (!fieldname) return;
+    
+          if (field.type === "checkbox") {
+            data[fieldname] = field.checked ? 1 : 0;
+          } else {
+            data[fieldname] = field.value;
+          }
         });
-      });
-  
-      if (diagnosisRows.length) {
+    
+        const diagnosisRows = [];
+    
+        qsa("[data-diagnosis-row='1']").forEach(function (row) {
+          const selectField = row.querySelector("[data-diagnosis-field='diagnoses']");
+          const newField = row.querySelector("[data-diagnosis-field='new_diagnosis']");
+          const noteField = row.querySelector("[data-diagnosis-field='note']");
+          const dateField = row.querySelector("[data-diagnosis-field='date']");
+    
+          diagnosisRows.push({
+            diagnoses: selectField ? selectField.value : "",
+            new_diagnosis: newField ? newField.value : "",
+            note: noteField ? noteField.value : "",
+            date: dateField ? dateField.value : ""
+          });
+        });
+    
         data.diagnosis = diagnosisRows;
+    
+        return data;
       }
-  
-      return data;
-    }
 
   function isNewClientPage() {
     const params = new URLSearchParams(window.location.search);
@@ -765,13 +769,14 @@
     }
 
     function initDiagnosisRows() {
-      const button = el("addDiagnosisRow");
-      const body = el("diagnosisTableBody");
+      document.addEventListener("click", function (event) {
+        const button = event.target.closest("#addDiagnosisRow");
+        if (!button) return;
   
-      if (!button || !body) return;
-  
-      button.addEventListener("click", function (event) {
         event.preventDefault();
+  
+        const body = el("diagnosisTableBody");
+        if (!body) return;
   
         const emptyRow = body.querySelector("[data-diagnosis-empty-row='1']");
         if (emptyRow) emptyRow.remove();
@@ -780,72 +785,82 @@
         row.setAttribute("data-diagnosis-row", "1");
   
         row.innerHTML =
-          '<td><input class="dashboard-input" data-diagnosis-field="diagnoses"></td>' +
+          '<td>' +
+            '<select class="dashboard-select" data-diagnosis-field="diagnoses" data-link-doctype="Diagnosis Option">' +
+              '<option value=""></option>' +
+            '</select>' +
+            '<input class="dashboard-input" data-diagnosis-field="new_diagnosis" placeholder="Or type new diagnosis" style="margin-top:6px;">' +
+          '</td>' +
           '<td><input class="dashboard-input" data-diagnosis-field="note"></td>' +
           '<td><input type="date" class="dashboard-input" data-diagnosis-field="date"></td>';
   
         body.appendChild(row);
-      });
-    }
   
-  function initExistingContactModal() {
-    const buttons = qsa(".select-existing-contact-btn");
-    const panel = el("existingContactPanel");
-    const cancelBtn = el("cancelExistingContact");
-    const linkBtn = el("linkExistingContact");
-  
-    if (!buttons.length || !panel) return;
-  
-    buttons.forEach(function (button) {
-      button.addEventListener("click", function (event) {
-        event.preventDefault();
-        panel.style.display = "block";
-        loadExistingContactOptions();
-      });
-    });
-  
-    if (cancelBtn) {
-      cancelBtn.addEventListener("click", function (event) {
-        event.preventDefault();
-        panel.style.display = "none";
-      });
-    }
-  
-    if (linkBtn) {
-      linkBtn.addEventListener("click", async function (event) {
-        event.preventDefault();
-  
-        const contactName = el("existingContactSelect") ? el("existingContactSelect").value : "";
-        const relationshipType = el("existingContactRelationship") ? el("existingContactRelationship").value : "";
-        const isBilling = el("existingContactBilling") && el("existingContactBilling").checked ? 1 : 0;
-  
-        if (!contactName) {
-          showError("Please select a contact.");
-          return;
+        const select = row.querySelector("select[data-link-doctype]");
+        if (select) {
+          loadLinkOptions(select);
         }
-  
-        try {
-          linkBtn.disabled = true;
-          linkBtn.textContent = "Linking...";
-  
-          await apiPost("link_existing_contact_to_client", {
-            client_name: getClientName(),
-            contact_name: contactName,
-            relationship_type: relationshipType,
-            is_billing_contact: isBilling
-          });
-  
-          showSuccess("Contact linked");
-          window.location.reload();
-        } catch (error) {
-          showError(error.message || "Could not link contact.");
-        } finally {
-          linkBtn.disabled = false;
-          linkBtn.textContent = "Link Contact";
-        }
+      }, true);
+    } 
+    
+    function initExistingContactModal() {
+      const buttons = qsa(".select-existing-contact-btn");
+      const panel = el("existingContactPanel");
+      const cancelBtn = el("cancelExistingContact");
+      const linkBtn = el("linkExistingContact");
+    
+      if (!buttons.length || !panel) return;
+    
+      buttons.forEach(function (button) {
+        button.addEventListener("click", function (event) {
+          event.preventDefault();
+          panel.style.display = "block";
+          loadExistingContactOptions();
+        });
       });
+    
+      if (cancelBtn) {
+        cancelBtn.addEventListener("click", function (event) {
+          event.preventDefault();
+          panel.style.display = "none";
+        });
+      }
+    
+      if (linkBtn) {
+        linkBtn.addEventListener("click", async function (event) {
+          event.preventDefault();
+    
+          const contactName = el("existingContactSelect") ? el("existingContactSelect").value : "";
+          const relationshipType = el("existingContactRelationship") ? el("existingContactRelationship").value : "";
+          const isBilling = el("existingContactBilling") && el("existingContactBilling").checked ? 1 : 0;
+    
+          if (!contactName) {
+            showError("Please select a contact.");
+            return;
+          }
+    
+          try {
+            linkBtn.disabled = true;
+            linkBtn.textContent = "Linking...";
+    
+            await apiPost("link_existing_contact_to_client", {
+              client_name: getClientName(),
+              contact_name: contactName,
+              relationship_type: relationshipType,
+              is_billing_contact: isBilling
+            });
+    
+            showSuccess("Contact linked");
+            window.location.reload();
+          } catch (error) {
+            showError(error.message || "Could not link contact.");
+          } finally {
+            linkBtn.disabled = false;
+            linkBtn.textContent = "Link Contact";
+          }
+        });
+      }
     }
-  }
 
   function init() {
     if (!el("clientDetailsForm")) return;
