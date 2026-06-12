@@ -519,7 +519,7 @@
                           <div class="dashboard-detail-field {% if item.is_full_width %}dashboard-detail-field-full{% endif %}">
                             <label for="field_{{ item.fieldname }}">{{ item.label }}</label>
 
-                            {% if item.is_table %}
+                            {% if item.is_table and item.fieldname == "diagnosis" %}
                               <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
                                 <table class="dashboard-table">
                                   <thead>
@@ -530,23 +530,33 @@
                                     </tr>
                                   </thead>
                             
-                                  <tbody>
+                                  <tbody id="diagnosisTableBody">
                                     {% if item.table_rows %}
                                       {% for row in item.table_rows %}
-                                        <tr>
-                                          <td>{{ row.diagnoses or "—" }}</td>
-                                          <td>{{ row.note or "—" }}</td>
-                                          <td>{{ frappe.format(row.date, {"fieldtype": "Date"}) if row.date else "—" }}</td>
+                                        <tr data-diagnosis-row="1">
+                                          <td>
+                                            <input class="dashboard-input" data-diagnosis-field="diagnoses" value="{{ row.diagnoses or '' }}" readonly>
+                                          </td>
+                                          <td>
+                                            <input class="dashboard-input" data-diagnosis-field="note" value="{{ row.note or '' }}" readonly>
+                                          </td>
+                                          <td>
+                                            <input type="date" class="dashboard-input" data-diagnosis-field="date" value="{{ row.date or '' }}" readonly>
+                                          </td>
                                         </tr>
                                       {% endfor %}
                                     {% else %}
-                                      <tr>
+                                      <tr data-diagnosis-empty-row="1">
                                         <td colspan="3" class="dashboard-empty">No diagnosis records found.</td>
                                       </tr>
                                     {% endif %}
                                   </tbody>
                                 </table>
                               </div>
+                            
+                              <button type="button" class="dashboard-btn dashboard-btn-light" id="addDiagnosisRow" style="margin-top:10px;">
+                                Add Diagnosis
+                              </button>
                             
                             {% elif item.is_check %}
                               <div class="dashboard-checkbox-wrap">
