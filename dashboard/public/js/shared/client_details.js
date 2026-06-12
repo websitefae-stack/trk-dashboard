@@ -698,6 +698,57 @@
       select.innerHTML = '<option value="">Could not load contacts</option>';
     }
   }
+
+    async function saveClientAndOpenNewContact(event, link) {
+      event.preventDefault();
+  
+      if (!roleConfig.canEdit) return;
+  
+      const existingClient = getClientName();
+  
+      if (existingClient) {
+        window.location.href = link.href;
+        return;
+      }
+  
+      updateNewClientFullName();
+  
+      try {
+        link.classList.add("is-loading");
+        link.textContent = "Saving client...";
+  
+        const result = await apiPost("save_client", {
+          docname: "",
+          data: JSON.stringify(collectClientData())
+        });
+  
+        if (!result || !result.name) {
+          throw new Error("Client was saved but no client name was returned.");
+        }
+  
+        window.location.href =
+          roleConfig.baseUrl +
+          "/contact_details?new=1&client=" +
+          encodeURIComponent(result.name);
+  
+      } catch (error) {
+        link.classList.remove("is-loading");
+        link.textContent = "Add New Contact";
+        showError(error.message || "Could not save client before adding contact.");
+      }
+    }
+  
+    function initSaveBeforeNewContactLinks() {
+      qsa("a[data-save-client-before-contact='1']").forEach(function (link) {
+        if (link.dataset.saveBeforeContactBound === "1") return;
+  
+        link.dataset.saveBeforeContactBound = "1";
+  
+        link.addEventListener("click", function (event) {
+          saveClientAndOpenNewContact(event, link);
+        });
+      });
+    }
   
   function initExistingContactModal() {
     const buttons = qsa(".select-existing-contact-btn");
@@ -770,6 +821,7 @@
     initAgeBuilder();
     initChangeRequest();
     initExistingContactModal();
+    initSaveBeforeNewContactLinks();
 
     if (roleConfig.role === "session_worker") {
       loadSessionWorkerContacts();
