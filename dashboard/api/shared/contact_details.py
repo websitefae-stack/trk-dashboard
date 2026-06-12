@@ -197,6 +197,35 @@ def get_contact_invoices(linked_clients):
         "docstatus": row.docstatus,
     } for row in invoices]
 
+def get_address_values_for_contact(contact):
+    address_name = contact.get("address")
+
+    if not address_name:
+        address_name = frappe.db.get_value(
+            "Dynamic Link",
+            {
+                "parenttype": "Address",
+                "link_doctype": "Contact",
+                "link_name": contact.name,
+            },
+            "parent",
+        )
+
+    if not address_name or not frappe.db.exists("Address", address_name):
+        return {}
+
+    address = frappe.get_doc("Address", address_name)
+
+    return {
+        "address_line1": address.address_line1 or "",
+        "address_line2": address.address_line2 or "",
+        "city": address.city or "",
+        "county": address.county or "",
+        "state": address.state or "",
+        "pincode": address.pincode or "",
+        "country": address.country or "",
+    }
+
 
 def get_contact_context(scope, contact_name=None, is_new=False, view_coach_name=None):
     ensure_logged_in()
@@ -256,7 +285,10 @@ def get_contact_context(scope, contact_name=None, is_new=False, view_coach_name=
         ensure_contact_access(contact_name, scope)
 
     return {
-        "contact": contact.as_dict(),
+        "contact": {
+            **contact.as_dict(),
+            **get_address_values_for_contact(contact),
+        },
         "contact_docname": contact.name,
         "clients": frappe.get_all(
             "Client",
@@ -383,6 +415,10 @@ def upsert_contact_address(contact, customer_name=None, payload=None):
     address.save(ignore_permissions=True)
 
     contact.address = address.name
+
+    if contact.meta.has_field("custom_address_html"):
+        contact.custom_address_html = format_address_for_customer(address)
+
     contact.save(ignore_permissions=True)
 
     if customer_name and frappe.db.exists("Customer", customer_name):
@@ -494,7 +530,10 @@ def save_contact_for_scope(scope, docname=None, data=None):
             or contact.name
         )
         customer_doc.insert(ignore_permissions=True)
-    
+
+        customer_doc.customer_primary_contact = contact.name
+        customer_doc.save(ignore_permissions=True)
+        
         contact.custom_customer = customer_doc.name
         contact.is_billing_contact = 1
     
