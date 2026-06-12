@@ -255,14 +255,14 @@
         const diagnosisRows = [];
     
         qsa("[data-diagnosis-row='1']").forEach(function (row) {
-          const selectField = row.querySelector("[data-diagnosis-field='diagnoses']");
-          const newField = row.querySelector("[data-diagnosis-field='new_diagnosis']");
+          const diagnosisField = row.querySelector("[data-diagnosis-field='diagnoses']");
+          const newDiagnosisField = row.querySelector("[data-diagnosis-field='new_diagnosis']");
           const noteField = row.querySelector("[data-diagnosis-field='note']");
           const dateField = row.querySelector("[data-diagnosis-field='date']");
-    
+          
           diagnosisRows.push({
-            diagnoses: selectField ? selectField.value : "",
-            new_diagnosis: newField ? newField.value : "",
+            diagnoses: diagnosisField ? diagnosisField.value : "",
+            new_diagnosis: newDiagnosisField ? newDiagnosisField.value : "",
             note: noteField ? noteField.value : "",
             date: dateField ? dateField.value : ""
           });
@@ -801,7 +801,7 @@
           loadLinkOptions(select);
         }
       }, true);
-    } 
+    }
     
     function initExistingContactModal() {
       const buttons = qsa(".select-existing-contact-btn");
