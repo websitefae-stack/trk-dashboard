@@ -288,42 +288,80 @@ def get_base_url_for_scope(scope):
 
     return "/coach_db"
 
-def upsert_contact_address(contact, customer_name=None):
-    address_parts = [
-        contact.get("address_line1"),
-        contact.get("address_line2"),
-        contact.get("city"),
-        contact.get("county"),
-        contact.get("pincode"),
-        contact.get("country"),
+def format_address_for_customer(address):
+    parts = [
+        address.address_line1,
+        address.address_line2,
+        address.city,
+        address.county,
+        address.state,
+        address.pincode,
+        address.country,
     ]
 
-    if not any(address_parts):
+    return "<br>".join([p for p in parts if p])
+
+
+def upsert_contact_address(contact, customer_name=None, payload=None):
+    payload = payload or {}
+
+    address_line1 = payload.get("address_line1") or ""
+    address_line2 = payload.get("address_line2") or ""
+    city = payload.get("city") or ""
+    county = payload.get("county") or ""
+    state = payload.get("state") or ""
+    pincode = payload.get("pincode") or ""
+    country = payload.get("country") or "United Kingdom"
+
+    if not any([address_line1, address_line2, city, county, state, pincode]):
         return ""
 
-    address_name = frappe.db.get_value(
-        "Dynamic Link",
-        {
-            "link_doctype": "Contact",
-            "link_name": contact.name,
-            "parenttype": "Address",
-        },
-        "parent",
-    )
+    customer_name = customer_name or contact.get("custom_customer") or ""
 
-    if address_name:
+    address_name = None
+
+    if customer_name:
+        address_name = frappe.db.get_value(
+            "Dynamic Link",
+            {
+                "parenttype": "Address",
+                "link_doctype": "Customer",
+                "link_name": customer_name,
+            },
+            "parent",
+        )
+
+    if not address_name:
+        address_name = contact.get("address")
+
+    if not address_name:
+        address_name = frappe.db.get_value(
+            "Dynamic Link",
+            {
+                "parenttype": "Address",
+                "link_doctype": "Contact",
+                "link_name": contact.name,
+            },
+            "parent",
+        )
+
+    if address_name and frappe.db.exists("Address", address_name):
         address = frappe.get_doc("Address", address_name)
     else:
         address = frappe.new_doc("Address")
         address.address_title = contact.get("full_name") or contact.name
         address.address_type = "Billing"
 
-    address.address_line1 = contact.get("address_line1") or ""
-    address.address_line2 = contact.get("address_line2") or ""
-    address.city = contact.get("city") or ""
-    address.county = contact.get("county") or ""
-    address.pincode = contact.get("pincode") or ""
-    address.country = contact.get("country") or "United Kingdom"
+    address.address_line1 = address_line1
+    address.address_line2 = address_line2
+    address.city = city
+    address.county = county
+    address.state = state
+    address.pincode = pincode
+    address.country = country
+    address.email_id = contact.get("email_id") or ""
+    address.phone = contact.get("mobile_no") or contact.get("phone") or ""
+    address.is_primary_address = 1
 
     existing_links = {
         (row.link_doctype, row.link_name)
@@ -343,6 +381,19 @@ def upsert_contact_address(contact, customer_name=None):
         })
 
     address.save(ignore_permissions=True)
+
+    contact.address = address.name
+    contact.save(ignore_permissions=True)
+
+    if customer_name and frappe.db.exists("Customer", customer_name):
+        customer = frappe.get_doc("Customer", customer_name)
+        customer.customer_primary_address = address.name
+        customer.primary_address = format_address_for_customer(address)
+
+        if contact.name:
+            customer.customer_primary_contact = contact.name
+
+        customer.save(ignore_permissions=True)
 
     return address.name
 
@@ -430,6 +481,7 @@ def save_contact_for_scope(scope, docname=None, data=None):
     upsert_contact_address(
         contact=contact,
         customer_name=contact.get("custom_customer") or "",
+        payload=payload,
     )
 
     if is_billing_contact and not contact.get("custom_customer"):
@@ -456,6 +508,7 @@ def save_contact_for_scope(scope, docname=None, data=None):
         upsert_contact_address(
             contact=contact,
             customer_name=customer_doc.name,
+            payload=payload,
         )
 
     if contact.get("custom_customer") and frappe.db.exists("Customer", contact.get("custom_customer")):
@@ -471,6 +524,7 @@ def save_contact_for_scope(scope, docname=None, data=None):
         upsert_contact_address(
             contact=contact,
             customer_name=contact.get("custom_customer") or "",
+            payload=payload,
         )
 
     if linked_client and frappe.db.exists("Client", linked_client):
