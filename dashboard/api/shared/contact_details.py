@@ -332,6 +332,7 @@ def upsert_contact_address(contact, customer_name=None, payload=None, save_conta
     address_line2 = payload.get("address_line2") or ""
     city = payload.get("city") or ""
     pincode = payload.get("pincode") or ""
+    country = "United Kingdom"
 
     if not any([address_line1, address_line2, city, pincode]):
         return ""
@@ -376,6 +377,7 @@ def upsert_contact_address(contact, customer_name=None, payload=None, save_conta
     address.address_line2 = address_line2
     address.city = city
     address.pincode = pincode
+    address.country = country
     address.email_id = contact.get("email_id") or ""
     address.phone = contact.get("mobile_no") or contact.get("phone") or ""
     address.is_primary_address = 1
@@ -408,7 +410,7 @@ def upsert_contact_address(contact, customer_name=None, payload=None, save_conta
             update_modified=False,
         )
 
-        if contact.meta.has_field("custom_address_html"):
+        if frappe.db.has_column("Contact", "custom_address_html"):
             frappe.db.set_value(
                 "Contact",
                 contact.name,
