@@ -94,7 +94,7 @@ def _get_client_base_fields():
         "preferred_name",
         "travel_charged",
         "travel_miles_one_way",
-        "therapy_location",
+        "main_therapy_location",
     ]:
         if meta.has_field(fieldname) and fieldname not in fields:
             fields.append(fieldname)
@@ -128,18 +128,12 @@ def _get_client_therapy_location_label(row):
     if not row:
         return ""
 
-    therapy_location = (row.get("therapy_location") or "").strip()
+    therapy_location = (row.get("main_therapy_location") or "").strip()
 
     if not therapy_location:
         return ""
 
-    if not frappe.db.exists("Therapy Location", therapy_location):
-        return therapy_location
-
-    return (
-        frappe.db.get_value("Therapy Location", therapy_location, "location_name")
-        or therapy_location
-    )
+    return _get_therapy_location_text(therapy_location)
 
 def _get_client_display_name(client_name):
     row = _get_client_row(client_name)
@@ -430,7 +424,7 @@ def _get_session_worker_client_options(worker_context):
         {
             "value": row.get("name"),
             "label": _get_client_display_from_row(row),
-            "therapy_location": row.get("therapy_location") or "",
+            "therapy_location": row.get("main_therapy_location") or "",
             "therapy_location_label": _get_client_therapy_location_label(row),
         }
         for row in rows
@@ -612,7 +606,7 @@ def _get_client_options_for_calendar(dashboard_type, selected_calendar_for, cont
             options.append({
                 "value": row.get("name"),
                 "label": _get_client_display_from_row(row),
-                "therapy_location": row.get("therapy_location") or "",
+                "therapy_location": row.get("main_therapy_location") or "",
                 "therapy_location_label": _get_client_therapy_location_label(row),
             })
 
@@ -625,7 +619,7 @@ def _get_client_options_for_calendar(dashboard_type, selected_calendar_for, cont
             {
                 "value": row.get("name"),
                 "label": _get_client_display_from_row(row),
-                "therapy_location": row.get("therapy_location") or "",
+                "therapy_location": row.get("main_therapy_location") or "",
                 "therapy_location_label": _get_client_therapy_location_label(row),
             }
             for row in rows
@@ -846,10 +840,11 @@ def _get_client_therapy_location(client_doc):
 
     therapy_location = ""
 
-    if client_doc.meta.has_field("therapy_location"):
-        therapy_location = client_doc.get("therapy_location") or ""
+    if client_doc.meta.has_field("main_therapy_location"):
+        therapy_location = client_doc.get("main_therapy_location") or ""
 
     return therapy_location, _get_therapy_location_text(therapy_location)
+
 
 def _get_client_travel_defaults(client_doc):
     travel_charged = _get_doc_value_by_candidates(
