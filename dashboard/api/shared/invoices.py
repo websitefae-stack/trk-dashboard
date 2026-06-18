@@ -970,8 +970,13 @@ def calculate_invoice_travel(client_name=None, items=None):
 def _set_invoice_header_fields(doc, payload):
     doc.customer = (payload.get("customer") or "").strip() or None
     doc.custom_client = (payload.get("custom_client") or "").strip() or None
-    doc.posting_date = payload.get("posting_date") or doc.posting_date or nowdate()
-    doc.due_date = payload.get("due_date") or doc.due_date or doc.posting_date or nowdate()
+    posting_date = payload.get("posting_date") or doc.posting_date or nowdate()
+
+    doc.posting_date = posting_date
+    doc.due_date = payload.get("due_date") or doc.due_date or posting_date or nowdate()
+    
+    if doc.meta.has_field("set_posting_time"):
+        doc.set_posting_time = 1
 
     if not doc.naming_series:
         doc.naming_series = _default_naming_series()
