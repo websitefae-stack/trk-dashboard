@@ -1421,7 +1421,19 @@ def allocate_invoice_payment(invoice_name=None, posting_date=None, amount=None, 
     if payment_amount > outstanding:
         frappe.throw(_("Payment amount cannot be more than the outstanding amount."))
 
-    paid_to_account = _get_bank_account_gl_account(bank_account)
+    client_bank_account = ""
+
+    if invoice.get("custom_client"):
+        client_bank_account = frappe.db.get_value(
+            "Client",
+            invoice.get("custom_client"),
+            "banking",
+        )
+    
+    if not client_bank_account:
+        frappe.throw(_("No bank account is selected on this invoice's client."))
+    
+    paid_to_account = _get_bank_account_gl_account(client_bank_account)
 
     payment = frappe.new_doc("Payment Entry")
     payment.payment_type = "Receive"
@@ -1445,7 +1457,7 @@ def allocate_invoice_payment(invoice_name=None, posting_date=None, amount=None, 
     })
 
     if payment.meta.has_field("custom_bank_account"):
-        payment.custom_bank_account = bank_account
+        payment.custom_bank_account = client_bank_account
 
     if payment.meta.has_field("custom_client"):
         payment.custom_client = invoice.get("custom_client")
