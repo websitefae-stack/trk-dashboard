@@ -1350,7 +1350,7 @@ def _get_bank_account_gl_account(bank_account_name):
 
 
 @frappe.whitelist()
-@frappe.whitelist() def get_payment_bank_accounts_v2(invoice_name=None):
+def get_payment_bank_accounts_v2(invoice_name=None):
     _require_logged_in_user()
 
     if not invoice_name:
