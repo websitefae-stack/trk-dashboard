@@ -1437,3 +1437,85 @@ def allocate_invoice_payment(invoice_name=None, posting_date=None, amount=None, 
         "outstanding_amount": invoice.outstanding_amount,
         "grand_total": invoice.grand_total,
     }
+
+@frappe.whitelist()
+def fix_backdated_invoice_posting_dates_once():
+    _require_logged_in_user()
+
+    if not _is_franchisor_user():
+        frappe.throw(_("Only franchisor users can run this correction."), frappe.PermissionError)
+
+    invoice_dates = {
+        "ACC-SINV-2026-00002": "2026-01-29",
+        "ACC-SINV-2026-00003": "2026-01-21",
+        "ACC-SINV-2026-00004": "2026-06-18",
+        "ACC-SINV-2026-00005": "2026-01-13",
+        "ACC-SINV-2026-00006": "2026-05-05",
+        "ACC-SINV-2026-00007": "2025-12-09",
+    }
+
+    results = []
+
+    for invoice_name, new_date in invoice_dates.items():
+        if not frappe.db.exists("Sales Invoice", invoice_name):
+            results.append({
+                "invoice": invoice_name,
+                "status": "missing",
+            })
+            continue
+
+        before = frappe.db.get_value(
+            "Sales Invoice",
+            invoice_name,
+            ["posting_date", "due_date"],
+            as_dict=True,
+        )
+
+        frappe.db.sql(
+            """
+            update `tabSales Invoice`
+            set posting_date = %s,
+                due_date = %s,
+                set_posting_time = 1
+            where name = %s
+            """,
+            (new_date, new_date, invoice_name),
+        )
+
+        frappe.db.sql(
+            """
+            update `tabGL Entry`
+            set posting_date = %s
+            where voucher_type = 'Sales Invoice'
+              and voucher_no = %s
+            """,
+            (new_date, invoice_name),
+        )
+
+        frappe.db.sql(
+            """
+            update `tabPayment Entry Reference`
+            set due_date = %s
+            where reference_doctype = 'Sales Invoice'
+              and reference_name = %s
+            """,
+            (new_date, invoice_name),
+        )
+
+        after = frappe.db.get_value(
+            "Sales Invoice",
+            invoice_name,
+            ["posting_date", "due_date"],
+            as_dict=True,
+        )
+
+        results.append({
+            "invoice": invoice_name,
+            "before": before,
+            "after": after,
+        })
+
+    frappe.db.commit()
+    frappe.clear_cache()
+
+    return results
