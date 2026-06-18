@@ -777,13 +777,6 @@
       return;
     }
   
-    const modal = el("invoicePaymentModal");
-  
-    if (modal) {
-      modal.hidden = false;
-      modal.style.display = "flex";
-    }
-  
     const amountField = el("paymentAmount");
     if (amountField) {
       amountField.value = parseMoneyValue(el("invoice_outstanding_amount")?.value || "0").toFixed(2);
@@ -794,53 +787,13 @@
       referenceField.value = docname;
     }
   
-    const select = el("paymentBankAccount");
+    const modal = el("invoicePaymentModal");
   
-    if (select) {
-      select.innerHTML = "";
-  
-      const loading = document.createElement("option");
-      loading.value = "";
-      loading.textContent = "Loading bank accounts...";
-      select.appendChild(loading);
-    }
-  
-      const data = result.message || {};
-  
-      if (select) {
-        select.innerHTML = "";
-  
-        const blank = document.createElement("option");
-        blank.value = "";
-        blank.textContent = "Select bank account";
-        select.appendChild(blank);
-  
-        (data.bank_accounts || []).forEach((row) => {
-          const option = document.createElement("option");
-          option.value = row.name;
-          option.textContent = row.label || row.name;
-  
-          if (row.name === data.default_bank_account) {
-            option.selected = true;
-          }
-  
-          select.appendChild(option);
-        });
-      }
-    } catch (error) {
-      if (select) {
-        select.innerHTML = "";
-  
-        const option = document.createElement("option");
-        option.value = "";
-        option.textContent = "Could not load bank accounts";
-        select.appendChild(option);
-      }
-  
-      showError(error.message || "Could not load bank accounts.");
+    if (modal) {
+      modal.hidden = false;
+      modal.style.display = "flex";
     }
   }
-  
   async function allocatePayment() {
     const docname = el("invoiceDocname")?.value || "";
   
