@@ -1046,91 +1046,88 @@
   }
 
   async function init() {
-    if (!isDetailPage()) return;
-  
-    closeEmailModal();
+  if (!isDetailPage()) return;
+
+  closeEmailModal();
+  closePaymentModal();
+
+  el("openAllocatePayment")?.addEventListener("click", function (event) {
+    event.preventDefault();
+    openPaymentModal();
+  });
+
+  el("closeAllocatePayment")?.addEventListener("click", function (event) {
+    event.preventDefault();
     closePaymentModal();
-  
-    el("openAllocatePayment")?.addEventListener("click", function (event) {
-      event.preventDefault();
-      openPaymentModal();
-    });
-  
-    el("closeAllocatePayment")?.addEventListener("click", function (event) {
-      event.preventDefault();
-      closePaymentModal();
-    });
-  
-    el("submitAllocatePayment")?.addEventListener("click", function (event) {
-      event.preventDefault();
-      allocatePayment();
-    });
-  
-    el("openEmailInvoice")?.addEventListener("click", function (event) {
-      event.preventDefault();
-      openEmailModal();
-    });
-  
-    el("closeInvoiceEmailModal")?.addEventListener("click", function (event) {
-      event.preventDefault();
-      closeEmailModal();
-    });
-  
-    el("sendInvoiceEmail")?.addEventListener("click", function (event) {
-      event.preventDefault();
-      sendEmail();
-    });
-  
-    if (new URLSearchParams(window.location.search).get("payment") === "1") {
-      openPaymentModal();
+  });
+
+  el("submitAllocatePayment")?.addEventListener("click", function (event) {
+    event.preventDefault();
+    allocatePayment();
+  });
+
+  el("openEmailInvoice")?.addEventListener("click", function (event) {
+    event.preventDefault();
+    openEmailModal();
+  });
+
+  el("closeInvoiceEmailModal")?.addEventListener("click", function (event) {
+    event.preventDefault();
+    closeEmailModal();
+  });
+
+  el("sendInvoiceEmail")?.addEventListener("click", function (event) {
+    event.preventDefault();
+    sendEmail();
+  });
+
+  el("saveInvoiceDraft")?.addEventListener("click", function (event) {
+    event.preventDefault();
+    saveDraft();
+  });
+
+  el("submitInvoice")?.addEventListener("click", function (event) {
+    event.preventDefault();
+    submitInvoice();
+  });
+
+  el("addInvoiceItem")?.addEventListener("click", async function () {
+    await addItemRow({ qty: 1, rate: 0, amount: 0 });
+    await updateTravelRow();
+  });
+
+  await loadAllLinkOptions();
+
+  const existingRows = JSON.parse(el("invoiceInitialItems")?.textContent || "[]");
+  const body = el("invoiceItemsBody");
+  if (body) body.innerHTML = "";
+
+  if (existingRows.length) {
+    for (const row of existingRows) {
+      await addItemRow(row);
     }
-  
-    try {
-      await loadAllLinkOptions();
-      await restrictCustomerToClientBillingContact();
-  
-      const existingRows = JSON.parse(el("invoiceInitialItems")?.textContent || "[]");
-      const body = el("invoiceItemsBody");
-      if (body) body.innerHTML = "";
-  
-      if (existingRows.length) {
-        for (const row of existingRows) {
-          await addItemRow(row);
-        }
-      } else {
-        await addItemRow({ qty: 1, rate: 0, amount: 0 });
-      }
-  
-      await refreshInvoiceContext();
-      await updateTravelRow();
-  
-      updateStatusBadge(el("invoice_status")?.value || "Draft");
-      recalcTotals();
-      forceEmailTemplate();
-      updateActionState();
-      await initPartyWatchers();
-  
-      el("addInvoiceItem")?.addEventListener("click", async function () {
-        await addItemRow({ qty: 1, rate: 0, amount: 0 });
-        await updateTravelRow();
-      });
-    } catch (error) {
-      console.error("Invoice details init failed", error);
-      updateActionState();
-    }
-  
-    el("saveInvoiceDraft")?.addEventListener("click", function (event) {
-      event.preventDefault();
-      saveDraft();
-    });
-  
-    el("submitInvoice")?.addEventListener("click", function (event) {
-      event.preventDefault();
-      submitInvoice();
-    });
-  }
-    document.addEventListener("DOMContentLoaded", init);
   } else {
-    init();
+    await addItemRow({ qty: 1, rate: 0, amount: 0 });
   }
+
+  await restrictCustomerToClientBillingContact();
+  await refreshInvoiceContext();
+  await updateTravelRow();
+
+  updateStatusBadge(el("invoice_status")?.value || "Draft");
+  recalcTotals();
+  forceEmailTemplate();
+  updateActionState();
+  await initPartyWatchers();
+
+  if (new URLSearchParams(window.location.search).get("payment") === "1") {
+    openPaymentModal();
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init);
+} else {
+  init();
+}
 })();
