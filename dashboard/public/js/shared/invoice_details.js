@@ -806,7 +806,7 @@
     }
   
     try {
-      const result = await apiPost(SHARED_API + ".get_payment_bank_accounts", {
+      const result = await apiPost(SHARED_API + ".get_payment_bank_accounts_v2", {
         invoice_name: docname
       });
   
