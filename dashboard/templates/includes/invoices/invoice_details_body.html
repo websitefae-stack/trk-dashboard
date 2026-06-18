@@ -367,4 +367,38 @@ I hope you’re doing well.</textarea>
       <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendInvoiceEmail">Send Email</button>
     </div>
   </div>
+  <div class="invoice-modal-backdrop" id="invoicePaymentModal" hidden style="display:none;">
+  <div class="invoice-modal-card">
+    <div class="dashboard-detail-section-head">
+      <h2 class="dashboard-detail-section-title">Allocate Payment</h2>
+    </div>
+
+    <div class="dashboard-detail-grid dashboard-detail-grid-1">
+      <div class="dashboard-detail-field">
+        <label for="paymentPostingDate">Payment Date</label>
+        <input type="date" id="paymentPostingDate" class="dashboard-input" value="{{ frappe.utils.nowdate() }}">
+      </div>
+
+      <div class="dashboard-detail-field">
+        <label for="paymentAmount">Amount</label>
+        <input type="number" step="0.01" id="paymentAmount" class="dashboard-input" value="{{ doc.outstanding_amount or 0 }}">
+      </div>
+
+      <div class="dashboard-detail-field">
+        <label for="paymentBankAccount">Bank Account</label>
+        <select id="paymentBankAccount" class="dashboard-select"></select>
+      </div>
+
+      <div class="dashboard-detail-field">
+        <label for="paymentReference">Reference</label>
+        <input type="text" id="paymentReference" class="dashboard-input" value="{{ doc.name or '' }}">
+      </div>
+    </div>
+
+    <div class="invoice-modal-actions">
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="closeAllocatePayment">Cancel</button>
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="submitAllocatePayment">Allocate Payment</button>
+    </div>
+  </div>
+</div>
 </div>
