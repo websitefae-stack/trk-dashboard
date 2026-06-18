@@ -777,45 +777,72 @@
       return;
     }
   
-    const result = await apiPost(SHARED_API + ".get_payment_bank_accounts", {
-      invoice_name: docname
-    });
-  
-    const data = result.message || {};
-    const select = el("paymentBankAccount");
-  
-    if (select) {
-      select.innerHTML = "";
-  
-      const blank = document.createElement("option");
-      blank.value = "";
-      blank.textContent = "Select bank account";
-      select.appendChild(blank);
-  
-      (data.bank_accounts || []).forEach((row) => {
-        const option = document.createElement("option");
-        option.value = row.name;
-        option.textContent = row.label || row.name;
-  
-        if (row.name === data.default_bank_account) {
-          option.selected = true;
-        }
-  
-        select.appendChild(option);
-      });
-    }
-  
-    const amountField = el("paymentAmount");
-  
-    if (amountField) {
-      amountField.value = parseMoneyValue(el("invoice_outstanding_amount")?.value || "0").toFixed(2);
-    }
-  
     const modal = el("invoicePaymentModal");
   
     if (modal) {
       modal.hidden = false;
       modal.style.display = "flex";
+    }
+  
+    const amountField = el("paymentAmount");
+    if (amountField) {
+      amountField.value = parseMoneyValue(el("invoice_outstanding_amount")?.value || "0").toFixed(2);
+    }
+  
+    const referenceField = el("paymentReference");
+    if (referenceField && !referenceField.value) {
+      referenceField.value = docname;
+    }
+  
+    const select = el("paymentBankAccount");
+  
+    if (select) {
+      select.innerHTML = "";
+  
+      const loading = document.createElement("option");
+      loading.value = "";
+      loading.textContent = "Loading bank accounts...";
+      select.appendChild(loading);
+    }
+  
+    try {
+      const result = await apiPost(SHARED_API + ".get_payment_bank_accounts", {
+        invoice_name: docname
+      });
+  
+      const data = result.message || {};
+  
+      if (select) {
+        select.innerHTML = "";
+  
+        const blank = document.createElement("option");
+        blank.value = "";
+        blank.textContent = "Select bank account";
+        select.appendChild(blank);
+  
+        (data.bank_accounts || []).forEach((row) => {
+          const option = document.createElement("option");
+          option.value = row.name;
+          option.textContent = row.label || row.name;
+  
+          if (row.name === data.default_bank_account) {
+            option.selected = true;
+          }
+  
+          select.appendChild(option);
+        });
+      }
+    } catch (error) {
+      if (select) {
+        select.innerHTML = "";
+  
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = "Could not load bank accounts";
+        select.appendChild(option);
+      }
+  
+      showError(error.message || "Could not load bank accounts.");
     }
   }
   
