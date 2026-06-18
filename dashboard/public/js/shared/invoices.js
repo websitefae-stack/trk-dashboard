@@ -172,7 +172,7 @@
     initRefresh();
     initAddInvoice();
     initRowNavigation();
-    updateInvoiceCount();
+    renderFilters();
   }
 
   if (document.readyState === "loading") {
