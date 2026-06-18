@@ -832,8 +832,12 @@ def _get_therapy_location_text(location_name):
     ]
 
     address = ", ".join([p.strip() for p in parts if p and p.strip()])
+    location_label = location_doc.get("location_name") or location_name
 
-    return address or location_doc.get("location_name") or location_name
+    if address:
+        return location_label + " - " + address
+
+    return location_label
 
 
 def _get_client_therapy_location(client_doc):
