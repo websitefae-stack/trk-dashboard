@@ -1350,54 +1350,6 @@ def _get_bank_account_gl_account(bank_account_name):
 
 
 @frappe.whitelist()
-def get_payment_bank_accounts_v2(invoice_name=None):
-    _require_logged_in_user()
-
-    if not invoice_name:
-        frappe.throw(_("Invoice is required."))
-
-    if not _current_user_can_access_invoice(invoice_name):
-        frappe.throw(_("You do not have permission to access this invoice."), frappe.PermissionError)
-
-    invoice = frappe.get_doc("Sales Invoice", invoice_name)
-
-    if not invoice.get("custom_client"):
-        frappe.throw(_("This invoice is not linked to a client."))
-
-    bank_account = frappe.db.get_value(
-        "Client",
-        invoice.get("custom_client"),
-        "banking",
-    )
-
-    if not bank_account:
-        frappe.throw(_("No bank account is selected on this client."))
-
-    if not frappe.db.exists("Bank Account", bank_account):
-        frappe.throw(_("The selected client bank account does not exist: {0}").format(bank_account))
-
-    bank_doc = frappe.get_doc("Bank Account", bank_account)
-
-    label_parts = [
-        bank_doc.get("bank"),
-        bank_doc.get("account_name"),
-        bank_doc.get("bank_account_no"),
-        bank_account,
-    ]
-
-    label = " - ".join([str(part) for part in label_parts if part])
-
-    return {
-        "default_bank_account": bank_account,
-        "bank_accounts": [
-            {
-                "name": bank_account,
-                "label": label or bank_account,
-            }
-        ],
-    }
-
-@frappe.whitelist()
 def allocate_invoice_payment(invoice_name=None, posting_date=None, amount=None, bank_account=None, reference_no=None):
     _require_logged_in_user()
 
