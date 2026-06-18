@@ -28,10 +28,7 @@ EDITABLE_CONTACT_FIELDS = [
     "address_line1",
     "address_line2",
     "city",
-    "county",
-    "state",
     "pincode",
-    "country",
 ]
 
 
@@ -220,10 +217,7 @@ def get_address_values_for_contact(contact):
         "address_line1": address.address_line1 or "",
         "address_line2": address.address_line2 or "",
         "city": address.city or "",
-        "county": address.county or "",
-        "state": address.state or "",
         "pincode": address.pincode or "",
-        "country": address.country or "",
     }
 
 
@@ -325,25 +319,19 @@ def format_address_for_customer(address):
         address.address_line1,
         address.address_line2,
         address.city,
-        address.county,
-        address.state,
         address.pincode,
-        address.country,
     ]
 
     return "<br>".join([p for p in parts if p])
 
 
-def upsert_contact_address(contact, customer_name=None, payload=None):
+def upsert_contact_address(contact, customer_name=None, payload=None, save_contact_address=True):
     payload = payload or {}
 
     address_line1 = payload.get("address_line1") or ""
     address_line2 = payload.get("address_line2") or ""
     city = payload.get("city") or ""
-    county = payload.get("county") or ""
-    state = payload.get("state") or ""
     pincode = payload.get("pincode") or ""
-    country = payload.get("country") or "United Kingdom"
 
     if not any([address_line1, address_line2, city, county, state, pincode]):
         return ""
@@ -387,10 +375,7 @@ def upsert_contact_address(contact, customer_name=None, payload=None):
     address.address_line1 = address_line1
     address.address_line2 = address_line2
     address.city = city
-    address.county = county
-    address.state = state
     address.pincode = pincode
-    address.country = country
     address.email_id = contact.get("email_id") or ""
     address.phone = contact.get("mobile_no") or contact.get("phone") or ""
     address.is_primary_address = 1
@@ -414,12 +399,23 @@ def upsert_contact_address(contact, customer_name=None, payload=None):
 
     address.save(ignore_permissions=True)
 
-    contact.address = address.name
+    if save_contact_address:
+        frappe.db.set_value(
+            "Contact",
+            contact.name,
+            "address",
+            address.name,
+            update_modified=False,
+        )
 
-    if contact.meta.has_field("custom_address_html"):
-        contact.custom_address_html = format_address_for_customer(address)
-
-    contact.save(ignore_permissions=True)
+        if contact.meta.has_field("custom_address_html"):
+            frappe.db.set_value(
+                "Contact",
+                contact.name,
+                "custom_address_html",
+                format_address_for_customer(address),
+                update_modified=False,
+            )
 
     if customer_name and frappe.db.exists("Customer", customer_name):
         customer = frappe.get_doc("Customer", customer_name)
@@ -560,11 +556,6 @@ def save_contact_for_scope(scope, docname=None, data=None):
         )
     
         customer_doc.save(ignore_permissions=True)
-        upsert_contact_address(
-            contact=contact,
-            customer_name=contact.get("custom_customer") or "",
-            payload=payload,
-        )
 
     if linked_client and frappe.db.exists("Client", linked_client):
         client = frappe.get_doc("Client", linked_client)
