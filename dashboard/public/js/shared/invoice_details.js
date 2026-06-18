@@ -376,8 +376,17 @@
     if (emailBtn) {
       emailBtn.style.display = submitted && hasName ? "" : "none";
     }
-
-    if (!submitted || cancelled) closeEmailModal();
+    
+    const paymentBtn = el("openAllocatePayment");
+    if (paymentBtn) {
+      const outstanding = parseMoneyValue(el("invoice_outstanding_amount")?.value || "0");
+      paymentBtn.style.display = submitted && hasName && outstanding > 0 ? "" : "none";
+    }
+    
+    if (!submitted || cancelled) {
+      closeEmailModal();
+      closePaymentModal();
+    }
 
     document.body.classList.toggle("dashboard-detail-edit-mode", editable);
   }
@@ -747,6 +756,113 @@
     if (messageField) messageField.value = messageLines.join("\n");
   }
 
+  function closePaymentModal() {
+    const modal = el("invoicePaymentModal");
+  
+    if (modal) {
+      modal.hidden = true;
+      modal.style.display = "none";
+    }
+  }
+  
+  function parseMoneyValue(value) {
+    return Number(String(value || "0").replace(/[£,]/g, "") || 0);
+  }
+  
+  async function openPaymentModal() {
+    const docname = el("invoiceDocname")?.value || "";
+  
+    if (!docname) {
+      showError("Please save and submit the invoice first.");
+      return;
+    }
+  
+    const result = await apiPost(SHARED_API + ".get_payment_bank_accounts", {
+      invoice_name: docname
+    });
+  
+    const data = result.message || {};
+    const select = el("paymentBankAccount");
+  
+    if (select) {
+      select.innerHTML = "";
+  
+      const blank = document.createElement("option");
+      blank.value = "";
+      blank.textContent = "Select bank account";
+      select.appendChild(blank);
+  
+      (data.bank_accounts || []).forEach((row) => {
+        const option = document.createElement("option");
+        option.value = row.name;
+        option.textContent = row.label || row.name;
+  
+        if (row.name === data.default_bank_account) {
+          option.selected = true;
+        }
+  
+        select.appendChild(option);
+      });
+    }
+  
+    const amountField = el("paymentAmount");
+  
+    if (amountField) {
+      amountField.value = parseMoneyValue(el("invoice_outstanding_amount")?.value || "0").toFixed(2);
+    }
+  
+    const modal = el("invoicePaymentModal");
+  
+    if (modal) {
+      modal.hidden = false;
+      modal.style.display = "flex";
+    }
+  }
+  
+  async function allocatePayment() {
+    const docname = el("invoiceDocname")?.value || "";
+  
+    if (!docname) {
+      showError("Invoice is required.");
+      return;
+    }
+  
+    const button = el("submitAllocatePayment");
+  
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Allocating...";
+    }
+  
+    try {
+      const result = await apiPost(SHARED_API + ".allocate_invoice_payment", {
+        invoice_name: docname,
+        posting_date: el("paymentPostingDate")?.value || "",
+        amount: el("paymentAmount")?.value || "",
+        bank_account: el("paymentBankAccount")?.value || "",
+        reference_no: el("paymentReference")?.value || ""
+      });
+  
+      const data = result.message || {};
+  
+      updateReadOnlyText("invoice_paid_amount", money(data.paid_amount || 0));
+      updateReadOnlyText("invoice_outstanding_amount", money(data.outstanding_amount || 0));
+      updateFieldValue("invoice_status", data.status || "");
+      updateStatusBadge(data.status || "");
+  
+      closePaymentModal();
+      updateActionState();
+      showSuccess("Payment allocated");
+    } catch (error) {
+      showError(error.message || "Could not allocate payment.");
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Allocate Payment";
+      }
+    }
+  }
+
   function applyInvoiceResponse(payload) {
     if (!payload) return;
 
@@ -904,9 +1020,10 @@
 
   async function init() {
     if (!isDetailPage()) return;
-
+  
     closeEmailModal();
-
+    closePaymentModal();
+  
     await loadAllLinkOptions();
     await restrictCustomerToClientBillingContact();
 
@@ -950,16 +1067,35 @@
       event.preventDefault();
       openEmailModal();
     });
-
+    
     el("closeInvoiceEmailModal")?.addEventListener("click", function (event) {
       event.preventDefault();
       closeEmailModal();
     });
-
+    
     el("sendInvoiceEmail")?.addEventListener("click", function (event) {
       event.preventDefault();
       sendEmail();
     });
+    
+    el("openAllocatePayment")?.addEventListener("click", function (event) {
+      event.preventDefault();
+      openPaymentModal();
+    });
+    
+    el("closeAllocatePayment")?.addEventListener("click", function (event) {
+      event.preventDefault();
+      closePaymentModal();
+    });
+    
+    el("submitAllocatePayment")?.addEventListener("click", function (event) {
+      event.preventDefault();
+      allocatePayment();
+    });
+    
+    if (new URLSearchParams(window.location.search).get("payment") === "1") {
+      openPaymentModal();
+    }
   }
 
   if (document.readyState === "loading") {
