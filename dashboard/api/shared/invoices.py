@@ -1332,3 +1332,128 @@ def send_invoice_email(docname, recipient=None, reply_to=None, subject=None, mes
     frappe.sendmail(**kwargs)
 
     return {"ok": 1}
+
+def _get_bank_account_gl_account(bank_account_name):
+    if not bank_account_name or not frappe.db.exists("Bank Account", bank_account_name):
+        frappe.throw(_("Please select a valid bank account."))
+
+    bank_account = frappe.get_doc("Bank Account", bank_account_name)
+
+    for fieldname in ["account", "custom_account", "ledger_account", "default_account"]:
+        if bank_account.meta.has_field(fieldname) and bank_account.get(fieldname):
+            return bank_account.get(fieldname)
+
+    frappe.throw(
+        _("Bank Account {0} does not have a linked ledger account. Please add the Account field to the Bank Account record.")
+        .format(bank_account_name)
+    )
+
+
+@frappe.whitelist()
+def get_payment_bank_accounts(invoice_name=None):
+    _require_logged_in_user()
+
+    if not invoice_name:
+        frappe.throw(_("Invoice is required."))
+
+    if not _current_user_can_access_invoice(invoice_name):
+        frappe.throw(_("You do not have permission to access this invoice."), frappe.PermissionError)
+
+    invoice = frappe.get_doc("Sales Invoice", invoice_name)
+
+    default_bank = ""
+
+    if invoice.get("custom_client") and frappe.db.exists("Client", invoice.get("custom_client")):
+        default_bank = frappe.db.get_value("Client", invoice.get("custom_client"), "banking") or ""
+
+    rows = frappe.get_all(
+        "Bank Account",
+        fields=["name", "bank_account_name", "bank"],
+        order_by="bank_account_name asc, name asc",
+        limit_page_length=500,
+        ignore_permissions=True,
+    )
+
+    return {
+        "default_bank_account": default_bank,
+        "bank_accounts": [
+            {
+                "name": row.name,
+                "label": row.bank_account_name or row.bank or row.name,
+            }
+            for row in rows
+        ],
+    }
+
+
+@frappe.whitelist()
+def allocate_invoice_payment(invoice_name=None, posting_date=None, amount=None, bank_account=None, reference_no=None):
+    _require_logged_in_user()
+
+    if not invoice_name:
+        frappe.throw(_("Invoice is required."))
+
+    if not _current_user_can_access_invoice(invoice_name):
+        frappe.throw(_("You do not have permission to allocate payment to this invoice."), frappe.PermissionError)
+
+    invoice = frappe.get_doc("Sales Invoice", invoice_name)
+
+    if invoice.docstatus != 1:
+        frappe.throw(_("Only submitted invoices can have payments allocated."))
+
+    outstanding = _to_float(invoice.outstanding_amount)
+    payment_amount = _to_float(amount)
+
+    if payment_amount <= 0:
+        frappe.throw(_("Payment amount must be greater than zero."))
+
+    if payment_amount > outstanding:
+        frappe.throw(_("Payment amount cannot be more than the outstanding amount."))
+
+    paid_to_account = _get_bank_account_gl_account(bank_account)
+
+    payment = frappe.new_doc("Payment Entry")
+    payment.payment_type = "Receive"
+    payment.posting_date = posting_date or nowdate()
+    payment.company = invoice.company
+    payment.party_type = "Customer"
+    payment.party = invoice.customer
+    payment.party_name = invoice.customer_name
+    payment.paid_amount = payment_amount
+    payment.received_amount = payment_amount
+    payment.paid_to = paid_to_account
+    payment.reference_no = reference_no or invoice.name
+    payment.reference_date = posting_date or nowdate()
+
+    payment.append("references", {
+        "reference_doctype": "Sales Invoice",
+        "reference_name": invoice.name,
+        "allocated_amount": payment_amount,
+        "total_amount": invoice.grand_total,
+        "outstanding_amount": outstanding,
+    })
+
+    if payment.meta.has_field("custom_bank_account"):
+        payment.custom_bank_account = bank_account
+
+    if payment.meta.has_field("custom_client"):
+        payment.custom_client = invoice.get("custom_client")
+
+    if payment.meta.has_field("custom_income_owner_coach") and invoice.meta.has_field("custom_income_owner_coach"):
+        payment.custom_income_owner_coach = invoice.get("custom_income_owner_coach")
+
+    payment.insert(ignore_permissions=True)
+    payment.submit()
+
+    frappe.db.commit()
+
+    invoice.reload()
+
+    return {
+        "payment_entry": payment.name,
+        "invoice": invoice.name,
+        "status": invoice.status,
+        "paid_amount": invoice.paid_amount,
+        "outstanding_amount": invoice.outstanding_amount,
+        "grand_total": invoice.grand_total,
+    }
