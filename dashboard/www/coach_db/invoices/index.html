@@ -160,6 +160,15 @@
                       >
                         View
                       </a>
+                      
+                      {% if inv.docstatus == 1 and inv.outstanding_amount and inv.outstanding_amount > 0 %}
+                        <a
+                          class="dashboard-link-btn"
+                          href="{{ dashboard_base_path }}/invoice_details?name={{ inv.name }}&payment=1"
+                        >
+                          Allocate Payment
+                        </a>
+                      {% endif %}
                     </td>
                   </tr>
                 {% endfor %}
