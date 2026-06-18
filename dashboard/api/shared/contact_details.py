@@ -333,7 +333,7 @@ def upsert_contact_address(contact, customer_name=None, payload=None, save_conta
     city = payload.get("city") or ""
     pincode = payload.get("pincode") or ""
 
-    if not any([address_line1, address_line2, city, county, state, pincode]):
+    if not any([address_line1, address_line2, city, pincode]):
         return ""
 
     customer_name = customer_name or contact.get("custom_customer") or ""
