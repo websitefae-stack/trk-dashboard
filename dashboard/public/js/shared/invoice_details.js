@@ -805,11 +805,6 @@
       select.appendChild(loading);
     }
   
-    try {
-      const result = await apiPost(SHARED_API + ".get_payment_bank_accounts_v2", {
-        invoice_name: docname
-      });
-  
       const data = result.message || {};
   
       if (select) {
@@ -866,7 +861,6 @@
         invoice_name: docname,
         posting_date: el("paymentPostingDate")?.value || "",
         amount: el("paymentAmount")?.value || "",
-        bank_account: el("paymentBankAccount")?.value || "",
         reference_no: el("paymentReference")?.value || ""
       });
   
