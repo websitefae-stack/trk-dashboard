@@ -856,24 +856,19 @@
       ? (getValue("trkCalendarTravelCharged") || "0")
       : (getValue("trkCalendarTravelChargedSingle") || "0");
 
-    const locationType = getValue("trkCalendarLocationType") || "client_default";
-
-    let location = "";
-
-    const selectedTherapyLocation = selectedClientOption
-      ? selectedClientOption.dataset.therapyLocationLabel || ""
-      : "";
-    
-    if (locationType === "online") {
-      location = "Online";
-    } else if (locationType === "home") {
-      location = "Home";
-    } else if (locationType === "other") {
-      location = getValue("trkCalendarLocation");
-    } else {
-      location = selectedTherapyLocation;
-    }
-    const notes = getValue("trkCalendarNotes");
+      const locationType = getValue("trkCalendarLocationType") || "client_default";
+  
+      let location = "";
+  
+      if (locationType === "online") {
+        location = "Online";
+      } else if (locationType === "home") {
+        location = "Home";
+      } else if (locationType === "other") {
+        location = getValue("trkCalendarLocation");
+      }
+  
+      const notes = getValue("trkCalendarNotes");
 
     if (!clientId) {
       showToast("Please select a client");
