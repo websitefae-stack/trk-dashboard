@@ -859,11 +859,19 @@
     const locationType = getValue("trkCalendarLocationType") || "client_default";
 
     let location = "";
+
+    const selectedTherapyLocation = selectedClientOption
+      ? selectedClientOption.dataset.therapyLocationLabel || ""
+      : "";
     
     if (locationType === "online") {
-      location = "Google Meet";
+      location = "Online";
+    } else if (locationType === "home") {
+      location = "Home";
     } else if (locationType === "other") {
       location = getValue("trkCalendarLocation");
+    } else {
+      location = selectedTherapyLocation;
     }
     const notes = getValue("trkCalendarNotes");
 
