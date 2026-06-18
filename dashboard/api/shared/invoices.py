@@ -1361,30 +1361,41 @@ def get_payment_bank_accounts(invoice_name=None):
 
     invoice = frappe.get_doc("Sales Invoice", invoice_name)
 
-    default_bank = ""
+    if not invoice.get("custom_client"):
+        frappe.throw(_("This invoice is not linked to a client."))
 
-    if invoice.get("custom_client") and frappe.db.exists("Client", invoice.get("custom_client")):
-        default_bank = frappe.db.get_value("Client", invoice.get("custom_client"), "banking") or ""
-
-    rows = frappe.get_all(
-        "Bank Account",
-        fields=["name", "bank_account_name", "bank"],
-        order_by="bank_account_name asc, name asc",
-        limit_page_length=500,
-        ignore_permissions=True,
+    bank_account = frappe.db.get_value(
+        "Client",
+        invoice.get("custom_client"),
+        "banking",
     )
 
+    if not bank_account:
+        frappe.throw(_("No bank account is selected on this client."))
+
+    if not frappe.db.exists("Bank Account", bank_account):
+        frappe.throw(_("The selected client bank account does not exist: {0}").format(bank_account))
+
+    bank_doc = frappe.get_doc("Bank Account", bank_account)
+
+    label_parts = [
+        bank_doc.get("bank"),
+        bank_doc.get("account_name"),
+        bank_doc.get("bank_account_no"),
+        bank_account,
+    ]
+
+    label = " - ".join([str(part) for part in label_parts if part])
+
     return {
-        "default_bank_account": default_bank,
+        "default_bank_account": bank_account,
         "bank_accounts": [
             {
-                "name": row.name,
-                "label": row.bank_account_name or row.bank or row.name,
+                "name": bank_account,
+                "label": label or bank_account,
             }
-            for row in rows
         ],
     }
-
 
 @frappe.whitelist()
 def allocate_invoice_payment(invoice_name=None, posting_date=None, amount=None, bank_account=None, reference_no=None):
