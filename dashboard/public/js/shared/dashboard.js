@@ -204,6 +204,14 @@
       return;
     }
 
+    const confirmed = window.confirm(
+      `Are you sure you want to mark invoice ${invoice} as paid?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
     button.disabled = true;
     button.textContent = "Saving...";
 
