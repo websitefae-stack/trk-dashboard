@@ -1328,7 +1328,18 @@ def save_client(docname=None, data=None):
                 continue
 
             if not selected_diagnosis and new_diagnosis and frappe.db.exists("DocType", "Diagnosis Option"):
-                if not frappe.db.exists("Diagnosis Option", new_diagnosis):
+                existing_diagnosis = (
+                    frappe.db.exists("Diagnosis Option", new_diagnosis)
+                    or frappe.db.get_value(
+                        "Diagnosis Option",
+                        {"diagnosis_name": new_diagnosis},
+                        "name",
+                    )
+                )
+
+                if existing_diagnosis:
+                    diagnosis_value = existing_diagnosis
+                else:
                     diagnosis_doc = frappe.new_doc("Diagnosis Option")
 
                     if diagnosis_doc.meta.has_field("diagnosis_name"):
@@ -1336,8 +1347,6 @@ def save_client(docname=None, data=None):
 
                     diagnosis_doc.insert(ignore_permissions=True)
                     diagnosis_value = diagnosis_doc.name
-                else:
-                    diagnosis_value = new_diagnosis
 
             child = doc.append("diagnosis", {})
 
