@@ -28,6 +28,13 @@
         <div class="dashboard-detail-actions dashboard-detail-actions-compact">
           <a href="/franchisor_db/clients" class="dashboard-btn dashboard-btn-secondary">Back</a>
 
+          <a
+            href="/franchisor_db/calendar?book_client={{ client_docname | urlencode }}"
+            class="dashboard-btn dashboard-btn-light"
+          >
+            Book Appointment
+          </a>
+
           <button type="button" class="dashboard-btn dashboard-btn-light" id="createClientInvoice">
             Create Invoice
           </button>
