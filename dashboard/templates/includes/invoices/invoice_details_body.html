@@ -6,10 +6,23 @@
       gap: 20px;
     }
 
-    .invoice-hero {
+        .invoice-hero {
       display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
+      grid-template-columns: minmax(260px, 1fr) minmax(0, 2fr);
       gap: 20px;
+      align-items: start;
+    }
+
+    .invoice-header-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .invoice-billto-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
     }
 
     .invoice-meta-grid {
@@ -90,7 +103,9 @@
         grid-template-columns: 1fr;
       }
 
-      .invoice-meta-grid {
+      .invoice-meta-grid,
+      .invoice-header-grid,
+      .invoice-billto-grid {
         grid-template-columns: 1fr;
       }
     }
@@ -102,8 +117,14 @@
       <p class="dashboard-page-subtitle">Create, review, submit, and email invoices from the dashboard.</p>
     </div>
 
-    <div class="dashboard-page-actions">
-      <a href="{{ dashboard_base_path }}/invoices" class="dashboard-btn dashboard-btn-light">Back to Invoices</a>
+       <div class="dashboard-page-actions">
+      <a
+        href="{% if doc.custom_client %}{{ dashboard_base_path }}/client_details?name={{ doc.custom_client | urlencode }}{% else %}{{ dashboard_base_path }}/invoices{% endif %}"
+        class="dashboard-btn dashboard-btn-light"
+        id="invoiceBackButton"
+      >
+        {% if doc.custom_client %}Back to Client{% else %}Back to Invoices{% endif %}
+      </a>
 
       <button type="button" class="dashboard-btn dashboard-btn-light" id="openEmailInvoice" {% if doc.docstatus != 1 %}style="display:none;"{% endif %}>
         Email Invoice
@@ -132,6 +153,7 @@
     <input type="hidden" id="invoice_status" value="{{ doc.status or ('Draft' if doc.docstatus == 0 else 'Submitted' if doc.docstatus == 1 else 'Cancelled') }}">
     <input type="hidden" id="invoice_contact_email_hidden" value="{{ contact_email or '' }}">
     <input type="hidden" id="coachPhoneValue" value="{{ current_user_phone or '' }}">
+    <input type="hidden" id="invoiceReturnClient" value="{{ doc.custom_client or '' }}">
 
     <script type="application/json" id="invoiceInitialItems">{{ initial_items_json }}</script>
     <script type="application/json" id="invoiceInitialClientDefaults">{{ initial_client_defaults_json or "{}" }}</script>
@@ -142,11 +164,8 @@
           <h2 class="dashboard-detail-section-title">Invoice Header</h2>
         </div>
 
-        <div class="invoice-meta-grid">
-          <div class="dashboard-detail-field">
-            <label for="invoice_naming_series">Series</label>
-            <input type="text" id="invoice_naming_series" class="dashboard-input" value="{{ doc.naming_series or '' }}" readonly>
-          </div>
+        <div class="invoice-header-grid">
+          <input type="hidden" id="invoice_naming_series" value="{{ doc.naming_series or '' }}">
 
           <div class="dashboard-detail-field">
             <label for="invoice_name">Invoice Number</label>
@@ -198,7 +217,7 @@
           <h2 class="dashboard-detail-section-title">Bill To</h2>
         </div>
 
-        <div class="invoice-meta-grid">
+        <div class="invoice-billto-grid">
           <div class="dashboard-detail-field">
             <label for="invoice_custom_client">Client <span class="dashboard-required">*</span></label>
             <select
@@ -236,13 +255,8 @@
           </div>
 
           <div class="dashboard-detail-field">
-            <label for="invoice_price_list">Price List</label>
-            <input type="text" id="invoice_price_list" class="dashboard-input" value="{{ price_list or '' }}" readonly>
-          </div>
-
-          <div class="dashboard-detail-field">
-            <label for="invoice_company">Company</label>
-            <input type="text" id="invoice_company" class="dashboard-input" value="{{ company_label or doc.company or '' }}" readonly>
+            <label for="invoice_contact_email">Billing Contact Email</label>
+            <input type="email" id="invoice_contact_email" class="dashboard-input" value="{{ contact_email or '' }}" readonly>
           </div>
 
           <div class="dashboard-detail-field">
@@ -251,8 +265,13 @@
           </div>
 
           <div class="dashboard-detail-field">
-            <label for="invoice_contact_email">Billing Contact Email</label>
-            <input type="email" id="invoice_contact_email" class="dashboard-input" value="{{ contact_email or '' }}" readonly>
+            <label for="invoice_price_list">Price List</label>
+            <input type="text" id="invoice_price_list" class="dashboard-input" value="{{ price_list or '' }}" readonly>
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="invoice_company">Company</label>
+            <input type="text" id="invoice_company" class="dashboard-input" value="{{ company_label or doc.company or '' }}" readonly>
           </div>
 
           <div class="dashboard-detail-field dashboard-detail-field-full">
