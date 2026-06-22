@@ -286,11 +286,12 @@
           const noteField = row.querySelector("[data-diagnosis-field='note']");
           const dateField = row.querySelector("[data-diagnosis-field='date']");
           const diagnosisValue = diagnosisField ? diagnosisField.value : "";
+          const newDiagnosisValue = newDiagnosisField && !diagnosisValue ? newDiagnosisField.value : "";
 
           diagnosisRows.push({
             diagnosis: diagnosisValue,
             diagnoses: diagnosisValue,
-            new_diagnosis: newDiagnosisField ? newDiagnosisField.value : "",
+            new_diagnosis: newDiagnosisValue,
             note: noteField ? noteField.value : "",
             date: dateField ? dateField.value : ""
           });
@@ -964,38 +965,85 @@
       });
     }
 
+    function todayIsoDate() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function setupDiagnosisRow(row) {
+      const select = row.querySelector("[data-diagnosis-field='diagnosis'], [data-diagnosis-field='diagnoses']");
+      const input = row.querySelector("[data-diagnosis-field='new_diagnosis']");
+      const dateField = row.querySelector("[data-diagnosis-field='date']");
+
+      if (!input || input.dataset.diagnosisSetup === "1") return;
+
+      input.dataset.diagnosisSetup = "1";
+      input.style.display = input.value ? "" : "none";
+
+      const addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.className = "dashboard-link-btn";
+      addBtn.textContent = "+ Add New Diagnosis";
+      addBtn.style.marginTop = "6px";
+
+      input.parentNode.insertBefore(addBtn, input);
+
+      addBtn.addEventListener("click", function () {
+        if (select) select.value = "";
+        input.style.display = "";
+        input.focus();
+      });
+
+      if (select) {
+        select.addEventListener("change", function () {
+          if (select.value) {
+            input.value = "";
+            input.style.display = "none";
+          }
+        });
+      }
+
+      if (dateField && !dateField.value) {
+        dateField.value = todayIsoDate();
+      }
+    }
+
     function initDiagnosisRows() {
+      qsa("[data-diagnosis-row='1']").forEach(setupDiagnosisRow);
+
       document.addEventListener("click", function (event) {
         const button = event.target.closest("#addDiagnosisRow");
         if (!button) return;
-  
+
         event.preventDefault();
-  
+
         const body = el("diagnosisTableBody");
         if (!body) return;
-  
+
         const emptyRow = body.querySelector("[data-diagnosis-empty-row='1']");
         if (emptyRow) emptyRow.remove();
-  
+
         const row = document.createElement("tr");
         row.setAttribute("data-diagnosis-row", "1");
-  
+
         row.innerHTML =
           '<td>' +
             '<select class="dashboard-select" data-diagnosis-field="diagnosis" data-link-doctype="Diagnosis Option">' +
               '<option value=""></option>' +
             '</select>' +
-            '<input class="dashboard-input" data-diagnosis-field="new_diagnosis" placeholder="Or type new diagnosis" style="margin-top:6px;">' +
+            '<input class="dashboard-input" data-diagnosis-field="new_diagnosis" placeholder="Type new diagnosis" style="margin-top:6px;display:none;">' +
           '</td>' +
           '<td><input class="dashboard-input" data-diagnosis-field="note"></td>' +
-          '<td><input type="date" class="dashboard-input" data-diagnosis-field="date"></td>';
-  
+          '<td><input type="date" class="dashboard-input" data-diagnosis-field="date" value="' + todayIsoDate() + '"></td>';
+
         body.appendChild(row);
-  
+
         const select = row.querySelector("select[data-link-doctype]");
         if (select) {
           loadLinkOptions(select);
         }
+
+        setupDiagnosisRow(row);
+        applyEditMode(true, false);
       }, true);
     }
     
