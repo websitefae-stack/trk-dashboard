@@ -43,11 +43,20 @@ def get_client_types():
 
 
 def build_display_name(client):
-    return (
+    first_name = client.get("name1") or client.get("first_name") or ""
+    last_name = client.get("last_name") or ""
+    preferred_name = client.get("preferred_name") or ""
+
+    formal_name = (
         client.get("full_name")
-        or f"{client.get('name1') or ''} {client.get('last_name') or ''}".strip()
+        or f"{first_name} {last_name}".strip()
         or client.get("name")
     )
+
+    if preferred_name and first_name and preferred_name.strip().lower() != first_name.strip().lower():
+        return f"{preferred_name} {last_name}".strip() + f" ({first_name})"
+
+    return formal_name
 
 
 def get_coach_label(coach_name):
