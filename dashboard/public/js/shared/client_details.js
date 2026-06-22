@@ -415,6 +415,82 @@
     }
   }
 
+  function setSelectValue(field, value) {
+    if (!field || value == null) return;
+
+    const textValue = String(value || "");
+
+    if (field.tagName === "SELECT") {
+      let option = Array.from(field.options).find(function (item) {
+        return item.value === textValue;
+      });
+
+      if (!option && textValue) {
+        option = document.createElement("option");
+        option.value = textValue;
+        option.textContent = textValue;
+        field.appendChild(option);
+      }
+
+      field.value = textValue;
+      field.dataset.currentValue = textValue;
+      return;
+    }
+
+    field.value = textValue;
+  }
+
+  function setFieldValueIfExists(fieldnames, value) {
+    fieldnames.forEach(function (fieldname) {
+      const field = getField(fieldname);
+      if (!field) return;
+
+      setSelectValue(field, value);
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+
+  async function applyPrimaryCoachDefaults() {
+    const primaryCoachField = getField("primary_coach");
+
+    if (!primaryCoachField || !primaryCoachField.value) return;
+
+    try {
+      const defaults = await apiPost("get_coach_defaults", {
+        coach_name: primaryCoachField.value
+      });
+
+      if (!defaults) return;
+
+      setFieldValueIfExists(
+        ["coach_banking_details", "banking"],
+        defaults.coach_banking_details || defaults.banking || ""
+      );
+
+      setFieldValueIfExists(
+        ["pricelist", "price_list"],
+        defaults.pricelist || defaults.price_list || ""
+      );
+
+      setFieldValueIfExists(
+        ["company"],
+        defaults.company || ""
+      );
+    } catch (error) {
+      console.warn("Could not load coach defaults", error);
+    }
+  }
+
+  function initPrimaryCoachDefaults() {
+    const primaryCoachField = getField("primary_coach");
+
+    if (!primaryCoachField || primaryCoachField.dataset.coachDefaultsBound === "1") return;
+
+    primaryCoachField.dataset.coachDefaultsBound = "1";
+
+    primaryCoachField.addEventListener("change", applyPrimaryCoachDefaults);
+  }
+
   function initLinkOptions() {
     qsa("select[data-link-doctype]").forEach(function (select) {
       ["focus", "mousedown", "touchstart"].forEach(function (eventName) {
@@ -428,7 +504,6 @@
       qsa("select[data-link-doctype]").forEach(loadLinkOptions);
     }
   }
-
   function initEditButton() {
     const editButton = el("editClient");
     if (!editButton) return;
@@ -872,6 +947,7 @@
     initInvoiceButton();
     initAddNote();
     initLinkOptions();
+    initPrimaryCoachDefaults();
     initFullNameBuilder();
     initAgeBuilder();
     initChangeRequest();
