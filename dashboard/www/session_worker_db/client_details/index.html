@@ -41,17 +41,24 @@
           <p class="dashboard-page-subtitle">Client details and session worker actions</p>
         </div>
 
-        <div class="dashboard-detail-actions dashboard-detail-actions-compact">
-          <a href="/session_worker_db/clients{{ session_worker_view_query or '' }}" class="dashboard-btn dashboard-btn-secondary">
-            Back to Clients
-          </a>
+<div class="dashboard-detail-actions dashboard-detail-actions-compact">
+  <a href="/session_worker_db/clients{{ session_worker_view_query or '' }}" class="dashboard-btn dashboard-btn-secondary">
+    Back to Clients
+  </a>
 
-          {% if not session_worker_is_view_mode %}
-            <button type="button" class="dashboard-btn dashboard-btn-light" id="requestChangeButton">
-              Change Request
-            </button>
-          {% endif %}
-        </div>
+  {% if not session_worker_is_view_mode %}
+    <a
+      href="/session_worker_db/calendar?book_client={{ client_docname | urlencode }}"
+      class="dashboard-btn dashboard-btn-primary"
+    >
+      Book Appointment
+    </a>
+
+    <button type="button" class="dashboard-btn dashboard-btn-light" id="requestChangeButton">
+      Change Request
+    </button>
+  {% endif %}
+</div>
       </div>
 
       <div class="dashboard-card dashboard-client-detail-card">
