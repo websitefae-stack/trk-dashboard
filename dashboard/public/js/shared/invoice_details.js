@@ -413,6 +413,21 @@
     field.value = value == null ? "" : value;
   }
 
+  function updateInvoiceBackButton(clientName) {
+    const button = el("invoiceBackButton");
+    if (!button) return;
+
+    if (clientName) {
+      button.href = getDashboardBasePath() + "/client_details?name=" + encodeURIComponent(clientName);
+      button.textContent = "Back to Client";
+    } else {
+      button.href = getDashboardBasePath() + "/invoices";
+      button.textContent = "Back to Invoices";
+    }
+
+    updateFieldValue("invoiceReturnClient", clientName || "");
+  }
+
   function clearResolvedFields() {
     updateReadOnlyText("invoice_company", "");
     updateReadOnlyText("invoice_price_list", "");
@@ -420,10 +435,13 @@
     updateReadOnlyText("invoice_contact_email", "");
     updateReadOnlyText("invoice_bank_display", "");
     updateFieldValue("invoice_contact_email_hidden", "");
+    updateInvoiceBackButton("");
   }
 
   function applyContextToPage(context) {
     if (!context) return;
+
+    updateInvoiceBackButton(context.client_name || el("invoice_custom_client")?.value || "");
 
     updateReadOnlyText("invoice_company", context.company || "");
     updateReadOnlyText("invoice_price_list", context.price_list || "");
@@ -847,7 +865,14 @@
       const title = el("invoicePageTitle");
       if (title) title.textContent = payload.name;
 
-      window.history.replaceState({}, "", `${getDashboardBasePath()}/invoice_details?name=${encodeURIComponent(payload.name)}`);
+      const returnClient = payload.custom_client || el("invoiceReturnClient")?.value || "";
+      const clientQuery = returnClient ? "&client=" + encodeURIComponent(returnClient) : "";
+
+      window.history.replaceState(
+        {},
+        "",
+        `${getDashboardBasePath()}/invoice_details?name=${encodeURIComponent(payload.name)}${clientQuery}`
+      );
     }
 
     updateFieldValue("invoiceDocstatus", payload.docstatus);
@@ -862,8 +887,10 @@
 
     updateFieldValue("invoice_customer", payload.customer || "");
     updateFieldValue("invoice_custom_client", payload.custom_client || "");
+    updateInvoiceBackButton(payload.custom_client || "");
 
     applyContextToPage({
+      client_name: payload.custom_client || "",
       company: payload.company,
       price_list: payload.price_list,
       coach_label: payload.coach_label,
