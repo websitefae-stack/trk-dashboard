@@ -58,8 +58,7 @@ LAYOUT = [
                 "title": "Profile",
                 "columns": 3,
                 "fields": [
-                    {"label": "First Name", "candidates": ["name1", "first_name"]},
-                    {"label": "Last Name", "candidates": ["last_name"]},
+                    {"label": "Full Name", "candidates": ["full_name"]},
                     {"label": "Preferred Name", "candidates": ["preferred_name"]},
                     {"label": "Date Of Birth", "candidates": ["date_of_birth", "birth_date", "dob"]},
                     {"label": "Mobile", "candidates": ["mobile", "phone"]},
