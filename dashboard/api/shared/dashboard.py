@@ -857,6 +857,19 @@ def _sum_invoice_total(dashboard_type, context, start_date, end_date):
     return total
 
 
+def _sum_invoice_total_ytd(dashboard_type, context):
+    current_year = getdate(today()).year
+    start_date = getdate(f"{current_year}-01-01")
+    end_date = getdate(today())
+
+    return _sum_invoice_total(
+        dashboard_type,
+        context,
+        start_date,
+        end_date,
+    )
+
+
 def _get_outstanding_invoices(dashboard_type, context, limit=8):
     filters = _get_invoice_filters(
         dashboard_type=dashboard_type,
@@ -1171,6 +1184,10 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
         ),
         "monthly_invoice_total_previous": _sum_invoice_total(
             dashboard_type, context, previous_month_start, previous_month_end
+        ),
+        "year_to_date_income": _sum_invoice_total_ytd(
+            dashboard_type,
+            context,
         ),
 
         "outstanding_invoices": _get_outstanding_invoices(dashboard_type, context, limit=8),
