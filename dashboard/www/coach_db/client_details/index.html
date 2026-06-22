@@ -345,6 +345,12 @@
                     <h2 class="dashboard-detail-section-title">Session Pack Summary</h2>
                   </div>
 
+                  <div style="margin-bottom:12px;">
+                    <button type="button" class="dashboard-btn dashboard-btn-light" id="toggleCompletedPacks">
+                      Show All Session Packs
+                    </button>
+                  </div>
+
                   <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
                     <table class="dashboard-table dashboard-client-pack-table">
                       <thead>
@@ -364,7 +370,8 @@
                       <tbody>
                         {% if package_balances %}
                           {% for balance in package_balances %}
-                            <tr>
+                            {% set pack_exhausted = ((balance.qty_available or 0)|int <= 0 and (balance.appointments_to_add or 0)|int <= 0) %}
+                            <tr class="{% if pack_exhausted %}dashboard-pack-exhausted{% endif %}" data-pack-exhausted="{% if pack_exhausted %}1{% else %}0{% endif %}">
                               <td>{{ frappe.format(balance.display_date, {"fieldtype": "Date"}) if balance.display_date else "—" }}</td>
                               <td>{{ balance.name }}</td>
                               <td>{{ balance.service_item or "—" }}</td>
