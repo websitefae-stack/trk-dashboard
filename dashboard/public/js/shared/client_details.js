@@ -213,10 +213,22 @@
     }
   }
 
+  function applyClientDetailVisibility(isEditing) {
+    const fullNameWrap = document.querySelector("[data-field-wrap='full_name']");
+    const firstNameWrap = document.querySelector("[data-field-wrap='name1'], [data-field-wrap='first_name']");
+    const lastNameWrap = document.querySelector("[data-field-wrap='last_name']");
+
+    if (fullNameWrap) fullNameWrap.style.display = isEditing ? "none" : "";
+    if (firstNameWrap) firstNameWrap.style.display = isEditing ? "" : "none";
+    if (lastNameWrap) lastNameWrap.style.display = isEditing ? "" : "none";
+  }
+
   function applyEditMode(isEditing, isSaving) {
     qsa("[data-client-field='1']").forEach(function (field) {
       setFieldState(field, isEditing);
     });
+
+    applyClientDetailVisibility(isEditing || isNewClientPage());
 
     const editButton = el("editClient");
 
@@ -489,6 +501,74 @@
     primaryCoachField.dataset.coachDefaultsBound = "1";
 
     primaryCoachField.addEventListener("change", applyPrimaryCoachDefaults);
+  }
+
+  function setSelectValue(field, value) {
+    if (!field) return;
+
+    const textValue = String(value || "");
+
+    if (field.tagName === "SELECT") {
+      let option = Array.from(field.options).find(function (item) {
+        return item.value === textValue;
+      });
+
+      if (!option && textValue) {
+        option = document.createElement("option");
+        option.value = textValue;
+        option.textContent = textValue;
+        field.appendChild(option);
+      }
+
+      field.value = textValue;
+      field.dataset.currentValue = textValue;
+      return;
+    }
+
+    field.value = textValue;
+  }
+
+  function setFieldValue(fieldnames, value) {
+    fieldnames.forEach(function (fieldname) {
+      const field = getField(fieldname);
+      if (!field) return;
+
+      setSelectValue(field, value);
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+
+  async function applyPrimaryCoachDefaults() {
+    const primaryCoachField = getField("primary_coach");
+
+    if (!primaryCoachField || !primaryCoachField.value) return;
+
+    try {
+      const defaults = await apiPost("get_coach_defaults", {
+        coach_name: primaryCoachField.value
+      });
+
+      if (!defaults) return;
+
+      setFieldValue(["banking", "coach_banking_details"], defaults.banking || defaults.coach_banking_details || "");
+      setFieldValue(["pricelist", "price_list"], defaults.pricelist || defaults.price_list || "");
+      setFieldValue(["company"], defaults.company || "");
+    } catch (error) {
+      console.warn("Could not load coach defaults", error);
+    }
+  }
+
+  function initPrimaryCoachDefaults() {
+    const primaryCoachField = getField("primary_coach");
+
+    if (!primaryCoachField || primaryCoachField.dataset.coachDefaultsBound === "1") return;
+
+    primaryCoachField.dataset.coachDefaultsBound = "1";
+    primaryCoachField.addEventListener("change", applyPrimaryCoachDefaults);
+
+    if (isNewClientPage() && primaryCoachField.value) {
+      applyPrimaryCoachDefaults();
+    }
   }
 
   function initLinkOptions() {
