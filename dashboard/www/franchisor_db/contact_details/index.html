@@ -209,56 +209,7 @@
                     readonly
                   >
                 </div>
-                
-                <div class="dashboard-detail-field">
-                  <label>
-                    <input
-                      id="is_billing_contact"
-                      type="checkbox"
-                      data-contact-field="1"
-                      data-fieldname="is_billing_contact"
-                      data-fieldtype="Check"
-                      data-meta-readonly="0"
-                      disabled
-                    >
-                    Billing Contact
-                  </label>
-                </div>
-                
-                <div class="dashboard-detail-field" id="customer_field_wrapper">
-                  <label>Customer</label>
-                  <input
-                    type="text"
-                    class="dashboard-input"
-                    value="{{ (contact or {}).get('custom_customer') or '' }}"
-                    data-contact-field="1"
-                    data-fieldname="custom_customer"
-                    data-fieldtype="Data"
-                    data-meta-readonly="1"
-                    readonly
-                  >
-                </div>
-
-                <div class="dashboard-detail-field">
-                  <label>Linked Client</label>
-                
-                  <select
-                    class="dashboard-select"
-                    data-contact-field="1"
-                    data-fieldname="linked_client"
-                    data-fieldtype="Link"
-                    data-meta-readonly="0"
-                    disabled
-                  >
-                    <option value="">Select Client</option>
-                
-                    {% for client in clients %}
-                      <option value="{{ client.name }}">
-                        {{ client.full_name or client.name1 or client.name }}
-                      </option>
-                    {% endfor %}
-                  </select>
-                </div>              
+        
               </div>
             </section>
           </div>
