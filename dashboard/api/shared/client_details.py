@@ -56,16 +56,14 @@ LAYOUT = [
         "sections": [
             {
                 "title": "Profile",
-                "columns": 2,
+                "columns": 3,
                 "fields": [
-                    {"label": "Full Name", "candidates": ["full_name"]},
                     {"label": "First Name", "candidates": ["name1", "first_name"]},
-                    {"label": "Middle Name", "candidates": ["middle_name"]},
                     {"label": "Last Name", "candidates": ["last_name"]},
                     {"label": "Preferred Name", "candidates": ["preferred_name"]},
+                    {"label": "Date Of Birth", "candidates": ["date_of_birth", "birth_date", "dob"]},
                     {"label": "Mobile", "candidates": ["mobile", "phone"]},
                     {"label": "Email", "candidates": ["email", "email_id"]},
-                    {"label": "Date Of Birth", "candidates": ["date_of_birth", "birth_date", "dob"]},
                     {"label": "Age", "candidates": ["age"]},
                     {"label": "Address", "candidates": ["address"]},
                     {"label": "City", "candidates": ["city"]},
@@ -172,6 +170,9 @@ def find_field(field_cfg, by_label, by_fieldname):
 
 def build_field(df, doc, config, is_new=False):
     value = doc.get(df.fieldname)
+
+    if is_new and df.fieldname in ["sex", "gender", "gender_identity", "pronouns"]:
+        value = ""
 
     force_editable = df.fieldname in FORCE_EDITABLE_FIELDS
 
@@ -1221,7 +1222,11 @@ def save_client(docname=None, data=None):
             if not isinstance(row_data, dict):
                 continue
 
-            selected_diagnosis = (row_data.get("diagnoses") or "").strip()
+            selected_diagnosis = (
+                row_data.get("diagnosis")
+                or row_data.get("diagnoses")
+                or ""
+            ).strip()
             new_diagnosis = (row_data.get("new_diagnosis") or "").strip()
             note = (row_data.get("note") or "").strip()
             date = row_data.get("date") or None
@@ -1244,6 +1249,9 @@ def save_client(docname=None, data=None):
                     diagnosis_value = new_diagnosis
 
             child = doc.append("diagnosis", {})
+
+            if child.meta.has_field("diagnosis"):
+                child.diagnosis = diagnosis_value
 
             if child.meta.has_field("diagnoses"):
                 child.diagnoses = diagnosis_value
