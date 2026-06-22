@@ -47,8 +47,6 @@
           <a href="/coach_db/clients{{ coach_view_query or '' }}" class="dashboard-btn dashboard-btn-secondary">Back</a>
 
           {% if not coach_is_view_mode %}
-            <button type="button" class="dashboard-btn dashboard-btn-light" id="createClientInvoice">
-          {% if not coach_is_view_mode %}
             <a
               href="/coach_db/calendar?book_client={{ client_docname | urlencode }}"
               class="dashboard-btn dashboard-btn-light"
