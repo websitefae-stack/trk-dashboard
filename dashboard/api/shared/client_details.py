@@ -96,17 +96,19 @@ LAYOUT = [
         "sections": [
             {
                 "title": "Admin",
-                "columns": 2,
+                "columns": 3,
                 "fields": [
                     {"label": "Status", "candidates": ["status"]},
                     {"label": "Client Type", "candidates": ["client_type"]},
+                    {"label": "Main Therapy Location", "candidates": ["therapy_location"]},
+
                     {"label": "Primary Coach", "candidates": ["primary_coach"]},
                     {"label": "Attending Coach", "candidates": ["attending_coach"]},
                     {"label": "Session Worker", "candidates": ["session_worker"]},
+
                     {"label": "Coach Banking Details", "candidates": ["coach_banking_details"]},
                     {"label": "Pricelist", "candidates": ["pricelist", "price_list"]},
                     {"label": "Company", "candidates": ["company"]},
-                    {"label": "Main Therapy Location", "candidates": ["therapy_location"]},
                 ],
             },
         ],
