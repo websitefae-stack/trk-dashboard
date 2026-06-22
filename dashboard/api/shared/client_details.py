@@ -1321,10 +1321,13 @@ def save_client(docname=None, data=None):
 
             diagnosis_value = selected_diagnosis or new_diagnosis
 
+            if diagnosis_value and not date:
+                date = frappe.utils.nowdate()
+
             if not diagnosis_value and not note and not date:
                 continue
 
-            if new_diagnosis and frappe.db.exists("DocType", "Diagnosis Option"):
+            if not selected_diagnosis and new_diagnosis and frappe.db.exists("DocType", "Diagnosis Option"):
                 if not frappe.db.exists("Diagnosis Option", new_diagnosis):
                     diagnosis_doc = frappe.new_doc("Diagnosis Option")
 
