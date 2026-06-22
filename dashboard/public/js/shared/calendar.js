@@ -51,9 +51,9 @@
     currentWorkerLabel: "",
     resolutionNote: "",
     selectedEvent: null,
-    loading: false
+    loading: false,
+    autoOpenBookingClient: ""
   };
-
   function getDefaultCalendarView() {
     return window.innerWidth <= MOBILE_BREAKPOINT ? "day" : "week";
   }
@@ -136,6 +136,10 @@
     if (!root) return;
 
     restoreCalendarStateFromUrl();
+
+    const params = new URLSearchParams(window.location.search);
+    state.autoOpenBookingClient = params.get("book_client") || "";
+
     state.selectedCalendarFor = getSelectedCalendarForFromPage();
 
     bindEvents();
@@ -372,6 +376,7 @@
       renderCalendar();
       refreshSelectedEvent();
       setLoading(false);
+      autoOpenBookingFromClient();
     }).catch(function (error) {
       console.error("Calendar bootstrap failed:", error);
 
@@ -1005,8 +1010,17 @@
     });
   }
 
-  function openBookingModal(dateStr, timeStr) {
-    setValue("trkCalendarClientSelect", "");
+  function autoOpenBookingFromClient() {
+    if (!state.autoOpenBookingClient) return;
+
+    const clientToBook = state.autoOpenBookingClient;
+    state.autoOpenBookingClient = "";
+
+    openBookingModal(formatDateKey(state.currentDate), "09:00", clientToBook);
+  }
+
+  function openBookingModal(dateStr, timeStr, clientName) {
+    setValue("trkCalendarClientSelect", clientName || "");
     setValue("trkCalendarDate", dateStr || "");
     setValue("trkCalendarTime", timeStr || "");
     setValue("trkCalendarType", "Therapy Session");
@@ -1017,6 +1031,19 @@
     setValue("trkCalendarLocationType", "client_default");
     setValue("trkCalendarLocation", "");
     setValue("trkCalendarNotes", "");
+
+    if (clientName) {
+      const clientSelect = document.getElementById("trkCalendarClientSelect");
+
+      if (clientSelect && clientSelect.value !== clientName) {
+        const option = document.createElement("option");
+        option.value = clientName;
+        option.textContent = clientName;
+        option.selected = true;
+        clientSelect.appendChild(option);
+        clientSelect.value = clientName;
+      }
+    }
 
     syncBookingFields();
     toggleModal("trkCalendarModal", true);
