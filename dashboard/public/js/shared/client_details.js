@@ -816,6 +816,30 @@
     }
   }
 
+    function initCompletedPackToggle() {
+    const button = el("toggleCompletedPacks");
+    if (!button || button.dataset.completedPacksBound === "1") return;
+
+    button.dataset.completedPacksBound = "1";
+
+    let showingAll = false;
+
+    function applyPackVisibility() {
+      qsa("[data-pack-exhausted='1']").forEach(function (row) {
+        row.style.display = showingAll ? "" : "none";
+      });
+
+      button.textContent = showingAll ? "Hide Completed Session Packs" : "Show All Session Packs";
+    }
+
+    button.addEventListener("click", function () {
+      showingAll = !showingAll;
+      applyPackVisibility();
+    });
+
+    applyPackVisibility();
+  }
+
   function initChangeRequest() {
     if (!roleConfig.canRequestChange) return;
 
@@ -1030,6 +1054,7 @@
     initPrimaryCoachDefaults();
     initFullNameBuilder();
     initAgeBuilder();
+    initCompletedPackToggle();
     initChangeRequest();
     initExistingContactModal();
     initDiagnosisRows();
