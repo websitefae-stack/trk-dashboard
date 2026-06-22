@@ -568,7 +568,26 @@
                                       {% for row in item.table_rows %}
                                         <tr data-diagnosis-row="1">
                                           <td>
-                                            <input class="dashboard-input" data-diagnosis-field="diagnoses" value="{{ row.diagnoses or '' }}" readonly>
+                                            <select
+                                              class="dashboard-select"
+                                              data-diagnosis-field="diagnosis"
+                                              data-link-doctype="Diagnosis Option"
+                                              data-current-value="{{ row.diagnosis or '' }}"
+                                              disabled
+                                            >
+                                              <option value=""></option>
+                                              {% if row.diagnosis %}
+                                                <option value="{{ row.diagnosis }}" selected>{{ row.diagnosis }}</option>
+                                              {% endif %}
+                                            </select>
+                                            
+                                            <input
+                                              class="dashboard-input"
+                                              data-diagnosis-field="new_diagnosis"
+                                              placeholder="Or type new diagnosis"
+                                              style="margin-top:6px;"
+                                              readonly
+                                            >
                                           </td>
                                           <td>
                                             <input class="dashboard-input" data-diagnosis-field="note" value="{{ row.note or '' }}" readonly>
