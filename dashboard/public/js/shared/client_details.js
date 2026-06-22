@@ -255,13 +255,15 @@
         const diagnosisRows = [];
     
         qsa("[data-diagnosis-row='1']").forEach(function (row) {
-          const diagnosisField = row.querySelector("[data-diagnosis-field='diagnoses']");
+          const diagnosisField = row.querySelector("[data-diagnosis-field='diagnosis'], [data-diagnosis-field='diagnoses']");
           const newDiagnosisField = row.querySelector("[data-diagnosis-field='new_diagnosis']");
           const noteField = row.querySelector("[data-diagnosis-field='note']");
           const dateField = row.querySelector("[data-diagnosis-field='date']");
-          
+          const diagnosisValue = diagnosisField ? diagnosisField.value : "";
+
           diagnosisRows.push({
-            diagnoses: diagnosisField ? diagnosisField.value : "",
+            diagnosis: diagnosisValue,
+            diagnoses: diagnosisValue,
             new_diagnosis: newDiagnosisField ? newDiagnosisField.value : "",
             note: noteField ? noteField.value : "",
             date: dateField ? dateField.value : ""
