@@ -213,3 +213,26 @@
     width: 10%;
   }
 }
+
+@media (min-width: 900px) {
+  .dashboard-client-table {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  .dashboard-client-table th:first-child,
+  .dashboard-client-table td:first-child {
+    width: 38%;
+  }
+
+  .dashboard-client-table .dashboard-action-col,
+  .dashboard-client-table .dashboard-action-cell {
+    width: 110px;
+    text-align: right;
+  }
+
+  .dashboard-client-table th,
+  .dashboard-client-table td {
+    vertical-align: middle;
+  }
+}
