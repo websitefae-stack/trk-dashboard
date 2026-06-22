@@ -190,3 +190,26 @@
     overflow-wrap: anywhere;
   }
 }
+
+@media (min-width: 900px) {
+  #franchisorDashboardHome .dashboard-franchisor-appointments-table {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  #franchisorDashboardHome .dashboard-franchisor-appointments-table .dashboard-home-date-col {
+    width: 13%;
+  }
+
+  #franchisorDashboardHome .dashboard-franchisor-appointments-table .dashboard-home-details-col {
+    width: 50%;
+  }
+
+  #franchisorDashboardHome .dashboard-franchisor-appointments-table .dashboard-home-location-col {
+    width: 27%;
+  }
+
+  #franchisorDashboardHome .dashboard-franchisor-appointments-table .dashboard-home-action-col {
+    width: 10%;
+  }
+}
