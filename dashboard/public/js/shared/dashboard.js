@@ -262,6 +262,7 @@
     setText("dashboardTotalClients", payload.total_clients ?? 0);
     setText("dashboardTotalSessionWorkers", payload.total_session_workers ?? 0);
     setText("dashboardTotalCoaches", payload.total_coaches ?? 0);
+    setText("dashboardYearToDateIncome", formatMoney(payload.year_to_date_income || 0, "GBP"));
 
     setText("dashboardNewClientsPrevious", payload.new_clients_previous_month ?? 0);
     setText("dashboardNewClientsCurrent", payload.new_clients_current_month ?? 0);
