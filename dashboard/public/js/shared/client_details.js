@@ -228,6 +228,20 @@
       setFieldState(field, isEditing);
     });
 
+    qsa("[data-diagnosis-field]").forEach(function (field) {
+      if (!roleConfig.canEdit) {
+        field.disabled = true;
+        field.readOnly = true;
+        return;
+      }
+
+      if (field.tagName === "SELECT") {
+        field.disabled = !isEditing;
+      } else {
+        field.readOnly = !isEditing;
+      }
+    });
+
     applyClientDetailVisibility(isEditing || isNewClientPage());
 
     const editButton = el("editClient");
@@ -369,6 +383,7 @@
 
   function getOptionLabel(row) {
     return (
+      row.diagnosis_name ||
       row.coach_name ||
       row.sw_name ||
       row.session_worker_name ||
@@ -967,7 +982,7 @@
   
         row.innerHTML =
           '<td>' +
-            '<select class="dashboard-select" data-diagnosis-field="diagnoses" data-link-doctype="Diagnosis Option">' +
+            '<select class="dashboard-select" data-diagnosis-field="diagnosis" data-link-doctype="Diagnosis Option">' +
               '<option value=""></option>' +
             '</select>' +
             '<input class="dashboard-input" data-diagnosis-field="new_diagnosis" placeholder="Or type new diagnosis" style="margin-top:6px;">' +
