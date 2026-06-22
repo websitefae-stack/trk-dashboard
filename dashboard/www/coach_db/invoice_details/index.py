@@ -89,6 +89,7 @@ def get_context(context):
     context.dashboard_base_path = "/coach_db"
 
     requested_name = (frappe.form_dict.get("name") or "").strip()
+    requested_client = (frappe.form_dict.get("client") or "").strip()
     is_new = str(frappe.form_dict.get("new") or "").lower() in ("1", "true", "yes") or not requested_name
 
     if is_new:
@@ -96,6 +97,13 @@ def get_context(context):
         doc.posting_date = nowdate()
         doc.due_date = nowdate()
         doc.naming_series = _naming_series_default()
+
+        if requested_client:
+            if not invoice_api._current_user_can_access_client(requested_client):
+                frappe.throw(_("You do not have permission to invoice this client."), frappe.PermissionError)
+
+            doc.custom_client = requested_client
+
         docname = ""
     else:
         if not invoice_api._current_user_can_access_invoice(requested_name):
