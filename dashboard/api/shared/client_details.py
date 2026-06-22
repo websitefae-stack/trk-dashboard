@@ -61,10 +61,15 @@ LAYOUT = [
                     {"label": "Full Name", "candidates": ["full_name"]},
                     {"label": "Preferred Name", "candidates": ["preferred_name"]},
                     {"label": "Date Of Birth", "candidates": ["date_of_birth", "birth_date", "dob"]},
+
+                    {"label": "First Name", "candidates": ["name1", "first_name"]},
+                    {"label": "Last Name", "candidates": ["last_name"]},
                     {"label": "Mobile", "candidates": ["mobile", "phone"]},
+
                     {"label": "Email", "candidates": ["email", "email_id"]},
                     {"label": "Age", "candidates": ["age"]},
                     {"label": "Address", "candidates": ["address"]},
+
                     {"label": "City", "candidates": ["city"]},
                     {"label": "Zip Code", "candidates": ["zip_code", "postcode", "postal_code"]},
                 ],
@@ -105,7 +110,7 @@ LAYOUT = [
                     {"label": "Attending Coach", "candidates": ["attending_coach"]},
                     {"label": "Session Worker", "candidates": ["session_worker"]},
 
-                    {"label": "Coach Banking Details", "candidates": ["coach_banking_details"]},
+                    {"label": "Coach Banking Details", "candidates": ["banking", "coach_banking_details"]},
                     {"label": "Pricelist", "candidates": ["pricelist", "price_list"]},
                     {"label": "Company", "candidates": ["company"]},
                 ],
@@ -1113,9 +1118,38 @@ def get_coach_defaults(coach_name=None):
     return get_coach_defaults_from_coach(coach_name)
 
 
-def get_link_display_fields(doctype):
-    if not frappe.db.exists("DocType", doctype):
-        return ["name"]
+def get_coach_defaults_from_coach(coach_name):
+    coach_name = (coach_name or "").strip()
+
+    if not coach_name or not frappe.db.exists("Coach", coach_name):
+        return {
+            "banking": "",
+            "coach_banking_details": "",
+            "pricelist": "",
+            "price_list": "",
+            "company": "",
+        }
+
+    coach = frappe.db.get_value(
+        "Coach",
+        coach_name,
+        ["bank_account", "pricelist", "company"],
+        as_dict=True,
+    ) or {}
+
+    return {
+        "banking": coach.get("bank_account") or "",
+        "coach_banking_details": coach.get("bank_account") or "",
+        "pricelist": coach.get("pricelist") or "",
+        "price_list": coach.get("pricelist") or "",
+        "company": coach.get("company") or "",
+    }
+
+
+@frappe.whitelist()
+def get_coach_defaults(coach_name=None):
+    require_logged_in_user()
+    return get_coach_defaults_from_coach(coach_name)
 
     meta = frappe.get_meta(doctype)
     fields = ["name"]
