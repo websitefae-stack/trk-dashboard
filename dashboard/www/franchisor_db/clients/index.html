@@ -87,8 +87,6 @@
               <thead>
                 <tr>
                   <th>Client Name</th>
-                  <th>Mobile</th>
-                  <th>Email</th>
                   <th>Session Worker</th>
                   <th>Coach</th>
                   <th>Type</th>
@@ -110,8 +108,6 @@
                     class="dashboard-client-row"
                     data-name="{{ display_name|lower }}"
                     data-preferred="{{ (c.preferred_name or '')|lower }}"
-                    data-email="{{ (c.email or '')|lower }}"
-                    data-mobile="{{ (c.mobile or '')|lower }}"
                     data-status="{{ row_status }}"
                     data-type="{{ row_type }}"
                     data-session-worker="{{ session_worker }}"
@@ -122,8 +118,6 @@
                         {{ display_name }}
                       </a>
                     </td>
-                    <td>{{ c.mobile or "—" }}</td>
-                    <td>{{ c.email or "—" }}</td>
                     <td>{{ session_worker }}</td>
                     <td>{{ coach_label }}</td>
                     <td>{{ row_type }}</td>
