@@ -264,7 +264,43 @@ def _customer_email(customer_name):
     if not customer_name or not frappe.db.exists("Customer", customer_name):
         return ""
 
-    return frappe.db.get_value("Customer", customer_name, "email_id") or ""
+    customer_email = frappe.db.get_value("Customer", customer_name, "email_id")
+    if customer_email:
+        return customer_email
+
+    primary_contact = frappe.db.get_value(
+        "Customer",
+        customer_name,
+        "customer_primary_contact",
+    )
+
+    if primary_contact and frappe.db.exists("Contact", primary_contact):
+        contact_email = frappe.db.get_value("Contact", primary_contact, "email_id")
+        if contact_email:
+            return contact_email
+
+    linked_contact = frappe.db.get_value(
+        "Dynamic Link",
+        {
+            "parenttype": "Contact",
+            "link_doctype": "Customer",
+            "link_name": customer_name,
+        },
+        "parent",
+    )
+
+    if linked_contact and frappe.db.exists("Contact", linked_contact):
+        contact_email = frappe.db.get_value("Contact", linked_contact, "email_id")
+        if contact_email:
+            return contact_email
+
+    contact_from_custom_customer = frappe.db.get_value(
+        "Contact",
+        {"custom_customer": customer_name},
+        "email_id",
+    )
+
+    return contact_from_custom_customer or ""
 
 
 def _bank_display_text(bank_account_name):
