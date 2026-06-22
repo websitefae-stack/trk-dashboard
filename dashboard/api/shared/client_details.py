@@ -1058,6 +1058,59 @@ def get_client_invoices(client_name):
         ignore_permissions=True,
     )
 
+def get_coach_defaults_from_coach(coach_name):
+    coach_name = (coach_name or "").strip()
+
+    if not coach_name:
+        return {
+            "coach_banking_details": "",
+            "banking": "",
+            "pricelist": "",
+            "price_list": "",
+            "company": "",
+        }
+
+    if not frappe.db.exists("Coach", coach_name):
+        return {
+            "coach_banking_details": "",
+            "banking": "",
+            "pricelist": "",
+            "price_list": "",
+            "company": "",
+        }
+
+    coach_meta = frappe.get_meta("Coach")
+
+    fields = ["name"]
+
+    for fieldname in ["bank_account", "company", "pricelist", "price_list"]:
+        if coach_meta.has_field(fieldname):
+            fields.append(fieldname)
+
+    coach = frappe.db.get_value(
+        "Coach",
+        coach_name,
+        fields,
+        as_dict=True,
+    ) or {}
+
+    bank_account = coach.get("bank_account") or ""
+    pricelist = coach.get("pricelist") or coach.get("price_list") or ""
+
+    return {
+        "coach_banking_details": bank_account,
+        "banking": bank_account,
+        "pricelist": pricelist,
+        "price_list": pricelist,
+        "company": coach.get("company") or "",
+    }
+
+
+@frappe.whitelist()
+def get_coach_defaults(coach_name=None):
+    require_logged_in_user()
+    return get_coach_defaults_from_coach(coach_name)
+
 
 def get_link_display_fields(doctype):
     if not frappe.db.exists("DocType", doctype):
@@ -1264,6 +1317,12 @@ def save_client(docname=None, data=None):
 
     if is_new_client:
         set_full_name_from_parts(doc, payload)
+
+    coach_defaults = get_coach_defaults_from_coach(doc.get("primary_coach"))
+
+    for fieldname in ["coach_banking_details", "banking", "pricelist", "price_list", "company"]:
+        if doc.meta.has_field(fieldname) and not doc.get(fieldname) and coach_defaults.get(fieldname):
+            doc.set(fieldname, coach_defaults.get(fieldname))
     
     apply_age_and_client_type(doc)
     
