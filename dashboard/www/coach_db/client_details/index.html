@@ -48,6 +48,15 @@
 
           {% if not coach_is_view_mode %}
             <button type="button" class="dashboard-btn dashboard-btn-light" id="createClientInvoice">
+          {% if not coach_is_view_mode %}
+            <a
+              href="/coach_db/calendar?book_client={{ client_docname | urlencode }}"
+              class="dashboard-btn dashboard-btn-light"
+            >
+              Book Appointment
+            </a>
+
+            <button type="button" class="dashboard-btn dashboard-btn-light" id="createClientInvoice">
               Create Invoice
             </button>
 
