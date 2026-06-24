@@ -42,7 +42,11 @@
         </div>
 
 <div class="dashboard-detail-actions dashboard-detail-actions-compact">
-  <a href="/session_worker_db/clients{{ session_worker_view_query or '' }}" class="dashboard-btn dashboard-btn-secondary">
+  <a
+  href="/session_worker_db/clients{{ session_worker_view_query or '' }}"
+  class="dashboard-btn dashboard-btn-secondary"
+  onclick="if (document.referrer && document.referrer.indexOf(window.location.origin) === 0) { event.preventDefault(); window.history.back(); }"
+>
     Back to Clients
   </a>
 
