@@ -22,6 +22,7 @@ web_include_css = [
 
 web_include_js = [
     "/assets/dashboard/js/shared/dashboard_sidebar.js",
+    "/assets/dashboard/js/shared/pagination.js",
 ]
 
 website_context = {
