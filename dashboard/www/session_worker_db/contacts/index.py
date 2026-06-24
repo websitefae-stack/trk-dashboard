@@ -1,7 +1,7 @@
 import frappe
 from frappe import _
 
-from dashboard.api.shared.contacts import get_contacts_for_scope
+from dashboard.api.shared.contacts import get_contacts_for_scope, get_paginated_contacts_for_scope
 from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
 from dashboard.api.shared.permissions import is_franchisor_user
 
@@ -79,8 +79,11 @@ def get_context(context):
             "sw_name",
         ) or frappe.session.user
 
-        contacts = get_contacts_for_scope("session_worker")
+        contact_data = get_paginated_contacts_for_scope("session_worker")
+        contacts = contact_data.get("contacts", [])
         context.contacts = mark_all_contacts_viewable(contacts)
+        context.pagination = contact_data.get("pagination", {})
+        context.search = contact_data.get("search", "")
 
 
 def mark_all_contacts_viewable(contacts):
