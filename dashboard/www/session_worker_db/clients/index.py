@@ -1,7 +1,7 @@
 import frappe
 from frappe import _
 
-from dashboard.api.shared.clients import get_clients, get_client_types
+from dashboard.api.shared.clients import get_paginated_clients, get_client_types
 from dashboard.api.shared.session_worker_view_mode import (
     get_session_worker_view_mode,
     get_clients_for_view_session_worker,
@@ -75,6 +75,9 @@ def get_context(context):
         context.clients = get_clients_for_view_session_worker(view_mode.get("view_worker_name"))
     else:
         context.dashboard_user_name = get_session_worker_display_name()
-        context.clients = get_clients()
+        client_data = get_paginated_clients()
+        context.clients = client_data.get("clients", [])
+        context.pagination = client_data.get("pagination", {})
+        context.search = client_data.get("search", "")
 
     context.client_types = get_client_types()
