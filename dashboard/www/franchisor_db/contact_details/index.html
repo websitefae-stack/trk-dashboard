@@ -16,7 +16,13 @@
         </div>
 
         <div class="dashboard-detail-actions dashboard-detail-actions-compact">
-          <a href="/franchisor_db/contacts" class="dashboard-btn dashboard-btn-secondary">Back</a>
+          <a
+            href="/franchisor_db/contacts"
+            class="dashboard-btn dashboard-btn-secondary"
+            onclick="if (document.referrer && document.referrer.indexOf(window.location.origin) === 0) { event.preventDefault(); window.history.back(); }"
+          >
+            Back
+          </a>
           <button type="button" class="dashboard-btn dashboard-btn-light" id="refreshContactDetails">Refresh</button>
           <button type="button" class="dashboard-btn dashboard-btn-primary" id="editContact">
             {% if is_new %}Save Contact{% else %}Edit Contact{% endif %}
