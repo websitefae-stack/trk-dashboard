@@ -57,7 +57,9 @@
       <div class="dashboard-card">
         <div class="dashboard-table-header">
           <div class="dashboard-table-title">Contact List</div>
-          <div class="dashboard-table-count" id="contactCount">{{ contacts|length }} contacts</div>
+          <div class="dashboard-table-count" id="contactCount">
+            {{ pagination.total or contacts|length }} contacts
+          </div>
         </div>
 
         {% if contacts %}
