@@ -479,3 +479,40 @@ def get_contacts(scope="coach", show_all=0, coach_scope="my"):
         show_all=bool(int(show_all or 0)),
         coach_scope=coach_scope or "my",
     )
+
+
+def get_paginated_contacts_for_scope(scope, show_all=False, coach_scope="my"):
+    page_args = get_page_args()
+
+    all_contacts = get_contacts_for_scope(
+        scope=scope,
+        show_all=show_all,
+        coach_scope=coach_scope,
+    )
+
+    search = page_args["search"].lower()
+
+    if search:
+        all_contacts = [
+            c for c in all_contacts
+            if search in (c.get("display_name") or "").lower()
+            or search in (c.get("email_id") or "").lower()
+            or search in (c.get("mobile_no") or "").lower()
+            or search in (c.get("linked_client_text") or "").lower()
+            or search in (c.get("coach_name") or "").lower()
+            or search in (c.get("session_worker_name") or "").lower()
+        ]
+
+    total = len(all_contacts)
+    start = page_args["start"]
+    end = start + page_args["page_size"]
+
+    return {
+        "contacts": all_contacts[start:end],
+        "pagination": make_pagination(
+            total,
+            page_args["page"],
+            page_args["page_size"],
+        ),
+        "search": page_args["search"],
+    }
