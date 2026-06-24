@@ -120,6 +120,54 @@ def get_clients():
     return [normalize_client_row(c, include_permissions=True) for c in clients]
 
 
+def get_paginated_clients():
+    ensure_logged_in()
+
+    page_args = get_page_args()
+    search = page_args["search"]
+
+    filters = []
+
+    if search:
+        filters.append(["full_name", "like", f"%{search}%"])
+
+    or_filters = get_allowed_client_or_filters()
+
+    args = {
+        "doctype": CLIENT_DOCTYPE,
+        "fields": CLIENT_FIELDS,
+        "filters": filters,
+        "order_by": "full_name asc",
+        "start": page_args["start"],
+        "page_length": page_args["page_size"],
+    }
+
+    count_args = {
+        "doctype": CLIENT_DOCTYPE,
+        "filters": filters,
+    }
+
+    if or_filters is not None:
+        args["or_filters"] = or_filters
+        count_args["or_filters"] = or_filters
+
+    rows = frappe.get_all(**args)
+    total = frappe.db.count(**count_args)
+
+    return {
+        "clients": [
+            normalize_client_row(c, include_permissions=True)
+            for c in rows
+        ],
+        "pagination": make_pagination(
+            total,
+            page_args["page"],
+            page_args["page_size"],
+        ),
+        "search": search,
+    }
+
+
 @frappe.whitelist()
 def get_client(client_name):
     ensure_logged_in()
