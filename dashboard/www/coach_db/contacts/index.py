@@ -4,6 +4,7 @@ from frappe import _
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
 from dashboard.api.shared.contacts import (
     get_contacts_for_scope,
+    get_paginated_contacts_for_scope,
     get_current_coach_name,
     get_contact_names_from_clients,
     get_linked_clients_for_contact,
@@ -63,7 +64,10 @@ def get_context(context):
             "coach_name",
         ) or frappe.session.user
 
-        context.contacts = get_contacts_for_scope("coach")
+        contact_data = get_paginated_contacts_for_scope("coach")
+        context.contacts = contact_data.get("contacts", [])
+        context.pagination = contact_data.get("pagination", {})
+        context.search = contact_data.get("search", "")
 
 
 def get_clients_for_view_coach(coach_name):
