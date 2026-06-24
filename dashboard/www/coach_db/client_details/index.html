@@ -51,7 +51,13 @@
         </div>
 
         <div class="dashboard-detail-actions dashboard-detail-actions-compact">
-          <a href="/coach_db/clients{{ coach_view_query or '' }}" class="dashboard-btn dashboard-btn-secondary">Back</a>
+          <a
+            href="/coach_db/clients{{ coach_view_query or '' }}"
+            class="dashboard-btn dashboard-btn-secondary"
+            onclick="if (document.referrer && document.referrer.indexOf(window.location.origin) === 0) { event.preventDefault(); window.history.back(); }"
+          >
+            Back
+          </a>
 
           {% if not coach_is_view_mode %}
             <a
