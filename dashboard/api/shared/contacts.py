@@ -485,14 +485,13 @@ def get_contacts(scope="coach", show_all=0, coach_scope="my"):
 
 def get_paginated_contacts_for_scope(scope, show_all=False, coach_scope="my"):
     page_args = get_page_args()
+    search = page_args["search"].lower()
 
     all_contacts = get_contacts_for_scope(
         scope=scope,
         show_all=show_all,
         coach_scope=coach_scope,
     )
-
-    search = page_args["search"].lower()
 
     if search:
         all_contacts = [
