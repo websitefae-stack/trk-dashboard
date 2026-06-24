@@ -151,7 +151,16 @@ def get_paginated_clients():
         count_args["or_filters"] = or_filters
 
     rows = frappe.get_all(**args)
-    total = frappe.db.count(CLIENT_DOCTYPE, **count_args)
+
+    total_rows = frappe.get_all(
+        CLIENT_DOCTYPE,
+        filters=count_args.get("filters"),
+        or_filters=count_args.get("or_filters"),
+        pluck="name",
+        limit_page_length=0,
+    )
+
+    total = len(total_rows)
     return {
         "clients": [
             normalize_client_row(c, include_permissions=True)
