@@ -2,7 +2,7 @@ import frappe
 from frappe import _
 
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
-from dashboard.api.shared.clients import get_clients, get_client_types, normalize_client_row, CLIENT_FIELDS
+from dashboard.api.shared.clients import get_paginated_clients, get_client_types, normalize_client_row, CLIENT_FIELDS
 from dashboard.api.shared.directory import get_coach_display_name, get_session_workers
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 
@@ -38,7 +38,10 @@ def get_context(context):
     else:
         redirect_if_wrong_dashboard("coach")
         context.dashboard_user_name = get_coach_display_name()
-        context.clients = get_clients()
+        client_data = get_paginated_clients()
+        context.clients = client_data.get("clients", [])
+        context.pagination = client_data.get("pagination", {})
+        context.search = client_data.get("search", "")
         context.session_workers = get_session_workers()
 
     context.client_types = get_client_types()
