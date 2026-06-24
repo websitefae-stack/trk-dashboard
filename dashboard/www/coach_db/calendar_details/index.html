@@ -27,6 +27,9 @@
             <a href="{{ coach_view_return_to }}" class="dashboard-btn dashboard-btn-secondary">
               Back to Coaches
             </a>
+            <a href="/coach_db/clients" class="dashboard-btn dashboard-btn-secondary" onclick="if (document.referrer && document.referrer.indexOf(window.location.origin) === 0) { event.preventDefault(); window.history.back(); }">
+  Back to last page
+</a>
           </div>
         </div>
       {% endif %}
