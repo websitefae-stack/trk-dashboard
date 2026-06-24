@@ -122,8 +122,9 @@
         href="{% if doc.custom_client %}{{ dashboard_base_path }}/client_details?name={{ doc.custom_client | urlencode }}{% else %}{{ dashboard_base_path }}/invoices{% endif %}"
         class="dashboard-btn dashboard-btn-light"
         id="invoiceBackButton"
+        onclick="if (document.referrer && document.referrer.indexOf(window.location.origin) === 0) { event.preventDefault(); window.history.back(); }"
       >
-        {% if doc.custom_client %}Back to Client{% else %}Back to Invoices{% endif %}
+        Back
       </a>
 
       <button type="button" class="dashboard-btn dashboard-btn-light" id="openEmailInvoice" {% if doc.docstatus != 1 %}style="display:none;"{% endif %}>
