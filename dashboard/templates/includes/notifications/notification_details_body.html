@@ -17,7 +17,11 @@
         </div>
 
         <div class="dashboard-detail-actions">
-          <a href="{{ base_url }}/notifications" class="dashboard-btn dashboard-btn-light">
+          <a
+            href="{{ base_url }}/notifications"
+            class="dashboard-btn dashboard-btn-light"
+            onclick="if (document.referrer && document.referrer.indexOf(window.location.origin) === 0) { event.preventDefault(); window.history.back(); }"
+          >
             Back
           </a>
 
