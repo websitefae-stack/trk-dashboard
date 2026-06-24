@@ -19,6 +19,8 @@ def get_context(context):
     data = get_invoice_page_data(dashboard_type="franchisor", selected_coach=selected_coach)
 
     context.invoices = data.get("invoices", [])
+    context.pagination = data.get("pagination", {})
+    context.search = data.get("search", "")
     context.coach_options = data.get("coach_options", [])
     context.selected_coach = data.get("selected_coach", "")
     context.current_coach = data.get("current_coach", "")
