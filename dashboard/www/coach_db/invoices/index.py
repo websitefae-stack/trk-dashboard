@@ -57,6 +57,8 @@ def get_context(context):
         )
 
         context.invoices = data.get("invoices", [])
+        context.pagination = data.get("pagination", {})
+        context.search = data.get("search", "")
         context.coach_options = data.get("coach_options", [])
         context.selected_coach = data.get("selected_coach", "")
         context.current_coach = data.get("current_coach", "")
