@@ -3,6 +3,8 @@ import frappe
 from frappe import _
 from frappe.utils import nowdate
 
+from dashboard.api.shared.pagination import get_page_args, make_pagination
+
 
 FRANCHISOR_USERS = [
     "ashley@theresilientkid.co.uk",
@@ -524,29 +526,66 @@ def _normalise_invoice_row(row, client_map, dashboard_type):
 
 
 def _get_invoices_for_clients(client_rows, dashboard_type):
+    page_args = get_page_args()
+    search = page_args["search"].lower()
+
     client_names = [row.get("name") for row in client_rows if row.get("name")]
 
     if not client_names:
-        return []
+        return {
+            "invoices": [],
+            "pagination": make_pagination(0, page_args["page"], page_args["page_size"]),
+            "search": page_args["search"],
+        }
+
+    filters = {
+        "custom_client": ["in", client_names],
+        "docstatus": ["!=", 2],
+    }
+
+    total_rows = frappe.get_all(
+        "Sales Invoice",
+        filters=filters,
+        pluck="name",
+        limit_page_length=0,
+        ignore_permissions=True,
+    )
 
     invoice_rows = frappe.get_all(
         "Sales Invoice",
-        filters={
-            "custom_client": ["in", client_names],
-            "docstatus": ["!=", 2],
-        },
+        filters=filters,
         fields=_get_invoice_fields(),
         order_by="posting_date desc, modified desc",
-        limit_page_length=1000,
+        start=page_args["start"],
+        page_length=page_args["page_size"],
         ignore_permissions=True,
     )
 
     client_map = {row.get("name"): row for row in client_rows if row.get("name")}
 
-    return [
+    invoices = [
         _normalise_invoice_row(row, client_map, dashboard_type)
         for row in invoice_rows
     ]
+
+    if search:
+        invoices = [
+            inv for inv in invoices
+            if search in (inv.get("name") or "").lower()
+            or search in (inv.get("client_name") or "").lower()
+            or search in (inv.get("customer_name") or "").lower()
+            or search in (inv.get("customer") or "").lower()
+        ]
+
+    return {
+        "invoices": invoices,
+        "pagination": make_pagination(
+            len(total_rows),
+            page_args["page"],
+            page_args["page_size"],
+        ),
+        "search": page_args["search"],
+    }
 
 
 @frappe.whitelist()
@@ -578,7 +617,8 @@ def get_invoice_page_data(dashboard_type=None, selected_coach=None):
         dashboard_type=dashboard_type,
     )
 
-    invoices = _get_invoices_for_clients(client_rows, dashboard_type)
+    invoice_data = _get_invoices_for_clients(client_rows, dashboard_type)
+    invoices = invoice_data.get("invoices", [])
 
     return {
         "dashboard_type": dashboard_type,
@@ -589,6 +629,8 @@ def get_invoice_page_data(dashboard_type=None, selected_coach=None):
         "is_franchisor": 1 if _is_franchisor_user() else 0,
         "coach_options": _get_coach_options(),
         "invoices": invoices,
+        "pagination": invoice_data.get("pagination", {}),
+        "search": invoice_data.get("search", ""),
     }
 
 
