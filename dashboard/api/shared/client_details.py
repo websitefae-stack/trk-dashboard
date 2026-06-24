@@ -1146,12 +1146,6 @@ def get_coach_defaults_from_coach(coach_name):
     }
 
 
-@frappe.whitelist()
-def get_coach_defaults(coach_name=None):
-    require_logged_in_user()
-    return get_coach_defaults_from_coach(coach_name)
-
-
 def get_link_display_fields(doctype):
     meta = frappe.get_meta(doctype)
 
