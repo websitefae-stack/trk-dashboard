@@ -78,7 +78,9 @@
       <div class="dashboard-card dashboard-client-list-card">
         <div class="dashboard-table-header">
           <div class="dashboard-table-title">Client List</div>
-          <div class="dashboard-table-count" id="clientCount">{{ clients|length }} clients</div>
+          <div class="dashboard-table-count" id="clientCount">
+            {{ pagination.total or clients|length }} clients
+          </div>
         </div>
 
         {% if clients %}
