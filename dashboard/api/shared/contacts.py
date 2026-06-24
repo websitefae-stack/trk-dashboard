@@ -8,6 +8,8 @@ from dashboard.api.shared.permissions import (
     get_current_session_worker_name as permissions_get_current_session_worker_name,
 )
 
+from dashboard.api.shared.pagination import get_page_args, make_pagination
+
 
 CLIENT_DOCTYPE = "Client"
 CONTACT_DOCTYPE = "Contact"
