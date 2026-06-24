@@ -44,7 +44,13 @@
         </div>
 
         <div class="dashboard-page-actions">
-          <a href="/coach_db/calendar{{ coach_view_query or '' }}" class="dashboard-btn dashboard-btn-light">← Back to Calendar</a>
+          <a
+            href="/coach_db/calendar{{ coach_view_query or '' }}"
+            class="dashboard-btn dashboard-btn-light"
+            onclick="if (document.referrer && document.referrer.indexOf(window.location.origin) === 0) { event.preventDefault(); window.history.back(); }"
+          >
+            ← Back to Calendar
+          </a>
         </div>
       </div>
 
