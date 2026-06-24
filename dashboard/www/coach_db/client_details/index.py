@@ -1,7 +1,10 @@
 import frappe
 from frappe import _
 
-from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
+from dashboard.api.shared.permissions import (
+    redirect_if_wrong_dashboard,
+    get_current_coach_name,
+)
 from dashboard.api.shared.client_details import (
     get_client_context_data,
     get_coach_name,
@@ -72,6 +75,7 @@ def get_context(context):
             is_new=is_new,
             base_url="/coach_db",
             enforce_access=True,
+            default_primary_coach=get_current_coach_name(optional=True) if is_new else None,
         )
 
     for key, value in data.items():
