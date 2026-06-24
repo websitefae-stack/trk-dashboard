@@ -1426,7 +1426,7 @@ def add_client_note(client_name, note_text, session_date=None, session_type=None
 
     return {"ok": 1, "message": _("Note added successfully.")}
     
-def get_client_context_data(client_name=None, is_new=False, base_url="/coach_db", enforce_access=True):
+def get_client_context_data(client_name=None, is_new=False, base_url="/coach_db", enforce_access=True, default_primary_coach=None):
     require_logged_in_user()
 
     if client_name and not is_new and enforce_access:
@@ -1438,6 +1438,15 @@ def get_client_context_data(client_name=None, is_new=False, base_url="/coach_db"
     else:
         doc = frappe.new_doc("Client")
         title = "New Client"
+
+        if default_primary_coach and doc.meta.has_field("primary_coach"):
+            doc.primary_coach = default_primary_coach
+
+            coach_defaults = get_coach_defaults_from_coach(default_primary_coach)
+
+            for fieldname in ["coach_banking_details", "banking", "pricelist", "price_list", "company"]:
+                if doc.meta.has_field(fieldname) and coach_defaults.get(fieldname):
+                    doc.set(fieldname, coach_defaults.get(fieldname))
 
     is_existing_client = bool(doc.name and not is_new)
 
