@@ -47,14 +47,14 @@
   };
 
   const TYPE_STYLES = {
-    "Therapy Session": { background: "#AC455C", border: "#E94763", textColor: "#FFFFFF" },
-    "Parent Check-In": { background: "#D64923", border: "#FF8438", textColor: "#FFFFFF" },
-    "Initial Consultation": { background: "#00A19E", border: "#007274", textColor: "#FFFFFF" },
-    "Internal Training": { background: "#582581", border: "#9A4795", textColor: "#FFFFFF" },
-    "School Visit": { background: "#258D3B", border: "#5FE07C", textColor: "#FFFFFF" },
-    "Event / Stall": { background: "#98962A", border: "#D5DA39", textColor: "#FFFFFF" },
-    "Holiday": { background: "#839898", border: "#F2F8F8", textColor: "#FFFFFF" },
-    "Personal": { background: "#434B49", border: "#839898", textColor: "#FFFFFF" }
+    "Therapy Session": { background: "#FBE3E8", border: "#E94763", textColor: "#434B49" },
+    "Parent Check-In": { background: "#FFE8DC", border: "#FF8438", textColor: "#434B49" },
+    "Initial Consultation": { background: "#DDF6F5", border: "#00A19E", textColor: "#434B49" },
+    "Internal Training": { background: "#F0E5F3", border: "#9A4795", textColor: "#434B49" },
+    "School Visit": { background: "#E2FBE7", border: "#5FE07C", textColor: "#434B49" },
+    "Event / Stall": { background: "#F7F8D7", border: "#D5DA39", textColor: "#434B49" },
+    "Holiday": { background: "#F2F8F8", border: "#839898", textColor: "#434B49" },
+    "Personal": { background: "#E8EEEE", border: "#434B49", textColor: "#434B49" }
   };
 
   const state = {
@@ -1275,6 +1275,12 @@
     toggleDisplay("trkCalendarClientRow", isClientType);
     toggleDisplay("trkCalendarParentContactRow", false);
     toggleDisplay("trkCalendarLeadNameRow", isInitialConsultation);
+    if (isInitialConsultation) {
+      toggleDisplay("trkCalendarClientRow", false);
+      toggleDisplay("trkCalendarLeadNameRow", true);
+      toggleDisplay("trkCalendarLocationRow", true);
+      setValue("trkCalendarLocationType", getValue("trkCalendarLocationType") || "online");
+    }
     toggleDisplay("trkCalendarItemNameRow", isNamedItem);
     toggleDisplay("trkCalendarSchoolRow", isSchoolVisit);
     toggleDisplay("trkCalendarSchoolManualRow", isSchoolVisit);
