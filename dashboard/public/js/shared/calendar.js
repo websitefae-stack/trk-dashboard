@@ -410,7 +410,7 @@
       renderCalendarForOptions();
       renderClientOptions();
       renderSchoolOptions();
-      updateClientNotice();;
+      updateClientNotice();
       renderCalendar();
       refreshSelectedEvent();
       setLoading(false);
