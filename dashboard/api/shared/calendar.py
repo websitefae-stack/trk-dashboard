@@ -993,6 +993,30 @@ def _find_calendar_conflict(event_start, event_end, dashboard_type, context):
     )
 
     return existing[0] if existing else None
+
+def _find_calendar_conflict(event_start, event_end, dashboard_type, context):
+    filters = [
+        ["Event", "starts_on", "<", event_end],
+        ["Event", "ends_on", ">", event_start],
+    ]
+
+    if dashboard_type == SESSION_WORKER_DASHBOARD and _event_has_field("custom_session_worker"):
+        worker_name = (context.get("worker_name") or "").strip()
+        if worker_name:
+            filters.append(["Event", "custom_session_worker", "=", worker_name])
+    else:
+        filters.append(["Event", "owner", "=", context.get("view_as_user") or frappe.session.user])
+
+    existing = frappe.get_all(
+        "Event",
+        fields=["name", "subject", "starts_on", "ends_on"],
+        filters=filters,
+        order_by="starts_on asc",
+        limit_page_length=1,
+        ignore_permissions=True,
+    )
+
+    return existing[0] if existing else None
     
 def _create_or_update_initial_consultation_lead(lead_name, phone=None, notes=None):
     if not frappe.db.exists("DocType", "Lead"):
@@ -1838,6 +1862,21 @@ def create_booking(
                 conflict.get("subject") or conflict.get("name"),
             ))
 
+        conflict = _find_calendar_conflict(
+            event_start=event_start,
+            event_end=event_end,
+            dashboard_type=dashboard_type,
+            context=context,
+        )
+
+        if conflict:
+            frappe.throw(_(
+                "This calendar already has something booked at {0}: {1}"
+            ).format(
+                event_start.strftime("%d/%m/%Y %H:%M"),
+                conflict.get("subject") or conflict.get("name"),
+            ))
+
         event = frappe.new_doc("Event")
 
         if appointment_type == "Therapy Session":
@@ -1923,6 +1962,16 @@ def create_booking(
 
         if _event_has_field("custom_total_travel_miles"):
             event.custom_total_travel_miles = _get_effective_total_travel_miles(event)
+
+        if appointment_type == "Therapy Session" and repeat_count > 1:
+            if _event_has_field("custom_session_number"):
+                event.custom_session_number = index + 1
+
+            if _event_has_field("custom_total_sessions"):
+                event.custom_total_sessions = repeat_count
+
+            if _event_has_field("custom_progress_text"):
+                event.custom_progress_text = f"{index + 1} of {repeat_count}"
 
         if appointment_type == "Therapy Session" and repeat_count > 1:
             if _event_has_field("custom_session_number"):
