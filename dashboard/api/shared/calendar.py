@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import add_to_date, getdate, get_datetime, get_fullname
+from frappe.utils import add_to_date, getdate, get_datetime, get_fullname, now_datetime
 from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 
@@ -21,6 +21,8 @@ WORKER_PREFIX = "__worker__:"
 
 FREE_TRAVEL_MILES_ONE_WAY = 10
 TRAVEL_EXCLUDED_SESSION_TYPES = ["Parent Check-In"]
+CLIENT_SESSION_TYPES = ["Therapy Session", "Parent Check-In"]
+NON_CLIENT_TYPES = ["Initial Consultation", "Internal Training", "School Visit", "Event / Stall", "Holiday", "Personal"]
 
 
 def _require_logged_in_user():
@@ -95,6 +97,10 @@ def _get_client_base_fields():
         "travel_charged",
         "travel_miles_one_way",
         "main_therapy_location",
+        "client_type",
+        "address",
+        "city",
+        "zip_code",
     ]:
         if meta.has_field(fieldname) and fieldname not in fields:
             fields.append(fieldname)
@@ -594,6 +600,93 @@ def _get_client_rows_for_franchisor_calendar(selected_calendar_for):
     return []
 
 
+def _get_client_contacts(client_name):
+    if not client_name or not frappe.db.exists("Client", client_name):
+        return []
+
+    contacts = []
+
+    try:
+        client_doc = frappe.get_doc("Client", client_name)
+    except Exception:
+        return []
+
+    for field in client_doc.meta.fields:
+        if field.fieldtype != "Table":
+            continue
+
+        rows = client_doc.get(field.fieldname) or []
+
+        for row in rows:
+            contact_name = (
+                row.get("contact")
+                or row.get("contact_name")
+                or row.get("name")
+                or ""
+            )
+
+            label_parts = [
+                row.get("contact_name"),
+                row.get("full_name"),
+                row.get("relationship_type"),
+                row.get("email_id"),
+                row.get("phone"),
+            ]
+
+            label = " - ".join([str(part).strip() for part in label_parts if part and str(part).strip()])
+
+            if contact_name or label:
+                contacts.append({
+                    "value": contact_name or label,
+                    "label": label or contact_name,
+                })
+
+    return contacts
+
+
+def _format_school_location(row):
+    parts = [
+        row.get("address"),
+        row.get("city"),
+        row.get("zip_code"),
+    ]
+    return ", ".join([str(part).strip() for part in parts if part and str(part).strip()])
+
+
+def _get_school_options():
+    if not frappe.db.exists("DocType", "Client"):
+        return []
+
+    rows = frappe.get_all(
+        "Client",
+        fields=_get_client_base_fields(),
+        filters={"client_type": "School"},
+        order_by="full_name asc",
+        limit_page_length=1000,
+        ignore_permissions=True,
+    )
+
+    return [
+        {
+            "value": row.get("name"),
+            "label": _get_client_display_from_row(row),
+            "location": _format_school_location(row),
+        }
+        for row in rows
+        if row.get("name")
+    ]
+
+
+def _build_client_option(row):
+    return {
+        "value": row.get("name"),
+        "label": _get_client_display_from_row(row),
+        "therapy_location": row.get("main_therapy_location") or "",
+        "therapy_location_label": _get_client_therapy_location_label(row),
+        "contacts": _get_client_contacts(row.get("name")),
+    }
+
+
 def _get_client_options_for_calendar(dashboard_type, selected_calendar_for, context=None):
     if dashboard_type == COACH_DASHBOARD:
         rows = _get_client_rows_for_coach_calendar(selected_calendar_for, context)
@@ -603,12 +696,7 @@ def _get_client_options_for_calendar(dashboard_type, selected_calendar_for, cont
             if not _coach_can_view_client(row, context):
                 continue
 
-            options.append({
-                "value": row.get("name"),
-                "label": _get_client_display_from_row(row),
-                "therapy_location": row.get("main_therapy_location") or "",
-                "therapy_location_label": _get_client_therapy_location_label(row),
-            })
+            options.append(_build_client_option(row))
 
         return options
 
@@ -616,17 +704,17 @@ def _get_client_options_for_calendar(dashboard_type, selected_calendar_for, cont
         rows = _get_client_rows_for_franchisor_calendar(selected_calendar_for)
 
         return [
-            {
-                "value": row.get("name"),
-                "label": _get_client_display_from_row(row),
-                "therapy_location": row.get("main_therapy_location") or "",
-                "therapy_location_label": _get_client_therapy_location_label(row),
-            }
+            _build_client_option(row)
             for row in rows
             if row.get("name")
         ]
 
-    return _get_session_worker_client_options(context)
+    rows = _get_session_worker_client_options(context)
+
+    for row in rows:
+        row["contacts"] = _get_client_contacts(row.get("value"))
+
+    return rows
 
 
 def _event_has_field(fieldname):
@@ -882,6 +970,40 @@ def _get_effective_total_travel_miles(event_doc):
 
     return chargeable_one_way * (2 if return_trip else 1)
 
+def _create_or_update_initial_consultation_lead(lead_name, phone=None, notes=None):
+    if not frappe.db.exists("DocType", "Lead"):
+        return ""
+
+    existing = None
+
+    if phone:
+        for fieldname in ["mobile_no", "phone", "phone_no"]:
+            if frappe.get_meta("Lead").has_field(fieldname):
+                existing = frappe.db.get_value("Lead", {fieldname: phone}, "name")
+                if existing:
+                    break
+
+    if existing:
+        return existing
+
+    lead = frappe.new_doc("Lead")
+
+    if lead.meta.has_field("lead_name"):
+        lead.lead_name = lead_name
+    elif lead.meta.has_field("first_name"):
+        lead.first_name = lead_name
+
+    if phone:
+        for fieldname in ["mobile_no", "phone", "phone_no"]:
+            if lead.meta.has_field(fieldname):
+                lead.set(fieldname, phone)
+                break
+
+    if notes and lead.meta.has_field("notes"):
+        lead.notes = notes
+
+    lead.insert(ignore_permissions=True)
+    return lead.name
 
 def _get_request_payload():
     payload = {}
@@ -1448,6 +1570,7 @@ def get_calendar_bootstrap(
     return {
         "events": _get_events(range_start_date, range_end_date, dashboard_type, selected_calendar_for, context),
         "clients": _get_client_options_for_calendar(dashboard_type, selected_calendar_for, context),
+        "schools": _get_school_options(),
         "session_workers": calendar_for_options,
         "calendar_for_options": calendar_for_options,
         "selected_worker": selected_calendar_for,
@@ -1552,14 +1675,27 @@ def _can_book_or_edit_client(client, dashboard_type, context):
 def create_booking(
     client=None,
     client_name=None,
+    parent_contact=None,
+    lead_name=None,
+    item_name=None,
+    school=None,
+    school_name=None,
     booking_date=None,
     booking_time=None,
+    from_date=None,
+    to_date=None,
     duration_minutes=45,
     appointment_type="Therapy Session",
+    location_type=None,
     location=None,
+    phone=None,
+    google_meet=None,
     notes=None,
     billing_type=None,
     travel_charged=None,
+    recurring=None,
+    recurring_frequency=None,
+    recurring_count=None,
     dashboard_type=None,
 ):
     _require_logged_in_user()
@@ -1569,109 +1705,222 @@ def create_booking(
 
     client = _coalesce_str("client", client)
     client_name = _coalesce_str("client_name", client_name)
+    parent_contact = _coalesce_str("parent_contact", parent_contact)
+    lead_name = _coalesce_str("lead_name", lead_name)
+    item_name = _coalesce_str("item_name", item_name)
+    school = _coalesce_str("school", school)
+    school_name = _coalesce_str("school_name", school_name)
     booking_date = _coalesce_str("booking_date", booking_date)
     booking_time = _coalesce_str("booking_time", booking_time)
+    from_date = _coalesce_str("from_date", from_date)
+    to_date = _coalesce_str("to_date", to_date)
     appointment_type = _coalesce_str("appointment_type", appointment_type or "Therapy Session")
+    location_type = _coalesce_str("location_type", location_type)
     location = _coalesce_str("location", location)
+    phone = _coalesce_str("phone", phone)
+    google_meet = _coalesce_raw("google_meet", google_meet)
     notes = _coalesce_str("notes", notes)
     billing_type = _coalesce_str("billing_type", billing_type)
     travel_charged = _coalesce_raw("travel_charged", travel_charged)
     duration_minutes = _coalesce_raw("duration_minutes", duration_minutes)
+    recurring = _coalesce_raw("recurring", recurring)
+    recurring_frequency = _coalesce_str("recurring_frequency", recurring_frequency)
+    recurring_count = _coalesce_raw("recurring_count", recurring_count)
 
-    if not client:
-        frappe.throw(_("Please select a client."))
-
-    if not booking_date or not booking_time:
-        frappe.throw(_("Please select a booking date and time."))
-
-    client_row = _can_book_or_edit_client(client, dashboard_type, context)
+    if appointment_type not in CLIENT_SESSION_TYPES + NON_CLIENT_TYPES:
+        frappe.throw(_("Invalid calendar item type."))
 
     try:
         duration_minutes = int(duration_minutes or 45)
     except Exception:
         duration_minutes = 45
 
-    if duration_minutes not in (30, 45, 60, 90):
+    if duration_minutes <= 0:
         duration_minutes = 45
 
-    start_dt = get_datetime(f"{booking_date} {booking_time}:00")
-    end_dt = add_to_date(start_dt, minutes=duration_minutes)
+    if appointment_type in CLIENT_SESSION_TYPES:
+        if not client:
+            frappe.throw(_("Please select a client."))
 
-    if not client_name:
-        client_name = _get_client_display_from_row(client_row)
+        client_row = _can_book_or_edit_client(client, dashboard_type, context)
 
-    event = frappe.new_doc("Event")
-    event.subject = f"{client_name} - {appointment_type}"
-    event.starts_on = start_dt
-    event.ends_on = end_dt
+        if not client_name:
+            client_name = _get_client_display_from_row(client_row)
 
-    if _event_has_field("event_type"):
-        event.event_type = "Public"
+    else:
+        client_row = None
 
-    if _event_has_field("custom_client"):
-        event.custom_client = client
+    if appointment_type == "Parent Check-In" and not parent_contact:
+        frappe.throw(_("Please select the parent/contact."))
 
-    _set_session_type(event, appointment_type)
+    if appointment_type == "Initial Consultation" and not lead_name:
+        frappe.throw(_("Please enter the person's name."))
 
-    if _event_has_field("custom_billing_type"):
-        event.custom_billing_type = _resolve_billing_type(
-            appointment_type=appointment_type,
-            selected_billing_type=billing_type,
-        )
+    if appointment_type in ["Internal Training", "Event / Stall", "Personal"] and not item_name:
+        frappe.throw(_("Please enter a title."))
 
-    client_doc = frappe.get_doc("Client", client)
+    if appointment_type == "School Visit" and not school:
+        frappe.throw(_("Please select a school."))
 
-    therapy_location, therapy_location_text = _get_client_therapy_location(client_doc)
-    
-    if not location:
-        location = therapy_location_text
-    
-    client_travel = _get_client_travel_defaults(client_doc)
-    
-    final_travel_charged = _to_int(travel_charged, default=int(client_travel.get("travel_charged") or 0))
+    if appointment_type == "Holiday":
+        if not from_date or not to_date:
+            frappe.throw(_("Please select the holiday dates."))
 
-    if _event_has_field("custom_travel_charged"):
-        event.custom_travel_charged = 1 if final_travel_charged else 0
+        start_dt = get_datetime(f"{from_date} 00:00:00")
+        end_dt = get_datetime(f"{to_date} 23:59:00")
+        repeat_count = 1
+    else:
+        if not booking_date or not booking_time:
+            frappe.throw(_("Please select a booking date and time."))
 
-    if _event_has_field("custom_travel_miles_one_way"):
-        event.custom_travel_miles_one_way = float(client_travel.get("miles_one_way") or 0)
+        start_dt = get_datetime(f"{booking_date} {booking_time}:00")
+        end_dt = add_to_date(start_dt, minutes=duration_minutes)
 
-    if _event_has_field("custom_return_trip_required"):
-        event.custom_return_trip_required = 1
+        try:
+            repeat_count = int(recurring_count or 1)
+        except Exception:
+            repeat_count = 1
 
-    if _event_has_field("custom_session_worker") and client_row.get("session_worker"):
-        event.custom_session_worker = client_row.get("session_worker")
+        if not _to_int(recurring):
+            repeat_count = 1
 
-    if _event_has_field("custom_total_travel_miles"):
-        event.custom_total_travel_miles = _get_effective_total_travel_miles(event)
+        if appointment_type != "Therapy Session":
+            repeat_count = 1
 
-    if _event_has_field("custom_appointment_status"):
-        event.custom_appointment_status = "Scheduled"
-    elif _event_has_field("appointment_status"):
-        event.appointment_status = "Open"
+        if repeat_count not in [1, 4, 12]:
+            repeat_count = 1
 
-    if _event_has_field("status"):
-        event.status = "Open"
+    created_events = []
 
-    if _event_has_field("custom_therapy_location"):
-        event.custom_therapy_location = therapy_location
-    
-    if _event_has_field("location"):
-        event.location = location
+    for index in range(repeat_count):
+        event_start = start_dt
+        event_end = end_dt
 
-    if notes:
-        event.description = notes
+        if index:
+            if recurring_frequency == "Fortnightly":
+                event_start = add_to_date(start_dt, days=14 * index)
+                event_end = add_to_date(end_dt, days=14 * index)
+            elif recurring_frequency == "Monthly":
+                event_start = add_to_date(start_dt, months=index)
+                event_end = add_to_date(end_dt, months=index)
+            else:
+                event_start = add_to_date(start_dt, days=7 * index)
+                event_end = add_to_date(end_dt, days=7 * index)
 
-    event.insert(ignore_permissions=True)
+        event = frappe.new_doc("Event")
+
+        if appointment_type == "Therapy Session":
+            event.subject = f"{client_name} - Therapy Session"
+        elif appointment_type == "Parent Check-In":
+            event.subject = f"{client_name} - Parent Check-In"
+        elif appointment_type == "Initial Consultation":
+            event.subject = f"{lead_name} - Initial Consultation"
+        elif appointment_type == "School Visit":
+            event.subject = f"{school_name or _get_client_display_name(school)} - School Visit"
+        elif appointment_type == "Holiday":
+            event.subject = "Holiday"
+        else:
+            event.subject = f"{item_name} - {appointment_type}"
+
+        event.starts_on = event_start
+        event.ends_on = event_end
+
+        if _event_has_field("event_type"):
+            event.event_type = "Public"
+
+        if appointment_type in CLIENT_SESSION_TYPES and _event_has_field("custom_client"):
+            event.custom_client = client
+
+        if appointment_type == "School Visit" and _event_has_field("custom_client"):
+            event.custom_client = school
+
+        _set_session_type(event, appointment_type)
+
+        if _event_has_field("custom_billing_type"):
+            event.custom_billing_type = billing_type or "Non-Billable"
+
+        if _event_has_field("custom_appointment_status"):
+            event.custom_appointment_status = "Scheduled"
+        elif _event_has_field("appointment_status"):
+            event.appointment_status = "Open"
+
+        if _event_has_field("status"):
+            event.status = "Open"
+
+        if appointment_type in CLIENT_SESSION_TYPES:
+            client_doc = frappe.get_doc("Client", client)
+            therapy_location, therapy_location_text = _get_client_therapy_location(client_doc)
+
+            if not location:
+                location = therapy_location_text
+
+            client_travel = _get_client_travel_defaults(client_doc)
+
+            final_travel_charged = _to_int(
+                travel_charged,
+                default=int(client_travel.get("travel_charged") or 0),
+            )
+
+            if _event_has_field("custom_travel_charged"):
+                event.custom_travel_charged = 1 if final_travel_charged else 0
+
+            if _event_has_field("custom_travel_miles_one_way"):
+                event.custom_travel_miles_one_way = float(client_travel.get("miles_one_way") or 0)
+
+            if _event_has_field("custom_return_trip_required"):
+                event.custom_return_trip_required = 1
+
+            if _event_has_field("custom_session_worker") and client_row.get("session_worker"):
+                event.custom_session_worker = client_row.get("session_worker")
+
+            if _event_has_field("custom_therapy_location"):
+                event.custom_therapy_location = therapy_location
+
+        else:
+            if _event_has_field("custom_travel_charged"):
+                event.custom_travel_charged = 1 if _to_int(travel_charged) else 0
+
+        if appointment_type == "School Visit":
+            school_row = _get_client_row(school)
+            if school_row and not location:
+                location = _format_school_location(school_row)
+
+        if _event_has_field("custom_total_travel_miles"):
+            event.custom_total_travel_miles = _get_effective_total_travel_miles(event)
+
+        final_notes = notes or ""
+
+        if appointment_type == "Parent Check-In" and parent_contact:
+            final_notes = f"Parent/contact: {parent_contact}\n\n{final_notes}".strip()
+
+        if appointment_type == "Initial Consultation":
+            lead = _create_or_update_initial_consultation_lead(
+                lead_name=lead_name,
+                phone=phone,
+                notes=notes,
+            )
+            final_notes = f"Lead: {lead}\n\n{final_notes}".strip()
+
+        if _to_int(google_meet):
+            final_notes = "Google Meet required.\n\n" + final_notes
+
+        if phone and appointment_type == "Initial Consultation":
+            final_notes = f"Phone: {phone}\n\n{final_notes}".strip()
+
+        if _event_has_field("location"):
+            event.location = location
+
+        if final_notes:
+            event.description = final_notes
+
+        event.insert(ignore_permissions=True)
+        created_events.append(event)
 
     return {
-        "name": event.name,
-        "title": event.subject,
-        "record_url": f"{_get_record_base_url(dashboard_type)}?event={event.name}",
-        "billing_type": event.get("custom_billing_type") or "",
-        "travel_charged": int(event.get("custom_travel_charged") or 0),
-        "travel_miles_one_way": float(event.get("custom_travel_miles_one_way") or 0),
-        "total_travel_miles": float(event.get("custom_total_travel_miles") or 0),
+        "name": created_events[0].name if created_events else "",
+        "title": created_events[0].subject if created_events else "",
+        "count": len(created_events),
+        "record_url": f"{_get_record_base_url(dashboard_type)}?event={created_events[0].name}" if created_events else "",
     }
 
 
