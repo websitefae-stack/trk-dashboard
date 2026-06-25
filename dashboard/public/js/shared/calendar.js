@@ -258,37 +258,6 @@
       }
     });
 
-    const recurringCheckbox = document.getElementById("trkCalendarRecurring");
-    if (recurringCheckbox) {
-      recurringCheckbox.addEventListener("change", syncBookingFields);
-    }
-
-    const googleMeetCheckbox = document.getElementById("trkCalendarGoogleMeet");
-    if (googleMeetCheckbox) {
-      googleMeetCheckbox.addEventListener("change", syncBookingFields);
-    }
-
-    const locationTypeSelect = document.getElementById("trkCalendarLocationType");
-
-    if (locationTypeSelect) {
-      locationTypeSelect.addEventListener("change", syncBookingFields);
-    }
-
-    const bookingClientSelect = document.getElementById("trkCalendarClientSelect");
-
-    if (bookingClientSelect) {
-      bookingClientSelect.addEventListener("change", function () {
-        renderParentContactOptions();
-        syncBookingFields();
-      });
-    }
-
-    const schoolSelect = document.getElementById("trkCalendarSchoolSelect");
-
-    if (schoolSelect) {
-      schoolSelect.addEventListener("change", syncBookingFields);
-    }
-
     const editTypeSelect = document.getElementById("trkEditType");
     if (editTypeSelect) {
       editTypeSelect.addEventListener("change", syncEditFields);
