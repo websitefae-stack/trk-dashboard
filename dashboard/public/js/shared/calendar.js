@@ -24,20 +24,36 @@
     "Therapy Session": 45,
     "Parent Check-In": 30,
     "Initial Consultation": 60,
-    "General": 45
+    "Internal Training": 360,
+    "School Visit": 120,
+    "Event / Stall": 180,
+    "Holiday": 0,
+    "Personal": 60
   };
+
+  const CLIENT_REQUIRED_TYPES = ["Therapy Session", "Parent Check-In"];
+  const NON_CLIENT_TITLE_TYPES = ["Internal Training", "Event / Stall", "Personal"];
 
   const DEFAULT_BILLING_BY_TYPE = {
     "Therapy Session": "One to One",
     "Parent Check-In": "One to One",
-    "Initial Consultation": "One to One"
+    "Initial Consultation": "Non-Billable",
+    "Internal Training": "Non-Billable",
+    "School Visit": "Non-Billable",
+    "Event / Stall": "Non-Billable",
+    "Holiday": "Non-Billable",
+    "Personal": "Non-Billable"
   };
 
   const TYPE_STYLES = {
     "Therapy Session": { background: "#E94763", border: "#C73B54", textColor: "#FFFFFF" },
     "Parent Check-In": { background: "#FF8438", border: "#D96D29", textColor: "#FFFFFF" },
     "Initial Consultation": { background: "#00A19E", border: "#007F7D", textColor: "#FFFFFF" },
-    "General": { background: "#D5DA39", border: "#AEB32E", textColor: "#2F3312" }
+    "Internal Training": { background: "#6B5DD3", border: "#5144A8", textColor: "#FFFFFF" },
+    "School Visit": { background: "#2F80ED", border: "#1F64BD", textColor: "#FFFFFF" },
+    "Event / Stall": { background: "#D5DA39", border: "#AEB32E", textColor: "#2F3312" },
+    "Holiday": { background: "#7A869A", border: "#5E6878", textColor: "#FFFFFF" },
+    "Personal": { background: "#434B49", border: "#2F3533", textColor: "#FFFFFF" }
   };
 
   const state = {
@@ -48,6 +64,7 @@
     calendarForOptions: [],
     events: [],
     clients: [],
+    schools: [],
     currentWorkerLabel: "",
     resolutionNote: "",
     selectedEvent: null,
@@ -220,6 +237,16 @@
       });
     }
 
+    const recurringCheckbox = document.getElementById("trkCalendarRecurring");
+    if (recurringCheckbox) {
+      recurringCheckbox.addEventListener("change", syncBookingFields);
+    }
+
+    const googleMeetCheckbox = document.getElementById("trkCalendarGoogleMeet");
+    if (googleMeetCheckbox) {
+      googleMeetCheckbox.addEventListener("change", syncBookingFields);
+    }
+
     const locationTypeSelect = document.getElementById("trkCalendarLocationType");
 
     if (locationTypeSelect) {
@@ -229,7 +256,16 @@
     const bookingClientSelect = document.getElementById("trkCalendarClientSelect");
 
     if (bookingClientSelect) {
-      bookingClientSelect.addEventListener("change", syncBookingFields);
+      bookingClientSelect.addEventListener("change", function () {
+        renderParentContactOptions();
+        syncBookingFields();
+      });
+    }
+
+    const schoolSelect = document.getElementById("trkCalendarSchoolSelect");
+
+    if (schoolSelect) {
+      schoolSelect.addEventListener("change", syncBookingFields);
     }
 
     const editTypeSelect = document.getElementById("trkEditType");
@@ -365,6 +401,7 @@
         : [];
 
       state.clients = Array.isArray(message.clients) ? message.clients : [];
+      state.schools = Array.isArray(message.schools) ? message.schools : [];
       state.calendarForOptions = Array.isArray(message.calendar_for_options) ? message.calendar_for_options : [];
       state.selectedCalendarFor = message.selected_calendar_for || state.selectedCalendarFor || getDefaultCalendarFor();
       state.currentWorkerLabel = message.current_worker_label || "";
@@ -372,7 +409,8 @@
 
       renderCalendarForOptions();
       renderClientOptions();
-      updateClientNotice();
+      renderSchoolOptions();
+      updateClientNotice();;
       renderCalendar();
       refreshSelectedEvent();
       setLoading(false);
@@ -382,12 +420,14 @@
 
       state.events = [];
       state.clients = [];
+      state.schools = [];
       state.calendarForOptions = [];
       state.currentWorkerLabel = "";
       state.resolutionNote = "";
 
       renderCalendarForOptions();
       renderClientOptions();
+      renderSchoolOptions();
       updateClientNotice(error.message || "");
       renderCalendar();
       renderDetailsEmptyState();
@@ -812,9 +852,9 @@
   function renderClientOptions() {
     const select = document.getElementById("trkCalendarClientSelect");
     if (!select) return;
-  
+
     let html = '<option value="">Select a client</option>';
-  
+
     state.clients.forEach(function (client) {
       html += '<option'
         + ' value="' + escapeHtml(client.value) + '"'
@@ -824,7 +864,48 @@
         + escapeHtml(client.label)
         + '</option>';
     });
-  
+
+    select.innerHTML = html;
+    renderParentContactOptions();
+  }
+
+  function renderParentContactOptions() {
+    const select = document.getElementById("trkCalendarParentContactSelect");
+    if (!select) return;
+
+    const clientId = getValue("trkCalendarClientSelect");
+    const client = state.clients.find(function (row) {
+      return row.value === clientId;
+    });
+
+    const contacts = client && Array.isArray(client.contacts) ? client.contacts : [];
+
+    let html = '<option value="">Select parent/contact</option>';
+
+    contacts.forEach(function (contact) {
+      html += '<option value="' + escapeHtml(contact.value || "") + '">'
+        + escapeHtml(contact.label || contact.value || "")
+        + '</option>';
+    });
+
+    select.innerHTML = html;
+  }
+
+  function renderSchoolOptions() {
+    const select = document.getElementById("trkCalendarSchoolSelect");
+    if (!select) return;
+
+    let html = '<option value="">Select a school</option>';
+
+    state.schools.forEach(function (school) {
+      html += '<option'
+        + ' value="' + escapeHtml(school.value || "") + '"'
+        + ' data-location="' + escapeHtml(school.location || "") + '"'
+        + '>'
+        + escapeHtml(school.label || school.value || "")
+        + '</option>';
+    });
+
     select.innerHTML = html;
   }
 
