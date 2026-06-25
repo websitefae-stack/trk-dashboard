@@ -33,13 +33,7 @@
         </select>
       </div>
 
-      <div class="trk-calendar-field" id="trkCalendarParentContactRow" style="display:none;">
-        <label for="trkCalendarParentContactSelect">Parent / Contact</label>
-
-        <select id="trkCalendarParentContactSelect" class="dashboard-select">
-          <option value="">Select parent/contact</option>
-        </select>
-      </div>
+      <input type="hidden" id="trkCalendarParentContactSelect">
 
       <div class="trk-calendar-field" id="trkCalendarLeadNameRow" style="display:none;">
         <label for="trkCalendarLeadName">Name *</label>
@@ -64,11 +58,22 @@
       </div>
 
       <div class="trk-calendar-field" id="trkCalendarSchoolRow" style="display:none;">
-        <label for="trkCalendarSchoolSelect">School *</label>
+        <label for="trkCalendarSchoolSelect">School</label>
 
         <select id="trkCalendarSchoolSelect" class="dashboard-select">
-          <option value="">Select a school</option>
+          <option value="">Select existing school</option>
         </select>
+      </div>
+
+      <div class="trk-calendar-field" id="trkCalendarSchoolManualRow" style="display:none;">
+        <label for="trkCalendarSchoolManualName">Or type school name</label>
+
+        <input
+          type="text"
+          id="trkCalendarSchoolManualName"
+          class="dashboard-input"
+          placeholder="Enter school name if not listed"
+        >
       </div>
 
            <div class="trk-calendar-form-row" id="trkCalendarSingleDateTimeRow">
