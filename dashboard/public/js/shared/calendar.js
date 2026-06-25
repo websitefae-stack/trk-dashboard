@@ -927,47 +927,74 @@
   }
 
   function saveBooking() {
+    const type = getValue("trkCalendarType") || "Therapy Session";
+
     const clientId = getValue("trkCalendarClientSelect");
     const clientName = getSelectedText("trkCalendarClientSelect");
+    const parentContact = getValue("trkCalendarParentContactSelect");
+    const leadName = getValue("trkCalendarLeadName");
+    const itemName = getValue("trkCalendarItemName");
+    const schoolId = getValue("trkCalendarSchoolSelect");
+    const schoolName = getSelectedText("trkCalendarSchoolSelect");
+
     const date = getValue("trkCalendarDate");
     const time = getValue("trkCalendarTime");
-    const type = getValue("trkCalendarType") || "Therapy Session";
-    const duration = getValue("trkCalendarDuration") || "45";
+    const fromDate = getValue("trkCalendarFromDate");
+    const toDate = getValue("trkCalendarToDate");
 
-    const billingType = type === "General"
-      ? (getValue("trkCalendarBillingType") || "")
-      : (DEFAULT_BILLING_BY_TYPE[type] || "One to One");
+    const duration = getValue("trkCalendarDuration") || String(DURATION_BY_TYPE[type] || 45);
+    const locationType = getValue("trkCalendarLocationType") || "client_default";
+    const googleMeet = isChecked("trkCalendarGoogleMeet") ? "1" : "0";
+    const travelCharged = isChecked("trkCalendarTravelChargedSingle") ? "1" : "0";
+    const phone = getValue("trkCalendarPhone");
+    const notes = getValue("trkCalendarNotes");
 
-    const travelCharged = type === "General"
-      ? (getValue("trkCalendarTravelCharged") || "0")
-      : (getValue("trkCalendarTravelChargedSingle") || "0");
+    let location = "";
 
-      const locationType = getValue("trkCalendarLocationType") || "client_default";
-  
-      let location = "";
-  
-      if (locationType === "online") {
-        location = "Online";
-      } else if (locationType === "home") {
-        location = "Home";
-      } else if (locationType === "other") {
-        location = getValue("trkCalendarLocation");
-      }
-  
-      const notes = getValue("trkCalendarNotes");
+    if (locationType === "online") {
+      location = "Online";
+    } else if (locationType === "telephone") {
+      location = phone ? "Telephone: " + phone : "Telephone";
+    } else if (locationType === "home") {
+      location = "Home";
+    } else if (locationType === "school") {
+      location = getSelectedSchoolLocation() || "School";
+    } else if (locationType === "manual") {
+      location = getValue("trkCalendarLocation");
+    }
 
-    if (!clientId) {
+    if (CLIENT_REQUIRED_TYPES.indexOf(type) !== -1 && !clientId) {
       showToast("Please select a client");
       return;
     }
 
-    if (!date || !time) {
-      showToast("Please select date and time");
+    if (type === "Parent Check-In" && !parentContact) {
+      showToast("Please select the parent/contact");
       return;
     }
 
-    if (type === "General" && !billingType) {
-      showToast("Please select a billing type");
+    if (type === "Initial Consultation" && !leadName) {
+      showToast("Please enter the person's name");
+      return;
+    }
+
+    if (NON_CLIENT_TITLE_TYPES.indexOf(type) !== -1 && !itemName) {
+      showToast("Please enter a title");
+      return;
+    }
+
+    if (type === "School Visit" && !schoolId) {
+      showToast("Please select a school");
+      return;
+    }
+
+    if (type === "Holiday") {
+      if (!fromDate || !toDate) {
+        showToast("Please select from and to dates");
+        return;
+      }
+    } else if (!date || !time) {
+      showToast("Please select date and time");
       return;
     }
 
@@ -977,24 +1004,37 @@
       dashboard_type: state.dashboardType,
       client: clientId,
       client_name: clientName,
+      parent_contact: parentContact,
+      lead_name: leadName,
+      item_name: itemName,
+      school: schoolId,
+      school_name: schoolName,
       booking_date: date,
       booking_time: time,
+      from_date: fromDate,
+      to_date: toDate,
       duration_minutes: duration,
       appointment_type: type,
-      billing_type: billingType,
+      billing_type: DEFAULT_BILLING_BY_TYPE[type] || "Non-Billable",
       travel_charged: travelCharged,
+      location_type: locationType,
       location: location,
+      phone: phone,
+      google_meet: googleMeet,
+      recurring: isChecked("trkCalendarRecurring") ? "1" : "0",
+      recurring_frequency: getValue("trkCalendarRecurringFrequency"),
+      recurring_count: getValue("trkCalendarRecurringCount"),
       notes: notes
     }).then(function () {
-      setButtonLoading("trkCalendarSaveBtn", false, "Save Session");
+      setButtonLoading("trkCalendarSaveBtn", false, "Save Calendar Item");
       closeBookingModal();
-      showToast("Session booked");
+      showToast(type === "Therapy Session" ? "Session booked" : "Calendar item added");
       loadCalendarData();
     }).catch(function (error) {
-      console.error("Save booking failed:", error);
+      console.error("Save calendar item failed:", error);
 
-      setButtonLoading("trkCalendarSaveBtn", false, "Save Session");
-      showToast(error.message || "Could not save session");
+      setButtonLoading("trkCalendarSaveBtn", false, "Save Calendar Item");
+      showToast(error.message || "Could not save calendar item");
     });
   }
 
@@ -1102,15 +1142,26 @@
 
   function openBookingModal(dateStr, timeStr, clientName) {
     setValue("trkCalendarClientSelect", clientName || "");
+    setValue("trkCalendarParentContactSelect", "");
+    setValue("trkCalendarLeadName", "");
+    setValue("trkCalendarItemName", "");
+    setValue("trkCalendarSchoolSelect", "");
+
     setValue("trkCalendarDate", dateStr || "");
     setValue("trkCalendarTime", timeStr || "");
+    setValue("trkCalendarFromDate", dateStr || "");
+    setValue("trkCalendarToDate", dateStr || "");
+
     setValue("trkCalendarType", "Therapy Session");
     setValue("trkCalendarDuration", "45");
-    setValue("trkCalendarBillingType", "");
-    setValue("trkCalendarTravelCharged", "0");
-    setValue("trkCalendarTravelChargedSingle", "0");
     setValue("trkCalendarLocationType", "client_default");
     setValue("trkCalendarLocation", "");
+    setValue("trkCalendarPhone", "");
+    setChecked("trkCalendarTravelChargedSingle", false);
+    setChecked("trkCalendarGoogleMeet", false);
+    setChecked("trkCalendarRecurring", false);
+    setValue("trkCalendarRecurringFrequency", "Weekly");
+    setValue("trkCalendarRecurringCount", "4");
     setValue("trkCalendarNotes", "");
 
     if (clientName) {
@@ -1126,6 +1177,7 @@
       }
     }
 
+    renderParentContactOptions();
     syncBookingFields();
     toggleModal("trkCalendarModal", true);
   }
@@ -1197,41 +1249,96 @@
   }
 
   function syncBookingFields() {
-    const type = getValue("trkCalendarType");
-    const isGeneral = type === "General";
-  
-    toggleDisplay("trkCalendarBillingTypeRow", isGeneral);
-    toggleDisplay("trkCalendarTravelRow", !isGeneral);
-  
-    if (!isGeneral) {
-      setValue("trkCalendarBillingType", "");
-    }
-  
+    const type = getValue("trkCalendarType") || "Therapy Session";
+    const isHoliday = type === "Holiday";
+    const isClientType = CLIENT_REQUIRED_TYPES.indexOf(type) !== -1;
+    const isParentCheckIn = type === "Parent Check-In";
+    const isInitialConsultation = type === "Initial Consultation";
+    const isSchoolVisit = type === "School Visit";
+    const isNamedItem = NON_CLIENT_TITLE_TYPES.indexOf(type) !== -1;
+
+    toggleDisplay("trkCalendarClientRow", isClientType);
+    toggleDisplay("trkCalendarParentContactRow", isParentCheckIn);
+    toggleDisplay("trkCalendarLeadNameRow", isInitialConsultation);
+    toggleDisplay("trkCalendarItemNameRow", isNamedItem);
+    toggleDisplay("trkCalendarSchoolRow", isSchoolVisit);
+
+    toggleDisplay("trkCalendarSingleDateTimeRow", !isHoliday);
+    toggleDisplay("trkCalendarHolidayDateRow", isHoliday);
+    toggleDisplay("trkCalendarDurationRow", !isHoliday);
+
+    toggleDisplay("trkCalendarTravelRow", ["Therapy Session", "Parent Check-In", "School Visit"].indexOf(type) !== -1);
+    toggleDisplay("trkCalendarGoogleMeetRow", ["Therapy Session", "Parent Check-In", "Initial Consultation"].indexOf(type) !== -1);
+    toggleDisplay("trkCalendarRecurringRow", type === "Therapy Session");
+    toggleDisplay("trkCalendarRecurringOptions", type === "Therapy Session" && isChecked("trkCalendarRecurring"));
+
+    const locationTypeSelect = document.getElementById("trkCalendarLocationType");
     const clientSelect = document.getElementById("trkCalendarClientSelect");
     const selectedClientOption = clientSelect && clientSelect.selectedIndex >= 0
       ? clientSelect.options[clientSelect.selectedIndex]
       : null;
-    
-    const locationTypeSelect = document.getElementById("trkCalendarLocationType");
-    const locationType = getValue("trkCalendarLocationType") || "client_default";
-    
+
     if (locationTypeSelect) {
       const clientDefaultOption = locationTypeSelect.querySelector('option[value="client_default"]');
+      const schoolOption = locationTypeSelect.querySelector('option[value="school"]');
       const locationLabel = selectedClientOption
         ? selectedClientOption.dataset.therapyLocationLabel || ""
         : "";
-    
+
       if (clientDefaultOption) {
         clientDefaultOption.textContent = locationLabel
           ? locationLabel
-          : "Client Therapy Location";
+          : "Main Therapy Location";
+
+        clientDefaultOption.style.display = isClientType ? "" : "none";
+      }
+
+      if (schoolOption) {
+        schoolOption.style.display = isSchoolVisit ? "" : "none";
+      }
+
+      if (!isClientType && getValue("trkCalendarLocationType") === "client_default") {
+        setValue("trkCalendarLocationType", isSchoolVisit ? "school" : "manual");
+      }
+
+      if (!isSchoolVisit && getValue("trkCalendarLocationType") === "school") {
+        setValue("trkCalendarLocationType", "manual");
+      }
+
+      if (isInitialConsultation && getValue("trkCalendarLocationType") === "client_default") {
+        setValue("trkCalendarLocationType", "online");
       }
     }
-    
-    toggleDisplay("trkCalendarLocationManualRow", locationType === "other");
-    
-    if (locationType !== "other") {
-      setValue("trkCalendarLocation", "");
+
+    const locationType = getValue("trkCalendarLocationType") || "manual";
+    const googleMeet = isChecked("trkCalendarGoogleMeet");
+
+    if (googleMeet && ["Therapy Session", "Parent Check-In", "Initial Consultation"].indexOf(type) !== -1) {
+      setValue("trkCalendarLocationType", "online");
+    }
+
+    toggleDisplay("trkCalendarPhoneRow", getValue("trkCalendarLocationType") === "telephone");
+    toggleDisplay("trkCalendarLocationRow", !isHoliday);
+    toggleDisplay("trkCalendarLocationManualRow", ["manual"].indexOf(getValue("trkCalendarLocationType")) !== -1);
+
+    if (type === "Parent Check-In" && getValue("trkCalendarDuration") === "45") {
+      setValue("trkCalendarDuration", "30");
+    }
+
+    if (type === "Initial Consultation" && getValue("trkCalendarDuration") === "45") {
+      setValue("trkCalendarDuration", "60");
+    }
+
+    if (isHoliday) {
+      setChecked("trkCalendarGoogleMeet", false);
+      setChecked("trkCalendarTravelChargedSingle", false);
+    }
+
+    if (isSchoolVisit && getValue("trkCalendarLocationType") === "school") {
+      const schoolLocation = getSelectedSchoolLocation();
+      if (schoolLocation) {
+        setValue("trkCalendarLocation", schoolLocation);
+      }
     }
   }
 
@@ -1393,6 +1500,24 @@
   function getValue(id) {
     const node = document.getElementById(id);
     return node ? node.value : "";
+  }
+
+    function isChecked(id) {
+    const node = document.getElementById(id);
+    return !!(node && node.checked);
+  }
+
+  function setChecked(id, checked) {
+    const node = document.getElementById(id);
+    if (node) node.checked = !!checked;
+  }
+
+  function getSelectedSchoolLocation() {
+    const select = document.getElementById("trkCalendarSchoolSelect");
+    if (!select || select.selectedIndex < 0) return "";
+
+    const option = select.options[select.selectedIndex];
+    return option ? (option.dataset.location || "") : "";
   }
 
   function showToast(message) {
