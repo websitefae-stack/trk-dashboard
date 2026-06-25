@@ -651,7 +651,6 @@
 
       eventNode.innerHTML =
         '<span class="trk-calendar-event-title">' + escapeHtml(event.title || "Session") + '</span>' +
-        '<span class="trk-calendar-event-time">' + escapeHtml((event.start_time || "") + " - " + (event.end_time || "")) + '</span>' +
         getCalendarEventProgressHtml(event);
 
       eventNode.addEventListener("click", function (clickEvent) {
