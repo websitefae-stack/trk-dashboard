@@ -1,7 +1,7 @@
 <div class="trk-calendar-modal-backdrop" id="trkCalendarModal">
   <div class="trk-calendar-modal">
     <div class="trk-calendar-modal-head">
-      <h3>Book Session</h3>
+      <h3>Add Calendar Item</h3>
 
       <button type="button" class="trk-calendar-icon-btn" id="trkCalendarModalClose">
         ✕
@@ -11,6 +11,21 @@
     <div class="trk-calendar-modal-body">
 
       <div class="trk-calendar-field">
+        <label for="trkCalendarType">Calendar Item Type *</label>
+
+        <select id="trkCalendarType" class="dashboard-select">
+          <option value="Therapy Session" selected>Therapy Session</option>
+          <option value="Parent Check-In">Parent Check-In</option>
+          <option value="Initial Consultation">Initial Consultation</option>
+          <option value="Internal Training">Internal Training</option>
+          <option value="School Visit">School Visit</option>
+          <option value="Event / Stall">Event / Stall</option>
+          <option value="Holiday">Holiday</option>
+          <option value="Personal">Personal</option>
+        </select>
+      </div>
+
+      <div class="trk-calendar-field" id="trkCalendarClientRow">
         <label for="trkCalendarClientSelect">Client *</label>
 
         <select id="trkCalendarClientSelect" class="dashboard-select">
@@ -18,11 +33,49 @@
         </select>
       </div>
 
-      <div class="trk-calendar-form-row">
+      <div class="trk-calendar-field" id="trkCalendarParentContactRow" style="display:none;">
+        <label for="trkCalendarParentContactSelect">Parent / Contact</label>
+
+        <select id="trkCalendarParentContactSelect" class="dashboard-select">
+          <option value="">Select parent/contact</option>
+        </select>
+      </div>
+
+      <div class="trk-calendar-field" id="trkCalendarLeadNameRow" style="display:none;">
+        <label for="trkCalendarLeadName">Name *</label>
+
+        <input
+          type="text"
+          id="trkCalendarLeadName"
+          class="dashboard-input"
+          placeholder="Enter name"
+        >
+      </div>
+
+      <div class="trk-calendar-field" id="trkCalendarItemNameRow" style="display:none;">
+        <label for="trkCalendarItemName">Event / Item Name *</label>
+
+        <input
+          type="text"
+          id="trkCalendarItemName"
+          class="dashboard-input"
+          placeholder="Enter title"
+        >
+      </div>
+
+      <div class="trk-calendar-field" id="trkCalendarSchoolRow" style="display:none;">
+        <label for="trkCalendarSchoolSelect">School *</label>
+
+        <select id="trkCalendarSchoolSelect" class="dashboard-select">
+          <option value="">Select a school</option>
+        </select>
+      </div>
+
+           <div class="trk-calendar-form-row" id="trkCalendarSingleDateTimeRow">
         <div class="trk-calendar-field">
           <label for="trkCalendarDate">Date *</label>
 
-          <input type="date" id="trkCalendarDate" class="dashboard-input">
+      <input type="date" id="trkCalendarDate" class="dashboard-input">
         </div>
 
         <div class="trk-calendar-field">
@@ -37,18 +90,21 @@
         </div>
       </div>
 
-      <div class="trk-calendar-form-row">
+      <div class="trk-calendar-form-row" id="trkCalendarHolidayDateRow" style="display:none;">
         <div class="trk-calendar-field">
-          <label for="trkCalendarType">Session Type</label>
+          <label for="trkCalendarFromDate">From Date *</label>
 
-          <select id="trkCalendarType" class="dashboard-select">
-            <option value="Therapy Session">Therapy Session</option>
-            <option value="Parent Check-In">Parent Check-In</option>
-            <option value="Initial Consultation">Initial Consultation</option>
-            <option value="General">General</option>
-          </select>
+          <input type="date" id="trkCalendarFromDate" class="dashboard-input">
         </div>
 
+        <div class="trk-calendar-field">
+          <label for="trkCalendarToDate">To Date *</label>
+
+          <input type="date" id="trkCalendarToDate" class="dashboard-input">
+        </div>
+      </div>
+
+      <div class="trk-calendar-form-row" id="trkCalendarDurationRow">
         <div class="trk-calendar-field">
           <label for="trkCalendarDuration">Duration</label>
 
@@ -57,65 +113,97 @@
             <option value="45" selected>45 min</option>
             <option value="60">60 min</option>
             <option value="90">90 min</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="trk-calendar-form-row" id="trkCalendarBillingTypeRow" style="display:none;">
-        <div class="trk-calendar-field">
-          <label for="trkCalendarBillingType">Billing Type</label>
-
-          <select id="trkCalendarBillingType" class="dashboard-select">
-            <option value="">Select billing type</option>
-            <option value="One to One">One to One</option>
-            <option value="Group">Group</option>
-            <option value="Workshop">Workshop</option>
-            <option value="Non-Billable">Non-Billable</option>
+            <option value="120">2 hours</option>
+            <option value="180">3 hours</option>
+            <option value="240">4 hours</option>
+            <option value="300">5 hours</option>
+            <option value="360">6 hours</option>
+            <option value="420">7 hours</option>
           </select>
         </div>
 
-        <div class="trk-calendar-field">
-          <label for="trkCalendarTravelCharged">Travel Charged</label>
+        <div class="trk-calendar-field" id="trkCalendarPhoneRow" style="display:none;">
+          <label for="trkCalendarPhone">Telephone Number</label>
 
-          <select id="trkCalendarTravelCharged" class="dashboard-select">
-            <option value="0">No</option>
-            <option value="1">Yes</option>
-          </select>
+          <input
+            type="text"
+            id="trkCalendarPhone"
+            class="dashboard-input"
+            placeholder="Enter phone number"
+          >
         </div>
       </div>
 
       <div class="trk-calendar-form-row" id="trkCalendarTravelRow">
         <div class="trk-calendar-field">
-          <label for="trkCalendarTravelChargedSingle">Travel Charged</label>
-
-          <select id="trkCalendarTravelChargedSingle" class="dashboard-select">
-            <option value="0">No</option>
-            <option value="1">Yes</option>
-          </select>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:28px;">
+            <input type="checkbox" id="trkCalendarTravelChargedSingle" value="1">
+            Travel
+          </label>
         </div>
-      </div>
 
-      <div class="trk-calendar-form-row">
+        <div class="trk-calendar-field" id="trkCalendarGoogleMeetRow">
+          <label style="display:flex;align-items:center;gap:8px;margin-top:28px;">
+            <input type="checkbox" id="trkCalendarGoogleMeet" value="1">
+            Google Meet
+          </label>
+        </div>
+      </div>>
+
+      <div class="trk-calendar-form-row" id="trkCalendarLocationRow">
         <div class="trk-calendar-field">
           <label for="trkCalendarLocationType">Location Type</label>
-      
+
           <select id="trkCalendarLocationType" class="dashboard-select">
             <option value="client_default" selected>Main Therapy Location</option>
+            <option value="online">Online / Google Meet</option>
+            <option value="telephone">Telephone</option>
             <option value="home">Home</option>
-            <option value="online">Online</option>
-            <option value="other">Other</option>
+            <option value="school">School</option>
+            <option value="manual">Manual Location</option>
           </select>
         </div>
-      
+
         <div class="trk-calendar-field" id="trkCalendarLocationManualRow" style="display:none;">
-          <label for="trkCalendarLocation">Manual Location</label>
-      
+          <label for="trkCalendarLocation">Location</label>
+
           <input
             type="text"
             id="trkCalendarLocation"
             class="dashboard-input"
             placeholder="Enter location"
           >
+        </div>
+      </div>
+
+      <div class="trk-calendar-field" id="trkCalendarRecurringRow">
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="trkCalendarRecurring" value="1">
+          Recurring therapy sessions
+        </label>
+      </div>
+
+      <div id="trkCalendarRecurringOptions" style="display:none;">
+        <div class="trk-calendar-form-row">
+          <div class="trk-calendar-field">
+            <label for="trkCalendarRecurringFrequency">How Often?</label>
+
+            <select id="trkCalendarRecurringFrequency" class="dashboard-select">
+              <option value="Weekly">Weekly</option>
+              <option value="Fortnightly">Fortnightly</option>
+              <option value="Monthly">Monthly</option>
+            </select>
+          </div>
+
+          <div class="trk-calendar-field">
+            <label for="trkCalendarRecurringCount">Number of Sessions</label>
+
+            <select id="trkCalendarRecurringCount" class="dashboard-select">
+              <option value="1">1 session</option>
+              <option value="4">4 sessions</option>
+              <option value="12">12 sessions</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -144,7 +232,7 @@
         class="dashboard-btn dashboard-btn-primary"
         id="trkCalendarSaveBtn"
       >
-        Save Session
+        Save Calendar Item
       </button>
     </div>
   </div>
