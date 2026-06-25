@@ -33,6 +33,7 @@
 
   const CLIENT_REQUIRED_TYPES = ["Therapy Session", "Parent Check-In"];
   const NON_CLIENT_TITLE_TYPES = ["Internal Training", "Event / Stall", "Personal"];
+  const GOOGLE_MEET_TYPES = ["Therapy Session", "Parent Check-In", "Initial Consultation"];
 
   const DEFAULT_BILLING_BY_TYPE = {
     "Therapy Session": "One to One",
@@ -1268,7 +1269,7 @@
     toggleDisplay("trkCalendarDurationRow", !isHoliday);
 
     toggleDisplay("trkCalendarTravelRow", ["Therapy Session", "Parent Check-In", "School Visit"].indexOf(type) !== -1);
-    toggleDisplay("trkCalendarGoogleMeetRow", ["Therapy Session", "Parent Check-In", "Initial Consultation"].indexOf(type) !== -1);
+    toggleDisplay("trkCalendarGoogleMeetRow", GOOGLE_MEET_TYPES.indexOf(type) !== -1);
     toggleDisplay("trkCalendarRecurringRow", type === "Therapy Session");
     toggleDisplay("trkCalendarRecurringOptions", type === "Therapy Session" && isChecked("trkCalendarRecurring"));
 
@@ -1313,7 +1314,7 @@
     const locationType = getValue("trkCalendarLocationType") || "manual";
     const googleMeet = isChecked("trkCalendarGoogleMeet");
 
-    if (googleMeet && ["Therapy Session", "Parent Check-In", "Initial Consultation"].indexOf(type) !== -1) {
+    if (googleMeet && GOOGLE_MEET_TYPES.indexOf(type) !== -1) {
       setValue("trkCalendarLocationType", "online");
     }
 
