@@ -935,7 +935,8 @@
     const leadName = getValue("trkCalendarLeadName");
     const itemName = getValue("trkCalendarItemName");
     const schoolId = getValue("trkCalendarSchoolSelect");
-    const schoolName = getSelectedText("trkCalendarSchoolSelect");
+    const schoolManualName = getValue("trkCalendarSchoolManualName");
+    const schoolName = schoolId ? getSelectedText("trkCalendarSchoolSelect") : schoolManualName;
 
     const date = getValue("trkCalendarDate");
     const time = getValue("trkCalendarTime");
@@ -968,11 +969,6 @@
       return;
     }
 
-    if (type === "Parent Check-In" && !parentContact) {
-      showToast("Please select the parent/contact");
-      return;
-    }
-
     if (type === "Initial Consultation" && !leadName) {
       showToast("Please enter the person's name");
       return;
@@ -983,8 +979,8 @@
       return;
     }
 
-    if (type === "School Visit" && !schoolId) {
-      showToast("Please select a school");
+    if (type === "School Visit" && !schoolId && !schoolManualName) {
+      showToast("Please select a school or type the school name");
       return;
     }
 
@@ -1009,6 +1005,7 @@
       item_name: itemName,
       school: schoolId,
       school_name: schoolName,
+      school_manual_name: schoolManualName,
       booking_date: date,
       booking_time: time,
       from_date: fromDate,
@@ -1146,6 +1143,7 @@
     setValue("trkCalendarLeadName", "");
     setValue("trkCalendarItemName", "");
     setValue("trkCalendarSchoolSelect", "");
+    setValue("trkCalendarSchoolManualName", "");
 
     setValue("trkCalendarDate", dateStr || "");
     setValue("trkCalendarTime", timeStr || "");
@@ -1258,10 +1256,11 @@
     const isNamedItem = NON_CLIENT_TITLE_TYPES.indexOf(type) !== -1;
 
     toggleDisplay("trkCalendarClientRow", isClientType);
-    toggleDisplay("trkCalendarParentContactRow", isParentCheckIn);
+    toggleDisplay("trkCalendarParentContactRow", false);
     toggleDisplay("trkCalendarLeadNameRow", isInitialConsultation);
     toggleDisplay("trkCalendarItemNameRow", isNamedItem);
     toggleDisplay("trkCalendarSchoolRow", isSchoolVisit);
+    toggleDisplay("trkCalendarSchoolManualRow", isSchoolVisit);
 
     toggleDisplay("trkCalendarSingleDateTimeRow", !isHoliday);
     toggleDisplay("trkCalendarHolidayDateRow", isHoliday);
@@ -1314,6 +1313,9 @@
 
     const locationType = getValue("trkCalendarLocationType") || "manual";
     const googleMeet = isChecked("trkCalendarGoogleMeet");
+    if (type === "Therapy Session") {
+      toggleDisplay("trkCalendarRecurringOptions", isChecked("trkCalendarRecurring"));
+    }
 
     if (googleMeet && GOOGLE_MEET_TYPES.indexOf(type) !== -1) {
       setValue("trkCalendarLocationType", "online");
