@@ -230,6 +230,16 @@
     bindClick("trkCalendarNoteModalCancel", closeNoteModal);
     bindClick("trkCalendarNoteSaveBtn", saveClientNote);
 
+    document.addEventListener("click", function (event) {
+      if (event.target && event.target.id === "trkCalendarRecurring") {
+        setTimeout(syncBookingFields, 0);
+      }
+
+      if (event.target && event.target.id === "trkCalendarGoogleMeet") {
+        setTimeout(syncBookingFields, 0);
+      }
+    });
+
     document.addEventListener("change", function (event) {
       if (event.target && event.target.id === "trkCalendarType") {
         setValue("trkCalendarDuration", String(DURATION_BY_TYPE[event.target.value] || 45));
@@ -1260,7 +1270,9 @@
     toggleDisplay("trkCalendarTravelRow", ["Therapy Session", "Parent Check-In", "School Visit"].indexOf(type) !== -1);
     toggleDisplay("trkCalendarGoogleMeetRow", GOOGLE_MEET_TYPES.indexOf(type) !== -1);
     toggleDisplay("trkCalendarRecurringRow", type === "Therapy Session");
-    toggleDisplay("trkCalendarRecurringOptions", type === "Therapy Session" && isChecked("trkCalendarRecurring"));
+    
+    const showRecurringOptions = type === "Therapy Session" && isChecked("trkCalendarRecurring");
+    toggleDisplay("trkCalendarRecurringOptions", showRecurringOptions);
 
     const locationTypeSelect = document.getElementById("trkCalendarLocationType");
     const clientSelect = document.getElementById("trkCalendarClientSelect");
