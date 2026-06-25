@@ -47,14 +47,14 @@
   };
 
   const TYPE_STYLES = {
-    "Therapy Session": { background: "#E94763", border: "#C73B54", textColor: "#FFFFFF" },
-    "Parent Check-In": { background: "#FF8438", border: "#D96D29", textColor: "#FFFFFF" },
-    "Initial Consultation": { background: "#00A19E", border: "#007F7D", textColor: "#FFFFFF" },
-    "Internal Training": { background: "#6B5DD3", border: "#5144A8", textColor: "#FFFFFF" },
-    "School Visit": { background: "#2F80ED", border: "#1F64BD", textColor: "#FFFFFF" },
-    "Event / Stall": { background: "#D5DA39", border: "#AEB32E", textColor: "#2F3312" },
-    "Holiday": { background: "#7A869A", border: "#5E6878", textColor: "#FFFFFF" },
-    "Personal": { background: "#434B49", border: "#2F3533", textColor: "#FFFFFF" }
+    "Therapy Session": { background: "#AC455C", border: "#E94763", textColor: "#FFFFFF" },
+    "Parent Check-In": { background: "#D64923", border: "#FF8438", textColor: "#FFFFFF" },
+    "Initial Consultation": { background: "#00A19E", border: "#007274", textColor: "#FFFFFF" },
+    "Internal Training": { background: "#582581", border: "#9A4795", textColor: "#FFFFFF" },
+    "School Visit": { background: "#258D3B", border: "#5FE07C", textColor: "#FFFFFF" },
+    "Event / Stall": { background: "#98962A", border: "#D5DA39", textColor: "#FFFFFF" },
+    "Holiday": { background: "#839898", border: "#F2F8F8", textColor: "#FFFFFF" },
+    "Personal": { background: "#434B49", border: "#839898", textColor: "#FFFFFF" }
   };
 
   const state = {
@@ -644,7 +644,7 @@
 
       if (top < 0) return;
 
-      applyEventTypeStyle(eventNode, event.type);
+      applyEventTypeStyle(eventNode, event.type, event.ui_status);
 
       eventNode.style.top = top + "px";
       eventNode.style.height = height + "px";
@@ -765,44 +765,61 @@
 
     const detailsUrl = getDefaultDetailsUrl(event.name || "");
     const isPrivate = Number(event.is_private || 0) === 1;
-
-    let actions = "";
     const viewMode = getViewModeParams();
 
-    if (!isPrivate) {
-      actions =
-        '<div class="dashboard-detail-actions" style="margin-top:16px;">';
+    const workerValue = event.worker || state.currentWorkerLabel || "";
+    const showWorker = workerValue && workerValue !== "Me" && workerValue !== "Current Session Worker";
 
-      if (!viewMode.isViewMode) {
-        actions +=
-          '<button type="button" class="dashboard-btn dashboard-btn-primary" data-calendar-action="edit-session" data-event="' + escapeHtml(event.name || "") + '">Edit Session</button>'
-          + '<button type="button" class="dashboard-btn dashboard-btn-light" data-calendar-action="add-note" data-event="' + escapeHtml(event.name || "") + '">Add Note</button>';
+    let actions = "";
+
+    if (!isPrivate && !viewMode.isViewMode) {
+      actions =
+        '<div class="dashboard-detail-actions" style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">'
+        + '<button type="button" class="dashboard-btn dashboard-btn-primary" data-calendar-action="edit-session" data-event="' + escapeHtml(event.name || "") + '">Edit</button>';
+
+      if (event.client_name) {
+        actions += '<button type="button" class="dashboard-btn dashboard-btn-light" data-calendar-action="add-note" data-event="' + escapeHtml(event.name || "") + '">Add Note</button>';
       }
 
-      actions +=
-        '<a class="dashboard-link-btn" href="' + escapeHtml(detailsUrl) + '">Open details page ↗</a>'
+      actions += '<a class="dashboard-link-btn" href="' + escapeHtml(detailsUrl) + '">Open Full Page</a>'
+        + '</div>';
+    } else if (!isPrivate) {
+      actions =
+        '<div class="dashboard-detail-actions" style="margin-top:16px;">'
+        + '<a class="dashboard-link-btn" href="' + escapeHtml(detailsUrl) + '">Open Full Page</a>'
         + '</div>';
     }
 
     body.innerHTML =
-      '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Client / Session</div><div class="trk-calendar-detail-value">' + escapeHtml(event.title || "Session") + '</div></div>' +
-      '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Date</div><div class="trk-calendar-detail-value">' + escapeHtml(formatLongDisplayDate(event.date)) + '</div></div>' +
-      '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Time</div><div class="trk-calendar-detail-value">' + escapeHtml((event.start_time || "") + " - " + (event.end_time || "")) + '</div></div>' +
-      '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Status</div><div class="trk-calendar-detail-value"><span class="dashboard-badge ' + getBadgeClass(event.ui_status) + '">' + escapeHtml(event.ui_status || "Booked") + '</span></div></div>' +
-      '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Worker</div><div class="trk-calendar-detail-value">' + escapeHtml(event.worker || state.currentWorkerLabel || "Current Session Worker") + '</div></div>' +
-      (
+      '<div class="trk-calendar-form-row">'
+        + '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Client / Session</div><div class="trk-calendar-detail-value">' + escapeHtml(event.title || "Session") + '</div></div>'
+        + '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Status</div><div class="trk-calendar-detail-value"><span class="dashboard-badge ' + getBadgeClass(event.ui_status) + '">' + escapeHtml(event.ui_status || "Booked") + '</span></div></div>'
+      + '</div>'
+
+      + '<div class="trk-calendar-form-row">'
+        + '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Date</div><div class="trk-calendar-detail-value">' + escapeHtml(formatLongDisplayDate(event.date)) + '</div></div>'
+        + '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Time</div><div class="trk-calendar-detail-value">' + escapeHtml((event.start_time || "") + " - " + (event.end_time || "")) + '</div></div>'
+      + '</div>'
+
+      + (
+        showWorker
+          ? '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Worker</div><div class="trk-calendar-detail-value">' + escapeHtml(workerValue) + '</div></div>'
+          : ''
+      )
+
+      + (
         isPrivate
           ? ''
           : (
-              '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Type</div><div class="trk-calendar-detail-value">' + escapeHtml(event.type || "Session") + '</div></div>' +
-              getSessionProgressDetailHtml(event) +
-              getBookingWarningDetailHtml(event) +
-              '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Billing Type</div><div class="trk-calendar-detail-value">' + escapeHtml(event.billing_type || "Non-Billable") + '</div></div>' +
-              '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Travel Charged</div><div class="trk-calendar-detail-value">' + (Number(event.travel_charged || 0) ? "Yes" : "No") + '</div></div>' +
-              '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Location</div><div class="trk-calendar-detail-value">' + escapeHtml(event.location || "Not set") + '</div></div>'
+              '<div class="trk-calendar-form-row">'
+                + '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Type</div><div class="trk-calendar-detail-value">' + escapeHtml(event.type || "Session") + '</div></div>'
+                + getSessionProgressDetailHtml(event)
+              + '</div>'
+              + getBookingWarningDetailHtml(event)
+              + '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Location</div><div class="trk-calendar-detail-value">' + escapeHtml(event.location || "Not set") + '</div></div>'
             )
-      ) +
-      actions;
+      )
+      + actions;
   }
 
   function getDefaultDetailsUrl(eventName) {
@@ -1599,12 +1616,30 @@
     });
   }
 
-  function applyEventTypeStyle(node, type) {
+  function applyEventTypeStyle(node, type, status) {
     const style = TYPE_STYLES[type] || TYPE_STYLES["Therapy Session"];
+    const cleanStatus = status || "";
 
     node.style.background = style.background;
     node.style.borderLeft = "4px solid " + style.border;
     node.style.color = style.textColor || "#FFFFFF";
+    node.style.opacity = "1";
+    node.style.textDecoration = "none";
+
+    if (cleanStatus === "Attended") {
+      node.style.opacity = "0.65";
+    }
+
+    if (cleanStatus === "Cancelled") {
+      node.style.background = "#F2F8F8";
+      node.style.borderLeft = "4px solid #839898";
+      node.style.color = "#434B49";
+      node.style.textDecoration = "line-through";
+    }
+
+    if (cleanStatus === "No Show") {
+      node.style.borderLeft = "6px solid #FF8438";
+    }
   }
 
   function getCalendarEventProgressHtml(event) {
@@ -1628,7 +1663,7 @@
   }
 
   function getSessionProgressDetailHtml(event) {
-    if (!event) return "";
+    if (!event) return '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Session Progress</div><div class="trk-calendar-detail-value">—</div></div>';
 
     const progressText = event.progress_text || "";
     const sessionNumber = Number(event.session_number || 0);
@@ -1642,11 +1677,9 @@
       label = sessionNumber + " of " + totalSessions;
     }
 
-    if (!label) return "";
-
     return '<div class="trk-calendar-detail-group">'
       + '<div class="trk-calendar-detail-label">Session Progress</div>'
-      + '<div class="trk-calendar-detail-value"><strong>Session ' + escapeHtml(label) + '</strong></div>'
+      + '<div class="trk-calendar-detail-value">' + (label ? '<strong>Session ' + escapeHtml(label) + '</strong>' : '—') + '</div>'
       + '</div>';
   }
 
