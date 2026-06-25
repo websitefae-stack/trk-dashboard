@@ -1673,6 +1673,7 @@ def create_booking(
     item_name=None,
     school=None,
     school_name=None,
+    school_manual_name=None,
     booking_date=None,
     booking_time=None,
     from_date=None,
@@ -1703,6 +1704,7 @@ def create_booking(
     item_name = _coalesce_str("item_name", item_name)
     school = _coalesce_str("school", school)
     school_name = _coalesce_str("school_name", school_name)
+    school_manual_name = _coalesce_str("school_manual_name", school_manual_name)
     booking_date = _coalesce_str("booking_date", booking_date)
     booking_time = _coalesce_str("booking_time", booking_time)
     from_date = _coalesce_str("from_date", from_date)
@@ -1743,17 +1745,14 @@ def create_booking(
     else:
         client_row = None
 
-    if appointment_type == "Parent Check-In" and not parent_contact:
-        frappe.throw(_("Please select the parent/contact."))
-
     if appointment_type == "Initial Consultation" and not lead_name:
         frappe.throw(_("Please enter the person's name."))
 
     if appointment_type in ["Internal Training", "Event / Stall", "Personal"] and not item_name:
         frappe.throw(_("Please enter a title."))
 
-    if appointment_type == "School Visit" and not school:
-        frappe.throw(_("Please select a school."))
+    if appointment_type == "School Visit" and not school and not school_manual_name:
+        frappe.throw(_("Please select a school or type the school name."))
 
     if appointment_type == "Holiday":
         if not from_date or not to_date:
@@ -1809,7 +1808,7 @@ def create_booking(
         elif appointment_type == "Initial Consultation":
             event.subject = f"{lead_name} - Initial Consultation"
         elif appointment_type == "School Visit":
-            event.subject = f"{school_name or _get_client_display_name(school)} - School Visit"
+            event.subject = f"{school_name or school_manual_name or _get_client_display_name(school)} - School Visit"
         elif appointment_type == "Holiday":
             event.subject = "Holiday"
         else:
@@ -1824,7 +1823,7 @@ def create_booking(
         if appointment_type in CLIENT_SESSION_TYPES and _event_has_field("custom_client"):
             event.custom_client = client
 
-        if appointment_type == "School Visit" and _event_has_field("custom_client"):
+        if appointment_type == "School Visit" and school and _event_has_field("custom_client"):
             event.custom_client = school
 
         _set_session_type(event, appointment_type)
@@ -1878,7 +1877,7 @@ def create_booking(
                 if worker_name:
                     event.custom_session_worker = worker_name
 
-        if appointment_type == "School Visit":
+        if appointment_type == "School Visit" and school:
             school_row = _get_client_row(school)
             if school_row and not location:
                 location = _format_school_location(school_row)
