@@ -230,13 +230,33 @@
     bindClick("trkCalendarNoteModalCancel", closeNoteModal);
     bindClick("trkCalendarNoteSaveBtn", saveClientNote);
 
-    const typeSelect = document.getElementById("trkCalendarType");
-    if (typeSelect) {
-      typeSelect.addEventListener("change", function () {
-        setValue("trkCalendarDuration", String(DURATION_BY_TYPE[this.value] || 45));
+    document.addEventListener("change", function (event) {
+      if (event.target && event.target.id === "trkCalendarType") {
+        setValue("trkCalendarDuration", String(DURATION_BY_TYPE[event.target.value] || 45));
         syncBookingFields();
-      });
-    }
+      }
+
+      if (event.target && event.target.id === "trkCalendarRecurring") {
+        syncBookingFields();
+      }
+
+      if (event.target && event.target.id === "trkCalendarGoogleMeet") {
+        syncBookingFields();
+      }
+
+      if (event.target && event.target.id === "trkCalendarLocationType") {
+        syncBookingFields();
+      }
+
+      if (event.target && event.target.id === "trkCalendarClientSelect") {
+        renderParentContactOptions();
+        syncBookingFields();
+      }
+
+      if (event.target && event.target.id === "trkCalendarSchoolSelect") {
+        syncBookingFields();
+      }
+    });
 
     const recurringCheckbox = document.getElementById("trkCalendarRecurring");
     if (recurringCheckbox) {
