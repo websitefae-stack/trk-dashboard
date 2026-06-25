@@ -1278,8 +1278,11 @@
     if (isInitialConsultation) {
       toggleDisplay("trkCalendarClientRow", false);
       toggleDisplay("trkCalendarLeadNameRow", true);
-      toggleDisplay("trkCalendarLocationRow", true);
-      setValue("trkCalendarLocationType", getValue("trkCalendarLocationType") || "online");
+      toggleDisplay("trkCalendarLocationTypeInlineRow", true);
+
+      if (!getValue("trkCalendarLocationType") || getValue("trkCalendarLocationType") === "client_default") {
+        setValue("trkCalendarLocationType", "online");
+      }
     }
     toggleDisplay("trkCalendarItemNameRow", isNamedItem);
     toggleDisplay("trkCalendarSchoolRow", isSchoolVisit);
@@ -1345,7 +1348,7 @@
     }
 
     toggleDisplay("trkCalendarPhoneRow", getValue("trkCalendarLocationType") === "telephone");
-    toggleDisplay("trkCalendarLocationRow", !isHoliday);
+    toggleDisplay("trkCalendarLocationTypeInlineRow", !isHoliday);
     toggleDisplay("trkCalendarLocationManualRow", ["manual"].indexOf(getValue("trkCalendarLocationType")) !== -1);
 
     if (type === "Parent Check-In" && getValue("trkCalendarDuration") === "45") {
