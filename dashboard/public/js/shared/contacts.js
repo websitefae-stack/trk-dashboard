@@ -77,6 +77,7 @@
   function runServerContactSearch() {
     const searchField = el("contactSearch");
     const params = new URLSearchParams(window.location.search);
+    const coachFilter = el("contactScopeFilter");
     const searchValue = searchField ? searchField.value.trim() : "";
 
     if (searchValue) {
@@ -85,6 +86,10 @@
       params.delete("search");
     }
 
+    if (coachFilter && coachFilter.value) {
+      params.set("contact_scope", coachFilter.value);
+    }
+    
     params.set("page", "1");
 
     window.location.href = window.location.pathname + "?" + params.toString();
