@@ -33,7 +33,11 @@
         
           <div class="dashboard-filter-field dashboard-filter-coach">
             <label for="coachFilter">Coach</label>
-            <select class="dashboard-select" id="coachFilter">
+            <select
+              class="dashboard-select"
+              id="coachFilter"
+              data-current-user-full-name="{{ frappe.get_fullname(frappe.session.user) }}"
+            >
               <option value="All">All coaches</option>
               {% for coach in coaches %}
                 <option value="{{ coach.name }}">
