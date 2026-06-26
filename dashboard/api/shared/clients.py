@@ -123,8 +123,24 @@ def get_clients():
 def get_paginated_clients():
     ensure_logged_in()
 
-    page_args = get_page_args()
+page_args = get_page_args()
     search = page_args["search"]
+
+    path = ""
+    try:
+        path = frappe.request.path or ""
+    except Exception:
+        path = ""
+
+    load_all_for_dashboard = (
+        "/coach_db/clients" in path
+        or "/session_worker_db/clients" in path
+    )
+
+    if load_all_for_dashboard:
+        page_args["start"] = 0
+        page_args["page"] = 1
+        page_args["page_size"] = 5000
 
     filters = []
 
