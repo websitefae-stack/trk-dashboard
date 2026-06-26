@@ -488,32 +488,6 @@ def get_paginated_contacts_for_scope(scope, show_all=False, coach_scope="my"):
     page_args = get_page_args()
     search = page_args["search"].lower()
 
-    page_args["start"] = 0
-    page_args["page"] = 1
-    page_args["page_size"] = 5000
-
-    if scope == "franchisor" and show_all:
-        if not is_franchisor_user():
-            frappe.throw(_("You do not have permission to view all contacts."), frappe.PermissionError)
-
-        allowed_clients = frappe.get_all(
-            CLIENT_DOCTYPE,
-            fields=[
-                "name", "full_name", "name1", "last_name", "status", "client_type",
-                "primary_coach", "attending_coach", "session_worker", "billing_contact",
-            ],
-            limit_page_length=10000,
-        )
-    else:
-        allowed_clients = get_allowed_clients(scope, coach_scope=coach_scope)
-
-    if not allowed_clients:
-        return {
-            "contacts": [],
-            "pagination": make_pagination(0, page_args["page"], page_args["page_size"]),
-            "search": page_args["search"],
-        }
-
     all_rows = get_contacts_for_scope(
         scope=scope,
         show_all=show_all,
@@ -526,6 +500,7 @@ def get_paginated_contacts_for_scope(scope, show_all=False, coach_scope="my"):
             if search in (row.get("display_name") or "").lower()
             or search in (row.get("email_id") or "").lower()
             or search in (row.get("mobile_no") or "").lower()
+            or search in (row.get("company_name") or "").lower()
             or search in (row.get("linked_client_text") or "").lower()
             or search in (row.get("coach_name") or "").lower()
             or search in (row.get("session_worker_name") or "").lower()
@@ -533,8 +508,16 @@ def get_paginated_contacts_for_scope(scope, show_all=False, coach_scope="my"):
 
     total = len(all_rows)
 
+    rows = all_rows[
+        page_args["start"]:page_args["start"] + page_args["page_size"]
+    ]
+
     return {
-        "contacts": all_rows[:page_args["page_size"]],
-        "pagination": make_pagination(total, page_args["page"], page_args["page_size"]),
+        "contacts": rows,
+        "pagination": make_pagination(
+            total,
+            page_args["page"],
+            page_args["page_size"],
+        ),
         "search": page_args["search"],
     }
