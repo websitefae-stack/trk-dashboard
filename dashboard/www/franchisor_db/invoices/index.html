@@ -29,6 +29,7 @@
             class="dashboard-input"
             id="invoiceSearch"
             placeholder="Search by invoice number, customer or client"
+            value="{{ search or '' }}"
           >
         </div>
 
@@ -169,6 +170,22 @@
 
         <div id="invoiceEmptyState" class="dashboard-empty" style="display:none;">
           No invoices found.
+        </div>
+
+        <div class="dashboard-pagination" style="display:flex; gap:12px; align-items:center; justify-content:flex-end; margin-top:16px;">
+          {% if pagination.has_previous %}
+            <a class="dashboard-btn dashboard-btn-light" href="?page={{ pagination.previous_page }}{% if search %}&search={{ search | urlencode }}{% endif %}{% if selected_coach %}&coach={{ selected_coach | urlencode }}{% endif %}">Previous</a>
+          {% else %}
+            <button class="dashboard-btn dashboard-btn-light" disabled>Previous</button>
+          {% endif %}
+        
+          <span>Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
+        
+          {% if pagination.has_next %}
+            <a class="dashboard-btn dashboard-btn-light" href="?page={{ pagination.next_page }}{% if search %}&search={{ search | urlencode }}{% endif %}{% if selected_coach %}&coach={{ selected_coach | urlencode }}{% endif %}">Next</a>
+          {% else %}
+            <button class="dashboard-btn dashboard-btn-light" disabled>Next</button>
+          {% endif %}
         </div>
 
       </div>
