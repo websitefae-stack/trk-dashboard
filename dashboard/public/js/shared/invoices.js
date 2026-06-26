@@ -33,11 +33,15 @@
     const rowStatus = row.dataset.status || "";
 
     if (search && !haystack.includes(search)) return false;
-    if (status === "Outstanding") {
-      if (!["Unpaid", "Overdue", "Partly Paid"].includes(rowStatus)) return false;
-    } else if (status && rowStatus !== status) {
-      return false;
-    }   
+
+    if (!search) {
+      if (status === "Outstanding") {
+        if (!["Unpaid", "Overdue", "Partly Paid"].includes(rowStatus)) return false;
+      } else if (status && rowStatus !== status) {
+        return false;
+      }
+    }
+
     if (fromDate && rowDate < fromDate) return false;
     if (toDate && rowDate > toDate) return false;
 
