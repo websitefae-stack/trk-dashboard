@@ -529,10 +529,6 @@ def _get_invoices_for_clients(client_rows, dashboard_type):
     page_args = get_page_args()
     search = page_args["search"].lower()
 
-    page_args["start"] = 0
-    page_args["page"] = 1
-    page_args["page_size"] = 5000
-
     client_names = [row.get("name") for row in client_rows if row.get("name")]
 
     if not client_names:
@@ -547,25 +543,17 @@ def _get_invoices_for_clients(client_rows, dashboard_type):
         "docstatus": ["!=", 2],
     }
 
-    total_rows = frappe.get_all(
-        "Sales Invoice",
-        filters=filters,
-        pluck="name",
-        limit_page_length=0,
-        ignore_permissions=True,
-    )
+    client_map = {row.get("name"): row for row in client_rows if row.get("name")}
 
     invoice_rows = frappe.get_all(
         "Sales Invoice",
         filters=filters,
         fields=_get_invoice_fields(),
         order_by="posting_date desc, modified desc",
-        start=page_args["start"],
-        page_length=page_args["page_size"],
+        limit_page_length=0 if search else page_args["page_size"],
+        start=0 if search else page_args["start"],
         ignore_permissions=True,
     )
-
-    client_map = {row.get("name"): row for row in client_rows if row.get("name")}
 
     invoices = [
         _normalise_invoice_row(row, client_map, dashboard_type)
@@ -579,12 +567,27 @@ def _get_invoices_for_clients(client_rows, dashboard_type):
             or search in (inv.get("client_name") or "").lower()
             or search in (inv.get("customer_name") or "").lower()
             or search in (inv.get("customer") or "").lower()
+            or search in (inv.get("company") or "").lower()
         ]
+
+        total = len(invoices)
+        invoices = invoices[
+            page_args["start"]:page_args["start"] + page_args["page_size"]
+        ]
+    else:
+        total_rows = frappe.get_all(
+            "Sales Invoice",
+            filters=filters,
+            pluck="name",
+            limit_page_length=0,
+            ignore_permissions=True,
+        )
+        total = len(total_rows)
 
     return {
         "invoices": invoices,
         "pagination": make_pagination(
-            len(total_rows),
+            total,
             page_args["page"],
             page_args["page_size"],
         ),
