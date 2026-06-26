@@ -95,7 +95,7 @@
 
     if (searchField && searchField.dataset.contactsSearchBound !== "1") {
       searchField.dataset.contactsSearchBound = "1";
-      searchField.addEventListener("input", renderFilters);
+      searchField.addEventListener("input", debounce(runServerContactSearch, 500));
     }
   }
 
