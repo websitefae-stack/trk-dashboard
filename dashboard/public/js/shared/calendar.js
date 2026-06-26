@@ -816,6 +816,7 @@
               + '</div>'
               + getBookingWarningDetailHtml(event)
               + '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Location</div><div class="trk-calendar-detail-value">' + escapeHtml(event.location || "Not set") + '</div></div>'
+              + getGoogleMeetLinkDetailHtml(event)
             )
       )
       + actions;
