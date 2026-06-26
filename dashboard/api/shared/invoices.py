@@ -529,6 +529,10 @@ def _get_invoices_for_clients(client_rows, dashboard_type):
     page_args = get_page_args()
     search = page_args["search"].lower()
 
+    page_args["start"] = 0
+    page_args["page"] = 1
+    page_args["page_size"] = 5000
+
     client_names = [row.get("name") for row in client_rows if row.get("name")]
 
     if not client_names:
