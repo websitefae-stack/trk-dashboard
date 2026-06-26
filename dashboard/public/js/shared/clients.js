@@ -84,6 +84,66 @@
     updateClientCount();
   }
 
+    function debounce(fn, wait) {
+    let timer = null;
+
+    return function () {
+      const args = arguments;
+      clearTimeout(timer);
+
+      timer = setTimeout(function () {
+        fn.apply(null, args);
+      }, wait || 350);
+    };
+  }
+
+  function isFranchisorClientsPage() {
+    return window.location.pathname.indexOf("/franchisor_db/clients") !== -1;
+  }
+
+  function runServerSearchForFranchisor() {
+    if (!isFranchisorClientsPage()) return;
+
+    const searchValue = (getFilterValue("clientSearch", "") || "").trim();
+    const params = new URLSearchParams(window.location.search);
+
+    if (searchValue) {
+      params.set("search", searchValue);
+    } else {
+      params.delete("search");
+    }
+
+    params.set("page", "1");
+
+    window.location.href = window.location.pathname + "?" + params.toString();
+  }
+
+  function defaultFranchisorCoachFilter() {
+    const coachFilter = el("coachFilter");
+    if (!coachFilter || coachFilter.dataset.defaultCoachDone === "1") return;
+
+    const stored = window.sessionStorage.getItem("trkFranchisorClientCoachFilter");
+    if (stored) {
+      coachFilter.value = stored;
+      coachFilter.dataset.defaultCoachDone = "1";
+      return;
+    }
+
+    const currentName = (coachFilter.dataset.currentUserFullName || "").trim().toLowerCase();
+
+    if (currentName) {
+      const match = Array.from(coachFilter.options).find(function (option) {
+        return (option.text || "").trim().toLowerCase() === currentName;
+      });
+
+      if (match) {
+        coachFilter.value = match.value;
+      }
+    }
+
+    coachFilter.dataset.defaultCoachDone = "1";
+  }
+
   function initClientFilterEvents() {
     [
       "clientSearch",
@@ -99,7 +159,19 @@
       field.dataset.clientFilterBound = "1";
 
       const eventName = field.tagName === "SELECT" ? "change" : "input";
-      field.addEventListener(eventName, renderClientFilters);
+
+      if (id === "clientSearch" && isFranchisorClientsPage()) {
+        field.addEventListener(eventName, debounce(runServerSearchForFranchisor, 500));
+      } else {
+        field.addEventListener(eventName, renderClientFilters);
+      }
+
+      if (id === "coachFilter") {
+        field.addEventListener("change", function () {
+          window.sessionStorage.setItem("trkFranchisorClientCoachFilter", field.value || "All");
+          renderClientFilters();
+        });
+      }
     });
   }
 
@@ -172,6 +244,7 @@
   function initClientsPage() {
     if (!el("clientTable") && !document.querySelector(".dashboard-client-row")) return;
 
+    defaultFranchisorCoachFilter();
     initClientFilterEvents();
     initRefreshButton();
     initClientSearchToggle();
