@@ -239,16 +239,6 @@
     valueNode.innerHTML = '<a href="' + escapeHtml(link) + '" target="_blank" rel="noopener">Open Google Meet</a>';
   }
 
-  function getGoogleMeetLinkDetailHtml(event) {
-    const link = event && event.google_meet_link ? String(event.google_meet_link).trim() : "";
-    if (!link) return "";
-
-    return '<div class="trk-calendar-detail-group">'
-      + '<div class="trk-calendar-detail-label">Meeting Link</div>'
-      + '<div class="trk-calendar-detail-value"><a href="' + escapeHtml(link) + '" target="_blank" rel="noopener">Open Google Meet</a></div>'
-      + '</div>';
-  }
-
   async function loadDetails() {
     state.eventName = getQueryParam("event") || getQueryParam("name");
 
