@@ -123,7 +123,7 @@ def get_clients():
 def get_paginated_clients():
     ensure_logged_in()
 
-page_args = get_page_args()
+    page_args = get_page_args()
     search = page_args["search"]
 
     path = ""
