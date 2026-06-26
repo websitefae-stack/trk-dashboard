@@ -143,6 +143,7 @@
   function runServerInvoiceSearch() {
     const searchField = el("invoiceSearch");
     const params = new URLSearchParams(window.location.search);
+    const coachSelector = el("invoiceCoachSelector");
     const searchValue = searchField ? searchField.value.trim() : "";
 
     if (searchValue) {
@@ -151,6 +152,10 @@
       params.delete("search");
     }
 
+    if (coachSelector && coachSelector.value) {
+      params.set("coach", coachSelector.value);
+    }
+    
     params.set("page", "1");
 
     window.location.href = window.location.pathname + "?" + params.toString();
