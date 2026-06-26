@@ -61,6 +61,35 @@
     updateContactCount();
   }
 
+    function debounce(fn, wait) {
+    let timer = null;
+
+    return function () {
+      const args = arguments;
+
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        fn.apply(null, args);
+      }, wait || 500);
+    };
+  }
+
+  function runServerContactSearch() {
+    const searchField = el("contactSearch");
+    const params = new URLSearchParams(window.location.search);
+    const searchValue = searchField ? searchField.value.trim() : "";
+
+    if (searchValue) {
+      params.set("search", searchValue);
+    } else {
+      params.delete("search");
+    }
+
+    params.set("page", "1");
+
+    window.location.href = window.location.pathname + "?" + params.toString();
+  }
+
   function initSearchFilter() {
     const searchField = el("contactSearch");
 
