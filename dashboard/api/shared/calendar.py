@@ -751,6 +751,7 @@ def _get_event_fields():
         "custom_total_sessions",
         "custom_progress_text",
         "custom_booking_warning",
+        "google_meet_link",
     ]
 
     if _event_has_field("custom_session_type"):
@@ -1372,6 +1373,7 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
             "total_sessions": 0,
             "progress_text": "",
             "booking_warning": "",
+            "google_meet_link": "",
             "is_private": 1,
         }
 
@@ -1421,6 +1423,7 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
         "total_sessions": int(row.get("custom_total_sessions") or 0),
         "progress_text": row.get("custom_progress_text") or "",
         "booking_warning": row.get("custom_booking_warning") or "",
+        "google_meet_link": row.get("google_meet_link") or "",
         "is_private": 0,
     }
 
@@ -1668,6 +1671,7 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
         "total_sessions": int(event_doc.get("custom_total_sessions") or 0),
         "progress_text": event_doc.get("custom_progress_text") or "",
         "booking_warning": event_doc.get("custom_booking_warning") or "",
+        "google_meet_link": event_doc.get("google_meet_link") or "",
     }
 
 
