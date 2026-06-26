@@ -488,6 +488,11 @@ def get_paginated_contacts_for_scope(scope, show_all=False, coach_scope="my"):
     page_args = get_page_args()
     search = page_args["search"].lower()
 
+    if scope in ["coach", "session_worker"]:
+        page_args["start"] = 0
+        page_args["page"] = 1
+        page_args["page_size"] = 5000
+
     if scope == "franchisor" and show_all:
         if not is_franchisor_user():
             frappe.throw(_("You do not have permission to view all contacts."), frappe.PermissionError)
