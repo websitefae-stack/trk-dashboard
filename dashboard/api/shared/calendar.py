@@ -1878,6 +1878,8 @@ def create_booking(
             ))
 
         event = frappe.new_doc("Event")
+        calendar_owner = context.get("view_as_user") or frappe.session.user
+        event.owner = calendar_owner
 
         if appointment_type == "Therapy Session":
             event.subject = f"{client_name} - Therapy Session"
@@ -1897,6 +1899,9 @@ def create_booking(
 
         if _event_has_field("event_type"):
             event.event_type = "Public"
+
+        if _event_has_field("sync_with_google_calendar"):
+            event.sync_with_google_calendar = 1
 
         if appointment_type in CLIENT_SESSION_TYPES and _event_has_field("custom_client"):
             event.custom_client = client
