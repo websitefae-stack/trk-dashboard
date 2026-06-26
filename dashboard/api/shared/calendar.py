@@ -1711,6 +1711,38 @@ def _can_book_or_edit_client(client, dashboard_type, context):
 
     return client_row
 
+def _get_google_calendar_for_booking(dashboard_type, context):
+    user = context.get("view_as_user") or frappe.session.user
+
+    if dashboard_type == SESSION_WORKER_DASHBOARD:
+        worker_name = (context.get("worker_name") or "").strip()
+
+        if worker_name and frappe.db.exists("Session Worker", worker_name):
+            return frappe.db.get_value("Session Worker", worker_name, "google_calendar") or ""
+
+    coach_name = (
+        context.get("coach_name")
+        or context.get("view_as_coach")
+        or context.get("current_coach")
+        or ""
+    )
+
+    if not coach_name:
+        coach_name = frappe.db.get_value(
+            "Coach",
+            {"user": user},
+            "name",
+        ) or frappe.db.get_value(
+            "Coach",
+            {"email": user},
+            "name",
+        ) or ""
+
+    if coach_name and frappe.db.exists("Coach", coach_name):
+        return frappe.db.get_value("Coach", coach_name, "google_calendar") or ""
+
+    return ""
+
 
 @frappe.whitelist(allow_guest=False)
 def create_booking(
@@ -1878,6 +1910,13 @@ def create_booking(
             ))
 
         event = frappe.new_doc("Event")
+        google_calendar = _get_google_calendar_for_booking(
+            dashboard_type=dashboard_type,
+            context=context,
+        )
+
+        if google_calendar and _event_has_field("google_calendar"):
+            event.google_calendar = google_calendar
         calendar_owner = context.get("view_as_user") or frappe.session.user
         event.owner = calendar_owner
 
