@@ -208,6 +208,47 @@
       + "</div>";
   }
 
+  function renderGoogleMeetLink(link) {
+    const locationNode = el("trkDetailLocation");
+    if (!locationNode) return;
+
+    let wrap = el("trkDetailGoogleMeetLinkWrap");
+
+    if (!wrap) {
+      wrap = document.createElement("div");
+      wrap.id = "trkDetailGoogleMeetLinkWrap";
+      wrap.className = "trk-calendar-detail-group";
+      wrap.innerHTML =
+        '<div class="trk-calendar-detail-label">Meeting Link</div>' +
+        '<div class="trk-calendar-detail-value" id="trkDetailGoogleMeetLink">—</div>';
+
+      const group = locationNode.closest(".trk-calendar-detail-group") || locationNode.parentElement;
+      if (group && group.parentElement) {
+        group.parentElement.insertBefore(wrap, group.nextSibling);
+      }
+    }
+
+    const valueNode = el("trkDetailGoogleMeetLink");
+    if (!valueNode) return;
+
+    if (!link) {
+      valueNode.innerHTML = "—";
+      return;
+    }
+
+    valueNode.innerHTML = '<a href="' + escapeHtml(link) + '" target="_blank" rel="noopener">Open Google Meet</a>';
+  }
+
+  function getGoogleMeetLinkDetailHtml(event) {
+    const link = event && event.google_meet_link ? String(event.google_meet_link).trim() : "";
+    if (!link) return "";
+
+    return '<div class="trk-calendar-detail-group">'
+      + '<div class="trk-calendar-detail-label">Meeting Link</div>'
+      + '<div class="trk-calendar-detail-value"><a href="' + escapeHtml(link) + '" target="_blank" rel="noopener">Open Google Meet</a></div>'
+      + '</div>';
+  }
+
   async function loadDetails() {
     state.eventName = getQueryParam("event") || getQueryParam("name");
 
@@ -245,6 +286,7 @@
     setHtml("trkDetailDate", escapeHtml(data.display_date || "—"));
     setHtml("trkDetailTime", escapeHtml(data.display_time || "—"));
     setHtml("trkDetailLocation", escapeHtml(data.location || "—"));
+    renderGoogleMeetLink(data.google_meet_link || "");
     setHtml("trkDetailRecordId", escapeHtml(data.name || state.eventName || "—"));
     setHtml("trkDetailBillingType", escapeHtml(data.billing_type || "—"));
     setHtml("trkDetailTravelCharged", escapeHtml(yesNo(data.travel_charged)));
