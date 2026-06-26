@@ -127,6 +127,35 @@
     });
   }
 
+    function debounce(fn, wait) {
+    let timer = null;
+
+    return function () {
+      const args = arguments;
+
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        fn.apply(null, args);
+      }, wait || 500);
+    };
+  }
+
+  function runServerInvoiceSearch() {
+    const searchField = el("invoiceSearch");
+    const params = new URLSearchParams(window.location.search);
+    const searchValue = searchField ? searchField.value.trim() : "";
+
+    if (searchValue) {
+      params.set("search", searchValue);
+    } else {
+      params.delete("search");
+    }
+
+    params.set("page", "1");
+
+    window.location.href = window.location.pathname + "?" + params.toString();
+  }
+  
   function initFilters() {
     ["invoiceSearch", "invoiceFromDate", "invoiceToDate", "invoiceStatusFilter"].forEach((id) => {
       const field = el(id);
