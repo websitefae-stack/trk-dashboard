@@ -160,7 +160,12 @@
     ["invoiceSearch", "invoiceFromDate", "invoiceToDate", "invoiceStatusFilter"].forEach((id) => {
       const field = el(id);
       if (!field) return;
-      field.addEventListener(id === "invoiceSearch" ? "input" : "change", renderFilters);
+
+      if (id === "invoiceSearch") {
+        field.addEventListener("input", debounce(runServerInvoiceSearch, 500));
+      } else {
+        field.addEventListener("change", renderFilters);
+      }
     });
   }
 
