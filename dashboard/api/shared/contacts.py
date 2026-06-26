@@ -485,7 +485,7 @@ def get_contacts(scope="coach", show_all=0, coach_scope="my"):
 
 
 def get_paginated_contacts_for_scope(scope, show_all=False, coach_scope="my"):
-   page_args = get_page_args()
+    page_args = get_page_args()
     search = page_args["search"].lower()
 
     page_args["start"] = 0
@@ -499,16 +499,8 @@ def get_paginated_contacts_for_scope(scope, show_all=False, coach_scope="my"):
         allowed_clients = frappe.get_all(
             CLIENT_DOCTYPE,
             fields=[
-                "name",
-                "full_name",
-                "name1",
-                "last_name",
-                "status",
-                "client_type",
-                "primary_coach",
-                "attending_coach",
-                "session_worker",
-                "billing_contact",
+                "name", "full_name", "name1", "last_name", "status", "client_type",
+                "primary_coach", "attending_coach", "session_worker", "billing_contact",
             ],
             limit_page_length=10000,
         )
@@ -522,188 +514,27 @@ def get_paginated_contacts_for_scope(scope, show_all=False, coach_scope="my"):
             "search": page_args["search"],
         }
 
-    client_names = [c.get("name") for c in allowed_clients if c.get("name")]
-    client_map = {c.get("name"): c for c in allowed_clients if c.get("name")}
-
-    contact_to_client_names = {}
-    customer_names = set()
-
-    client_contact_doctype = ""
-    try:
-        client_contact_field = frappe.get_meta(CLIENT_DOCTYPE).get_field("client_contacts")
-        client_contact_doctype = client_contact_field.options if client_contact_field else ""
-    except Exception:
-        client_contact_doctype = ""
-
-    child_rows = []
-
-    if client_contact_doctype and client_names:
-        child_rows = frappe.get_all(
-            client_contact_doctype,
-            filters={"parent": ["in", client_names]},
-            fields=["parent", "contact", "is_billing_contact", "customer"],
-            limit_page_length=0,
-            ignore_permissions=True,
-        )
-
-    for row in child_rows:
-        parent = row.get("parent")
-
-        if row.get("contact"):
-            contact_to_client_names.setdefault(row.get("contact"), set()).add(parent)
-
-        if row.get("is_billing_contact") and row.get("customer"):
-            customer_names.add(row.get("customer"))
-
-    for client in allowed_clients:
-        if client.get("billing_contact"):
-            customer_names.add(client.get("billing_contact"))
-
-    customer_contact_map = {}
-
-    for customer_name in customer_names:
-        contact_name = get_contact_from_customer(customer_name)
-
-        if contact_name:
-            customer_contact_map[customer_name] = contact_name
-
-    for row in child_rows:
-        parent = row.get("parent")
-
-        if row.get("is_billing_contact") and row.get("customer"):
-            contact_name = customer_contact_map.get(row.get("customer"))
-
-            if contact_name:
-                contact_to_client_names.setdefault(contact_name, set()).add(parent)
-
-    for client in allowed_clients:
-        customer_name = client.get("billing_contact")
-        contact_name = customer_contact_map.get(customer_name)
-
-        if contact_name:
-            contact_to_client_names.setdefault(contact_name, set()).add(client.get("name"))
-
-    contact_names = sorted(contact_to_client_names.keys())
-
-    if not contact_names:
-        return {
-            "contacts": [],
-            "pagination": make_pagination(0, page_args["page"], page_args["page_size"]),
-            "search": page_args["search"],
-        }
-
-    contact_filters = {"name": ["in", contact_names]}
+    all_rows = get_contacts_for_scope(
+        scope=scope,
+        show_all=show_all,
+        coach_scope=coach_scope,
+    )
 
     if search:
-        contact_rows = frappe.get_all(
-            CONTACT_DOCTYPE,
-            filters=contact_filters,
-            fields=[
-                "name",
-                "full_name",
-                "first_name",
-                "last_name",
-                "mobile_no",
-                "email_id",
-                "designation",
-                "company_name",
-                "is_billing_contact",
-                "custom_customer",
-            ],
-            order_by="full_name asc, first_name asc, last_name asc",
-            limit_page_length=0,
-            ignore_permissions=True,
-        )
-
-        contact_rows = [
-            c for c in contact_rows
-            if search in (get_contact_display_name(c) or "").lower()
-            or search in (c.get("email_id") or "").lower()
-            or search in (c.get("mobile_no") or "").lower()
-            or search in (c.get("company_name") or "").lower()
+        all_rows = [
+            row for row in all_rows
+            if search in (row.get("display_name") or "").lower()
+            or search in (row.get("email_id") or "").lower()
+            or search in (row.get("mobile_no") or "").lower()
+            or search in (row.get("linked_client_text") or "").lower()
+            or search in (row.get("coach_name") or "").lower()
+            or search in (row.get("session_worker_name") or "").lower()
         ]
 
-        total = len(contact_rows)
-        contact_rows = contact_rows[page_args["start"]:page_args["start"] + page_args["page_size"]]
-
-    else:
-        total = len(contact_names)
-
-        contact_rows = frappe.get_all(
-            CONTACT_DOCTYPE,
-            filters=contact_filters,
-            fields=[
-                "name",
-                "full_name",
-                "first_name",
-                "last_name",
-                "mobile_no",
-                "email_id",
-                "designation",
-                "company_name",
-                "is_billing_contact",
-                "custom_customer",
-            ],
-            order_by="full_name asc, first_name asc, last_name asc",
-            start=page_args["start"],
-            page_length=page_args["page_size"],
-            ignore_permissions=True,
-        )
-
-    rows = []
-
-    for contact in contact_rows:
-        linked_clients = []
-
-        for client_name in sorted(contact_to_client_names.get(contact.name, set())):
-            client = client_map.get(client_name)
-
-            if not client:
-                continue
-
-            linked_clients.append({
-                "name": client.get("name"),
-                "display_name": get_client_display_name(client),
-                "primary_coach": client.get("primary_coach") or "",
-                "attending_coach": client.get("attending_coach") or "",
-                "session_worker": client.get("session_worker") or "",
-                "status": client.get("status") or "",
-                "client_type": client.get("client_type") or "",
-            })
-
-        coach_names = sorted({
-            c.get("primary_coach") or c.get("attending_coach")
-            for c in linked_clients
-            if c.get("primary_coach") or c.get("attending_coach")
-        })
-
-        session_worker_names = sorted({
-            c.get("session_worker")
-            for c in linked_clients
-            if c.get("session_worker")
-        })
-
-        rows.append({
-            "name": contact.name,
-            "display_name": get_contact_display_name(contact),
-            "mobile_no": contact.get("mobile_no") or "",
-            "email_id": contact.get("email_id") or "",
-            "designation": contact.get("designation") or "",
-            "company_name": contact.get("company_name") or "",
-            "is_billing_contact": contact.get("is_billing_contact") or 0,
-            "custom_customer": contact.get("custom_customer") or "",
-            "linked_clients": linked_clients,
-            "linked_client_text": ", ".join([c["display_name"] for c in linked_clients]),
-            "coach_name": ", ".join(coach_names),
-            "session_worker_name": ", ".join(session_worker_names),
-        })
+    total = len(all_rows)
 
     return {
-        "contacts": rows,
-        "pagination": make_pagination(
-            total,
-            page_args["page"],
-            page_args["page_size"],
-        ),
+        "contacts": all_rows[:page_args["page_size"]],
+        "pagination": make_pagination(total, page_args["page"], page_args["page_size"]),
         "search": page_args["search"],
     }
