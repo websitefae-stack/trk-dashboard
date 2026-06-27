@@ -1,11 +1,6 @@
 (function () {
-  function el(id) {
-    return document.getElementById(id);
-  }
-
-  function qsa(selector, root) {
-    return Array.from((root || document).querySelectorAll(selector));
-  }
+  var el = Dashboard.el;
+  var qsa = Dashboard.qsa;
 
   function getFilterValue(id, fallback) {
     const field = el(id);

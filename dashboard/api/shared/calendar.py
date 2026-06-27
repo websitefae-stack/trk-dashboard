@@ -3,7 +3,7 @@ from frappe import _
 from frappe.utils import add_to_date, getdate, get_datetime, get_fullname, now_datetime
 from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
-from dashboard.api.shared.utils import get_label as _get_label
+from dashboard.api.shared.utils import get_label as _get_label, get_request_payload as _get_request_payload, coalesce_raw as _coalesce_raw, coalesce_str as _coalesce_str, find_session_worker_for_user as _find_session_worker_for_user
 
 
 DASHBOARD_ADMIN_USERS = [
@@ -275,42 +275,6 @@ def _get_current_session_worker_context(user):
     return context
 
 
-def _find_session_worker_for_user(user, fullname):
-    doctype = "Session Worker"
-    if not frappe.db.exists("DocType", doctype):
-        return None
-
-    meta = frappe.get_meta(doctype)
-    fields = ["name"]
-
-    label_fields = ["session_worker_name", "full_name", "employee_name", "user_full_name", "title", "sw_name"]
-    login_fields = ["user", "user_id", "email", "session_worker_email"]
-
-    for fieldname in label_fields + login_fields:
-        if meta.has_field(fieldname) and fieldname not in fields:
-            fields.append(fieldname)
-
-    for login_field in login_fields:
-        if meta.has_field(login_field):
-            row = frappe.db.get_value(doctype, {login_field: user}, fields, as_dict=True)
-            if row:
-                return {
-                    "doctype": doctype,
-                    "name": row.get("name"),
-                    "label": _get_label(row, ["sw_name", "session_worker_name", "full_name", "employee_name", "user_full_name", "title", "name"]),
-                }
-
-    for label_field in label_fields:
-        if fullname and meta.has_field(label_field):
-            row = frappe.db.get_value(doctype, {label_field: fullname}, fields, as_dict=True)
-            if row:
-                return {
-                    "doctype": doctype,
-                    "name": row.get("name"),
-                    "label": _get_label(row, ["sw_name", "session_worker_name", "full_name", "employee_name", "user_full_name", "title", "name"]),
-                }
-
-    return None
 
 
 def _get_current_coach_context(user):
@@ -1022,36 +986,6 @@ def _create_or_update_initial_consultation_lead(lead_name, phone=None, notes=Non
 
     lead.insert(ignore_permissions=True)
     return lead.name
-
-def _get_request_payload():
-    payload = {}
-    try:
-        if getattr(frappe, "request", None):
-            payload = frappe.request.get_json(silent=True) or {}
-    except Exception:
-        payload = {}
-    return payload if isinstance(payload, dict) else {}
-
-
-def _coalesce_raw(fieldname, explicit_value=None):
-    if explicit_value not in (None, ""):
-        return explicit_value
-
-    payload = _get_request_payload()
-    if fieldname in payload and payload.get(fieldname) not in (None, ""):
-        return payload.get(fieldname)
-
-    form_value = frappe.form_dict.get(fieldname)
-    if form_value not in (None, ""):
-        return form_value
-
-    return explicit_value
-
-
-def _coalesce_str(fieldname, explicit_value=None):
-    value = _coalesce_raw(fieldname, explicit_value)
-    return (value or "").strip() if isinstance(value, str) else (str(value).strip() if value not in (None, "") else "")
-
 
 def _get_client_notes_parentfield():
     if not frappe.db.exists("DocType", "Client"):

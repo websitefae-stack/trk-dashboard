@@ -42,13 +42,8 @@
     window.TRKClientDetailsRole || {}
   );
 
-  function el(id) {
-    return document.getElementById(id);
-  }
-
-  function qsa(selector, root) {
-    return Array.from((root || document).querySelectorAll(selector));
-  }
+  var el = Dashboard.el;
+  var qsa = Dashboard.qsa;
 
   function getClientName() {
     return el("clientDocname") ? el("clientDocname").value : "";
