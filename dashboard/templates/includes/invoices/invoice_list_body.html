@@ -1,0 +1,108 @@
+{#
+  Shared invoice table + pagination.
+  Used by coach_db/invoices and franchisor_db/invoices.
+
+  Required context variables:
+    invoices              — list of invoice dicts from get_paginated_invoices()
+    pagination            — dict from make_pagination()
+    search                — current search string
+    dashboard_base_path   — e.g. "/coach_db" or "/franchisor_db"
+
+  Optional:
+    selected_coach        — coach filter value; included in pagination links when set
+#}
+{% set _extra = ("&coach=" + selected_coach | urlencode) if selected_coach else "" %}
+
+<div class="dashboard-card">
+  <div class="dashboard-table-header">
+    <div class="dashboard-table-title">Invoice List</div>
+    <div class="dashboard-table-count" id="invoiceCount">{{ invoices|length }} invoices</div>
+  </div>
+
+  <div class="dashboard-table-wrap">
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Invoice Date</th>
+          <th>Invoice Number</th>
+          <th>Client Name</th>
+          <th>Status</th>
+          <th>Invoice Amount</th>
+          <th>Outstanding</th>
+          <th class="dashboard-text-right">Action</th>
+        </tr>
+      </thead>
+
+      <tbody id="invoiceTable">
+        {% if invoices and invoices|length %}
+          {% for inv in invoices %}
+            <tr
+              class="dashboard-invoice-row"
+              data-name="{{ inv.name or '' }}"
+              data-client="{{ (inv.client_name or '')|lower }}"
+              data-customer="{{ (inv.customer_name or inv.customer or '')|lower }}"
+              data-company="{{ (inv.company or '')|lower }}"
+              data-status="{{ inv.status or '' }}"
+              data-date="{{ inv.posting_date or '' }}"
+            >
+              <td>{{ inv.posting_date or "—" }}</td>
+
+              <td>
+                <a class="dashboard-table-link" href="{{ inv.details_url }}">
+                  {{ inv.name or "—" }}
+                </a>
+              </td>
+
+              <td>{{ inv.client_name or "—" }}</td>
+
+              <td>
+                <span class="dashboard-badge {{ inv.status_class }}">
+                  {{ inv.status or "—" }}
+                </span>
+              </td>
+
+              <td>
+                {{ frappe.format_value(inv.grand_total, {"fieldtype": "Currency", "options": inv.currency}) }}
+              </td>
+
+              <td>
+                {{ frappe.format_value(inv.outstanding_amount, {"fieldtype": "Currency", "options": inv.currency}) }}
+              </td>
+
+              <td class="dashboard-text-right">
+                <a
+                  class="dashboard-link-btn"
+                  href="{{ inv.details_url }}"
+                  data-invoice-open="1"
+                  data-name="{{ inv.name }}"
+                >
+                  View
+                </a>
+
+                {% if inv.docstatus == 1 and inv.outstanding_amount and inv.outstanding_amount > 0 %}
+                  <a
+                    class="dashboard-link-btn"
+                    href="{{ dashboard_base_path }}/invoice_details?name={{ inv.name }}&payment=1"
+                  >
+                    Allocate Payment
+                  </a>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="7" class="dashboard-empty">No invoices found.</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <div id="invoiceEmptyState" class="dashboard-empty" style="display:none;">
+    No invoices found.
+  </div>
+
+  {% set pagination_extra = _extra %}
+  {% include "dashboard/templates/includes/shared/pagination.html" %}
+</div>

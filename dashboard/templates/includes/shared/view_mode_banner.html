@@ -1,0 +1,26 @@
+{#
+  View-mode banner shown when a franchisor is browsing another user's dashboard.
+
+  Required context variables:
+    view_mode_active        — truthy when view mode is on
+    view_mode_label         — e.g. "Coach" or "Session Worker"
+    view_mode_display_name  — full name of the person being viewed
+    view_mode_return_to     — URL for the "Back" button
+    view_mode_back_label    — e.g. "Coaches" or "Session Workers"
+#}
+{% if view_mode_active %}
+  <div style="background:#ac455c; color:#ffffff; border-radius:14px; padding:16px 18px; margin-bottom:18px;">
+    <strong>Viewing {{ view_mode_label }}:</strong>
+    {{ view_mode_display_name }}
+
+    <div style="margin-top:6px;">
+      You are viewing this {{ view_mode_label | lower }} dashboard in read-only mode.
+    </div>
+
+    <div style="margin-top:12px;">
+      <a href="{{ view_mode_return_to }}" class="dashboard-btn dashboard-btn-secondary">
+        Back to {{ view_mode_back_label }}
+      </a>
+    </div>
+  </div>
+{% endif %}
