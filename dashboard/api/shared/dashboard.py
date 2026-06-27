@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 from frappe.utils import today, getdate, get_datetime, add_to_date, flt, nowdate, get_fullname
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
+from dashboard.api.shared.utils import get_label as _get_label
 
 
 DASHBOARD_ADMIN_USERS = [
@@ -216,18 +217,6 @@ def _coalesce_str(fieldname, explicit_value=None):
 # =========================================================
 # USER / ROLE CONTEXT
 # =========================================================
-
-def _get_label(row, fields):
-    if not row:
-        return ""
-
-    for fieldname in fields:
-        value = (row.get(fieldname) or "").strip()
-        if value:
-            return value
-
-    return row.get("name") or ""
-
 
 def _find_session_worker_for_user(user):
     if not _has_doctype("Session Worker"):

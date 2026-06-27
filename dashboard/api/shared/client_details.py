@@ -1067,60 +1067,6 @@ def get_client_invoices(client_name):
 def get_coach_defaults_from_coach(coach_name):
     coach_name = (coach_name or "").strip()
 
-    if not coach_name:
-        return {
-            "coach_banking_details": "",
-            "banking": "",
-            "pricelist": "",
-            "price_list": "",
-            "company": "",
-        }
-
-    if not frappe.db.exists("Coach", coach_name):
-        return {
-            "coach_banking_details": "",
-            "banking": "",
-            "pricelist": "",
-            "price_list": "",
-            "company": "",
-        }
-
-    coach_meta = frappe.get_meta("Coach")
-
-    fields = ["name"]
-
-    for fieldname in ["bank_account", "company", "pricelist", "price_list"]:
-        if coach_meta.has_field(fieldname):
-            fields.append(fieldname)
-
-    coach = frappe.db.get_value(
-        "Coach",
-        coach_name,
-        fields,
-        as_dict=True,
-    ) or {}
-
-    bank_account = coach.get("bank_account") or ""
-    pricelist = coach.get("pricelist") or coach.get("price_list") or ""
-
-    return {
-        "coach_banking_details": bank_account,
-        "banking": bank_account,
-        "pricelist": pricelist,
-        "price_list": pricelist,
-        "company": coach.get("company") or "",
-    }
-
-
-@frappe.whitelist()
-def get_coach_defaults(coach_name=None):
-    require_logged_in_user()
-    return get_coach_defaults_from_coach(coach_name)
-
-
-def get_coach_defaults_from_coach(coach_name):
-    coach_name = (coach_name or "").strip()
-
     if not coach_name or not frappe.db.exists("Coach", coach_name):
         return {
             "banking": "",
@@ -1144,6 +1090,12 @@ def get_coach_defaults_from_coach(coach_name):
         "price_list": coach.get("pricelist") or "",
         "company": coach.get("company") or "",
     }
+
+
+@frappe.whitelist()
+def get_coach_defaults(coach_name=None):
+    require_logged_in_user()
+    return get_coach_defaults_from_coach(coach_name)
 
 
 def get_link_display_fields(doctype):

@@ -123,21 +123,8 @@
           <div class="dashboard-empty">No contacts found.</div>
         {% endif %}
 
-        <div class="dashboard-pagination" style="display:flex; gap:12px; align-items:center; justify-content:flex-end; margin-top:16px;">
-          {% if pagination.has_previous %}
-            <a class="dashboard-btn dashboard-btn-light" href="?contact_scope={{ contact_scope }}&page={{ pagination.previous_page }}{% if search %}&search={{ search | urlencode }}{% endif %}">Previous</a>
-          {% else %}
-            <button class="dashboard-btn dashboard-btn-light" disabled>Previous</button>
-          {% endif %}
-
-          <span>Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
-
-          {% if pagination.has_next %}
-            <a class="dashboard-btn dashboard-btn-light" href="?contact_scope={{ contact_scope }}&page={{ pagination.next_page }}{% if search %}&search={{ search | urlencode }}{% endif %}">Next</a>
-          {% else %}
-            <button class="dashboard-btn dashboard-btn-light" disabled>Next</button>
-          {% endif %}
-        </div>
+        {% set pagination_extra = "&contact_scope=" + (contact_scope or "my") %}
+        {% include "dashboard/templates/includes/shared/pagination.html" %}
       </div>
     </div>
   </div>

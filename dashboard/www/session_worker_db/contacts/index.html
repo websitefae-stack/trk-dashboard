@@ -7,22 +7,7 @@
     {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
 
     <div class="dashboard-container">
-      {% if session_worker_is_view_mode %}
-        <div style="background:#ac455c; color:#ffffff; border-radius:14px; padding:16px 18px; margin-bottom:18px;">
-          <strong>Viewing Session Worker:</strong>
-          {{ session_worker_view_display_name }}
-
-          <div style="margin-top:6px;">
-            You are viewing this session worker dashboard in read-only mode.
-          </div>
-
-          <div style="margin-top:12px;">
-            <a href="{{ session_worker_view_return_to }}" class="dashboard-btn dashboard-btn-secondary">
-              Back to Session Workers
-            </a>
-          </div>
-        </div>
-      {% endif %}
+      {% include "dashboard/templates/includes/shared/view_mode_banner.html" %}
 
       <div class="dashboard-page-header">
         <div>
@@ -114,21 +99,7 @@
           <div class="dashboard-empty">No contacts found.</div>
         {% endif %}
 
-        <div class="dashboard-pagination" style="display:flex; gap:12px; align-items:center; justify-content:flex-end; margin-top:16px;">
-          {% if pagination.has_previous %}
-            <a class="dashboard-btn dashboard-btn-light" href="?page={{ pagination.previous_page }}{% if search %}&search={{ search | urlencode }}{% endif %}">Previous</a>
-          {% else %}
-            <button class="dashboard-btn dashboard-btn-light" disabled>Previous</button>
-          {% endif %}
-
-          <span>Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
-
-          {% if pagination.has_next %}
-            <a class="dashboard-btn dashboard-btn-light" href="?page={{ pagination.next_page }}{% if search %}&search={{ search | urlencode }}{% endif %}">Next</a>
-          {% else %}
-            <button class="dashboard-btn dashboard-btn-light" disabled>Next</button>
-          {% endif %}
-        </div>
+        {% include "dashboard/templates/includes/shared/pagination.html" %}
       </div>
     </div>
   </div>

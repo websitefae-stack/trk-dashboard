@@ -3,6 +3,7 @@ from frappe import _
 from frappe.utils import add_to_date, getdate, get_datetime, get_fullname, now_datetime
 from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
+from dashboard.api.shared.utils import get_label as _get_label
 
 
 DASHBOARD_ADMIN_USERS = [
@@ -64,14 +65,6 @@ def _get_record_base_url(dashboard_type):
     if dashboard_type == FRANCHISOR_DASHBOARD:
         return "/franchisor_db/calendar_details"
     return "/session_worker_db/calendar_details"
-
-
-def _get_label(row, fields):
-    for fieldname in fields:
-        value = (row.get(fieldname) or "").strip()
-        if value:
-            return value
-    return row.get("name") or ""
 
 
 def _get_current_user_label():

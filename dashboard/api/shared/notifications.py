@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 from frappe.utils import add_to_date, now_datetime
+from dashboard.api.shared.utils import get_label as _get_label
 
 
 CONVERSATION_DOCTYPE = "Dashboard Conversation"
@@ -47,15 +48,6 @@ def _get_user_full_name(user):
         return ""
 
     return frappe.get_cached_value("User", user, "full_name") or user
-
-
-def _get_label(row, fields):
-    for fieldname in fields:
-        value = (row.get(fieldname) or "").strip()
-        if value:
-            return value
-
-    return row.get("name") or ""
 
 
 def _get_current_coach_name(user=None):

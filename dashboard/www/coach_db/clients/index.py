@@ -31,6 +31,12 @@ def get_context(context):
     context.coach_view_return_to = view_mode.get("return_to") or ""
     context.coach_view_display_name = view_mode.get("view_coach_display_name") or ""
 
+    context.view_mode_active = context.coach_is_view_mode
+    context.view_mode_label = "Coach"
+    context.view_mode_display_name = context.coach_view_display_name
+    context.view_mode_return_to = context.coach_view_return_to
+    context.view_mode_back_label = "Coaches"
+
     if context.coach_is_view_mode:
         context.dashboard_user_name = context.coach_view_display_name
         context.clients = get_clients_for_view_coach(view_mode.get("view_coach_name"))

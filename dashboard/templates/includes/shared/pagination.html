@@ -1,0 +1,29 @@
+{#
+  Shared pagination bar.
+
+  Required context variables:
+    pagination        — dict from make_pagination()
+    search            — current search string (may be empty)
+
+  Optional context variables:
+    pagination_extra  — extra query-string fragment appended to every page
+                        link, e.g. "&contact_scope=my" or "&coach=ABC".
+                        Must start with "&" if non-empty. Defaults to "".
+#}
+{% set _extra = pagination_extra or "" %}
+
+<div class="dashboard-pagination" style="display:flex; gap:12px; align-items:center; justify-content:flex-end; margin-top:16px;">
+  {% if pagination.has_previous %}
+    <a class="dashboard-btn dashboard-btn-light" href="?page={{ pagination.previous_page }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ _extra }}">Previous</a>
+  {% else %}
+    <button class="dashboard-btn dashboard-btn-light" disabled>Previous</button>
+  {% endif %}
+
+  <span>Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
+
+  {% if pagination.has_next %}
+    <a class="dashboard-btn dashboard-btn-light" href="?page={{ pagination.next_page }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ _extra }}">Next</a>
+  {% else %}
+    <button class="dashboard-btn dashboard-btn-light" disabled>Next</button>
+  {% endif %}
+</div>

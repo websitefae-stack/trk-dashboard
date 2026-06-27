@@ -68,6 +68,12 @@ def get_context(context):
     context.session_worker_view_return_to = view_mode.get("return_to") or ""
     context.session_worker_view_display_name = view_mode.get("view_worker_display_name") or ""
 
+    context.view_mode_active = context.session_worker_is_view_mode
+    context.view_mode_label = "Session Worker"
+    context.view_mode_display_name = context.session_worker_view_display_name
+    context.view_mode_return_to = context.session_worker_view_return_to
+    context.view_mode_back_label = "Session Workers"
+
     context.viewer_coach_name = get_current_coach_name()
 
     if context.session_worker_is_view_mode:
