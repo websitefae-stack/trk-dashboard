@@ -6,10 +6,7 @@ from dashboard.api.shared.contacts import (
     get_contacts_for_scope,
     get_paginated_contacts_for_scope,
     get_current_coach_name,
-    get_contact_names_from_clients,
-    get_linked_clients_for_contact,
-    get_contact_display_name,
-    dedupe_contacts_prefer_customer,
+    get_contact_rows_for_clients,
 )
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 
@@ -103,71 +100,4 @@ def get_clients_for_view_coach(coach_name):
 
 def get_contacts_for_view_coach(coach_name):
     clients = get_clients_for_view_coach(coach_name)
-
-    if not clients:
-        return []
-
-    contact_names = get_contact_names_from_clients(
-        clients,
-        include_billing_contact=True,
-    )
-
-    if not contact_names:
-        return []
-
-    contacts = frappe.get_all(
-        "Contact",
-        filters={"name": ["in", contact_names]},
-        fields=[
-            "name",
-            "full_name",
-            "first_name",
-            "last_name",
-            "mobile_no",
-            "email_id",
-            "designation",
-            "company_name",
-            "is_billing_contact",
-            "custom_customer",
-        ],
-        order_by="full_name asc, first_name asc, last_name asc",
-        limit_page_length=5000,
-        ignore_permissions=True,
-    )
-
-    rows = []
-
-    for contact in contacts:
-        linked_clients = get_linked_clients_for_contact(contact.name, clients)
-
-        if not linked_clients:
-            continue
-
-        coach_names = sorted({
-            c.get("primary_coach") or c.get("attending_coach")
-            for c in linked_clients
-            if c.get("primary_coach") or c.get("attending_coach")
-        })
-
-        session_worker_names = sorted({
-            c.get("session_worker")
-            for c in linked_clients
-            if c.get("session_worker")
-        })
-
-        rows.append({
-            "name": contact.name,
-            "display_name": get_contact_display_name(contact),
-            "mobile_no": contact.get("mobile_no") or "",
-            "email_id": contact.get("email_id") or "",
-            "designation": contact.get("designation") or "",
-            "company_name": contact.get("company_name") or "",
-            "is_billing_contact": contact.get("is_billing_contact") or 0,
-            "custom_customer": contact.get("custom_customer") or "",
-            "linked_clients": linked_clients,
-            "linked_client_text": ", ".join([c["display_name"] for c in linked_clients]),
-            "coach_name": ", ".join(coach_names),
-            "session_worker_name": ", ".join(session_worker_names),
-        })
-
-    return dedupe_contacts_prefer_customer(rows)
+    return get_contact_rows_for_clients(clients, scope="coach")
