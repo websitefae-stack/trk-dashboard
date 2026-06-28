@@ -1709,6 +1709,16 @@
       + '</div>';
   }
 
+  function getGoogleMeetLinkDetailHtml(event) {
+    if (!event || !event.google_meet_link) return "";
+    return '<div class="trk-calendar-detail-group">'
+      + '<div class="trk-calendar-detail-label">Meeting Link</div>'
+      + '<div class="trk-calendar-detail-value">'
+      + '<a href="' + escapeHtml(event.google_meet_link) + '" target="_blank" rel="noopener">'
+      + escapeHtml(event.google_meet_link)
+      + '</a></div></div>';
+  }
+
   function getWeekStart(date) {
     const d = stripTime(date);
     d.setDate(d.getDate() - d.getDay());
