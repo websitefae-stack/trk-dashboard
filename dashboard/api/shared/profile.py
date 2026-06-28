@@ -7,7 +7,7 @@ from dashboard.api.shared.notifications import send_dashboard_notification
 
 CHANGE_REQUEST_DOCTYPE = "Change Request"
 
-OFFICE_USER = "office@theresilientpeople.uk"
+OFFICE_USER = "office@theresilienthub.co.uk"
 ASHLEY_USER = "ashley@theresilientkid.co.uk"
 
 

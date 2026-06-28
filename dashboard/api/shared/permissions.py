@@ -10,7 +10,7 @@ CLIENT_DOCTYPE = "Client"
 
 FRANCHISOR_USERS = {
     "ashley@theresilientkid.co.uk",
-    "office@theresilientpeople.uk",
+    "office@theresilienthub.co.uk",
     "hq@theresilientkid.co.uk",
 }
 

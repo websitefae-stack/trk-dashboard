@@ -9,7 +9,7 @@ from dashboard.api.shared.pagination import get_page_args, make_pagination
 FRANCHISOR_USERS = [
     "ashley@theresilientkid.co.uk",
     "hq@theresilientkid.co.uk",
-    "office@theresilientpeople.uk",
+    "office@theresilienthub.co.uk",
 ]
 
 COACH_DASHBOARD = "coach"
