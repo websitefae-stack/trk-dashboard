@@ -1,7 +1,7 @@
 import frappe
 from frappe import _
 from frappe.utils import add_to_date, now_datetime
-from dashboard.api.shared.utils import get_label as _get_label
+from dashboard.api.shared.utils import get_label as _get_label, get_request_payload as _get_request_payload, coalesce_raw as _coalesce_raw, coalesce_str as _coalesce_str
 
 
 CONVERSATION_DOCTYPE = "Dashboard Conversation"
@@ -537,40 +537,6 @@ def get_notification_link_options():
         "clients": clients,
         "events": events,
     }
-
-
-def _get_request_payload():
-    payload = {}
-
-    try:
-        if getattr(frappe, "request", None):
-            payload = frappe.request.get_json(silent=True) or {}
-    except Exception:
-        payload = {}
-
-    return payload if isinstance(payload, dict) else {}
-
-
-def _coalesce_raw(fieldname, explicit_value=None):
-    if explicit_value not in (None, ""):
-        return explicit_value
-
-    payload = _get_request_payload()
-
-    if fieldname in payload and payload.get(fieldname) not in (None, ""):
-        return payload.get(fieldname)
-
-    form_value = frappe.form_dict.get(fieldname)
-
-    if form_value not in (None, ""):
-        return form_value
-
-    return explicit_value
-
-
-def _coalesce_str(fieldname, explicit_value=None):
-    value = _coalesce_raw(fieldname, explicit_value)
-    return (value or "").strip() if isinstance(value, str) else (str(value).strip() if value not in (None, "") else "")
 
 
 def _normalise_recipient_users(recipient_users):

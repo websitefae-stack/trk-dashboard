@@ -2,7 +2,7 @@ import frappe
 from frappe import _
 from frappe.utils import today, getdate, get_datetime, add_to_date, flt, nowdate, get_fullname
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
-from dashboard.api.shared.utils import get_label as _get_label
+from dashboard.api.shared.utils import get_label as _get_label, get_request_payload as _get_request_payload, coalesce_raw as _coalesce_raw, coalesce_str as _coalesce_str, find_session_worker_for_user as _find_session_worker_for_user
 
 
 DASHBOARD_ADMIN_USERS = [
@@ -182,76 +182,9 @@ def _get_period_ranges(invoice_frequency="Monthly", invoice_cycle_start_date=Non
     }
 
 
-def _get_request_payload():
-    try:
-        if getattr(frappe, "request", None):
-            payload = frappe.request.get_json(silent=True) or {}
-            if isinstance(payload, dict):
-                return payload
-    except Exception:
-        pass
-
-    return {}
-
-
-def _coalesce_value(fieldname, explicit_value=None):
-    if explicit_value not in (None, ""):
-        return explicit_value
-
-    payload = _get_request_payload()
-
-    if fieldname in payload and payload.get(fieldname) not in (None, ""):
-        return payload.get(fieldname)
-
-    if frappe.form_dict.get(fieldname) not in (None, ""):
-        return frappe.form_dict.get(fieldname)
-
-    return explicit_value
-
-
-def _coalesce_str(fieldname, explicit_value=None):
-    value = _coalesce_value(fieldname, explicit_value)
-    return (value or "").strip() if isinstance(value, str) else str(value or "").strip()
-
-
 # =========================================================
 # USER / ROLE CONTEXT
 # =========================================================
-
-def _find_session_worker_for_user(user):
-    if not _has_doctype("Session Worker"):
-        return None
-
-    fullname = (get_fullname(user) or "").strip()
-    meta = frappe.get_meta("Session Worker")
-
-    fields = ["name"]
-    label_fields = ["sw_name", "session_worker_name", "full_name", "employee_name", "user_full_name", "title"]
-    login_fields = ["user", "user_id", "email", "session_worker_email"]
-
-    for fieldname in label_fields + login_fields:
-        if meta.has_field(fieldname) and fieldname not in fields:
-            fields.append(fieldname)
-
-    for login_field in login_fields:
-        if meta.has_field(login_field):
-            row = frappe.db.get_value("Session Worker", {login_field: user}, fields, as_dict=True)
-            if row:
-                return {
-                    "name": row.get("name"),
-                    "label": _get_label(row, label_fields + ["name"]),
-                }
-
-    for label_field in label_fields:
-        if fullname and meta.has_field(label_field):
-            row = frappe.db.get_value("Session Worker", {label_field: fullname}, fields, as_dict=True)
-            if row:
-                return {
-                    "name": row.get("name"),
-                    "label": _get_label(row, label_fields + ["name"]),
-                }
-
-    return None
 
 
 def _find_coach_for_user(user):

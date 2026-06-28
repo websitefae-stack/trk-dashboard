@@ -12,9 +12,7 @@
     events: []
   };
 
-  function el(id) {
-    return document.getElementById(id);
-  }
+  var el = Dashboard.el;
 
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');

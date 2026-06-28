@@ -1,9 +1,7 @@
 (function () {
   "use strict";
 
-  function el(id) {
-    return document.getElementById(id);
-  }
+  var el = Dashboard.el;
 
   function getDashboardBasePath() {
     const path = window.location.pathname || "";
@@ -127,18 +125,7 @@
     });
   }
 
-    function debounce(fn, wait) {
-    let timer = null;
-
-    return function () {
-      const args = arguments;
-
-      clearTimeout(timer);
-      timer = setTimeout(function () {
-        fn.apply(null, args);
-      }, wait || 500);
-    };
-  }
+  var debounce = Dashboard.debounce;
 
   function runServerInvoiceSearch() {
     const searchField = el("invoiceSearch");

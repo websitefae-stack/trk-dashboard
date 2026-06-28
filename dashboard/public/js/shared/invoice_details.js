@@ -10,13 +10,8 @@
   const FREE_MILES_ONE_WAY = 10;
   const TRAVEL_RATE_PER_MILE = 0.45;
 
-  function el(id) {
-    return document.getElementById(id);
-  }
-
-  function qsa(selector, root) {
-    return Array.from((root || document).querySelectorAll(selector));
-  }
+  var el = Dashboard.el;
+  var qsa = Dashboard.qsa;
 
   function getDashboardBasePath() {
     const path = window.location.pathname || "";

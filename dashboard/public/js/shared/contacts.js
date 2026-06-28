@@ -1,11 +1,6 @@
 (function () {
-  function el(id) {
-    return document.getElementById(id);
-  }
-
-  function qsa(selector, root) {
-    return Array.from((root || document).querySelectorAll(selector));
-  }
+  var el = Dashboard.el;
+  var qsa = Dashboard.qsa;
 
   function updateContactCount() {
     const countEl = el("contactCount");
@@ -61,18 +56,7 @@
     updateContactCount();
   }
 
-    function debounce(fn, wait) {
-    let timer = null;
-
-    return function () {
-      const args = arguments;
-
-      clearTimeout(timer);
-      timer = setTimeout(function () {
-        fn.apply(null, args);
-      }, wait || 500);
-    };
-  }
+  var debounce = Dashboard.debounce;
 
   function runServerContactSearch() {
     const searchField = el("contactSearch");

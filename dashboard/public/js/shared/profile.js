@@ -7,9 +7,7 @@
 
   window.__trkSharedProfileLoaded = true;
 
-  function el(id) {
-    return document.getElementById(id);
-  }
+  var el = Dashboard.el;
 
   function getProfileConfig() {
     const page = document.querySelector("[data-profile-role]");

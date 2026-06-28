@@ -1,11 +1,6 @@
 (function () {
-  function el(id) {
-    return document.getElementById(id);
-  }
-
-  function qsa(selector, root) {
-    return Array.from((root || document).querySelectorAll(selector));
-  }
+  var el = Dashboard.el;
+  var qsa = Dashboard.qsa;
 
   function getFilterValue(id, fallback) {
     const field = el(id);
@@ -84,18 +79,7 @@
     updateClientCount();
   }
 
-    function debounce(fn, wait) {
-    let timer = null;
-
-    return function () {
-      const args = arguments;
-      clearTimeout(timer);
-
-      timer = setTimeout(function () {
-        fn.apply(null, args);
-      }, wait || 350);
-    };
-  }
+  var debounce = Dashboard.debounce;
 
   function isFranchisorClientsPage() {
     return window.location.pathname.indexOf("/franchisor_db/clients") !== -1;
