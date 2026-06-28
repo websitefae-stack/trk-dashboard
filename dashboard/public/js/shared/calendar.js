@@ -650,8 +650,7 @@
       eventNode.style.height = height + "px";
 
       eventNode.innerHTML =
-        '<span class="trk-calendar-event-title">' + escapeHtml(event.title || "Session") + '</span>' +
-        getCalendarEventProgressHtml(event);
+        '<span class="trk-calendar-event-title">' + escapeHtml(event.client_display_name || event.title || "Session") + '</span>';
 
       eventNode.addEventListener("click", function (clickEvent) {
         clickEvent.stopPropagation();
