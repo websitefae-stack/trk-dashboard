@@ -1330,6 +1330,7 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
         "id": row.get("name"),
         "name": row.get("name"),
         "title": title,
+        "client_display_name": _get_client_display_name(custom_client) if custom_client else "",
         "client_name": custom_client or "",
         "date": start_dt.strftime("%Y-%m-%d"),
         "start_time": start_dt.strftime("%H:%M"),
