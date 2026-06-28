@@ -8,7 +8,7 @@ from dashboard.api.shared.utils import get_label as _get_label, get_request_payl
 DASHBOARD_ADMIN_USERS = [
     "ashley@theresilientkid.co.uk",
     "hq@theresilientkid.co.uk",
-    "office@theresilientpeople.uk",
+    "office@theresilienthub.co.uk",
 ]
 
 SESSION_WORKER_DASHBOARD = "session_worker"

@@ -307,6 +307,11 @@
         if (row) {
           state.selectedEvent = row;
           renderDetails(row);
+
+          var panel = document.querySelector(".trk-calendar-sidepanel");
+          if (panel) {
+            panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          }
         }
       }
     });
@@ -657,6 +662,11 @@
 
         state.selectedEvent = event;
         renderDetails(event);
+
+        var panel = document.querySelector(".trk-calendar-sidepanel");
+        if (panel) {
+          panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
       });
 
       dayColumn.appendChild(eventNode);
