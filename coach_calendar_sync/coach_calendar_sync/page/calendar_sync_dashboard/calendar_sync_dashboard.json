@@ -1,0 +1,15 @@
+{
+  "creation": "2024-01-01 00:00:00.000000",
+  "doctype": "Page",
+  "icon": "dashboard",
+  "module": "Coach Calendar Sync",
+  "name": "calendar-sync-dashboard",
+  "page_name": "calendar-sync-dashboard",
+  "roles": [
+    {
+      "role": "System Manager"
+    }
+  ],
+  "standard": "Yes",
+  "title": "Calendar Sync Dashboard"
+}

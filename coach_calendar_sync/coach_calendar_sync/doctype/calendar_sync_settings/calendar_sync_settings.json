@@ -1,0 +1,94 @@
+{
+  "actions": [],
+  "creation": "2024-01-01 00:00:00.000000",
+  "doctype": "DocType",
+  "document_type": "Document",
+  "editable_grid": 1,
+  "engine": "InnoDB",
+  "field_order": [
+    "google_client_id",
+    "google_client_secret",
+    "redirect_uri",
+    "oauth_scopes",
+    "section_break_sync",
+    "sync_frequency",
+    "retry_count",
+    "logging_level"
+  ],
+  "fields": [
+    {
+      "fieldname": "google_client_id",
+      "fieldtype": "Data",
+      "label": "Google Client ID",
+      "reqd": 1
+    },
+    {
+      "fieldname": "google_client_secret",
+      "fieldtype": "Password",
+      "label": "Google Client Secret",
+      "reqd": 1
+    },
+    {
+      "fieldname": "redirect_uri",
+      "fieldtype": "Data",
+      "label": "Redirect URI",
+      "description": "e.g. https://yourdomain.com/coach-calendar-sync/oauth/callback"
+    },
+    {
+      "fieldname": "oauth_scopes",
+      "fieldtype": "Small Text",
+      "label": "OAuth Scopes",
+      "default": "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events"
+    },
+    {
+      "fieldname": "section_break_sync",
+      "fieldtype": "Section Break",
+      "label": "Sync Settings"
+    },
+    {
+      "fieldname": "sync_frequency",
+      "fieldtype": "Int",
+      "label": "Sync Frequency (minutes)",
+      "default": "5"
+    },
+    {
+      "fieldname": "retry_count",
+      "fieldtype": "Int",
+      "label": "Retry Count",
+      "default": "3"
+    },
+    {
+      "fieldname": "logging_level",
+      "fieldtype": "Select",
+      "label": "Logging Level",
+      "options": "Info\nWarning\nError",
+      "default": "Info"
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "is_single": 1,
+  "links": [],
+  "modified": "2024-01-01 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Coach Calendar Sync",
+  "name": "Calendar Sync Settings",
+  "naming_rule": "Autoincrement",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "track_changes": 1
+}
