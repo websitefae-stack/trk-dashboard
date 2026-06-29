@@ -1,1 +1,0 @@
-coach_calendar_sync.patches.install_custom_fields
