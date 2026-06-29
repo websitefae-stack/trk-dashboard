@@ -20,6 +20,12 @@ TRAVEL_RATE_PER_MILE = 0.45
 FREE_MILES_ONE_WAY = 10
 SINGLE_SESSION_ITEMS = ["COA001", "FAM001", "INI001", "PAR001"]
 
+PARENT_CHECKIN_ITEM_CODE = "PAR001"
+
+# Client types that receive Parent Check-In sessions as part of a package.
+# Adult, School, and Company clients do not receive Parent Check-Ins.
+_CLIENT_TYPES_WITH_PARENT_CHECKINS = {"Kid", "Teen", "Uni Student"}
+
 
 # =====================================================
 # BASIC HELPERS
@@ -58,6 +64,17 @@ def _normalise_dashboard_type(dashboard_type=None):
 
 def _has_doctype(doctype):
     return frappe.db.exists("DocType", doctype)
+
+
+def _client_includes_parent_checkins(client_name):
+    """Single source of truth: Kid, Teen, and Uni Student clients receive Parent Check-In sessions.
+    Adult, School, and Company clients do not.
+    Returns True (inclusive) when the client is not found, to avoid silently dropping sessions.
+    """
+    if not client_name or not frappe.db.exists("Client", client_name):
+        return True
+    client_type = frappe.db.get_value("Client", client_name, "client_type") or ""
+    return client_type in _CLIENT_TYPES_WITH_PARENT_CHECKINS
 
 
 def _has_field(doctype, fieldname):
@@ -1217,6 +1234,8 @@ def _create_client_packages_from_invoice(doc):
                 qty = float(bundle_item.get("qty") or 0) * float(invoice_item.get("qty") or 1)
 
                 if service_item and qty > 0:
+                    if service_item == PARENT_CHECKIN_ITEM_CODE and not _client_includes_parent_checkins(client):
+                        continue
                     package_rows.append({
                         "service_item": service_item,
                         "qty": qty,
