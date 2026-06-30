@@ -1237,6 +1237,21 @@
     setValue("trkEditTravelChargedSingle", String(Number(event.travel_charged || 0)));
     setValue("trkEditLocation", event.location || "");
 
+    var linkingRow = document.getElementById("trkEditLinkingRow");
+    var linkClientSelect = document.getElementById("trkEditClient");
+
+    if (event.needs_linking && linkingRow && linkClientSelect) {
+      var options = '<option value="">— Select client —</option>';
+      state.clients.forEach(function (c) {
+        options += '<option value="' + escapeHtml(c.value || "") + '">' + escapeHtml(c.label || c.value || "") + '</option>';
+      });
+      linkClientSelect.innerHTML = options;
+      linkClientSelect.value = "";
+      linkingRow.style.display = "";
+    } else if (linkingRow) {
+      linkingRow.style.display = "none";
+    }
+
     try { syncEditFields(); } catch (e) { console.error("syncEditFields error:", e); }
     toggleModal("trkCalendarEditModal", true);
   }
