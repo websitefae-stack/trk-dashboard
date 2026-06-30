@@ -1656,6 +1656,13 @@ def _get_google_calendar_for_booking(dashboard_type, context):
     return ""
 
 
+def _google_calendar_has_token(google_calendar_name):
+    if not google_calendar_name or not frappe.db.exists("Google Calendar", google_calendar_name):
+        return False
+    token = frappe.db.get_value("Google Calendar", google_calendar_name, "refresh_token") or ""
+    return bool(token.strip())
+
+
 def _get_user_for_worker_value(worker_value, dashboard_type):
     if not worker_value or worker_value in (COACH_ME_VALUE, FRANCHISOR_ME_VALUE):
         return None
@@ -1861,7 +1868,7 @@ def create_booking(
             context=context,
         )
 
-        if google_calendar and _event_has_field("google_calendar"):
+        if google_calendar and _event_has_field("google_calendar") and _google_calendar_has_token(google_calendar):
             event.google_calendar = google_calendar
         calendar_owner = context.get("view_as_user") or frappe.session.user
         event.owner = calendar_owner
@@ -1885,7 +1892,7 @@ def create_booking(
         if _event_has_field("event_type"):
             event.event_type = "Public"
 
-        if _event_has_field("sync_with_google_calendar"):
+        if _event_has_field("sync_with_google_calendar") and event.get("google_calendar"):
             event.sync_with_google_calendar = 1
 
         if appointment_type in CLIENT_SESSION_TYPES and _event_has_field("custom_client"):
@@ -2006,10 +2013,10 @@ def create_booking(
             copy.owner = worker_user
             if _event_has_field("event_type"):
                 copy.event_type = "Public"
-            if _event_has_field("sync_with_google_calendar"):
-                copy.sync_with_google_calendar = 1
-            if worker_gc and _event_has_field("google_calendar"):
+            if worker_gc and _event_has_field("google_calendar") and _google_calendar_has_token(worker_gc):
                 copy.google_calendar = worker_gc
+            if _event_has_field("sync_with_google_calendar") and copy.get("google_calendar"):
+                copy.sync_with_google_calendar = 1
             if _event_has_field("custom_appointment_type"):
                 copy.custom_appointment_type = primary.get("custom_appointment_type") or appointment_type
             if _event_has_field("custom_billing_type"):
