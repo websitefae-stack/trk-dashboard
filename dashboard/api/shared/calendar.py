@@ -717,6 +717,9 @@ def _get_event_fields():
     if _event_has_field("appointment_status"):
         fields.append("appointment_status")
 
+    if _event_has_field("google_calendar_event_id"):
+        fields.append("google_calendar_event_id")
+
     return fields
 
 
@@ -1352,6 +1355,7 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
         "progress_text": row.get("custom_progress_text") or "",
         "booking_warning": row.get("custom_booking_warning") or "",
         "google_meet_link": row.get("google_meet_link") or "",
+        "needs_linking": bool(row.get("google_calendar_event_id") and not custom_client),
         "is_private": 0,
     }
 
@@ -1957,6 +1961,7 @@ def update_session(
     billing_type=None,
     travel_charged=None,
     dashboard_type=None,
+    link_client=None,
 ):
     _require_logged_in_user()
 
@@ -1986,6 +1991,13 @@ def update_session(
     location = _coalesce_str("location", location)
     billing_type = _coalesce_str("billing_type", billing_type)
     travel_charged = _coalesce_raw("travel_charged", travel_charged)
+    link_client = _coalesce_str("link_client", link_client)
+
+    if link_client and not client and _event_has_field("custom_client"):
+        if frappe.db.exists("Client", link_client):
+            event_doc.custom_client = link_client
+            client = link_client
+            client_row = _get_client_row(client)
 
     if not booking_date or not booking_time:
         frappe.throw(_("Please select date and time."))

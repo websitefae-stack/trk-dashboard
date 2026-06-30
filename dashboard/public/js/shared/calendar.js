@@ -655,6 +655,10 @@
 
       applyEventTypeStyle(eventNode, event.type, event.ui_status);
 
+      if (event.needs_linking) {
+        eventNode.classList.add("trk-calendar-event--needs-linking");
+      }
+
       eventNode.style.top = top + "px";
       eventNode.style.height = height + "px";
 
@@ -753,10 +757,16 @@
         const style = TYPE_STYLES[row.type] || TYPE_STYLES["General"];
         const monthLabel = getMonthEventLabel(row);
 
+        var monthEventStyle = "width:100%;display:block;text-align:left;border:0;border-radius:8px;padding:5px 7px;font-size:11px;font-weight:700;line-height:1.2;background:" + escapeHtml(style.background) + ";color:" + escapeHtml(style.textColor || "#FFFFFF") + ";cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;box-sizing:border-box;";
+        if (row.needs_linking) {
+          monthEventStyle += "outline:2px solid #f59e0b;outline-offset:-2px;";
+        }
+
         html += '<button type="button"'
           + ' data-calendar-month-event="' + escapeHtml(row.name || "") + '"'
-          + ' style="width:100%;display:block;text-align:left;border:0;border-radius:8px;padding:5px 7px;font-size:11px;font-weight:700;line-height:1.2;background:' + escapeHtml(style.background) + ';color:' + escapeHtml(style.textColor || "#FFFFFF") + ';cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;box-sizing:border-box;">'
+          + ' style="' + monthEventStyle + '">'
           + escapeHtml(monthLabel)
+          + (row.needs_linking ? ' ⚠' : '')
           + '</button>';
       });
 
@@ -1099,6 +1109,8 @@
 
     setButtonLoading("trkCalendarEditSaveBtn", true, "Saving...");
 
+    var linkClient = getValue("trkEditClient") || "";
+
     apiPost(SHARED_API + ".update_session", {
       dashboard_type: state.dashboardType,
       event: eventName,
@@ -1108,7 +1120,8 @@
       appointment_type: appointmentType,
       billing_type: billingType,
       travel_charged: travelCharged,
-      location: location
+      location: location,
+      link_client: linkClient
     }).then(function () {
       setButtonLoading("trkCalendarEditSaveBtn", false, "Save Changes");
       closeEditModal();

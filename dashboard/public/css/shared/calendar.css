@@ -264,6 +264,21 @@
   transform: translateY(-1px);
 }
 
+.trk-calendar-event--needs-linking {
+  outline: 2px solid #f59e0b;
+  outline-offset: -2px;
+}
+
+.trk-calendar-event--needs-linking::after {
+  content: "⚠";
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  font-size: 10px;
+  color: #f59e0b;
+  line-height: 1;
+}
+
 .trk-calendar-event-title {
   display: block;
   font-size: 11px;
