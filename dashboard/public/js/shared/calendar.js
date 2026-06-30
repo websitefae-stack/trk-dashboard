@@ -26,6 +26,7 @@
     "Initial Consultation": 60,
     "Internal Training": 360,
     "School Visit": 120,
+    "Company Meeting": 120,
     "Event / Stall": 180,
     "Holiday": 0,
     "Personal": 60
@@ -41,20 +42,23 @@
     "Initial Consultation": "Non-Billable",
     "Internal Training": "Non-Billable",
     "School Visit": "Non-Billable",
+    "Company Meeting": "Non-Billable",
     "Event / Stall": "Non-Billable",
     "Holiday": "Non-Billable",
     "Personal": "Non-Billable"
   };
 
   const TYPE_STYLES = {
-    "Therapy Session": { background: "#FBE3E8", border: "#E94763", textColor: "#434B49" },
-    "Parent Check-In": { background: "#FFE8DC", border: "#FF8438", textColor: "#434B49" },
-    "Initial Consultation": { background: "#DDF6F5", border: "#00A19E", textColor: "#434B49" },
-    "Internal Training": { background: "#F0E5F3", border: "#9A4795", textColor: "#434B49" },
-    "School Visit": { background: "#E2FBE7", border: "#5FE07C", textColor: "#434B49" },
-    "Event / Stall": { background: "#F7F8D7", border: "#D5DA39", textColor: "#434B49" },
-    "Holiday": { background: "#F2F8F8", border: "#839898", textColor: "#434B49" },
-    "Personal": { background: "#E8EEEE", border: "#434B49", textColor: "#434B49" }
+    "Therapy Session":    { background: "#AC455C", border: "#7A1E35", textColor: "#FFFFFF" },
+    "Parent Check-In":    { background: "#E94763", border: "#C01C3E", textColor: "#FFFFFF" },
+    "Initial Consultation": { background: "#582581", border: "#3D1760", textColor: "#FFFFFF" },
+    "Internal Training":  { background: "#9A4795", border: "#722870", textColor: "#FFFFFF" },
+    "School Visit":       { background: "#5FE07C", border: "#2AAD4A", textColor: "#002B0A" },
+    "Event / Stall":      { background: "#98962A", border: "#6E6C1A", textColor: "#FFFFFF" },
+    "Company Meeting":    { background: "#FF8438", border: "#CC5200", textColor: "#FFFFFF" },
+    "Holiday":            { background: "#2C9A48", border: "#1A6830", textColor: "#FFFFFF" },
+    "Personal":           { background: "#D5DA39", border: "#A0A500", textColor: "#2B2D00" },
+    "General":            { background: "#00A19E", border: "#007A78", textColor: "#FFFFFF" }
   };
 
   const state = {
@@ -750,7 +754,7 @@
       html += '<div style="display:flex;flex-direction:column;gap:4px;min-width:0;">';
 
       cellEvents.forEach(function (row) {
-        const style = TYPE_STYLES[row.type] || TYPE_STYLES["Therapy Session"];
+        const style = TYPE_STYLES[row.type] || TYPE_STYLES["General"];
         const monthLabel = getMonthEventLabel(row);
 
         var monthEventStyle = "width:100%;display:block;text-align:left;border:0;border-radius:8px;padding:5px 7px;font-size:11px;font-weight:700;line-height:1.2;background:" + escapeHtml(style.background) + ";color:" + escapeHtml(style.textColor || "#FFFFFF") + ";cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;box-sizing:border-box;";
@@ -1015,8 +1019,8 @@
       return;
     }
 
-    if (type === "School Visit" && !schoolId && !schoolManualName) {
-      showToast("Please select a school or type the school name");
+    if (isSchoolVisit && !schoolId && !schoolManualName) {
+      showToast("Please select a school or type the school / company name");
       return;
     }
 
@@ -1246,22 +1250,22 @@
     setValue("trkEditTravelChargedSingle", String(Number(event.travel_charged || 0)));
     setValue("trkEditLocation", event.location || "");
 
-    var linkingRow = el("trkEditLinkingRow");
-    var clientSelect = el("trkEditClient");
+    var linkingRow = document.getElementById("trkEditLinkingRow");
+    var linkClientSelect = document.getElementById("trkEditClient");
 
-    if (event.needs_linking && linkingRow && clientSelect) {
+    if (event.needs_linking && linkingRow && linkClientSelect) {
       var options = '<option value="">— Select client —</option>';
       state.clients.forEach(function (c) {
         options += '<option value="' + escapeHtml(c.value || "") + '">' + escapeHtml(c.label || c.value || "") + '</option>';
       });
-      clientSelect.innerHTML = options;
-      clientSelect.value = "";
+      linkClientSelect.innerHTML = options;
+      linkClientSelect.value = "";
       linkingRow.style.display = "";
     } else if (linkingRow) {
       linkingRow.style.display = "none";
     }
 
-    syncEditFields();
+    try { syncEditFields(); } catch (e) { console.error("syncEditFields error:", e); }
     toggleModal("trkCalendarEditModal", true);
   }
 
@@ -1306,7 +1310,7 @@
     const isClientType = CLIENT_REQUIRED_TYPES.indexOf(type) !== -1;
     const isParentCheckIn = type === "Parent Check-In";
     const isInitialConsultation = type === "Initial Consultation";
-    const isSchoolVisit = type === "School Visit";
+    const isSchoolVisit = type === "School Visit" || type === "Company Meeting";
     const isNamedItem = NON_CLIENT_TITLE_TYPES.indexOf(type) !== -1;
 
     toggleDisplay("trkCalendarClientRow", isClientType);
@@ -1329,7 +1333,7 @@
     toggleDisplay("trkCalendarHolidayDateRow", isHoliday);
     toggleDisplay("trkCalendarDurationRow", !isHoliday);
 
-    toggleDisplay("trkCalendarTravelRow", ["Therapy Session", "Parent Check-In", "School Visit"].indexOf(type) !== -1);
+    toggleDisplay("trkCalendarTravelRow", ["Therapy Session", "Parent Check-In", "School Visit", "Company Meeting"].indexOf(type) !== -1);
     toggleDisplay("trkCalendarGoogleMeetRow", GOOGLE_MEET_TYPES.indexOf(type) !== -1);
     toggleDisplay("trkCalendarRecurringRow", type === "Therapy Session");
     
@@ -1663,7 +1667,7 @@
   }
 
   function applyEventTypeStyle(node, type, status) {
-    const style = TYPE_STYLES[type] || TYPE_STYLES["Therapy Session"];
+    const style = TYPE_STYLES[type] || TYPE_STYLES["General"];
     const cleanStatus = status || "";
 
     node.style.background = style.background;
