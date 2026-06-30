@@ -47,14 +47,15 @@
   };
 
   const TYPE_STYLES = {
-    "Therapy Session": { background: "#FBE3E8", border: "#E94763", textColor: "#434B49" },
-    "Parent Check-In": { background: "#FFE8DC", border: "#FF8438", textColor: "#434B49" },
-    "Initial Consultation": { background: "#DDF6F5", border: "#00A19E", textColor: "#434B49" },
-    "Internal Training": { background: "#F0E5F3", border: "#9A4795", textColor: "#434B49" },
-    "School Visit": { background: "#E2FBE7", border: "#5FE07C", textColor: "#434B49" },
-    "Event / Stall": { background: "#F7F8D7", border: "#D5DA39", textColor: "#434B49" },
-    "Holiday": { background: "#F2F8F8", border: "#839898", textColor: "#434B49" },
-    "Personal": { background: "#E8EEEE", border: "#434B49", textColor: "#434B49" }
+    "Therapy Session": { background: "#F9C0CC", border: "#E94763", textColor: "#3A0014" },
+    "Parent Check-In": { background: "#FFD0B0", border: "#FF6A00", textColor: "#3D1500" },
+    "Initial Consultation": { background: "#A8EBE9", border: "#007A78", textColor: "#002524" },
+    "Internal Training": { background: "#DFC2E8", border: "#7A2E8A", textColor: "#2A0033" },
+    "School Visit": { background: "#B6F0C2", border: "#1EA83C", textColor: "#002B0A" },
+    "Event / Stall": { background: "#EEF0A0", border: "#A0A800", textColor: "#2B2D00" },
+    "Holiday": { background: "#D4E4E4", border: "#5A7878", textColor: "#1A2E2E" },
+    "Personal": { background: "#C8D4D4", border: "#2E4040", textColor: "#1A2E2E" },
+    "General": { background: "#00A19E", border: "#007A78", textColor: "#FFFFFF" }
   };
 
   const state = {
@@ -746,7 +747,7 @@
       html += '<div style="display:flex;flex-direction:column;gap:4px;min-width:0;">';
 
       cellEvents.forEach(function (row) {
-        const style = TYPE_STYLES[row.type] || TYPE_STYLES["Therapy Session"];
+        const style = TYPE_STYLES[row.type] || TYPE_STYLES["General"];
         const monthLabel = getMonthEventLabel(row);
 
         html += '<button type="button"'
@@ -1233,7 +1234,7 @@
     setValue("trkEditTravelChargedSingle", String(Number(event.travel_charged || 0)));
     setValue("trkEditLocation", event.location || "");
 
-    syncEditFields();
+    try { syncEditFields(); } catch (e) { console.error("syncEditFields error:", e); }
     toggleModal("trkCalendarEditModal", true);
   }
 
@@ -1635,7 +1636,7 @@
   }
 
   function applyEventTypeStyle(node, type, status) {
-    const style = TYPE_STYLES[type] || TYPE_STYLES["Therapy Session"];
+    const style = TYPE_STYLES[type] || TYPE_STYLES["General"];
     const cleanStatus = status || "";
 
     node.style.background = style.background;
