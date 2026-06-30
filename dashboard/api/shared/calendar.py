@@ -1659,8 +1659,10 @@ def _get_google_calendar_for_booking(dashboard_type, context):
 def _google_calendar_has_token(google_calendar_name):
     if not google_calendar_name or not frappe.db.exists("Google Calendar", google_calendar_name):
         return False
-    token = frappe.db.get_value("Google Calendar", google_calendar_name, "refresh_token") or ""
-    return bool(token.strip())
+    row = frappe.db.get_value("Google Calendar", google_calendar_name, ["refresh_token", "google_calendar_id"], as_dict=True) or {}
+    token = (row.get("refresh_token") or "").strip()
+    cal_id = (row.get("google_calendar_id") or "").strip()
+    return bool(token and cal_id)
 
 
 def _get_user_for_worker_value(worker_value, dashboard_type):

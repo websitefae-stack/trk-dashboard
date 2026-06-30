@@ -32,6 +32,4 @@ website_context = {
 
 website_route_rules = []
 
-fixtures = [
-    {"dt": "Custom DocPerm", "filters": [["document_type", "in", ["Google Calendar"]]]},
-]
+fixtures = []
