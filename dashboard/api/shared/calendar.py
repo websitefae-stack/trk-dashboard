@@ -1656,6 +1656,44 @@ def _get_google_calendar_for_booking(dashboard_type, context):
     return ""
 
 
+def _get_user_for_worker_value(worker_value, dashboard_type):
+    if not worker_value or worker_value in (COACH_ME_VALUE, FRANCHISOR_ME_VALUE):
+        return None
+    if frappe.db.exists("DocType", "Session Worker") and frappe.db.exists("Session Worker", worker_value):
+        return frappe.db.get_value("Session Worker", worker_value, "user") or None
+    if frappe.db.exists("DocType", "Coach") and frappe.db.exists("Coach", worker_value):
+        return frappe.db.get_value("Coach", worker_value, "user") or None
+    return None
+
+
+def _get_worker_name_for_user(user):
+    if not user:
+        return None
+    if frappe.db.exists("DocType", "Session Worker"):
+        name = frappe.db.get_value("Session Worker", {"user": user}, "name")
+        if name:
+            return name
+    if frappe.db.exists("DocType", "Coach"):
+        name = frappe.db.get_value("Coach", {"user": user}, "name")
+        if name:
+            return name
+    return None
+
+
+def _get_google_calendar_for_worker_user(user):
+    if not user:
+        return ""
+    if frappe.db.exists("DocType", "Session Worker"):
+        worker = frappe.db.get_value("Session Worker", {"user": user}, "name")
+        if worker:
+            return frappe.db.get_value("Session Worker", worker, "google_calendar") or ""
+    if frappe.db.exists("DocType", "Coach"):
+        coach = frappe.db.get_value("Coach", {"user": user}, "name")
+        if coach:
+            return frappe.db.get_value("Coach", coach, "google_calendar") or ""
+    return ""
+
+
 @frappe.whitelist(allow_guest=False)
 def create_booking(
     client=None,
@@ -1682,6 +1720,7 @@ def create_booking(
     recurring=None,
     recurring_frequency=None,
     recurring_count=None,
+    additional_workers=None,
     dashboard_type=None,
 ):
     _require_logged_in_user()
@@ -1713,6 +1752,16 @@ def create_booking(
     recurring = _coalesce_raw("recurring", recurring)
     recurring_frequency = _coalesce_str("recurring_frequency", recurring_frequency)
     recurring_count = _coalesce_raw("recurring_count", recurring_count)
+
+    if isinstance(additional_workers, str):
+        import json as _json
+        try:
+            additional_workers = _json.loads(additional_workers)
+        except Exception:
+            additional_workers = []
+    if not isinstance(additional_workers, list):
+        additional_workers = []
+    additional_workers = [w for w in additional_workers if isinstance(w, str) and w.strip()]
 
     if appointment_type not in CLIENT_SESSION_TYPES + NON_CLIENT_TYPES:
         frappe.throw(_("Invalid calendar item type."))
@@ -1941,6 +1990,45 @@ def create_booking(
 
         event.insert(ignore_permissions=True)
         created_events.append(event)
+
+    _ADDITIONAL_WORKER_TYPES = {"Internal Training", "Company Meeting", "School Visit", "Event / Stall"}
+    if additional_workers and appointment_type in _ADDITIONAL_WORKER_TYPES and created_events:
+        primary = created_events[0]
+        for worker_value in additional_workers:
+            worker_user = _get_user_for_worker_value(worker_value, dashboard_type)
+            if not worker_user:
+                continue
+            worker_gc = _get_google_calendar_for_worker_user(worker_user)
+            copy = frappe.new_doc("Event")
+            copy.subject = primary.subject
+            copy.starts_on = primary.starts_on
+            copy.ends_on = primary.ends_on
+            copy.owner = worker_user
+            if _event_has_field("event_type"):
+                copy.event_type = "Public"
+            if _event_has_field("sync_with_google_calendar"):
+                copy.sync_with_google_calendar = 1
+            if worker_gc and _event_has_field("google_calendar"):
+                copy.google_calendar = worker_gc
+            if _event_has_field("custom_appointment_type"):
+                copy.custom_appointment_type = primary.get("custom_appointment_type") or appointment_type
+            if _event_has_field("custom_billing_type"):
+                copy.custom_billing_type = primary.get("custom_billing_type") or "Non-Billable"
+            if _event_has_field("custom_appointment_status"):
+                copy.custom_appointment_status = "Scheduled"
+            elif _event_has_field("appointment_status"):
+                copy.appointment_status = "Open"
+            if _event_has_field("status"):
+                copy.status = "Open"
+            if _event_has_field("location") and primary.get("location"):
+                copy.location = primary.location
+            if _event_has_field("description") and primary.get("description"):
+                copy.description = primary.description
+            if _event_has_field("custom_session_worker"):
+                worker_name = _get_worker_name_for_user(worker_user)
+                if worker_name:
+                    copy.custom_session_worker = worker_name
+            copy.insert(ignore_permissions=True)
 
     return {
         "name": created_events[0].name if created_events else "",
