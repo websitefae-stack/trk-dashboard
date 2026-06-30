@@ -1053,7 +1053,11 @@
       recurring: isChecked("trkCalendarRecurring") ? "1" : "0",
       recurring_frequency: getValue("trkCalendarRecurringFrequency"),
       recurring_count: getValue("trkCalendarRecurringCount"),
-      notes: notes
+      notes: notes,
+      additional_workers: (function () {
+        var checked = document.querySelectorAll("#trkCalendarAdditionalWorkersList input[type='checkbox']:checked");
+        return JSON.stringify(Array.prototype.map.call(checked, function (cb) { return cb.dataset.workerValue; }));
+      })()
     }).then(function () {
       setButtonLoading("trkCalendarSaveBtn", false, "Save Calendar Item");
       closeBookingModal();
@@ -1217,6 +1221,8 @@
 
   function closeBookingModal() {
     toggleModal("trkCalendarModal", false);
+    var listEl = document.getElementById("trkCalendarAdditionalWorkersList");
+    if (listEl) listEl.innerHTML = "";
   }
 
   function openEditModal(eventName) {
@@ -1328,6 +1334,29 @@
     toggleDisplay("trkCalendarTravelRow", ["Therapy Session", "Parent Check-In", "School Visit", "Company Meeting"].indexOf(type) !== -1);
     toggleDisplay("trkCalendarGoogleMeetRow", GOOGLE_MEET_TYPES.indexOf(type) !== -1);
     toggleDisplay("trkCalendarRecurringRow", type === "Therapy Session");
+
+    var additionalWorkerTypes = ["Internal Training", "Company Meeting", "School Visit", "Event / Stall"];
+    var showWorkers = additionalWorkerTypes.indexOf(type) !== -1;
+    toggleDisplay("trkCalendarAdditionalWorkersRow", showWorkers);
+    if (showWorkers) {
+      var listEl = document.getElementById("trkCalendarAdditionalWorkersList");
+      if (listEl && listEl.childElementCount === 0) {
+        var opts = state.calendarForOptions.filter(function (o) {
+          return o.value !== "__coach_me__" && o.value !== "__franchisor_me__" && o.value;
+        });
+        if (opts.length === 0) {
+          listEl.innerHTML = '<span style="font-size:12px;color:#888;">No other coaches available</span>';
+        } else {
+          listEl.innerHTML = opts.map(function (o) {
+            var id = "trkWorkerChk_" + o.value.replace(/[^a-zA-Z0-9]/g, "_");
+            return '<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">'
+              + '<input type="checkbox" data-worker-value="' + escapeHtml(o.value) + '" id="' + escapeHtml(id) + '">'
+              + escapeHtml(o.label || o.value)
+              + '</label>';
+          }).join("");
+        }
+      }
+    }
     
     const showRecurringOptions = type === "Therapy Session" && isChecked("trkCalendarRecurring");
     toggleDisplay("trkCalendarRecurringOptions", showRecurringOptions);
