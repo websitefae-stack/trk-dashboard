@@ -47,15 +47,16 @@
   };
 
   const TYPE_STYLES = {
-    "Therapy Session": { background: "#F9C0CC", border: "#E94763", textColor: "#3A0014" },
-    "Parent Check-In": { background: "#FFD0B0", border: "#FF6A00", textColor: "#3D1500" },
-    "Initial Consultation": { background: "#A8EBE9", border: "#007A78", textColor: "#002524" },
-    "Internal Training": { background: "#DFC2E8", border: "#7A2E8A", textColor: "#2A0033" },
-    "School Visit": { background: "#B6F0C2", border: "#1EA83C", textColor: "#002B0A" },
-    "Event / Stall": { background: "#EEF0A0", border: "#A0A800", textColor: "#2B2D00" },
-    "Holiday": { background: "#D4E4E4", border: "#5A7878", textColor: "#1A2E2E" },
-    "Personal": { background: "#C8D4D4", border: "#2E4040", textColor: "#1A2E2E" },
-    "General": { background: "#00A19E", border: "#007A78", textColor: "#FFFFFF" }
+    "Therapy Session":    { background: "#AC455C", border: "#7A1E35", textColor: "#FFFFFF" },
+    "Parent Check-In":    { background: "#E94763", border: "#C01C3E", textColor: "#FFFFFF" },
+    "Initial Consultation": { background: "#582581", border: "#3D1760", textColor: "#FFFFFF" },
+    "Internal Training":  { background: "#9A4795", border: "#722870", textColor: "#FFFFFF" },
+    "School Visit":       { background: "#5FE07C", border: "#2AAD4A", textColor: "#002B0A" },
+    "Event / Stall":      { background: "#98962A", border: "#6E6C1A", textColor: "#FFFFFF" },
+    "Company Meeting":    { background: "#FF8438", border: "#CC5200", textColor: "#FFFFFF" },
+    "Holiday":            { background: "#2C9A48", border: "#1A6830", textColor: "#FFFFFF" },
+    "Personal":           { background: "#D5DA39", border: "#A0A500", textColor: "#2B2D00" },
+    "General":            { background: "#00A19E", border: "#007A78", textColor: "#FFFFFF" }
   };
 
   const state = {
