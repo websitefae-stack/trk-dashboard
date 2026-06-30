@@ -26,6 +26,7 @@
     "Initial Consultation": 60,
     "Internal Training": 360,
     "School Visit": 120,
+    "Company Meeting": 120,
     "Event / Stall": 180,
     "Holiday": 0,
     "Personal": 60
@@ -41,6 +42,7 @@
     "Initial Consultation": "Non-Billable",
     "Internal Training": "Non-Billable",
     "School Visit": "Non-Billable",
+    "Company Meeting": "Non-Billable",
     "Event / Stall": "Non-Billable",
     "Holiday": "Non-Billable",
     "Personal": "Non-Billable"
@@ -1007,8 +1009,8 @@
       return;
     }
 
-    if (type === "School Visit" && !schoolId && !schoolManualName) {
-      showToast("Please select a school or type the school name");
+    if (isSchoolVisit && !schoolId && !schoolManualName) {
+      showToast("Please select a school or type the school / company name");
       return;
     }
 
@@ -1280,7 +1282,7 @@
     const isClientType = CLIENT_REQUIRED_TYPES.indexOf(type) !== -1;
     const isParentCheckIn = type === "Parent Check-In";
     const isInitialConsultation = type === "Initial Consultation";
-    const isSchoolVisit = type === "School Visit";
+    const isSchoolVisit = type === "School Visit" || type === "Company Meeting";
     const isNamedItem = NON_CLIENT_TITLE_TYPES.indexOf(type) !== -1;
 
     toggleDisplay("trkCalendarClientRow", isClientType);
@@ -1303,7 +1305,7 @@
     toggleDisplay("trkCalendarHolidayDateRow", isHoliday);
     toggleDisplay("trkCalendarDurationRow", !isHoliday);
 
-    toggleDisplay("trkCalendarTravelRow", ["Therapy Session", "Parent Check-In", "School Visit"].indexOf(type) !== -1);
+    toggleDisplay("trkCalendarTravelRow", ["Therapy Session", "Parent Check-In", "School Visit", "Company Meeting"].indexOf(type) !== -1);
     toggleDisplay("trkCalendarGoogleMeetRow", GOOGLE_MEET_TYPES.indexOf(type) !== -1);
     toggleDisplay("trkCalendarRecurringRow", type === "Therapy Session");
     

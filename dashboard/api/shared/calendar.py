@@ -23,7 +23,7 @@ WORKER_PREFIX = "__worker__:"
 FREE_TRAVEL_MILES_ONE_WAY = 10
 TRAVEL_EXCLUDED_SESSION_TYPES = ["Parent Check-In"]
 CLIENT_SESSION_TYPES = ["Therapy Session", "Parent Check-In"]
-NON_CLIENT_TYPES = ["Initial Consultation", "Internal Training", "School Visit", "Event / Stall", "Holiday", "Personal"]
+NON_CLIENT_TYPES = ["Initial Consultation", "Internal Training", "School Visit", "Company Meeting", "Event / Stall", "Holiday", "Personal"]
 
 
 def _require_logged_in_user():
@@ -1739,8 +1739,8 @@ def create_booking(
     if appointment_type in ["Internal Training", "Event / Stall", "Personal"] and not item_name:
         frappe.throw(_("Please enter a title."))
 
-    if appointment_type == "School Visit" and not school and not school_manual_name:
-        frappe.throw(_("Please select a school or type the school name."))
+    if appointment_type in ("School Visit", "Company Meeting") and not school and not school_manual_name:
+        frappe.throw(_("Please select a school / company or type the name."))
 
     if appointment_type == "Holiday":
         if not from_date or not to_date:
@@ -1819,8 +1819,8 @@ def create_booking(
             event.subject = f"{client_name} - Parent Check-In"
         elif appointment_type == "Initial Consultation":
             event.subject = f"{lead_name} - Initial Consultation"
-        elif appointment_type == "School Visit":
-            event.subject = f"{school_name or school_manual_name or _get_client_display_name(school)} - School Visit"
+        elif appointment_type in ("School Visit", "Company Meeting"):
+            event.subject = f"{school_name or school_manual_name or _get_client_display_name(school)} - {appointment_type}"
         elif appointment_type == "Holiday":
             event.subject = "Holiday"
         else:
@@ -1838,7 +1838,7 @@ def create_booking(
         if appointment_type in CLIENT_SESSION_TYPES and _event_has_field("custom_client"):
             event.custom_client = client
 
-        if appointment_type == "School Visit" and school and _event_has_field("custom_client"):
+        if appointment_type in ("School Visit", "Company Meeting") and school and _event_has_field("custom_client"):
             event.custom_client = school
 
         _set_session_type(event, appointment_type)
@@ -1892,7 +1892,7 @@ def create_booking(
                 if worker_name:
                     event.custom_session_worker = worker_name
 
-        if appointment_type == "School Visit" and school:
+        if appointment_type in ("School Visit", "Company Meeting") and school:
             school_row = _get_client_row(school)
             if school_row and not location:
                 location = _format_school_location(school_row)
