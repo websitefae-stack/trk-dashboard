@@ -1011,6 +1011,7 @@
       return;
     }
 
+    const isSchoolVisit = type === "School Visit" || type === "Company Meeting";
     if (isSchoolVisit && !schoolId && !schoolManualName) {
       showToast("Please select a school or type the school / company name");
       return;
