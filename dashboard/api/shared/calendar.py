@@ -1259,7 +1259,7 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
 
     is_private_for_viewing_coach = False
 
-    if dashboard_type == COACH_DASHBOARD and not _coach_can_view_client(client_row or {}, context):
+    if dashboard_type == COACH_DASHBOARD and custom_client and not _coach_can_view_client(client_row or {}, context):
         is_private_for_viewing_coach = True
 
     if (
@@ -1562,7 +1562,7 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
             frappe.throw(_("You do not have permission to view this session."), frappe.PermissionError)
 
     if dashboard_type == COACH_DASHBOARD:
-        if not client_row or not _coach_can_view_client(client_row, context):
+        if client and (not client_row or not _coach_can_view_client(client_row, context)):
             frappe.throw(_("This appointment belongs to another coach. Details are hidden."), frappe.PermissionError)
 
     start_dt = get_datetime(event_doc.get("starts_on")) if event_doc.get("starts_on") else None
