@@ -44,6 +44,17 @@
   color: #007274;
 }
 
+.dashboard-btn-danger {
+  background: #FFFFFF;
+  color: #C0392B;
+  border: 1px solid #F1C4BE;
+}
+
+.dashboard-btn-danger:hover {
+  background: #C0392B;
+  color: #FFFFFF;
+}
+
 .dashboard-btn-compact {
   min-height: 36px;
   padding: 0 11px;
