@@ -342,6 +342,56 @@
     toggleModal(false);
   }
 
+  function getCalendarListUrl() {
+    const base = state.dashboardType === "coach"
+      ? "/coach_db/calendar"
+      : state.dashboardType === "franchisor"
+        ? "/franchisor_db/calendar"
+        : "/session_worker_db/calendar";
+
+    const viewMode = getViewModeParams();
+    const params = new URLSearchParams();
+    if (viewMode.viewAs) params.set("view_as", viewMode.viewAs);
+    if (viewMode.viewer) params.set("viewer", viewMode.viewer);
+
+    const qs = params.toString();
+    return qs ? base + "?" + qs : base;
+  }
+
+  async function deleteSession() {
+    const data = state.eventData;
+    const eventName = (data && data.name) || state.eventName;
+    if (!eventName) return;
+
+    const label = (data && (data.client_label || data.client_name)) || "this appointment";
+    if (!window.confirm("Delete " + label + "? This cannot be undone, and will also remove it from Google Calendar if it was synced.")) {
+      return;
+    }
+
+    const button = el("trkDetailDeleteBtn");
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Deleting...";
+    }
+
+    try {
+      await apiPost(SHARED_API + ".delete_session", {
+        dashboard_type: state.dashboardType,
+        event: eventName
+      });
+
+      window.location.href = getCalendarListUrl();
+    } catch (error) {
+      console.error("Could not delete appointment", error);
+      alert(error.message || "Could not delete appointment.");
+
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Delete Appointment";
+      }
+    }
+  }
+
   function toggleModal(show) {
     const modal = el("trkDetailEditModal");
     if (!modal) return;
@@ -476,11 +526,13 @@
 
     if (viewMode.isViewMode) {
       if (el("trkDetailEditBtn")) el("trkDetailEditBtn").style.display = "none";
+      if (el("trkDetailDeleteBtn")) el("trkDetailDeleteBtn").style.display = "none";
       if (el("trkSaveClientNoteBtn")) el("trkSaveClientNoteBtn").style.display = "none";
       if (el("trkClientNoteText")) el("trkClientNoteText").setAttribute("readonly", "readonly");
       return;
     }
     if (el("trkDetailEditBtn")) el("trkDetailEditBtn").addEventListener("click", openEditModal);
+    if (el("trkDetailDeleteBtn")) el("trkDetailDeleteBtn").addEventListener("click", deleteSession);
     if (el("trkDetailEditModalClose")) el("trkDetailEditModalClose").addEventListener("click", closeEditModal);
     if (el("trkDetailEditModalCancel")) el("trkDetailEditModalCancel").addEventListener("click", closeEditModal);
     if (el("trkDetailEditSaveBtn")) el("trkDetailEditSaveBtn").addEventListener("click", saveEdit);

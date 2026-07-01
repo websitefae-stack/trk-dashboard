@@ -1202,22 +1202,45 @@ def _get_event_rows_for_dashboard(dashboard_type, range_start_date, range_end_da
             coach = selected_calendar_for.replace(COACH_PREFIX, "", 1)
             client_rows = _get_client_rows_for_coach(coach)
             client_map = {row.get("name"): row for row in client_rows if row.get("name")}
+            has_coach_field = _event_has_field("custom_coach")
 
-            if not client_map or not has_client_field:
+            if (not client_map or not has_client_field) and not has_coach_field:
                 return [], {}
 
-            filters = base_filters + [
-                ["Event", "custom_client", "in", list(client_map.keys())],
-            ]
+            by_name = {}
 
-            rows = frappe.get_all(
-                "Event",
-                fields=_get_event_fields(),
-                filters=filters,
-                order_by="starts_on asc",
-                limit_page_length=1000,
-                ignore_permissions=True,
-            )
+            if client_map and has_client_field:
+                client_filters = base_filters + [
+                    ["Event", "custom_client", "in", list(client_map.keys())],
+                ]
+                for row in frappe.get_all(
+                    "Event",
+                    fields=_get_event_fields(),
+                    filters=client_filters,
+                    order_by="starts_on asc",
+                    limit_page_length=1000,
+                    ignore_permissions=True,
+                ):
+                    by_name[row.get("name")] = row
+
+            # Also include the coach's own client-less events (e.g. pulled in
+            # from Google Calendar, or internal/personal entries) - these have
+            # no custom_client, so the filter above alone would hide them.
+            if has_coach_field:
+                coach_filters = base_filters + [
+                    ["Event", "custom_coach", "=", coach],
+                ]
+                for row in frappe.get_all(
+                    "Event",
+                    fields=_get_event_fields(),
+                    filters=coach_filters,
+                    order_by="starts_on asc",
+                    limit_page_length=1000,
+                    ignore_permissions=True,
+                ):
+                    by_name[row.get("name")] = row
+
+            rows = sorted(by_name.values(), key=lambda row: row.get("starts_on") or "")
 
             if has_worker_field:
                 rows = [
@@ -1605,6 +1628,37 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
         "booking_warning": event_doc.get("custom_booking_warning") or "",
         "google_meet_link": event_doc.get("google_meet_link") or "",
     }
+
+
+def _can_modify_event(event_doc, dashboard_type, context):
+    """
+    Shared permission check for editing/deleting a session from the dashboard.
+    A missing client (an appointment pulled in from Google Calendar, or an
+    internal/personal entry like Holiday or Internal Training) is not the same
+    as "belongs to someone else" - it just has no client-side detail attached.
+    Falls back to direct ownership of the event itself in that case.
+    """
+    if context.get("is_dashboard_admin"):
+        return True
+
+    client = (event_doc.get("custom_client") or "").strip()
+
+    if dashboard_type == SESSION_WORKER_DASHBOARD:
+        if not client:
+            return True
+        return _client_belongs_to_session_worker(client, context)
+
+    if dashboard_type == COACH_DASHBOARD:
+        if not client:
+            coach_name = (context.get("coach_name") or "").strip()
+            if coach_name and (event_doc.get("custom_coach") or "").strip() == coach_name:
+                return True
+            return (event_doc.get("owner") or "") == context.get("user")
+        client_row = _get_client_row(client)
+        return bool(client_row) and _coach_can_view_client(client_row, context)
+
+    # Franchisor dashboard: full oversight, no extra restriction.
+    return True
 
 
 def _can_book_or_edit_client(client, dashboard_type, context):
@@ -2073,13 +2127,8 @@ def update_session(
     client = (event_doc.get("custom_client") or "").strip()
     client_row = _get_client_row(client)
 
-    if dashboard_type == SESSION_WORKER_DASHBOARD:
-        if client and not _client_belongs_to_session_worker(client, context):
-            frappe.throw(_("You do not have permission to update this session."), frappe.PermissionError)
-
-    if dashboard_type == COACH_DASHBOARD:
-        if not client_row or not _coach_can_view_client(client_row, context):
-            frappe.throw(_("You cannot edit this appointment because it belongs to another coach."), frappe.PermissionError)
+    if not _can_modify_event(event_doc, dashboard_type, context):
+        frappe.throw(_("You do not have permission to update this session."), frappe.PermissionError)
 
     booking_date = _coalesce_str("booking_date", booking_date)
     booking_time = _coalesce_str("booking_time", booking_time)
@@ -2173,6 +2222,33 @@ def update_session(
         "travel_miles_one_way": float(event_doc.get("custom_travel_miles_one_way") or 0),
         "total_travel_miles": float(event_doc.get("custom_total_travel_miles") or 0),
     }
+
+
+@frappe.whitelist(allow_guest=False)
+def delete_session(event=None, dashboard_type=None):
+    """
+    Permanently remove an appointment from the calendar (coach, franchisor and
+    session worker dashboards). If the event is synced with Google Calendar,
+    deleting it here also removes/cancels it there via the coach_calendar_sync
+    app's own on_trash hook - no separate Google cleanup needed here.
+    """
+    _require_logged_in_user()
+
+    dashboard_type = _normalise_dashboard_type(dashboard_type)
+    context = _get_context_for_dashboard(dashboard_type)
+
+    event_name = _coalesce_str("event", event)
+    if not event_name:
+        frappe.throw(_("Event is required."))
+
+    event_doc = frappe.get_doc("Event", event_name)
+
+    if not _can_modify_event(event_doc, dashboard_type, context):
+        frappe.throw(_("You do not have permission to delete this appointment."), frappe.PermissionError)
+
+    frappe.delete_doc("Event", event_name, ignore_permissions=True)
+
+    return {"deleted": event_name}
 
 
 @frappe.whitelist(allow_guest=False)
