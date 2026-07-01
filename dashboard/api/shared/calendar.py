@@ -1892,7 +1892,10 @@ def create_booking(
         event.ends_on = event_end
 
         if _event_has_field("event_type"):
-            event.event_type = "Private"
+            event.event_type = "Public"
+
+        if _event_has_field("send_reminder"):
+            event.send_reminder = 0
 
         if _event_has_field("sync_with_google_calendar") and event.get("google_calendar"):
             event.sync_with_google_calendar = 1
@@ -2014,7 +2017,9 @@ def create_booking(
             copy.ends_on = primary.ends_on
             copy.owner = worker_user
             if _event_has_field("event_type"):
-                copy.event_type = "Private"
+                copy.event_type = "Public"
+            if _event_has_field("send_reminder"):
+                copy.send_reminder = 0
             if worker_gc and _event_has_field("google_calendar") and _google_calendar_has_token(worker_gc):
                 copy.google_calendar = worker_gc
             if _event_has_field("sync_with_google_calendar") and copy.get("google_calendar"):
