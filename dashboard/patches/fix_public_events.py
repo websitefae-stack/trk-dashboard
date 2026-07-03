@@ -35,15 +35,12 @@ def _share_with_admins(event_name):
         try:
             if not frappe.db.exists("User", user):
                 continue
-            if frappe.db.exists(
-                "DocShare", {"share_doctype": "Event", "share_name": event_name, "user": user}
-            ):
-                continue
             frappe.share.add_docshare(
                 "Event",
                 event_name,
                 user,
                 read=1,
+                write=1,
                 notify=0,
                 flags={"ignore_share_permission": True},
             )

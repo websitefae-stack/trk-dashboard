@@ -1717,22 +1717,21 @@ def share_event_with_admins_job(event_name):
         try:
             if not frappe.db.exists("User", user):
                 continue
-            if frappe.db.exists(
-                "DocShare",
-                {"share_doctype": "Event", "share_name": event_name, "user": user},
-            ):
-                continue
             # add_docshare (not the public share.add wrapper, which strips
             # flags for API safety) with ignore_share_permission=True: HQ/
             # office are always meant to see every appointment regardless of
             # who owns it, so this deliberately bypasses the ownership-based
             # share-permission check rather than depending on who happens to
-            # be the acting user when the job runs.
+            # be the acting user when the job runs. It already creates-or-
+            # updates the DocShare itself, so there's no need to check for
+            # an existing one first - doing so would also skip upgrading an
+            # older read-only share to include write.
             frappe.share.add_docshare(
                 "Event",
                 event_name,
                 user,
                 read=1,
+                write=1,
                 notify=0,
                 flags={"ignore_share_permission": True},
             )
