@@ -4,6 +4,7 @@ from frappe.utils import add_to_date, getdate, get_datetime, get_fullname, now_d
 from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 from dashboard.api.shared.utils import get_label as _get_label, get_request_payload as _get_request_payload, coalesce_raw as _coalesce_raw, coalesce_str as _coalesce_str, find_session_worker_for_user as _find_session_worker_for_user
+from dashboard.api.shared.clients import build_display_name as _build_client_display_name
 
 
 DASHBOARD_ADMIN_USERS = [
@@ -109,19 +110,17 @@ def _get_client_row(client):
 
 
 def _get_client_display_from_row(row):
+    """
+    "Preferred Last (First)" when a preferred name differs from the first
+    name, otherwise the plain full name - same rule the franchisor client
+    list already uses (clients.build_display_name), reused here instead of
+    a second, different implementation that never combined preferred name
+    with the surname/brackets at all.
+    """
     if not row:
         return ""
 
-    for fieldname in ["full_name", "preferred_name"]:
-        value = (row.get(fieldname) or "").strip()
-        if value:
-            return value
-
-    first = (row.get("name1") or row.get("first_name") or "").strip()
-    last = (row.get("last_name") or "").strip()
-    display_name = " ".join([part for part in [first, last] if part]).strip()
-
-    return display_name or row.get("name") or ""
+    return _build_client_display_name(row) or row.get("name") or ""
 
 def _get_client_therapy_location_label(row):
     if not row:
@@ -1042,6 +1041,55 @@ def _get_client_notes(client_name):
     return _get_notes_for_parent("Client", client_name)
 
 
+def _get_lead_notes(lead_name):
+    """
+    Initial Consultation notes live on the Lead's own "notes" table field,
+    a child table of "CRM Notes" (note / added_by / added_on) - a different
+    shape from Client's own Notes table (session_date / session_type /
+    notes / client), so this is handled separately rather than forced into
+    _get_notes_for_parent's Client-shaped rows.
+    """
+    if not lead_name or not frappe.db.exists("Lead", lead_name):
+        return []
+
+    if not frappe.get_meta("Lead").has_field("notes"):
+        return []
+
+    lead_doc = frappe.get_doc("Lead", lead_name)
+    rows = lead_doc.get("notes") or []
+
+    notes = []
+    for row in rows:
+        added_by = row.get("added_by") or ""
+        added_on = row.get("added_on")
+
+        notes.append({
+            "name": row.name,
+            "client": "",
+            "session_date": added_on.strftime("%Y-%m-%d") if added_on else "",
+            "session_type": "",
+            "notes": row.get("note") or "",
+            "note_user": added_by,
+            "note_user_name": get_fullname(added_by) if added_by else "",
+            "idx": row.get("idx") or 0,
+        })
+
+    notes.sort(key=lambda d: ((d.get("session_date") or ""), d.get("idx") or 0), reverse=True)
+    return notes
+
+
+def _add_lead_note(lead_name, notes_text):
+    lead_doc = frappe.get_doc("Lead", lead_name)
+    lead_doc.append("notes", {
+        "doctype": "CRM Notes",
+        "note": notes_text,
+        "added_by": frappe.session.user,
+        "added_on": now_datetime(),
+    })
+    lead_doc.save(ignore_permissions=True)
+    return _get_lead_notes(lead_name)
+
+
 def _get_lead_for_event(event_doc):
     """
     Initial Consultation appointments don't have a Client - create_booking()
@@ -1662,7 +1710,7 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
         "travel_miles_one_way": float(event_doc.get("custom_travel_miles_one_way") or 0),
         "total_travel_miles": float(event_doc.get("custom_total_travel_miles") or 0),
         "client_notes": _get_notes_for_parent("Client", client) if client else (
-            _get_notes_for_parent("Lead", lead) if lead else []
+            _get_lead_notes(lead) if lead else []
         ),
         "session_number": int(event_doc.get("custom_session_number") or 0),
         "total_sessions": int(event_doc.get("custom_total_sessions") or 0),
@@ -2403,25 +2451,15 @@ def add_client_note(client=None, lead=None, session_date=None, session_type=None
         if not frappe.db.exists("Lead", lead):
             frappe.throw(_("Selected lead was not found."))
 
-        parentfield = _get_notes_parentfield("Lead")
-        if not parentfield:
+        if not frappe.get_meta("Lead").has_field("notes"):
             frappe.throw(_(
                 "Notes aren't set up for Leads on this site yet - ask your Frappe admin to "
                 "add a Notes table field to the Lead doctype, the same way it exists on Client."
             ))
 
-        lead_doc = frappe.get_doc("Lead", lead)
-        lead_doc.append(parentfield, {
-            "doctype": "Notes",
-            "session_date": raw_session_date,
-            "session_type": session_type,
-            "notes": notes,
-        })
-        lead_doc.save(ignore_permissions=True)
-
         return {
             "ok": True,
-            "client_notes": _get_notes_for_parent("Lead", lead),
+            "client_notes": _add_lead_note(lead, notes),
         }
 
     if not frappe.db.exists("Client", client):
