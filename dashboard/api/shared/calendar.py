@@ -1630,6 +1630,31 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
     }
 
 
+def share_event_with_admins(doc, method=None):
+    """
+    doc_events hook for Event (after_insert / on_update) - runs for every
+    appointment regardless of how it was created, including ones pulled in
+    from Google Calendar by coach_calendar_sync.
+
+    Events are event_type="Private" so Frappe's own native permission model
+    only shows an appointment to its owner - coaches shouldn't see each
+    other's sessions there. But HQ/office still need to see everything in
+    the raw Frappe backend. Frappe's own Event permission check already
+    treats an explicit DocShare as a valid access path alongside ownership,
+    so share every event with the admin accounts instead of making it
+    Public (which would have reopened it up to every coach again).
+    """
+    for user in DASHBOARD_ADMIN_USERS:
+        if not frappe.db.exists("User", user):
+            continue
+        if frappe.db.exists(
+            "DocShare",
+            {"share_doctype": "Event", "share_name": doc.name, "user": user},
+        ):
+            continue
+        frappe.share.add("Event", doc.name, user, read=1, notify=0)
+
+
 def _can_modify_event(event_doc, dashboard_type, context):
     """
     Shared permission check for editing/deleting a session from the dashboard.
@@ -1946,7 +1971,14 @@ def create_booking(
         event.ends_on = event_end
 
         if _event_has_field("event_type"):
-            event.event_type = "Public"
+            # "Private" restricts Frappe's own native visibility/reminders to the
+            # owner (+ explicit participants). "Public" makes an Event visible and
+            # reminder-eligible to *every* user per Frappe core's own permission
+            # model - which is how every coach ended up seeing/being notified
+            # about every other coach's appointments. The dashboard's own display
+            # logic never reads this field (it always queries with
+            # ignore_permissions=True), so this only affects Frappe's native side.
+            event.event_type = "Private"
 
         if _event_has_field("sync_with_google_calendar") and event.get("google_calendar"):
             event.sync_with_google_calendar = 1
@@ -2068,7 +2100,7 @@ def create_booking(
             copy.ends_on = primary.ends_on
             copy.owner = worker_user
             if _event_has_field("event_type"):
-                copy.event_type = "Public"
+                copy.event_type = "Private"
             if worker_gc and _event_has_field("google_calendar") and _google_calendar_has_token(worker_gc):
                 copy.google_calendar = worker_gc
             if _event_has_field("sync_with_google_calendar") and copy.get("google_calendar"):
@@ -2188,7 +2220,7 @@ def update_session(
             event_doc.custom_therapy_location = client_doc.get("therapy_location") or ""
 
     if _event_has_field("event_type"):
-        event_doc.event_type = "Public"
+        event_doc.event_type = "Private"
 
     if _event_has_field("custom_travel_charged"):
         event_doc.custom_travel_charged = 1 if _to_int(travel_charged) else 0
