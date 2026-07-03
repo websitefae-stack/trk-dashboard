@@ -1638,21 +1638,65 @@ def share_event_with_admins(doc, method=None):
 
     Events are event_type="Private" so Frappe's own native permission model
     only shows an appointment to its owner - coaches shouldn't see each
-    other's sessions there. But HQ/office still need to see everything in
-    the raw Frappe backend. Frappe's own Event permission check already
-    treats an explicit DocShare as a valid access path alongside ownership,
-    so share every event with the admin accounts instead of making it
-    Public (which would have reopened it up to every coach again).
+    other's sessions there. HQ/office still need to see everything in the
+    raw Frappe backend, so every event is shared with the admin accounts
+    instead of making it Public (which would reopen it up to every coach).
+
+    This only enqueues a background job - it must never do real work here.
+    A prior version called frappe.share.add() directly inside this hook,
+    which internally requires the *currently acting* user to already have
+    share permission on the event (frappe.share.check_share_permission ->
+    has_permission requires doc.owner == the acting user for a Private
+    event). Whenever someone other than the owner saved the event - e.g.
+    HQ/franchisor editing on a coach's behalf - that raised a
+    PermissionError inside the save transaction, and appointments stopped
+    saving entirely. Running the actual share in its own job after the
+    transaction commits (enqueue_after_commit) means this can never block
+    or break someone's save, no matter what goes wrong inside it.
     """
+    try:
+        frappe.enqueue(
+            "dashboard.api.shared.calendar.share_event_with_admins_job",
+            queue="short",
+            timeout=60,
+            enqueue_after_commit=True,
+            event_name=doc.name,
+        )
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Share Event with Admins - enqueue - {doc.name}")
+
+
+def share_event_with_admins_job(event_name):
+    """Background job body for share_event_with_admins() - see that docstring."""
+    if not frappe.db.exists("Event", event_name):
+        return
+
     for user in DASHBOARD_ADMIN_USERS:
-        if not frappe.db.exists("User", user):
-            continue
-        if frappe.db.exists(
-            "DocShare",
-            {"share_doctype": "Event", "share_name": doc.name, "user": user},
-        ):
-            continue
-        frappe.share.add("Event", doc.name, user, read=1, notify=0)
+        try:
+            if not frappe.db.exists("User", user):
+                continue
+            if frappe.db.exists(
+                "DocShare",
+                {"share_doctype": "Event", "share_name": event_name, "user": user},
+            ):
+                continue
+            # add_docshare (not the public share.add wrapper, which strips
+            # flags for API safety) with ignore_share_permission=True: HQ/
+            # office are always meant to see every appointment regardless of
+            # who owns it, so this deliberately bypasses the ownership-based
+            # share-permission check rather than depending on who happens to
+            # be the acting user when the job runs.
+            frappe.share.add_docshare(
+                "Event",
+                event_name,
+                user,
+                read=1,
+                notify=0,
+                flags={"ignore_share_permission": True},
+            )
+            frappe.db.commit()
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"Share Event with Admins - {event_name}")
 
 
 def _can_modify_event(event_doc, dashboard_type, context):

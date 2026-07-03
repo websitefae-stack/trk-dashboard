@@ -33,3 +33,17 @@ website_context = {
 website_route_rules = []
 
 fixtures = []
+
+# Keep appointments Private (Frappe's own permission model then restricts
+# visibility/reminders to the owner - coaches shouldn't see each other's
+# sessions) while still giving HQ/office full visibility in the raw Frappe
+# backend, via an explicit share rather than making events Public to
+# everyone. share_event_with_admins() only enqueues a background job here -
+# see its docstring for why doing the actual share synchronously previously
+# broke saving appointments.
+doc_events = {
+    "Event": {
+        "after_insert": "dashboard.api.shared.calendar.share_event_with_admins",
+        "on_update": "dashboard.api.shared.calendar.share_event_with_admins",
+    }
+}
