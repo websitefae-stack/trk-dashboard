@@ -990,27 +990,33 @@ def _create_or_update_initial_consultation_lead(lead_name, phone=None, notes=Non
     lead.insert(ignore_permissions=True)
     return lead.name
 
-def _get_client_notes_parentfield():
-    if not frappe.db.exists("DocType", "Client"):
+def _get_notes_parentfield(doctype):
+    """Find the Table field (options="Notes") on the given parent doctype, if any."""
+    if not frappe.db.exists("DocType", doctype):
         return None
 
-    meta = frappe.get_meta("Client")
+    meta = frappe.get_meta(doctype)
     for field in meta.fields:
         if field.fieldtype == "Table" and field.options == "Notes":
             return field.fieldname
     return None
 
 
-def _get_client_notes(client_name):
-    if not client_name or not frappe.db.exists("Client", client_name):
+def _get_client_notes_parentfield():
+    return _get_notes_parentfield("Client")
+
+
+def _get_notes_for_parent(doctype, parent_name):
+    """Same shape as _get_client_notes(), generalised to any doctype with a Notes table (Client or Lead)."""
+    if not parent_name or not frappe.db.exists(doctype, parent_name):
         return []
 
-    parentfield = _get_client_notes_parentfield()
+    parentfield = _get_notes_parentfield(doctype)
     if not parentfield:
         return []
 
-    client_doc = frappe.get_doc("Client", client_name)
-    rows = client_doc.get(parentfield) or []
+    parent_doc = frappe.get_doc(doctype, parent_name)
+    rows = parent_doc.get(parentfield) or []
 
     notes = []
     for row in rows:
@@ -1019,7 +1025,7 @@ def _get_client_notes(client_name):
 
         notes.append({
             "name": row.name,
-            "client": row.get("client") or client_name,
+            "client": row.get("client") or (parent_name if doctype == "Client" else ""),
             "session_date": row.get("session_date").strftime("%Y-%m-%d") if row.get("session_date") else "",
             "session_type": row.get("session_type") or "",
             "notes": row.get("notes") or "",
@@ -1030,6 +1036,33 @@ def _get_client_notes(client_name):
 
     notes.sort(key=lambda d: ((d.get("session_date") or ""), d.get("idx") or 0), reverse=True)
     return notes
+
+
+def _get_client_notes(client_name):
+    return _get_notes_for_parent("Client", client_name)
+
+
+def _get_lead_for_event(event_doc):
+    """
+    Initial Consultation appointments don't have a Client - create_booking()
+    creates a Lead instead and records it as the first line of the event's
+    own description ("Lead: <name>"), rather than a proper link field. Parse
+    that back out so notes taken on an Initial Consultation can attach to
+    the right Lead.
+    """
+    if not frappe.db.exists("DocType", "Lead"):
+        return None
+
+    description = event_doc.get("description") or ""
+    first_line = description.splitlines()[0].strip() if description else ""
+    if not first_line.startswith("Lead: "):
+        return None
+
+    lead_name = first_line[len("Lead: "):].strip()
+    if not lead_name or not frappe.db.exists("Lead", lead_name):
+        return None
+
+    return lead_name
 
 
 def _format_time_range(start_dt, end_dt):
@@ -1579,6 +1612,7 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
     event_doc = _get_event_doc(event_name)
     client = (event_doc.get("custom_client") or "").strip()
     client_row = _get_client_row(client)
+    lead = _get_lead_for_event(event_doc) if not client else None
 
     if dashboard_type == SESSION_WORKER_DASHBOARD:
         if client and not _client_belongs_to_session_worker(client, context):
@@ -1604,10 +1638,16 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
     else:
         worker_label = context.get("worker_label") or ""
 
+    lead_label = ""
+    if lead:
+        lead_label = frappe.db.get_value("Lead", lead, "lead_name") or frappe.db.get_value("Lead", lead, "first_name") or lead
+
     return {
         "name": event_doc.get("name"),
         "client_name": client,
         "client_label": _get_client_display_name(client) if client else event_doc.get("subject") or "Session",
+        "lead_name": lead or "",
+        "lead_label": lead_label,
         "appointment_type": session_type,
         "status": raw_status,
         "ui_status": ui_status,
@@ -1621,7 +1661,9 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
         "travel_charged": 1 if int(event_doc.get("custom_travel_charged") or 0) else 0,
         "travel_miles_one_way": float(event_doc.get("custom_travel_miles_one_way") or 0),
         "total_travel_miles": float(event_doc.get("custom_total_travel_miles") or 0),
-        "client_notes": _get_client_notes(client) if client else [],
+        "client_notes": _get_notes_for_parent("Client", client) if client else (
+            _get_notes_for_parent("Lead", lead) if lead else []
+        ),
         "session_number": int(event_doc.get("custom_session_number") or 0),
         "total_sessions": int(event_doc.get("custom_total_sessions") or 0),
         "progress_text": event_doc.get("custom_progress_text") or "",
@@ -2328,22 +2370,60 @@ def delete_session(event=None, dashboard_type=None):
 
 
 @frappe.whitelist(allow_guest=False)
-def add_client_note(client=None, session_date=None, session_type=None, notes=None, dashboard_type=None):
+def add_client_note(client=None, lead=None, session_date=None, session_type=None, notes=None, dashboard_type=None):
     _require_logged_in_user()
 
     dashboard_type = _normalise_dashboard_type(dashboard_type)
     context = _get_context_for_dashboard(dashboard_type)
 
     client = _coalesce_str("client", client)
+    lead = _coalesce_str("lead", lead)
     session_type = _coalesce_str("session_type", session_type)
     notes = _coalesce_str("notes", notes)
     raw_session_date = _coalesce_raw("session_date", session_date)
 
-    if not client:
+    if not client and not lead:
         frappe.throw(_("Client is required."))
 
     if not notes:
         frappe.throw(_("Please enter a note."))
+
+    if not raw_session_date:
+        raw_session_date = getdate()
+
+    if not session_type:
+        session_type = "Other"
+
+    # Initial Consultation appointments have a Lead, not a Client - notes go
+    # on the Lead instead. A Lead isn't owned by a specific coach/worker the
+    # way a Client is, so there's no equivalent ownership check here; access
+    # to the lead id itself is already gated by only being reachable through
+    # a specific appointment's own details, which the dashboard already
+    # restricts to whoever can see that appointment.
+    if not client and lead:
+        if not frappe.db.exists("Lead", lead):
+            frappe.throw(_("Selected lead was not found."))
+
+        parentfield = _get_notes_parentfield("Lead")
+        if not parentfield:
+            frappe.throw(_(
+                "Notes aren't set up for Leads on this site yet - ask your Frappe admin to "
+                "add a Notes table field to the Lead doctype, the same way it exists on Client."
+            ))
+
+        lead_doc = frappe.get_doc("Lead", lead)
+        lead_doc.append(parentfield, {
+            "doctype": "Notes",
+            "session_date": raw_session_date,
+            "session_type": session_type,
+            "notes": notes,
+        })
+        lead_doc.save(ignore_permissions=True)
+
+        return {
+            "ok": True,
+            "client_notes": _get_notes_for_parent("Lead", lead),
+        }
 
     if not frappe.db.exists("Client", client):
         frappe.throw(_("Selected client was not found."))
@@ -2360,12 +2440,6 @@ def add_client_note(client=None, session_date=None, session_type=None, notes=Non
     parentfield = _get_client_notes_parentfield()
     if not parentfield:
         frappe.throw(_("Could not find the Notes child table field on Client."))
-
-    if not raw_session_date:
-        raw_session_date = getdate()
-
-    if not session_type:
-        session_type = "Other"
 
     client_doc = frappe.get_doc("Client", client)
     client_doc.append(parentfield, {
