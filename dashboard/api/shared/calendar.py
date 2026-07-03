@@ -1630,6 +1630,31 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
     }
 
 
+def share_event_with_admins(doc, method=None):
+    """
+    doc_events hook for Event (after_insert / on_update) - runs for every
+    appointment regardless of how it was created, including ones pulled in
+    from Google Calendar by coach_calendar_sync.
+
+    Events are event_type="Private" so Frappe's own native permission model
+    only shows an appointment to its owner - coaches shouldn't see each
+    other's sessions there. But HQ/office still need to see everything in
+    the raw Frappe backend. Frappe's own Event permission check already
+    treats an explicit DocShare as a valid access path alongside ownership,
+    so share every event with the admin accounts instead of making it
+    Public (which would have reopened it up to every coach again).
+    """
+    for user in DASHBOARD_ADMIN_USERS:
+        if not frappe.db.exists("User", user):
+            continue
+        if frappe.db.exists(
+            "DocShare",
+            {"share_doctype": "Event", "share_name": doc.name, "user": user},
+        ):
+            continue
+        frappe.share.add("Event", doc.name, user, read=1, notify=0)
+
+
 def _can_modify_event(event_doc, dashboard_type, context):
     """
     Shared permission check for editing/deleting a session from the dashboard.
