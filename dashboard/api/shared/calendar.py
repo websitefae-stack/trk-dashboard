@@ -984,7 +984,19 @@ def _create_or_update_initial_consultation_lead(lead_name, phone=None, notes=Non
                 break
 
     if notes and lead.meta.has_field("notes"):
-        lead.notes = notes
+        # "notes" is a Table field (child doctype "CRM Notes": note/added_by/
+        # added_on) - assigning a plain string here (lead.notes = notes) made
+        # Frappe iterate over the string character-by-character trying to
+        # treat each character as a child row, and crash setting internal
+        # metadata on a bare str: "'str' object has no attribute 'modified'
+        # and no __dict__ for setting new attributes". This is exactly the
+        # crash reported when saving an Initial Consultation with notes filled in.
+        lead.append("notes", {
+            "doctype": "CRM Notes",
+            "note": notes,
+            "added_by": frappe.session.user,
+            "added_on": now_datetime(),
+        })
 
     lead.insert(ignore_permissions=True)
     return lead.name
