@@ -475,7 +475,7 @@
     if (state.savingNote) return;
 
     const data = state.eventData;
-    if (!data || !data.client_name) {
+    if (!data || (!data.client_name && !data.lead_name)) {
       alert("This session is not linked to a client.");
       return;
     }
@@ -500,7 +500,8 @@
     try {
       await apiPost(SHARED_API + ".add_client_note", {
         dashboard_type: state.dashboardType,
-        client: data.client_name,
+        client: data.client_name || "",
+        lead: data.client_name ? "" : data.lead_name,
         session_date: sessionDate,
         session_type: sessionType,
         notes: notes
