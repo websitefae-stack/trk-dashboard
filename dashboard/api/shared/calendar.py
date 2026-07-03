@@ -1946,7 +1946,14 @@ def create_booking(
         event.ends_on = event_end
 
         if _event_has_field("event_type"):
-            event.event_type = "Public"
+            # "Private" restricts Frappe's own native visibility/reminders to the
+            # owner (+ explicit participants). "Public" makes an Event visible and
+            # reminder-eligible to *every* user per Frappe core's own permission
+            # model - which is how every coach ended up seeing/being notified
+            # about every other coach's appointments. The dashboard's own display
+            # logic never reads this field (it always queries with
+            # ignore_permissions=True), so this only affects Frappe's native side.
+            event.event_type = "Private"
 
         if _event_has_field("sync_with_google_calendar") and event.get("google_calendar"):
             event.sync_with_google_calendar = 1
@@ -2068,7 +2075,7 @@ def create_booking(
             copy.ends_on = primary.ends_on
             copy.owner = worker_user
             if _event_has_field("event_type"):
-                copy.event_type = "Public"
+                copy.event_type = "Private"
             if worker_gc and _event_has_field("google_calendar") and _google_calendar_has_token(worker_gc):
                 copy.google_calendar = worker_gc
             if _event_has_field("sync_with_google_calendar") and copy.get("google_calendar"):
@@ -2188,7 +2195,7 @@ def update_session(
             event_doc.custom_therapy_location = client_doc.get("therapy_location") or ""
 
     if _event_has_field("event_type"):
-        event_doc.event_type = "Public"
+        event_doc.event_type = "Private"
 
     if _event_has_field("custom_travel_charged"):
         event_doc.custom_travel_charged = 1 if _to_int(travel_charged) else 0
