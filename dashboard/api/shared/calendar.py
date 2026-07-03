@@ -2423,7 +2423,13 @@ def delete_session(event=None, dashboard_type=None):
     if not _can_modify_event(event_doc, dashboard_type, context):
         frappe.throw(_("You do not have permission to delete this appointment."), frappe.PermissionError)
 
-    frappe.delete_doc("Event", event_name, ignore_permissions=True)
+    # force=True: every synced appointment has Calendar Sync Log entries
+    # linking back to it (one per push/pull attempt), and Frappe blocks
+    # deleting a document that's still linked from elsewhere by default
+    # ("Cannot delete or cancel because Event X is linked with Calendar Sync
+    # Log Y"). Those logs are just historical diagnostics, not something
+    # that needs to block deleting the appointment itself.
+    frappe.delete_doc("Event", event_name, ignore_permissions=True, force=True)
 
     return {"deleted": event_name}
 
