@@ -24,7 +24,8 @@ WORKER_PREFIX = "__worker__:"
 FREE_TRAVEL_MILES_ONE_WAY = 10
 TRAVEL_EXCLUDED_SESSION_TYPES = ["Parent Check-In"]
 CLIENT_SESSION_TYPES = ["Therapy Session", "Parent Check-In"]
-NON_CLIENT_TYPES = ["Initial Consultation", "Internal Training", "School Visit", "Company Meeting", "Event / Stall", "Holiday", "Personal"]
+NON_CLIENT_TYPES = ["Initial Consultation", "Internal Training", "School Visit", "Company Meeting", "School Session", "Company Session", "Event / Stall", "Holiday", "Personal"]
+SCHOOL_LINKED_TYPES = ("School Visit", "Company Meeting", "School Session", "Company Session")
 
 
 def _require_logged_in_user():
@@ -456,12 +457,12 @@ def _get_coach_calendar_for_options(coach_context):
     return options
 
 
-def _get_franchisor_calendar_for_options():
-    options = [{"value": FRANCHISOR_ME_VALUE, "label": "Me"}]
+def _get_all_business_worker_rows():
+    rows = []
 
     if frappe.db.exists("DocType", "Coach"):
         meta = frappe.get_meta("Coach")
-        fields = ["name"]
+        fields = ["name", "user"]
 
         for fieldname in ["coach_name", "full_name", "employee_name", "user_full_name", "title"]:
             if meta.has_field(fieldname):
@@ -474,14 +475,15 @@ def _get_franchisor_calendar_for_options():
             limit_page_length=1000,
             ignore_permissions=True,
         ):
-            options.append({
+            rows.append({
                 "value": COACH_PREFIX + coach.get("name"),
                 "label": "Coach: " + _get_label(coach, ["coach_name", "full_name", "employee_name", "user_full_name", "title", "name"]),
+                "user": coach.get("user"),
             })
 
     if frappe.db.exists("DocType", "Session Worker"):
         meta = frappe.get_meta("Session Worker")
-        fields = ["name"]
+        fields = ["name", "user"]
 
         for fieldname in ["sw_name", "session_worker_name", "full_name", "employee_name", "user_full_name", "title"]:
             if meta.has_field(fieldname):
@@ -494,12 +496,27 @@ def _get_franchisor_calendar_for_options():
             limit_page_length=1000,
             ignore_permissions=True,
         ):
-            options.append({
+            rows.append({
                 "value": WORKER_PREFIX + worker.get("name"),
                 "label": "Session Worker: " + _get_label(worker, ["sw_name", "session_worker_name", "full_name", "employee_name", "user_full_name", "title", "name"]),
+                "user": worker.get("user"),
             })
 
+    return rows
+
+
+def _get_franchisor_calendar_for_options():
+    options = [{"value": FRANCHISOR_ME_VALUE, "label": "Me"}]
+    options.extend({"value": row["value"], "label": row["label"]} for row in _get_all_business_worker_rows())
     return options
+
+
+def _get_additional_worker_options(current_user=None):
+    return [
+        {"value": row["value"], "label": row["label"]}
+        for row in _get_all_business_worker_rows()
+        if not current_user or row.get("user") != current_user
+    ]
 
 
 def _get_selected_calendar_for(dashboard_type, selected_calendar_for, context=None):
@@ -1648,6 +1665,7 @@ def get_calendar_bootstrap(
         "clients": _get_client_options_for_calendar(dashboard_type, selected_calendar_for, context),
         "schools": _get_school_options(),
         "companies": _get_company_options(),
+        "additional_worker_options": _get_additional_worker_options(frappe.session.user),
         "session_workers": calendar_for_options,
         "calendar_for_options": calendar_for_options,
         "selected_worker": selected_calendar_for,
@@ -1859,6 +1877,12 @@ def _can_book_or_edit_client(client, dashboard_type, context):
 def _get_user_for_worker_value(worker_value, dashboard_type):
     if not worker_value or worker_value in (COACH_ME_VALUE, FRANCHISOR_ME_VALUE):
         return None
+
+    if worker_value.startswith(WORKER_PREFIX):
+        worker_value = worker_value[len(WORKER_PREFIX):]
+    elif worker_value.startswith(COACH_PREFIX):
+        worker_value = worker_value[len(COACH_PREFIX):]
+
     if frappe.db.exists("DocType", "Session Worker") and frappe.db.exists("Session Worker", worker_value):
         return frappe.db.get_value("Session Worker", worker_value, "user") or None
     if frappe.db.exists("DocType", "Coach") and frappe.db.exists("Coach", worker_value):
@@ -1978,7 +2002,7 @@ def create_booking(
     if appointment_type in ["Internal Training", "Event / Stall", "Personal"] and not item_name:
         frappe.throw(_("Please enter a title."))
 
-    if appointment_type in ("School Visit", "Company Meeting") and not school and not school_manual_name:
+    if appointment_type in SCHOOL_LINKED_TYPES and not school and not school_manual_name:
         frappe.throw(_("Please select a school / company or type the name."))
 
     if appointment_type == "Holiday":
@@ -2097,7 +2121,7 @@ def create_booking(
             event.subject = f"{client_name} - Parent Check-In"
         elif appointment_type == "Initial Consultation":
             event.subject = f"{lead_name} - Initial Consultation"
-        elif appointment_type in ("School Visit", "Company Meeting"):
+        elif appointment_type in SCHOOL_LINKED_TYPES:
             event.subject = f"{school_name or school_manual_name or _get_client_display_name(school)} - {appointment_type}"
         elif appointment_type == "Holiday":
             event.subject = "Holiday"
@@ -2120,7 +2144,7 @@ def create_booking(
         if appointment_type in CLIENT_SESSION_TYPES and _event_has_field("custom_client"):
             event.custom_client = client
 
-        if appointment_type in ("School Visit", "Company Meeting") and school and _event_has_field("custom_client"):
+        if appointment_type in SCHOOL_LINKED_TYPES and school and _event_has_field("custom_client"):
             event.custom_client = school
 
         _set_session_type(event, appointment_type)
@@ -2169,7 +2193,7 @@ def create_booking(
                 if worker_name:
                     event.custom_session_worker = worker_name
 
-        if appointment_type in ("School Visit", "Company Meeting") and school:
+        if appointment_type in SCHOOL_LINKED_TYPES and school:
             school_row = _get_client_row(school)
             if school_row and not location:
                 location = _format_school_location(school_row)
