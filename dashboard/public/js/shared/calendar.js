@@ -70,6 +70,7 @@
     events: [],
     clients: [],
     schools: [],
+    companies: [],
     currentWorkerLabel: "",
     resolutionNote: "",
     selectedEvent: null,
@@ -411,6 +412,7 @@
 
       state.clients = Array.isArray(message.clients) ? message.clients : [];
       state.schools = Array.isArray(message.schools) ? message.schools : [];
+      state.companies = Array.isArray(message.companies) ? message.companies : [];
       state.calendarForOptions = Array.isArray(message.calendar_for_options) ? message.calendar_for_options : [];
       state.selectedCalendarFor = message.selected_calendar_for || state.selectedCalendarFor || getDefaultCalendarFor();
       state.currentWorkerLabel = message.current_worker_label || "";
@@ -430,6 +432,7 @@
       state.events = [];
       state.clients = [];
       state.schools = [];
+      state.companies = [];
       state.calendarForOptions = [];
       state.currentWorkerLabel = "";
       state.resolutionNote = "";
@@ -927,14 +930,28 @@
     const select = document.getElementById("trkCalendarSchoolSelect");
     if (!select) return;
 
-    let html = '<option value="">Select a school</option>';
+    const type = getValue("trkCalendarType") || "Therapy Session";
+    const isCompany = type === "Company Meeting";
+    const options = isCompany ? state.companies : state.schools;
+    const noun = isCompany ? "company" : "school";
 
-    state.schools.forEach(function (school) {
+    const selectLabel = document.querySelector('label[for="trkCalendarSchoolSelect"]');
+    if (selectLabel) selectLabel.textContent = isCompany ? "Company" : "School";
+
+    const manualLabel = document.querySelector('label[for="trkCalendarSchoolManualName"]');
+    if (manualLabel) manualLabel.textContent = "Or type " + noun + " name";
+
+    const manualInput = document.getElementById("trkCalendarSchoolManualName");
+    if (manualInput) manualInput.placeholder = "Enter " + noun + " name if not listed";
+
+    let html = '<option value="">Select existing ' + noun + '</option>';
+
+    options.forEach(function (option) {
       html += '<option'
-        + ' value="' + escapeHtml(school.value || "") + '"'
-        + ' data-location="' + escapeHtml(school.location || "") + '"'
+        + ' value="' + escapeHtml(option.value || "") + '"'
+        + ' data-location="' + escapeHtml(option.location || "") + '"'
         + '>'
-        + escapeHtml(school.label || school.value || "")
+        + escapeHtml(option.label || option.value || "")
         + '</option>';
     });
 
@@ -1327,6 +1344,9 @@
     toggleDisplay("trkCalendarItemNameRow", isNamedItem);
     toggleDisplay("trkCalendarSchoolRow", isSchoolVisit);
     toggleDisplay("trkCalendarSchoolManualRow", isSchoolVisit);
+    if (isSchoolVisit) {
+      renderSchoolOptions();
+    }
 
     toggleDisplay("trkCalendarSingleDateTimeRow", !isHoliday);
     toggleDisplay("trkCalendarHolidayDateRow", isHoliday);
