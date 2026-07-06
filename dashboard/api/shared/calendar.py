@@ -2031,6 +2031,21 @@ def create_booking(
                 conflict.get("subject") or conflict.get("name"),
             ))
 
+    # Computed once rather than inside the loop below: the client doesn't
+    # change between occurrences of the same recurring booking, so re-fetching
+    # the Client doc and recalculating therapy location/travel defaults on
+    # every single occurrence was pure repeated work for the same answer -
+    # for a 12-occurrence monthly series that's 12 identical DB round trips,
+    # extending how long the transaction (and the naming-series lock every
+    # Event insert must briefly hold) stays open for no benefit.
+    client_therapy_location = None
+    client_therapy_location_text = None
+    client_travel = None
+    if appointment_type in CLIENT_SESSION_TYPES:
+        client_doc_for_booking = frappe.get_doc("Client", client)
+        client_therapy_location, client_therapy_location_text = _get_client_therapy_location(client_doc_for_booking)
+        client_travel = _get_client_travel_defaults(client_doc_for_booking)
+
     created_events = []
 
     for index in range(repeat_count):
@@ -2113,13 +2128,8 @@ def create_booking(
             event.status = "Open"
 
         if appointment_type in CLIENT_SESSION_TYPES:
-            client_doc = frappe.get_doc("Client", client)
-            therapy_location, therapy_location_text = _get_client_therapy_location(client_doc)
-
             if not location:
-                location = therapy_location_text
-
-            client_travel = _get_client_travel_defaults(client_doc)
+                location = client_therapy_location_text
 
             final_travel_charged = _to_int(
                 travel_charged,
@@ -2139,7 +2149,7 @@ def create_booking(
                 event.custom_session_worker = client_row.get("session_worker")
 
             if _event_has_field("custom_therapy_location"):
-                event.custom_therapy_location = therapy_location
+                event.custom_therapy_location = client_therapy_location
 
         else:
             if _event_has_field("custom_travel_charged"):
