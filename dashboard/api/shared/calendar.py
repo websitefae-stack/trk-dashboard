@@ -2056,6 +2056,45 @@ def create_booking(
         if repeat_count not in [1, 4, 12]:
             repeat_count = 1
 
+    # Validate every occurrence of a recurring booking for conflicts BEFORE
+    # creating any of them. The loop below sets sync_with_google_calendar,
+    # which triggers Frappe's own native Google Calendar sync synchronously
+    # during each occurrence's own insert() - not a background job. If a
+    # later occurrence in the same request then hit a conflict and threw,
+    # the whole request's transaction rolled back (undoing the earlier
+    # occurrences in Frappe), but their Google-side sync had already
+    # happened for real and can't be undone by a database rollback - leaving
+    # appointments in Google with no corresponding Frappe record at all.
+    # Checking every date upfront means we never start creating anything if
+    # any occurrence in the series would fail.
+    for index in range(repeat_count):
+        if not index:
+            conflict_start, conflict_end = start_dt, end_dt
+        elif recurring_frequency == "Fortnightly":
+            conflict_start = add_to_date(start_dt, days=14 * index)
+            conflict_end = add_to_date(end_dt, days=14 * index)
+        elif recurring_frequency == "Monthly":
+            conflict_start = add_to_date(start_dt, months=index)
+            conflict_end = add_to_date(end_dt, months=index)
+        else:
+            conflict_start = add_to_date(start_dt, days=7 * index)
+            conflict_end = add_to_date(end_dt, days=7 * index)
+
+        conflict = _find_calendar_conflict(
+            event_start=conflict_start,
+            event_end=conflict_end,
+            dashboard_type=dashboard_type,
+            context=context,
+        )
+
+        if conflict:
+            frappe.throw(_(
+                "This calendar already has something booked at {0}: {1}"
+            ).format(
+                conflict_start.strftime("%d/%m/%Y %H:%M"),
+                conflict.get("subject") or conflict.get("name"),
+            ))
+
     created_events = []
 
     for index in range(repeat_count):
