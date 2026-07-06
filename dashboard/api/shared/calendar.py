@@ -1847,48 +1847,6 @@ def _can_book_or_edit_client(client, dashboard_type, context):
 
     return client_row
 
-def _get_google_calendar_for_booking(dashboard_type, context):
-    user = context.get("view_as_user") or frappe.session.user
-
-    if dashboard_type == SESSION_WORKER_DASHBOARD:
-        worker_name = (context.get("worker_name") or "").strip()
-
-        if worker_name and frappe.db.exists("Session Worker", worker_name):
-            return frappe.db.get_value("Session Worker", worker_name, "google_calendar") or ""
-
-    coach_name = (
-        context.get("coach_name")
-        or context.get("view_as_coach")
-        or context.get("current_coach")
-        or ""
-    )
-
-    if not coach_name:
-        coach_name = frappe.db.get_value(
-            "Coach",
-            {"user": user},
-            "name",
-        ) or frappe.db.get_value(
-            "Coach",
-            {"email": user},
-            "name",
-        ) or ""
-
-    if coach_name and frappe.db.exists("Coach", coach_name):
-        return frappe.db.get_value("Coach", coach_name, "google_calendar") or ""
-
-    return ""
-
-
-def _google_calendar_has_token(google_calendar_name):
-    if not google_calendar_name or not frappe.db.exists("Google Calendar", google_calendar_name):
-        return False
-    row = frappe.db.get_value("Google Calendar", google_calendar_name, ["refresh_token", "google_calendar_id"], as_dict=True) or {}
-    token = (row.get("refresh_token") or "").strip()
-    cal_id = (row.get("google_calendar_id") or "").strip()
-    return bool(token and cal_id)
-
-
 def _get_user_for_worker_value(worker_value, dashboard_type):
     if not worker_value or worker_value in (COACH_ME_VALUE, FRANCHISOR_ME_VALUE):
         return None
@@ -1911,20 +1869,6 @@ def _get_worker_name_for_user(user):
         if name:
             return name
     return None
-
-
-def _get_google_calendar_for_worker_user(user):
-    if not user:
-        return ""
-    if frappe.db.exists("DocType", "Session Worker"):
-        worker = frappe.db.get_value("Session Worker", {"user": user}, "name")
-        if worker:
-            return frappe.db.get_value("Session Worker", worker, "google_calendar") or ""
-    if frappe.db.exists("DocType", "Coach"):
-        coach = frappe.db.get_value("Coach", {"user": user}, "name")
-        if coach:
-            return frappe.db.get_value("Coach", coach, "google_calendar") or ""
-    return ""
 
 
 @frappe.whitelist(allow_guest=False)
@@ -2057,16 +2001,8 @@ def create_booking(
             repeat_count = 1
 
     # Validate every occurrence of a recurring booking for conflicts BEFORE
-    # creating any of them. The loop below sets sync_with_google_calendar,
-    # which triggers Frappe's own native Google Calendar sync synchronously
-    # during each occurrence's own insert() - not a background job. If a
-    # later occurrence in the same request then hit a conflict and threw,
-    # the whole request's transaction rolled back (undoing the earlier
-    # occurrences in Frappe), but their Google-side sync had already
-    # happened for real and can't be undone by a database rollback - leaving
-    # appointments in Google with no corresponding Frappe record at all.
-    # Checking every date upfront means we never start creating anything if
-    # any occurrence in the series would fail.
+    # creating any of them, so a doomed series never partially creates
+    # occurrences before failing on a later one.
     for index in range(repeat_count):
         if not index:
             conflict_start, conflict_end = start_dt, end_dt
@@ -2128,13 +2064,6 @@ def create_booking(
             ))
 
         event = frappe.new_doc("Event")
-        google_calendar = _get_google_calendar_for_booking(
-            dashboard_type=dashboard_type,
-            context=context,
-        )
-
-        if google_calendar and _event_has_field("google_calendar") and _google_calendar_has_token(google_calendar):
-            event.google_calendar = google_calendar
         calendar_owner = context.get("view_as_user") or frappe.session.user
         event.owner = calendar_owner
 
@@ -2163,9 +2092,6 @@ def create_booking(
             # logic never reads this field (it always queries with
             # ignore_permissions=True), so this only affects Frappe's native side.
             event.event_type = "Private"
-
-        if _event_has_field("sync_with_google_calendar") and event.get("google_calendar"):
-            event.sync_with_google_calendar = 1
 
         if appointment_type in CLIENT_SESSION_TYPES and _event_has_field("custom_client"):
             event.custom_client = client
@@ -2277,7 +2203,6 @@ def create_booking(
             worker_user = _get_user_for_worker_value(worker_value, dashboard_type)
             if not worker_user:
                 continue
-            worker_gc = _get_google_calendar_for_worker_user(worker_user)
             copy = frappe.new_doc("Event")
             copy.subject = primary.subject
             copy.starts_on = primary.starts_on
@@ -2285,10 +2210,6 @@ def create_booking(
             copy.owner = worker_user
             if _event_has_field("event_type"):
                 copy.event_type = "Private"
-            if worker_gc and _event_has_field("google_calendar") and _google_calendar_has_token(worker_gc):
-                copy.google_calendar = worker_gc
-            if _event_has_field("sync_with_google_calendar") and copy.get("google_calendar"):
-                copy.sync_with_google_calendar = 1
             if _event_has_field("custom_appointment_type"):
                 copy.custom_appointment_type = primary.get("custom_appointment_type") or appointment_type
             if _event_has_field("custom_billing_type"):
