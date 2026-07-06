@@ -27,6 +27,8 @@
     "Internal Training": 360,
     "School Visit": 120,
     "Company Meeting": 120,
+    "School Session": 45,
+    "Company Session": 45,
     "Event / Stall": 180,
     "Holiday": 0,
     "Personal": 60
@@ -34,6 +36,7 @@
 
   const CLIENT_REQUIRED_TYPES = ["Therapy Session", "Parent Check-In"];
   const NON_CLIENT_TITLE_TYPES = ["Internal Training", "Event / Stall", "Personal"];
+  const SCHOOL_LINKED_TYPES = ["School Visit", "Company Meeting", "School Session", "Company Session"];
   const GOOGLE_MEET_TYPES = ["Therapy Session", "Parent Check-In", "Initial Consultation"];
 
   const DEFAULT_BILLING_BY_TYPE = {
@@ -43,6 +46,8 @@
     "Internal Training": "Non-Billable",
     "School Visit": "Non-Billable",
     "Company Meeting": "Non-Billable",
+    "School Session": "One to One",
+    "Company Session": "One to One",
     "Event / Stall": "Non-Billable",
     "Holiday": "Non-Billable",
     "Personal": "Non-Billable"
@@ -56,6 +61,8 @@
     "School Visit":       { background: "#5FE07C", border: "#2AAD4A", textColor: "#002B0A" },
     "Event / Stall":      { background: "#98962A", border: "#6E6C1A", textColor: "#FFFFFF" },
     "Company Meeting":    { background: "#FF8438", border: "#CC5200", textColor: "#FFFFFF" },
+    "School Session":     { background: "#1FA37A", border: "#127A5A", textColor: "#FFFFFF" },
+    "Company Session":    { background: "#B85C1F", border: "#8A4415", textColor: "#FFFFFF" },
     "Holiday":            { background: "#2C9A48", border: "#1A6830", textColor: "#FFFFFF" },
     "Personal":           { background: "#D5DA39", border: "#A0A500", textColor: "#2B2D00" },
     "General":            { background: "#00A19E", border: "#007A78", textColor: "#FFFFFF" }
@@ -71,6 +78,7 @@
     clients: [],
     schools: [],
     companies: [],
+    additionalWorkerOptions: [],
     currentWorkerLabel: "",
     resolutionNote: "",
     selectedEvent: null,
@@ -413,6 +421,7 @@
       state.clients = Array.isArray(message.clients) ? message.clients : [];
       state.schools = Array.isArray(message.schools) ? message.schools : [];
       state.companies = Array.isArray(message.companies) ? message.companies : [];
+      state.additionalWorkerOptions = Array.isArray(message.additional_worker_options) ? message.additional_worker_options : [];
       state.calendarForOptions = Array.isArray(message.calendar_for_options) ? message.calendar_for_options : [];
       state.selectedCalendarFor = message.selected_calendar_for || state.selectedCalendarFor || getDefaultCalendarFor();
       state.currentWorkerLabel = message.current_worker_label || "";
@@ -433,6 +442,7 @@
       state.clients = [];
       state.schools = [];
       state.companies = [];
+      state.additionalWorkerOptions = [];
       state.calendarForOptions = [];
       state.currentWorkerLabel = "";
       state.resolutionNote = "";
@@ -931,7 +941,7 @@
     if (!select) return;
 
     const type = getValue("trkCalendarType") || "Therapy Session";
-    const isCompany = type === "Company Meeting";
+    const isCompany = type === "Company Meeting" || type === "Company Session";
     const options = isCompany ? state.companies : state.schools;
     const noun = isCompany ? "company" : "school";
 
@@ -1028,7 +1038,7 @@
       return;
     }
 
-    const isSchoolVisit = type === "School Visit" || type === "Company Meeting";
+    const isSchoolVisit = SCHOOL_LINKED_TYPES.indexOf(type) !== -1;
     if (isSchoolVisit && !schoolId && !schoolManualName) {
       showToast("Please select a school or type the school / company name");
       return;
@@ -1326,7 +1336,7 @@
     const isClientType = CLIENT_REQUIRED_TYPES.indexOf(type) !== -1;
     const isParentCheckIn = type === "Parent Check-In";
     const isInitialConsultation = type === "Initial Consultation";
-    const isSchoolVisit = type === "School Visit" || type === "Company Meeting";
+    const isSchoolVisit = SCHOOL_LINKED_TYPES.indexOf(type) !== -1;
     const isNamedItem = NON_CLIENT_TITLE_TYPES.indexOf(type) !== -1;
 
     toggleDisplay("trkCalendarClientRow", isClientType);
@@ -1352,7 +1362,7 @@
     toggleDisplay("trkCalendarHolidayDateRow", isHoliday);
     toggleDisplay("trkCalendarDurationRow", !isHoliday);
 
-    toggleDisplay("trkCalendarTravelRow", ["Therapy Session", "Parent Check-In", "School Visit", "Company Meeting"].indexOf(type) !== -1);
+    toggleDisplay("trkCalendarTravelRow", ["Therapy Session", "Parent Check-In"].concat(SCHOOL_LINKED_TYPES).indexOf(type) !== -1);
     toggleDisplay("trkCalendarGoogleMeetRow", GOOGLE_MEET_TYPES.indexOf(type) !== -1);
     toggleDisplay("trkCalendarRecurringRow", type === "Therapy Session");
 
@@ -1362,8 +1372,8 @@
     if (showWorkers) {
       var listEl = document.getElementById("trkCalendarAdditionalWorkersList");
       if (listEl && listEl.childElementCount === 0) {
-        var opts = state.calendarForOptions.filter(function (o) {
-          return o.value !== "__coach_me__" && o.value !== "__franchisor_me__" && o.value;
+        var opts = state.additionalWorkerOptions.filter(function (o) {
+          return o.value;
         });
         if (opts.length === 0) {
           listEl.innerHTML = '<span style="font-size:12px;color:#888;">No other coaches available</span>';
