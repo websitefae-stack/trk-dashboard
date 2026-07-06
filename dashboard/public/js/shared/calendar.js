@@ -256,6 +256,7 @@
     document.addEventListener("change", function (event) {
       if (event.target && event.target.id === "trkCalendarType") {
         setValue("trkCalendarDuration", String(DURATION_BY_TYPE[event.target.value] || 45));
+        renderSchoolOptions();
         syncBookingFields();
       }
 
@@ -1354,9 +1355,6 @@
     toggleDisplay("trkCalendarItemNameRow", isNamedItem);
     toggleDisplay("trkCalendarSchoolRow", isSchoolVisit);
     toggleDisplay("trkCalendarSchoolManualRow", isSchoolVisit);
-    if (isSchoolVisit) {
-      renderSchoolOptions();
-    }
 
     toggleDisplay("trkCalendarSingleDateTimeRow", !isHoliday);
     toggleDisplay("trkCalendarHolidayDateRow", isHoliday);
