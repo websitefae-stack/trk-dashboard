@@ -609,14 +609,14 @@ def _format_school_location(row):
     return ", ".join([str(part).strip() for part in parts if part and str(part).strip()])
 
 
-def _get_school_options():
+def _get_clients_by_type_options(client_type):
     if not frappe.db.exists("DocType", "Client"):
         return []
 
     rows = frappe.get_all(
         "Client",
         fields=_get_client_base_fields(),
-        filters={"client_type": "School"},
+        filters={"client_type": client_type},
         order_by="full_name asc",
         limit_page_length=1000,
         ignore_permissions=True,
@@ -631,6 +631,14 @@ def _get_school_options():
         for row in rows
         if row.get("name")
     ]
+
+
+def _get_school_options():
+    return _get_clients_by_type_options("School")
+
+
+def _get_company_options():
+    return _get_clients_by_type_options("Company")
 
 
 def _build_client_option(row):
@@ -1639,6 +1647,7 @@ def get_calendar_bootstrap(
         "events": _get_events(range_start_date, range_end_date, dashboard_type, selected_calendar_for, context),
         "clients": _get_client_options_for_calendar(dashboard_type, selected_calendar_for, context),
         "schools": _get_school_options(),
+        "companies": _get_company_options(),
         "session_workers": calendar_for_options,
         "calendar_for_options": calendar_for_options,
         "selected_worker": selected_calendar_for,
