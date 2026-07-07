@@ -693,7 +693,11 @@ def _item_price_from_price_list(item_code, price_list):
 
 
 def _get_billable_session_count_for_item(item_code):
-    if not item_code or item_code == TRAVEL_ITEM_CODE:
+    # Parent Check-Ins are delivered online and never incur travel, so they
+    # never count toward the travel-billable session total - whether booked
+    # as their own invoice line or bundled inside a package alongside other
+    # (travel-eligible) sessions.
+    if not item_code or item_code == TRAVEL_ITEM_CODE or item_code == PARENT_CHECKIN_ITEM_CODE:
         return 0
 
     product_bundle_name = frappe.db.get_value(
@@ -713,7 +717,7 @@ def _get_billable_session_count_for_item(item_code):
             service_item = bundle_item.get("item_code")
             qty = _to_float(bundle_item.get("qty"))
 
-            if service_item and service_item != TRAVEL_ITEM_CODE:
+            if service_item and service_item not in (TRAVEL_ITEM_CODE, PARENT_CHECKIN_ITEM_CODE):
                 total_sessions += qty
 
         return total_sessions
