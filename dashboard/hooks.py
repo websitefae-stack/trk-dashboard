@@ -58,3 +58,15 @@ doc_events = {
         ],
     }
 }
+
+# Safety net for the pending-booking queue (see pending_bookings.py) - picks
+# up any Pending Booking whose background job never ran (e.g. the worker
+# that would have processed it crashed first) instead of letting it sit
+# there forever.
+scheduler_events = {
+    "cron": {
+        "*/5 * * * *": [
+            "dashboard.api.shared.pending_bookings.sweep_stuck_pending_bookings",
+        ],
+    }
+}

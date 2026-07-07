@@ -801,6 +801,18 @@
     const body = document.getElementById("trkCalendarDetailsBody");
     if (!body) return;
 
+    if (Number(event.is_pending || 0) === 1) {
+      body.innerHTML =
+        '<div class="trk-calendar-detail-group">'
+        + '<div class="trk-calendar-detail-label">Still saving</div>'
+        + '<div class="trk-calendar-detail-value">'
+        + escapeHtml(event.title || "This booking")
+        + ' is still being saved and will finish shortly. No action needed.'
+        + '</div>'
+        + '</div>';
+      return;
+    }
+
     const detailsUrl = getDefaultDetailsUrl(event.name || "");
     const isPrivate = Number(event.is_private || 0) === 1;
     const viewMode = getViewModeParams();
