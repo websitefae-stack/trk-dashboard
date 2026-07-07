@@ -41,9 +41,20 @@ fixtures = []
 # everyone. share_event_with_admins() only enqueues a background job here -
 # see its docstring for why doing the actual share synchronously previously
 # broke saving appointments.
+#
+# recalculate_client_package_balance() is a ported version of the
+# "Package Recalculate Balance" Server Script - see packages.py's module
+# docstring. Disable/delete that Server Script once this is deployed so the
+# same recalculation doesn't run twice on every appointment save.
 doc_events = {
     "Event": {
-        "after_insert": "dashboard.api.shared.calendar.share_event_with_admins",
-        "on_update": "dashboard.api.shared.calendar.share_event_with_admins",
+        "after_insert": [
+            "dashboard.api.shared.calendar.share_event_with_admins",
+            "dashboard.api.shared.packages.recalculate_client_package_balance",
+        ],
+        "on_update": [
+            "dashboard.api.shared.calendar.share_event_with_admins",
+            "dashboard.api.shared.packages.recalculate_client_package_balance",
+        ],
     }
 }
