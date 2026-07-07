@@ -1940,6 +1940,7 @@ def _create_booking_impl(
     recurring=None,
     recurring_frequency=None,
     recurring_count=None,
+    occurrence_overrides=None,
     additional_workers=None,
     dashboard_type=None,
 ):
@@ -1947,6 +1948,16 @@ def _create_booking_impl(
 
     dashboard_type = _normalise_dashboard_type(dashboard_type)
     context = _get_context_for_dashboard(dashboard_type)
+
+    if isinstance(occurrence_overrides, str):
+        import json as _json
+        try:
+            occurrence_overrides = _json.loads(occurrence_overrides)
+        except Exception:
+            occurrence_overrides = []
+    if not isinstance(occurrence_overrides, list):
+        occurrence_overrides = []
+    occurrence_overrides = [row if isinstance(row, dict) else {} for row in occurrence_overrides]
 
     client = _coalesce_str("client", client)
     client_name = _coalesce_str("client_name", client_name)
@@ -2043,21 +2054,37 @@ def _create_booking_impl(
         if repeat_count not in [1, 4, 12]:
             repeat_count = 1
 
+    def _occurrence_window(index):
+        # A coach can adjust individual occurrences of a recurring series
+        # before saving (e.g. moving one session by a day) - when an
+        # override is present for this occurrence, it wins outright over
+        # the weekly/fortnightly/monthly formula.
+        if index < len(occurrence_overrides):
+            override = occurrence_overrides[index]
+            override_date = (override.get("date") or "").strip()
+            override_time = (override.get("time") or "").strip()
+
+            if override_date and override_time:
+                occurrence_start = get_datetime(f"{override_date} {override_time}:00")
+                occurrence_end = add_to_date(occurrence_start, minutes=duration_minutes)
+                return occurrence_start, occurrence_end
+
+        if not index:
+            return start_dt, end_dt
+
+        if recurring_frequency == "Fortnightly":
+            return add_to_date(start_dt, days=14 * index), add_to_date(end_dt, days=14 * index)
+
+        if recurring_frequency == "Monthly":
+            return add_to_date(start_dt, months=index), add_to_date(end_dt, months=index)
+
+        return add_to_date(start_dt, days=7 * index), add_to_date(end_dt, days=7 * index)
+
     # Validate every occurrence of a recurring booking for conflicts BEFORE
     # creating any of them, so a doomed series never partially creates
     # occurrences before failing on a later one.
     for index in range(repeat_count):
-        if not index:
-            conflict_start, conflict_end = start_dt, end_dt
-        elif recurring_frequency == "Fortnightly":
-            conflict_start = add_to_date(start_dt, days=14 * index)
-            conflict_end = add_to_date(end_dt, days=14 * index)
-        elif recurring_frequency == "Monthly":
-            conflict_start = add_to_date(start_dt, months=index)
-            conflict_end = add_to_date(end_dt, months=index)
-        else:
-            conflict_start = add_to_date(start_dt, days=7 * index)
-            conflict_end = add_to_date(end_dt, days=7 * index)
+        conflict_start, conflict_end = _occurrence_window(index)
 
         conflict = _find_calendar_conflict(
             event_start=conflict_start,
@@ -2092,19 +2119,7 @@ def _create_booking_impl(
     created_events = []
 
     for index in range(repeat_count):
-        event_start = start_dt
-        event_end = end_dt
-
-        if index:
-            if recurring_frequency == "Fortnightly":
-                event_start = add_to_date(start_dt, days=14 * index)
-                event_end = add_to_date(end_dt, days=14 * index)
-            elif recurring_frequency == "Monthly":
-                event_start = add_to_date(start_dt, months=index)
-                event_end = add_to_date(end_dt, months=index)
-            else:
-                event_start = add_to_date(start_dt, days=7 * index)
-                event_end = add_to_date(end_dt, days=7 * index)
+        event_start, event_end = _occurrence_window(index)
 
         conflict = _find_calendar_conflict(
             event_start=event_start,
@@ -2336,6 +2351,7 @@ def create_booking(
     recurring=None,
     recurring_frequency=None,
     recurring_count=None,
+    occurrence_overrides=None,
     additional_workers=None,
     dashboard_type=None,
 ):
@@ -2385,6 +2401,7 @@ def create_booking(
                 recurring=recurring,
                 recurring_frequency=recurring_frequency,
                 recurring_count=recurring_count,
+                occurrence_overrides=occurrence_overrides,
                 additional_workers=additional_workers,
                 dashboard_type=dashboard_type,
             )
