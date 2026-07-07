@@ -776,48 +776,50 @@ def _build_travel_row_for_client(client_name, total_sessions):
     client = frappe.get_doc("Client", client_name)
 
     travel_charged = int(client.get("travel_charged") or 0)
-    one_way_miles = _to_float(client.get("travel_miles_one_way"))
+    rate_per_session = _to_float(client.get("travel_charge_per_session"))
 
-    if not travel_charged or one_way_miles <= FREE_MILES_ONE_WAY:
+    if not travel_charged or not rate_per_session:
         return None
-
-    chargeable_one_way = one_way_miles - FREE_MILES_ONE_WAY
-    chargeable_return_miles = chargeable_one_way * 2
-    travel_qty = chargeable_return_miles * total_sessions
 
     description = (
         f"Travel charge for {total_sessions:g} session"
-        f"{'' if total_sessions == 1 else 's'}. "
-        f"Client location is {one_way_miles:g} miles away. "
-        f"The first {FREE_MILES_ONE_WAY:g} miles each way are included. "
-        f"{chargeable_one_way:g} miles each way are chargeable, "
-        f"including return travel, at £{TRAVEL_RATE_PER_MILE:g} per mile."
+        f"{'' if total_sessions == 1 else 's'} at this client's agreed rate of "
+        f"£{rate_per_session:g} per session. (Travel is charged at £{TRAVEL_RATE_PER_MILE:g} "
+        f"per mile, with the first {FREE_MILES_ONE_WAY:g} miles each way free.)"
     )
 
     return {
         "item_code": TRAVEL_ITEM_CODE,
         "description": description,
-        "qty": travel_qty,
-        "rate": TRAVEL_RATE_PER_MILE,
+        "qty": total_sessions,
+        "rate": rate_per_session,
     }
 
 
 def _with_auto_travel_items(client_name, items_payload):
-    cleaned_items = []
+    existing_travel_rows = [
+        row for row in (items_payload or [])
+        if (row.get("item_code") or "").strip() == TRAVEL_ITEM_CODE
+    ]
+    other_items = [
+        row for row in (items_payload or [])
+        if (row.get("item_code") or "").strip() != TRAVEL_ITEM_CODE
+    ]
 
-    for row in items_payload or []:
-        if (row.get("item_code") or "").strip() == TRAVEL_ITEM_CODE:
-            continue
-
-        cleaned_items.append(row)
-
-    total_sessions = _get_total_billable_sessions_from_payload(cleaned_items)
+    total_sessions = _get_total_billable_sessions_from_payload(other_items)
     travel_row = _build_travel_row_for_client(client_name, total_sessions)
 
     if travel_row:
-        cleaned_items.append(travel_row)
+        # Travel is a standing charge for this client - always reflect the
+        # current rate/session count rather than whatever was last saved.
+        other_items.append(travel_row)
+    elif existing_travel_rows:
+        # Not a standing charge (box unticked, or no rate set) - any travel
+        # line here was added manually, so leave it exactly as submitted
+        # instead of silently deleting it.
+        other_items.extend(existing_travel_rows)
 
-    return cleaned_items
+    return other_items
 
 
 def _resolve_invoice_context(client_name=None, customer_name=None):
@@ -1019,6 +1021,7 @@ def get_client_invoice_defaults(client_name=None):
         "bank_display_text": _bank_display_text(client.get("banking") or ""),
         "travel_charged": int(client.get("travel_charged") or 0),
         "travel_miles_one_way": float(client.get("travel_miles_one_way") or 0),
+        "travel_charge_per_session": float(client.get("travel_charge_per_session") or 0),
         "open_balances": open_balances,
     }
 
