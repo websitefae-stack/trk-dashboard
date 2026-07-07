@@ -1891,18 +1891,25 @@ def _get_user_for_worker_value(worker_value, dashboard_type):
     return None
 
 
-def _get_worker_name_for_user(user):
+def _get_worker_doctype_and_name_for_user(user):
+    """
+    Returns (doctype, name) for whichever of Session Worker/Coach this user
+    actually is. Callers must write the name to the Link field matching
+    that doctype (custom_session_worker vs custom_coach) - a Coach's name
+    written to a field that only links Session Worker records fails with
+    a LinkValidationError at insert time.
+    """
     if not user:
-        return None
+        return None, None
     if frappe.db.exists("DocType", "Session Worker"):
         name = frappe.db.get_value("Session Worker", {"user": user}, "name")
         if name:
-            return name
+            return "Session Worker", name
     if frappe.db.exists("DocType", "Coach"):
         name = frappe.db.get_value("Coach", {"user": user}, "name")
         if name:
-            return name
-    return None
+            return "Coach", name
+    return None, None
 
 
 @frappe.whitelist(allow_guest=False)
@@ -2263,8 +2270,7 @@ def create_booking(
             copy.owner = worker_user
             if _event_has_field("event_type"):
                 copy.event_type = "Private"
-            if _event_has_field("custom_appointment_type"):
-                copy.custom_appointment_type = primary.get("custom_appointment_type") or appointment_type
+            _set_session_type(copy, appointment_type)
             if _event_has_field("custom_billing_type"):
                 copy.custom_billing_type = primary.get("custom_billing_type") or "Non-Billable"
             if _event_has_field("custom_appointment_status"):
@@ -2277,10 +2283,11 @@ def create_booking(
                 copy.location = primary.location
             if _event_has_field("description") and primary.get("description"):
                 copy.description = primary.description
-            if _event_has_field("custom_session_worker"):
-                worker_name = _get_worker_name_for_user(worker_user)
-                if worker_name:
-                    copy.custom_session_worker = worker_name
+            worker_doctype, worker_name = _get_worker_doctype_and_name_for_user(worker_user)
+            if worker_doctype == "Session Worker" and worker_name and _event_has_field("custom_session_worker"):
+                copy.custom_session_worker = worker_name
+            elif worker_doctype == "Coach" and worker_name and _event_has_field("custom_coach"):
+                copy.custom_coach = worker_name
             copy.insert(ignore_permissions=True)
 
     return {
