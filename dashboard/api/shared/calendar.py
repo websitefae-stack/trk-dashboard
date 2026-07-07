@@ -2315,14 +2315,66 @@ def _create_booking_impl(
     }
 
 
-_BOOKING_LOCK_TIMEOUT_SECONDS = 5
-_BOOKING_LOCK_MAX_ATTEMPTS = 4
+_BOOKING_LOCK_TIMEOUT_SECONDS = 8
+_BOOKING_LOCK_MAX_ATTEMPTS = 6
 
 
 def _is_lock_wait_timeout_error(exc):
     if type(exc).__name__ == "QueryTimeoutError":
         return True
     return "lock wait timeout" in str(exc).lower()
+
+
+def _capture_lock_contention_diagnostics(exc):
+    """
+    Best-effort capture of what else MySQL was doing at the moment a booking
+    hit the naming-series lock timeout, logged to the Error Log so it's
+    visible without any bench/console/DB-admin access. Only called once
+    retries are exhausted and the failure is about to be surfaced - the aim
+    is to finally get real evidence of what's holding the row, since static
+    code review hasn't turned up a synchronous culprit anywhere in this app.
+    Silently logs whatever it could still read if the DB user lacks
+    privilege for some of these views.
+    """
+    lines = [f"Original error: {exc}"]
+
+    try:
+        active_transactions = frappe.db.sql(
+            """
+            SELECT
+                trx_id, trx_state, trx_started, trx_wait_started,
+                trx_mysql_thread_id, trx_query, trx_rows_locked, trx_rows_modified
+            FROM information_schema.innodb_trx
+            ORDER BY trx_started ASC
+            """,
+            as_dict=True,
+        )
+        lines.append(f"Active InnoDB transactions at time of failure: {len(active_transactions)}")
+        for row in active_transactions:
+            lines.append(
+                f"  thread={row.get('trx_mysql_thread_id')} state={row.get('trx_state')} "
+                f"started={row.get('trx_started')} wait_started={row.get('trx_wait_started')} "
+                f"rows_locked={row.get('trx_rows_locked')} rows_modified={row.get('trx_rows_modified')} "
+                f"query={row.get('trx_query')}"
+            )
+    except Exception as diag_error:
+        lines.append(f"Could not read information_schema.innodb_trx: {diag_error}")
+
+    try:
+        lock_waits = frappe.db.sql(
+            "SELECT waiting_pid, waiting_query, blocking_pid, blocking_query FROM sys.innodb_lock_waits",
+            as_dict=True,
+        )
+        lines.append(f"sys.innodb_lock_waits rows: {len(lock_waits)}")
+        for row in lock_waits:
+            lines.append(
+                f"  waiting_pid={row.get('waiting_pid')} blocking_pid={row.get('blocking_pid')} "
+                f"waiting_query={row.get('waiting_query')} blocking_query={row.get('blocking_query')}"
+            )
+    except Exception as diag_error:
+        lines.append(f"Could not read sys.innodb_lock_waits: {diag_error}")
+
+    frappe.log_error("\n".join(lines), "Booking Lock Contention Diagnostics")
 
 
 @frappe.whitelist(allow_guest=False)
@@ -2406,7 +2458,11 @@ def create_booking(
                 dashboard_type=dashboard_type,
             )
         except Exception as e:
-            if not _is_lock_wait_timeout_error(e) or attempt == _BOOKING_LOCK_MAX_ATTEMPTS:
+            if not _is_lock_wait_timeout_error(e):
+                raise
+
+            if attempt == _BOOKING_LOCK_MAX_ATTEMPTS:
+                _capture_lock_contention_diagnostics(e)
                 raise
 
             frappe.db.rollback()
