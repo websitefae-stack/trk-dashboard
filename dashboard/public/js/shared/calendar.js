@@ -264,6 +264,16 @@
         syncBookingFields();
       }
 
+      if (
+        event.target &&
+        (event.target.id === "trkCalendarDate" ||
+          event.target.id === "trkCalendarTime" ||
+          event.target.id === "trkCalendarRecurringFrequency" ||
+          event.target.id === "trkCalendarRecurringCount")
+      ) {
+        renderRecurringPreview();
+      }
+
       if (event.target && event.target.id === "trkCalendarGoogleMeet") {
         syncBookingFields();
       }
@@ -1082,6 +1092,7 @@
       recurring: isChecked("trkCalendarRecurring") ? "1" : "0",
       recurring_frequency: getValue("trkCalendarRecurringFrequency"),
       recurring_count: getValue("trkCalendarRecurringCount"),
+      occurrence_overrides: JSON.stringify(getRecurringOccurrenceOverrides() || []),
       notes: notes,
       additional_workers: (function () {
         var checked = document.querySelectorAll("#trkCalendarAdditionalWorkersList input[type='checkbox']:checked");
@@ -1331,6 +1342,87 @@
     toggleModal("trkCalendarNoteModal", false);
   }
 
+  function renderRecurringPreview() {
+    const wrap = document.getElementById("trkCalendarRecurringPreviewWrap");
+    const list = document.getElementById("trkCalendarRecurringPreviewList");
+    if (!wrap || !list) return;
+
+    const type = getValue("trkCalendarType") || "Therapy Session";
+    const count = parseInt(getValue("trkCalendarRecurringCount") || "1", 10) || 1;
+    const isRecurring = type === "Therapy Session" && isChecked("trkCalendarRecurring") && count > 1;
+
+    const baseDateKey = getValue("trkCalendarDate");
+    const baseTime = getValue("trkCalendarTime");
+    const baseDateObj = baseDateKey ? parseDateKey(baseDateKey) : null;
+
+    if (!isRecurring || !baseDateObj || !baseTime) {
+      wrap.style.display = "none";
+      list.innerHTML = "";
+      return;
+    }
+
+    // Preserve any dates/times the coach has already adjusted by hand,
+    // rather than wiping them out every time something re-triggers this
+    // (e.g. re-checking the same frequency).
+    const existingRows = list.querySelectorAll("[data-occurrence-index]");
+    const existingValues = {};
+    existingRows.forEach(function (row) {
+      const index = row.dataset.occurrenceIndex;
+      const dateField = row.querySelector("[data-occurrence-date]");
+      const timeField = row.querySelector("[data-occurrence-time]");
+      existingValues[index] = {
+        date: dateField ? dateField.value : "",
+        time: timeField ? timeField.value : ""
+      };
+    });
+
+    const frequency = getValue("trkCalendarRecurringFrequency") || "Weekly";
+    let html = "";
+
+    for (let index = 0; index < count; index++) {
+      let occurrenceDate = baseDateObj;
+
+      if (index) {
+        if (frequency === "Fortnightly") {
+          occurrenceDate = addDays(baseDateObj, 14 * index);
+        } else if (frequency === "Monthly") {
+          occurrenceDate = addMonths(baseDateObj, index);
+        } else {
+          occurrenceDate = addDays(baseDateObj, 7 * index);
+        }
+      }
+
+      const previous = existingValues[String(index)];
+      const dateValue = previous && previous.date ? previous.date : formatDateKey(occurrenceDate);
+      const timeValue = previous && previous.time ? previous.time : baseTime;
+
+      html += '<div class="trk-recurring-preview-row" data-occurrence-index="' + index + '">'
+        + '<span class="trk-recurring-preview-index">' + (index + 1) + '</span>'
+        + '<input type="date" class="dashboard-input" data-occurrence-date value="' + escapeHtml(dateValue) + '">'
+        + '<input type="time" class="dashboard-input" data-occurrence-time value="' + escapeHtml(timeValue) + '">'
+        + '</div>';
+    }
+
+    list.innerHTML = html;
+    wrap.style.display = "";
+  }
+
+  function getRecurringOccurrenceOverrides() {
+    const wrap = document.getElementById("trkCalendarRecurringPreviewWrap");
+    const list = document.getElementById("trkCalendarRecurringPreviewList");
+    if (!wrap || !list || wrap.style.display === "none") return null;
+
+    const rows = Array.from(list.querySelectorAll("[data-occurrence-index]"));
+    if (!rows.length) return null;
+
+    return rows.map(function (row) {
+      return {
+        date: row.querySelector("[data-occurrence-date]")?.value || "",
+        time: row.querySelector("[data-occurrence-time]")?.value || ""
+      };
+    });
+  }
+
   function syncBookingFields() {
     const type = getValue("trkCalendarType") || "Therapy Session";
     const isHoliday = type === "Holiday";
@@ -1389,6 +1481,7 @@
     
     const showRecurringOptions = type === "Therapy Session" && isChecked("trkCalendarRecurring");
     toggleDisplay("trkCalendarRecurringOptions", showRecurringOptions);
+    renderRecurringPreview();
 
     const locationTypeSelect = document.getElementById("trkCalendarLocationType");
     const clientSelect = document.getElementById("trkCalendarClientSelect");
@@ -1813,6 +1906,14 @@
     d.setDate(d.getDate() + days);
 
     return stripTime(d);
+  }
+
+  function addMonths(date, months) {
+    const target = new Date(date.getFullYear(), date.getMonth() + months, 1);
+    const daysInTargetMonth = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+    target.setDate(Math.min(date.getDate(), daysInTargetMonth));
+
+    return stripTime(target);
   }
 
   function stripTime(date) {

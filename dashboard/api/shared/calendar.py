@@ -1,3 +1,6 @@
+import random
+import time
+
 import frappe
 from frappe import _
 from frappe.utils import add_to_date, getdate, get_datetime, get_fullname, now_datetime
@@ -1912,8 +1915,7 @@ def _get_worker_doctype_and_name_for_user(user):
     return None, None
 
 
-@frappe.whitelist(allow_guest=False)
-def create_booking(
+def _create_booking_impl(
     client=None,
     client_name=None,
     parent_contact=None,
@@ -1938,6 +1940,7 @@ def create_booking(
     recurring=None,
     recurring_frequency=None,
     recurring_count=None,
+    occurrence_overrides=None,
     additional_workers=None,
     dashboard_type=None,
 ):
@@ -1945,6 +1948,16 @@ def create_booking(
 
     dashboard_type = _normalise_dashboard_type(dashboard_type)
     context = _get_context_for_dashboard(dashboard_type)
+
+    if isinstance(occurrence_overrides, str):
+        import json as _json
+        try:
+            occurrence_overrides = _json.loads(occurrence_overrides)
+        except Exception:
+            occurrence_overrides = []
+    if not isinstance(occurrence_overrides, list):
+        occurrence_overrides = []
+    occurrence_overrides = [row if isinstance(row, dict) else {} for row in occurrence_overrides]
 
     client = _coalesce_str("client", client)
     client_name = _coalesce_str("client_name", client_name)
@@ -2041,21 +2054,37 @@ def create_booking(
         if repeat_count not in [1, 4, 12]:
             repeat_count = 1
 
+    def _occurrence_window(index):
+        # A coach can adjust individual occurrences of a recurring series
+        # before saving (e.g. moving one session by a day) - when an
+        # override is present for this occurrence, it wins outright over
+        # the weekly/fortnightly/monthly formula.
+        if index < len(occurrence_overrides):
+            override = occurrence_overrides[index]
+            override_date = (override.get("date") or "").strip()
+            override_time = (override.get("time") or "").strip()
+
+            if override_date and override_time:
+                occurrence_start = get_datetime(f"{override_date} {override_time}:00")
+                occurrence_end = add_to_date(occurrence_start, minutes=duration_minutes)
+                return occurrence_start, occurrence_end
+
+        if not index:
+            return start_dt, end_dt
+
+        if recurring_frequency == "Fortnightly":
+            return add_to_date(start_dt, days=14 * index), add_to_date(end_dt, days=14 * index)
+
+        if recurring_frequency == "Monthly":
+            return add_to_date(start_dt, months=index), add_to_date(end_dt, months=index)
+
+        return add_to_date(start_dt, days=7 * index), add_to_date(end_dt, days=7 * index)
+
     # Validate every occurrence of a recurring booking for conflicts BEFORE
     # creating any of them, so a doomed series never partially creates
     # occurrences before failing on a later one.
     for index in range(repeat_count):
-        if not index:
-            conflict_start, conflict_end = start_dt, end_dt
-        elif recurring_frequency == "Fortnightly":
-            conflict_start = add_to_date(start_dt, days=14 * index)
-            conflict_end = add_to_date(end_dt, days=14 * index)
-        elif recurring_frequency == "Monthly":
-            conflict_start = add_to_date(start_dt, months=index)
-            conflict_end = add_to_date(end_dt, months=index)
-        else:
-            conflict_start = add_to_date(start_dt, days=7 * index)
-            conflict_end = add_to_date(end_dt, days=7 * index)
+        conflict_start, conflict_end = _occurrence_window(index)
 
         conflict = _find_calendar_conflict(
             event_start=conflict_start,
@@ -2090,19 +2119,7 @@ def create_booking(
     created_events = []
 
     for index in range(repeat_count):
-        event_start = start_dt
-        event_end = end_dt
-
-        if index:
-            if recurring_frequency == "Fortnightly":
-                event_start = add_to_date(start_dt, days=14 * index)
-                event_end = add_to_date(end_dt, days=14 * index)
-            elif recurring_frequency == "Monthly":
-                event_start = add_to_date(start_dt, months=index)
-                event_end = add_to_date(end_dt, months=index)
-            else:
-                event_start = add_to_date(start_dt, days=7 * index)
-                event_end = add_to_date(end_dt, days=7 * index)
+        event_start, event_end = _occurrence_window(index)
 
         conflict = _find_calendar_conflict(
             event_start=event_start,
@@ -2296,6 +2313,110 @@ def create_booking(
         "count": len(created_events),
         "record_url": f"{_get_record_base_url(dashboard_type)}?event={created_events[0].name}" if created_events else "",
     }
+
+
+_BOOKING_LOCK_TIMEOUT_SECONDS = 5
+_BOOKING_LOCK_MAX_ATTEMPTS = 4
+
+
+def _is_lock_wait_timeout_error(exc):
+    if type(exc).__name__ == "QueryTimeoutError":
+        return True
+    return "lock wait timeout" in str(exc).lower()
+
+
+@frappe.whitelist(allow_guest=False)
+def create_booking(
+    client=None,
+    client_name=None,
+    parent_contact=None,
+    lead_name=None,
+    item_name=None,
+    school=None,
+    school_name=None,
+    school_manual_name=None,
+    booking_date=None,
+    booking_time=None,
+    from_date=None,
+    to_date=None,
+    duration_minutes=45,
+    appointment_type="Therapy Session",
+    location_type=None,
+    location=None,
+    phone=None,
+    google_meet=None,
+    notes=None,
+    billing_type=None,
+    travel_charged=None,
+    recurring=None,
+    recurring_frequency=None,
+    recurring_count=None,
+    occurrence_overrides=None,
+    additional_workers=None,
+    dashboard_type=None,
+):
+    """
+    Thin retry wrapper around _create_booking_impl() - see that function for
+    the actual booking logic.
+
+    Every new Event briefly contends for a single naming-series row shared
+    by every Event on the site (Frappe's own design, not specific to this
+    code). If some other transaction is holding that row at the moment a
+    coach saves, MySQL's default lock wait is around 50 seconds - long
+    enough that retrying with the same timeout is impractical within one
+    web request, and long enough that the coach just sees a hard failure.
+    Dropping this request's own lock wait down to a few seconds and retrying
+    a handful of times turns a transient hold-up into a short pause instead
+    of a failure, without requiring any change to the database or server.
+    """
+    try:
+        frappe.db.sql(f"SET SESSION innodb_lock_wait_timeout = {_BOOKING_LOCK_TIMEOUT_SECONDS}")
+    except Exception:
+        pass
+
+    for attempt in range(1, _BOOKING_LOCK_MAX_ATTEMPTS + 1):
+        try:
+            return _create_booking_impl(
+                client=client,
+                client_name=client_name,
+                parent_contact=parent_contact,
+                lead_name=lead_name,
+                item_name=item_name,
+                school=school,
+                school_name=school_name,
+                school_manual_name=school_manual_name,
+                booking_date=booking_date,
+                booking_time=booking_time,
+                from_date=from_date,
+                to_date=to_date,
+                duration_minutes=duration_minutes,
+                appointment_type=appointment_type,
+                location_type=location_type,
+                location=location,
+                phone=phone,
+                google_meet=google_meet,
+                notes=notes,
+                billing_type=billing_type,
+                travel_charged=travel_charged,
+                recurring=recurring,
+                recurring_frequency=recurring_frequency,
+                recurring_count=recurring_count,
+                occurrence_overrides=occurrence_overrides,
+                additional_workers=additional_workers,
+                dashboard_type=dashboard_type,
+            )
+        except Exception as e:
+            if not _is_lock_wait_timeout_error(e) or attempt == _BOOKING_LOCK_MAX_ATTEMPTS:
+                raise
+
+            frappe.db.rollback()
+            # A rolled-back attempt may already have marked background jobs
+            # (Google push, HQ sharing, pack recalculation) as scheduled
+            # against event names that no longer exist once we retry - clear
+            # those per-request dedupe guards so the retry can enqueue them.
+            frappe.local.flags.pop("coach_calendar_sync_scheduled_jobs", None)
+            frappe.local.flags.pop("dashboard_recalc_balance_scheduled_jobs", None)
+            time.sleep(random.uniform(0.3, 0.8) * attempt)
 
 
 @frappe.whitelist(allow_guest=False)

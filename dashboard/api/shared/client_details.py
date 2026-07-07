@@ -888,7 +888,18 @@ def get_client_appointment_rows(client_name, calendar_detail_base_url="/coach_db
         )
         row["item_display_name"] = get_item_display_name(row.get("item"))
         row["appointment_type"] = row["item_display_name"]
-        row["date"] = row.get("appointment_start")
+
+        # Prefer the linked Event's own starts_on/ends_on over this record's
+        # copy of the date. Client Appointment's own copy is only refreshed
+        # by a background job (Package Recalculate Balance), which can lag
+        # a few seconds behind a just-saved date/time change - the Event
+        # itself is always current the instant the appointment is saved.
+        linked_starts_on = (
+            frappe.db.get_value("Event", row.get("linked_event"), "starts_on")
+            if row.get("linked_event") and frappe.db.exists("Event", row.get("linked_event"))
+            else None
+        )
+        row["date"] = linked_starts_on or row.get("appointment_start")
         row["time"] = ""
 
         row["location"] = frappe.db.get_value(
