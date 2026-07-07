@@ -591,20 +591,20 @@
     const chargeableReturnMiles = chargeableOneWay * 2;
     const travelQty = chargeableReturnMiles * totalSessions;
 
-    const description = [
-      "Travel: ",
-      oneWayMiles,
-      " miles each way, less ",
-      FREE_MILES_ONE_WAY,
-      " free miles each way = ",
-      chargeableOneWay,
-      " chargeable miles each way (",
-      chargeableReturnMiles,
-      " miles return) x £",
-      TRAVEL_RATE_PER_MILE,
-      " x ",
+    const travelDescription = [
+      "Travel charge for ",
       totalSessions,
-      " sessions"
+      " session",
+      totalSessions === 1 ? "" : "s",
+      ". Client location is ",
+      oneWayMiles,
+      " miles away. The first ",
+      FREE_MILES_ONE_WAY,
+      " miles each way are included. ",
+      chargeableOneWay,
+      " miles each way are chargeable, including return travel, at £",
+      TRAVEL_RATE_PER_MILE,
+      " per mile."
     ].join("");
 
     let travelRow = getTravelRow();
