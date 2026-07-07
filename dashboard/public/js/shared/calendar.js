@@ -801,6 +801,32 @@
     const body = document.getElementById("trkCalendarDetailsBody");
     if (!body) return;
 
+    if (Number(event.is_pending || 0) === 1) {
+      const isFailed = Number(event.is_failed || 0) === 1;
+
+      body.innerHTML = isFailed
+        ? '<div class="trk-calendar-detail-group">'
+          + '<div class="trk-calendar-detail-label">Could not be saved</div>'
+          + '<div class="trk-calendar-detail-value">'
+          + escapeHtml(event.title || "This booking")
+          + ' could not be saved after several attempts. Please delete this and try booking it again.'
+          + '</div>'
+          + (event.last_error
+              ? '<div class="trk-calendar-detail-value" style="margin-top:8px;font-size:12px;color:#888;">'
+                + escapeHtml(event.last_error)
+                + '</div>'
+              : '')
+          + '</div>'
+        : '<div class="trk-calendar-detail-group">'
+          + '<div class="trk-calendar-detail-label">Still saving</div>'
+          + '<div class="trk-calendar-detail-value">'
+          + escapeHtml(event.title || "This booking")
+          + ' is still being saved and will finish shortly. No action needed.'
+          + '</div>'
+          + '</div>';
+      return;
+    }
+
     const detailsUrl = getDefaultDetailsUrl(event.name || "");
     const isPrivate = Number(event.is_private || 0) === 1;
     const viewMode = getViewModeParams();
@@ -1832,6 +1858,12 @@
 
     if (cleanStatus === "No Show") {
       node.style.borderLeft = "6px solid #FF8438";
+    }
+
+    if (cleanStatus === "Failed") {
+      node.style.background = "#FDECEC";
+      node.style.borderLeft = "4px solid #C0392B";
+      node.style.color = "#7A1E1E";
     }
   }
 

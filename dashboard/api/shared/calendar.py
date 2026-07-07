@@ -1520,6 +1520,12 @@ def _get_events(range_start_date, range_end_date, dashboard_type, selected_calen
         if item:
             events.append(item)
 
+    if frappe.db.exists("DocType", "Pending Booking"):
+        from dashboard.api.shared.pending_bookings import get_pending_bookings_for_calendar
+        events.extend(
+            get_pending_bookings_for_calendar(dashboard_type, context, range_start_date, range_end_date)
+        )
+
     return events
 
 
@@ -1915,6 +1921,40 @@ def _get_worker_doctype_and_name_for_user(user):
     return None, None
 
 
+def compute_occurrence_window(index, start_dt, end_dt, recurring_frequency, duration_minutes, occurrence_overrides):
+    """
+    Shared date math for one occurrence of a (possibly recurring) booking.
+    Used both by the live booking flow and by the pending-booking queue's
+    conflict check, so the two can never drift out of sync with each other.
+    """
+    occurrence_overrides = occurrence_overrides or []
+
+    # A coach can adjust individual occurrences of a recurring series before
+    # saving (e.g. moving one session by a day) - when an override is
+    # present for this occurrence, it wins outright over the weekly/
+    # fortnightly/monthly formula.
+    if index < len(occurrence_overrides):
+        override = occurrence_overrides[index] or {}
+        override_date = (override.get("date") or "").strip()
+        override_time = (override.get("time") or "").strip()
+
+        if override_date and override_time:
+            occurrence_start = get_datetime(f"{override_date} {override_time}:00")
+            occurrence_end = add_to_date(occurrence_start, minutes=duration_minutes)
+            return occurrence_start, occurrence_end
+
+    if not index:
+        return start_dt, end_dt
+
+    if recurring_frequency == "Fortnightly":
+        return add_to_date(start_dt, days=14 * index), add_to_date(end_dt, days=14 * index)
+
+    if recurring_frequency == "Monthly":
+        return add_to_date(start_dt, months=index), add_to_date(end_dt, months=index)
+
+    return add_to_date(start_dt, days=7 * index), add_to_date(end_dt, days=7 * index)
+
+
 def _create_booking_impl(
     client=None,
     client_name=None,
@@ -2055,30 +2095,9 @@ def _create_booking_impl(
             repeat_count = 1
 
     def _occurrence_window(index):
-        # A coach can adjust individual occurrences of a recurring series
-        # before saving (e.g. moving one session by a day) - when an
-        # override is present for this occurrence, it wins outright over
-        # the weekly/fortnightly/monthly formula.
-        if index < len(occurrence_overrides):
-            override = occurrence_overrides[index]
-            override_date = (override.get("date") or "").strip()
-            override_time = (override.get("time") or "").strip()
-
-            if override_date and override_time:
-                occurrence_start = get_datetime(f"{override_date} {override_time}:00")
-                occurrence_end = add_to_date(occurrence_start, minutes=duration_minutes)
-                return occurrence_start, occurrence_end
-
-        if not index:
-            return start_dt, end_dt
-
-        if recurring_frequency == "Fortnightly":
-            return add_to_date(start_dt, days=14 * index), add_to_date(end_dt, days=14 * index)
-
-        if recurring_frequency == "Monthly":
-            return add_to_date(start_dt, months=index), add_to_date(end_dt, months=index)
-
-        return add_to_date(start_dt, days=7 * index), add_to_date(end_dt, days=7 * index)
+        return compute_occurrence_window(
+            index, start_dt, end_dt, recurring_frequency, duration_minutes, occurrence_overrides
+        )
 
     # Validate every occurrence of a recurring booking for conflicts BEFORE
     # creating any of them, so a doomed series never partially creates
@@ -2316,13 +2335,65 @@ def _create_booking_impl(
 
 
 _BOOKING_LOCK_TIMEOUT_SECONDS = 5
-_BOOKING_LOCK_MAX_ATTEMPTS = 4
+_BOOKING_LOCK_MAX_ATTEMPTS = 3
 
 
 def _is_lock_wait_timeout_error(exc):
     if type(exc).__name__ == "QueryTimeoutError":
         return True
     return "lock wait timeout" in str(exc).lower()
+
+
+def _capture_lock_contention_diagnostics(exc):
+    """
+    Best-effort capture of what else MySQL was doing at the moment a booking
+    hit the naming-series lock timeout, logged to the Error Log so it's
+    visible without any bench/console/DB-admin access. Only called once
+    retries are exhausted and the failure is about to be surfaced - the aim
+    is to finally get real evidence of what's holding the row, since static
+    code review hasn't turned up a synchronous culprit anywhere in this app.
+    Silently logs whatever it could still read if the DB user lacks
+    privilege for some of these views.
+    """
+    lines = [f"Original error: {exc}"]
+
+    try:
+        active_transactions = frappe.db.sql(
+            """
+            SELECT
+                trx_id, trx_state, trx_started, trx_wait_started,
+                trx_mysql_thread_id, trx_query, trx_rows_locked, trx_rows_modified
+            FROM information_schema.innodb_trx
+            ORDER BY trx_started ASC
+            """,
+            as_dict=True,
+        )
+        lines.append(f"Active InnoDB transactions at time of failure: {len(active_transactions)}")
+        for row in active_transactions:
+            lines.append(
+                f"  thread={row.get('trx_mysql_thread_id')} state={row.get('trx_state')} "
+                f"started={row.get('trx_started')} wait_started={row.get('trx_wait_started')} "
+                f"rows_locked={row.get('trx_rows_locked')} rows_modified={row.get('trx_rows_modified')} "
+                f"query={row.get('trx_query')}"
+            )
+    except Exception as diag_error:
+        lines.append(f"Could not read information_schema.innodb_trx: {diag_error}")
+
+    try:
+        lock_waits = frappe.db.sql(
+            "SELECT waiting_pid, waiting_query, blocking_pid, blocking_query FROM sys.innodb_lock_waits",
+            as_dict=True,
+        )
+        lines.append(f"sys.innodb_lock_waits rows: {len(lock_waits)}")
+        for row in lock_waits:
+            lines.append(
+                f"  waiting_pid={row.get('waiting_pid')} blocking_pid={row.get('blocking_pid')} "
+                f"waiting_query={row.get('waiting_query')} blocking_query={row.get('blocking_query')}"
+            )
+    except Exception as diag_error:
+        lines.append(f"Could not read sys.innodb_lock_waits: {diag_error}")
+
+    frappe.log_error("\n".join(lines), "Booking Lock Contention Diagnostics")
 
 
 @frappe.whitelist(allow_guest=False)
@@ -2356,19 +2427,55 @@ def create_booking(
     dashboard_type=None,
 ):
     """
-    Thin retry wrapper around _create_booking_impl() - see that function for
-    the actual booking logic.
+    Wrapper around _create_booking_impl() - see that function for the actual
+    booking logic.
 
     Every new Event briefly contends for a single naming-series row shared
     by every Event on the site (Frappe's own design, not specific to this
     code). If some other transaction is holding that row at the moment a
-    coach saves, MySQL's default lock wait is around 50 seconds - long
-    enough that retrying with the same timeout is impractical within one
-    web request, and long enough that the coach just sees a hard failure.
-    Dropping this request's own lock wait down to a few seconds and retrying
-    a handful of times turns a transient hold-up into a short pause instead
-    of a failure, without requiring any change to the database or server.
+    coach saves, MySQL's default lock wait is around 50 seconds - too long
+    to make a coach wait on the offchance it clears, and too long to retry
+    inline more than a couple of times.
+
+    So this tries a couple of quick, short-timeout attempts first (the
+    normal case - no contention - returns immediately, unchanged from
+    before). If those still hit the same lock, instead of failing outright
+    or making the coach keep waiting, the request is handed off to a
+    background queue (pending_bookings.queue_booking) that keeps retrying
+    for as long as it takes. Everything above the actual Event insert has
+    already validated successfully by that point, so nothing needs
+    re-checking - only the creation itself is deferred.
     """
+    kwargs = dict(
+        client=client,
+        client_name=client_name,
+        parent_contact=parent_contact,
+        lead_name=lead_name,
+        item_name=item_name,
+        school=school,
+        school_name=school_name,
+        school_manual_name=school_manual_name,
+        booking_date=booking_date,
+        booking_time=booking_time,
+        from_date=from_date,
+        to_date=to_date,
+        duration_minutes=duration_minutes,
+        appointment_type=appointment_type,
+        location_type=location_type,
+        location=location,
+        phone=phone,
+        google_meet=google_meet,
+        notes=notes,
+        billing_type=billing_type,
+        travel_charged=travel_charged,
+        recurring=recurring,
+        recurring_frequency=recurring_frequency,
+        recurring_count=recurring_count,
+        occurrence_overrides=occurrence_overrides,
+        additional_workers=additional_workers,
+        dashboard_type=dashboard_type,
+    )
+
     try:
         frappe.db.sql(f"SET SESSION innodb_lock_wait_timeout = {_BOOKING_LOCK_TIMEOUT_SECONDS}")
     except Exception:
@@ -2376,37 +2483,9 @@ def create_booking(
 
     for attempt in range(1, _BOOKING_LOCK_MAX_ATTEMPTS + 1):
         try:
-            return _create_booking_impl(
-                client=client,
-                client_name=client_name,
-                parent_contact=parent_contact,
-                lead_name=lead_name,
-                item_name=item_name,
-                school=school,
-                school_name=school_name,
-                school_manual_name=school_manual_name,
-                booking_date=booking_date,
-                booking_time=booking_time,
-                from_date=from_date,
-                to_date=to_date,
-                duration_minutes=duration_minutes,
-                appointment_type=appointment_type,
-                location_type=location_type,
-                location=location,
-                phone=phone,
-                google_meet=google_meet,
-                notes=notes,
-                billing_type=billing_type,
-                travel_charged=travel_charged,
-                recurring=recurring,
-                recurring_frequency=recurring_frequency,
-                recurring_count=recurring_count,
-                occurrence_overrides=occurrence_overrides,
-                additional_workers=additional_workers,
-                dashboard_type=dashboard_type,
-            )
+            return _create_booking_impl(**kwargs)
         except Exception as e:
-            if not _is_lock_wait_timeout_error(e) or attempt == _BOOKING_LOCK_MAX_ATTEMPTS:
+            if not _is_lock_wait_timeout_error(e):
                 raise
 
             frappe.db.rollback()
@@ -2416,6 +2495,19 @@ def create_booking(
             # those per-request dedupe guards so the retry can enqueue them.
             frappe.local.flags.pop("coach_calendar_sync_scheduled_jobs", None)
             frappe.local.flags.pop("dashboard_recalc_balance_scheduled_jobs", None)
+
+            if attempt == _BOOKING_LOCK_MAX_ATTEMPTS:
+                # A couple of quick attempts weren't enough - rather than
+                # keep the coach waiting on the offchance a longer wait
+                # would clear it (or fail their booking outright), hand it
+                # off to the background queue. Everything above this point
+                # already validated successfully (that's the only way
+                # execution reaches a lock timeout on the insert itself),
+                # so nothing needs re-checking except the actual creation.
+                _capture_lock_contention_diagnostics(e)
+                from dashboard.api.shared.pending_bookings import queue_booking
+                return queue_booking(kwargs, dashboard_type=dashboard_type)
+
             time.sleep(random.uniform(0.3, 0.8) * attempt)
 
 
