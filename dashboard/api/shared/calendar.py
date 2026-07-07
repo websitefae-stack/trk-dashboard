@@ -26,6 +26,7 @@ TRAVEL_EXCLUDED_SESSION_TYPES = ["Parent Check-In"]
 CLIENT_SESSION_TYPES = ["Therapy Session", "Parent Check-In"]
 NON_CLIENT_TYPES = ["Initial Consultation", "Internal Training", "School Visit", "Company Meeting", "School Session", "Company Session", "Event / Stall", "Holiday", "Personal"]
 SCHOOL_LINKED_TYPES = ("School Visit", "Company Meeting", "School Session", "Company Session")
+PACK_LINKED_SCHOOL_TYPES = ("School Session", "Company Session")
 
 
 def _require_logged_in_user():
@@ -2144,7 +2145,16 @@ def create_booking(
         if appointment_type in CLIENT_SESSION_TYPES and _event_has_field("custom_client"):
             event.custom_client = client
 
-        if appointment_type in SCHOOL_LINKED_TYPES and school and _event_has_field("custom_client"):
+        # Only School Session/Company Session are pack-billed against the
+        # selected school/company - they need custom_client set so the
+        # Package Booking Validation server script can find its balance.
+        # School Visit/Company Meeting are plain non-billable org visits;
+        # setting custom_client on them too made that same validation
+        # script run its pack-balance checks on every one of them, which
+        # both adds needless work to the save and risks a false "no
+        # balance available" block on a booking that was never meant to
+        # touch packages at all.
+        if appointment_type in PACK_LINKED_SCHOOL_TYPES and school and _event_has_field("custom_client"):
             event.custom_client = school
 
         _set_session_type(event, appointment_type)
