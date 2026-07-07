@@ -47,6 +47,7 @@ FORCE_EDITABLE_FIELDS = {
     "billing_contact",
     "travel_charged",
     "travel_miles_one_way",
+    "travel_charge_per_session",
 }
 
 
@@ -1417,6 +1418,7 @@ def get_client_context_data(client_name=None, is_new=False, base_url="/coach_db"
         "client_invoices": get_client_invoices(doc.name if is_existing_client else ""),
         "travel_charged": int(doc.get("travel_charged") or 0),
         "travel_miles_one_way": doc.get("travel_miles_one_way") or 0,
+        "travel_charge_per_session": doc.get("travel_charge_per_session") or 0,
     }
 
 

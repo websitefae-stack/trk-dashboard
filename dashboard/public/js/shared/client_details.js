@@ -827,6 +827,21 @@
     }
   }
 
+    function initTravelChargeToggle() {
+    const checkbox = getField("travel_charged");
+    const wrap = el("clientTravelChargePerSessionWrap");
+    if (!checkbox || !wrap || checkbox.dataset.travelChargeToggleBound === "1") return;
+
+    checkbox.dataset.travelChargeToggleBound = "1";
+
+    function applyTravelChargeVisibility() {
+      wrap.style.display = checkbox.checked ? "" : "none";
+    }
+
+    checkbox.addEventListener("change", applyTravelChargeVisibility);
+    applyTravelChargeVisibility();
+  }
+
     function initCompletedPackToggle() {
     const button = el("toggleCompletedPacks");
     if (!button || button.dataset.completedPacksBound === "1") return;
@@ -1113,6 +1128,7 @@
     initFullNameBuilder();
     initAgeBuilder();
     initCompletedPackToggle();
+    initTravelChargeToggle();
     initChangeRequest();
     initExistingContactModal();
     initDiagnosisRows();

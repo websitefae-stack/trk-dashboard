@@ -224,3 +224,10 @@
 .contacts-filter-row-search-only {
   grid-template-columns: minmax(0, 1fr);
 }
+
+.dashboard-field-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+}
