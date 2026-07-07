@@ -21,6 +21,7 @@ TRAVEL_STATUS_VALUES = ["Attended", "Completed"]
 
 FREE_TRAVEL_MILES_ONE_WAY = 10
 TRAVEL_EXCLUDED_SESSION_TYPES = ["Parent Check-In"]
+TRAVEL_ITEM_CODE = "TRA002"
 
 
 # =========================================================
@@ -779,6 +780,42 @@ def _sum_invoice_total(dashboard_type, context, start_date, end_date):
     return total
 
 
+def _sum_invoice_travel_total(dashboard_type, context, start_date, end_date):
+    filters = _get_invoice_filters(
+        dashboard_type=dashboard_type,
+        context=context,
+        start_date=start_date,
+        end_date=end_date,
+        outstanding_only=False,
+    )
+
+    invoice_names = frappe.get_all(
+        "Sales Invoice",
+        filters=filters,
+        pluck="name",
+        limit_page_length=10000,
+        ignore_permissions=True,
+    )
+
+    if not invoice_names:
+        return 0.0
+
+    rows = frappe.get_all(
+        "Sales Invoice Item",
+        filters={"parent": ["in", invoice_names], "item_code": TRAVEL_ITEM_CODE},
+        fields=["amount"],
+        limit_page_length=100000,
+        ignore_permissions=True,
+    )
+
+    total = 0.0
+
+    for row in rows:
+        total += flt(row.get("amount") or 0)
+
+    return total
+
+
 def _sum_invoice_total_ytd(dashboard_type, context):
     current_year = getdate(today()).year
     start_date = getdate(f"{current_year}-01-01")
@@ -1090,6 +1127,26 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
 
     client_rows = _get_dashboard_client_rows(dashboard_type, context, primary_only_for_coach=False)
 
+    monthly_travel_total_current = _sum_invoice_travel_total(
+        dashboard_type, context, current_month_start, current_month_end
+    )
+    monthly_travel_total_previous = _sum_invoice_travel_total(
+        dashboard_type, context, previous_month_start, previous_month_end
+    )
+    monthly_invoice_total_current = _sum_invoice_total(
+        dashboard_type, context, current_month_start, current_month_end
+    )
+    monthly_invoice_total_previous = _sum_invoice_total(
+        dashboard_type, context, previous_month_start, previous_month_end
+    )
+
+    # Coach dashboard shows travel as its own pair of blocks rather than
+    # folded into the invoice totals, so it needs pulling back out here.
+    # Franchisor keeps the combined total as before - not asked to change.
+    if dashboard_type == COACH_DASHBOARD:
+        monthly_invoice_total_current -= monthly_travel_total_current
+        monthly_invoice_total_previous -= monthly_travel_total_previous
+
     response = {
         "dashboard_type": dashboard_type,
         "current_label": _get_month_label(current_month_start),
@@ -1101,12 +1158,10 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
 
         "upcoming_appointments": _get_upcoming_appointments(dashboard_type, context, limit=8),
 
-        "monthly_invoice_total_current": _sum_invoice_total(
-            dashboard_type, context, current_month_start, current_month_end
-        ),
-        "monthly_invoice_total_previous": _sum_invoice_total(
-            dashboard_type, context, previous_month_start, previous_month_end
-        ),
+        "monthly_invoice_total_current": monthly_invoice_total_current,
+        "monthly_invoice_total_previous": monthly_invoice_total_previous,
+        "monthly_travel_total_current": monthly_travel_total_current,
+        "monthly_travel_total_previous": monthly_travel_total_previous,
         "year_to_date_income": _sum_invoice_total_ytd(
             dashboard_type,
             context,

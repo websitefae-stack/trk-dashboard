@@ -282,6 +282,11 @@
     setText("dashboardInvoicePreviousValue", formatMoney(payload.monthly_invoice_total_previous || 0, "GBP"));
     setText("dashboardInvoiceCurrentValue", formatMoney(payload.monthly_invoice_total_current || 0, "GBP"));
 
+    setText("dashboardTravelPreviousLabel", `Travel Total ${payload.previous_label || "Last Month"}`);
+    setText("dashboardTravelCurrentLabel", `Travel Total ${payload.current_label || "This Month"}`);
+    setText("dashboardTravelPreviousValue", formatMoney(payload.monthly_travel_total_previous || 0, "GBP"));
+    setText("dashboardTravelCurrentValue", formatMoney(payload.monthly_travel_total_current || 0, "GBP"));
+
     renderUpcomingAppointments("dashboardUpcomingTableBody", payload.upcoming_appointments || []);
     renderOutstandingInvoices(payload.outstanding_invoices || []);
   }
