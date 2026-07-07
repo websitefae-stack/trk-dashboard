@@ -1,3 +1,6 @@
+import random
+import time
+
 import frappe
 from frappe import _
 from frappe.utils import add_to_date, getdate, get_datetime, get_fullname, now_datetime
@@ -1912,8 +1915,7 @@ def _get_worker_doctype_and_name_for_user(user):
     return None, None
 
 
-@frappe.whitelist(allow_guest=False)
-def create_booking(
+def _create_booking_impl(
     client=None,
     client_name=None,
     parent_contact=None,
@@ -2296,6 +2298,108 @@ def create_booking(
         "count": len(created_events),
         "record_url": f"{_get_record_base_url(dashboard_type)}?event={created_events[0].name}" if created_events else "",
     }
+
+
+_BOOKING_LOCK_TIMEOUT_SECONDS = 5
+_BOOKING_LOCK_MAX_ATTEMPTS = 4
+
+
+def _is_lock_wait_timeout_error(exc):
+    if type(exc).__name__ == "QueryTimeoutError":
+        return True
+    return "lock wait timeout" in str(exc).lower()
+
+
+@frappe.whitelist(allow_guest=False)
+def create_booking(
+    client=None,
+    client_name=None,
+    parent_contact=None,
+    lead_name=None,
+    item_name=None,
+    school=None,
+    school_name=None,
+    school_manual_name=None,
+    booking_date=None,
+    booking_time=None,
+    from_date=None,
+    to_date=None,
+    duration_minutes=45,
+    appointment_type="Therapy Session",
+    location_type=None,
+    location=None,
+    phone=None,
+    google_meet=None,
+    notes=None,
+    billing_type=None,
+    travel_charged=None,
+    recurring=None,
+    recurring_frequency=None,
+    recurring_count=None,
+    additional_workers=None,
+    dashboard_type=None,
+):
+    """
+    Thin retry wrapper around _create_booking_impl() - see that function for
+    the actual booking logic.
+
+    Every new Event briefly contends for a single naming-series row shared
+    by every Event on the site (Frappe's own design, not specific to this
+    code). If some other transaction is holding that row at the moment a
+    coach saves, MySQL's default lock wait is around 50 seconds - long
+    enough that retrying with the same timeout is impractical within one
+    web request, and long enough that the coach just sees a hard failure.
+    Dropping this request's own lock wait down to a few seconds and retrying
+    a handful of times turns a transient hold-up into a short pause instead
+    of a failure, without requiring any change to the database or server.
+    """
+    try:
+        frappe.db.sql(f"SET SESSION innodb_lock_wait_timeout = {_BOOKING_LOCK_TIMEOUT_SECONDS}")
+    except Exception:
+        pass
+
+    for attempt in range(1, _BOOKING_LOCK_MAX_ATTEMPTS + 1):
+        try:
+            return _create_booking_impl(
+                client=client,
+                client_name=client_name,
+                parent_contact=parent_contact,
+                lead_name=lead_name,
+                item_name=item_name,
+                school=school,
+                school_name=school_name,
+                school_manual_name=school_manual_name,
+                booking_date=booking_date,
+                booking_time=booking_time,
+                from_date=from_date,
+                to_date=to_date,
+                duration_minutes=duration_minutes,
+                appointment_type=appointment_type,
+                location_type=location_type,
+                location=location,
+                phone=phone,
+                google_meet=google_meet,
+                notes=notes,
+                billing_type=billing_type,
+                travel_charged=travel_charged,
+                recurring=recurring,
+                recurring_frequency=recurring_frequency,
+                recurring_count=recurring_count,
+                additional_workers=additional_workers,
+                dashboard_type=dashboard_type,
+            )
+        except Exception as e:
+            if not _is_lock_wait_timeout_error(e) or attempt == _BOOKING_LOCK_MAX_ATTEMPTS:
+                raise
+
+            frappe.db.rollback()
+            # A rolled-back attempt may already have marked background jobs
+            # (Google push, HQ sharing, pack recalculation) as scheduled
+            # against event names that no longer exist once we retry - clear
+            # those per-request dedupe guards so the retry can enqueue them.
+            frappe.local.flags.pop("coach_calendar_sync_scheduled_jobs", None)
+            frappe.local.flags.pop("dashboard_recalc_balance_scheduled_jobs", None)
+            time.sleep(random.uniform(0.3, 0.8) * attempt)
 
 
 @frappe.whitelist(allow_guest=False)
