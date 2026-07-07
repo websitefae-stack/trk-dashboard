@@ -786,11 +786,12 @@ def _build_travel_row_for_client(client_name, total_sessions):
     travel_qty = chargeable_return_miles * total_sessions
 
     description = (
-        f"Travel: {one_way_miles:g} miles each way, less "
-        f"{FREE_MILES_ONE_WAY:g} free miles each way = "
-        f"{chargeable_one_way:g} chargeable miles each way "
-        f"({chargeable_return_miles:g} miles return) x £{TRAVEL_RATE_PER_MILE:g} "
-        f"x {total_sessions:g} sessions"
+        f"Travel charge for {total_sessions:g} session"
+        f"{'' if total_sessions == 1 else 's'}. "
+        f"Client location is {one_way_miles:g} miles away. "
+        f"The first {FREE_MILES_ONE_WAY:g} miles each way are included. "
+        f"{chargeable_one_way:g} miles each way are chargeable, "
+        f"including return travel, at £{TRAVEL_RATE_PER_MILE:g} per mile."
     )
 
     return {
