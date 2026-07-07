@@ -6,7 +6,6 @@
   const SHARED_API = "dashboard.api.shared.invoices";
 
   const TRAVEL_ITEM_CODE = "TRA002";
-  const PARENT_CHECKIN_ITEM_CODE = "PAR001";
   const FREE_MILES_ONE_WAY = 10;
   const TRAVEL_RATE_PER_MILE = 0.45;
 
@@ -473,6 +472,7 @@
     const itemCode = row.querySelector("[data-item-field='item_code']")?.value || "";
 
     if (!itemCode) {
+      row.dataset.bundleSessionCount = "0";
       recalcItemRow(row);
       await updateTravelRow();
       return;
@@ -498,6 +498,8 @@
     if (rateField) {
       rateField.value = details.rate != null ? details.rate : 0;
     }
+
+    row.dataset.bundleSessionCount = String(details.bundle_session_count || 0);
 
     recalcTotals();
     await updateTravelRow();
@@ -560,9 +562,9 @@
 
       if (!itemCode) return;
       if (itemCode === TRAVEL_ITEM_CODE) return;
-      if (itemCode === PARENT_CHECKIN_ITEM_CODE) return;
 
-      total += qty;
+      const sessionsPerItem = Number(row.dataset.bundleSessionCount || 0);
+      total += sessionsPerItem * qty;
     });
 
     return total;
@@ -573,10 +575,12 @@
     if (!currentClientDefaults) return;
 
     const travelCharged = Number(currentClientDefaults.travel_charged || 0);
-    const oneWayMiles = Number(currentClientDefaults.travel_miles_one_way || 0);
+    const ratePerSession = Number(currentClientDefaults.travel_charge_per_session || 0);
 
-    if (!travelCharged || !oneWayMiles || oneWayMiles <= FREE_MILES_ONE_WAY) {
-      removeTravelRow();
+    if (!travelCharged || !ratePerSession) {
+      // Not a standing charge for this client (box unticked, or no rate set
+      // yet) - leave the invoice alone. A travel line added manually here
+      // must not be touched.
       return;
     }
 
@@ -587,25 +591,18 @@
       return;
     }
 
-    const chargeableOneWay = oneWayMiles - FREE_MILES_ONE_WAY;
-    const chargeableReturnMiles = chargeableOneWay * 2;
-    const travelQty = chargeableReturnMiles * totalSessions;
-
-    const description = [
-      "Travel: ",
-      oneWayMiles,
-      " miles each way, less ",
-      FREE_MILES_ONE_WAY,
-      " free miles each way = ",
-      chargeableOneWay,
-      " chargeable miles each way (",
-      chargeableReturnMiles,
-      " miles return) x £",
-      TRAVEL_RATE_PER_MILE,
-      " x ",
-      totalSessions,
-      " sessions"
-    ].join("");
+    const description =
+      "Travel charge for " +
+      totalSessions +
+      " session" +
+      (totalSessions === 1 ? "" : "s") +
+      " at this client's agreed rate of £" +
+      ratePerSession +
+      " per session. (Travel is charged at £" +
+      TRAVEL_RATE_PER_MILE +
+      " per mile, with the first " +
+      FREE_MILES_ONE_WAY +
+      " miles each way free.)";
 
     let travelRow = getTravelRow();
 
@@ -613,9 +610,9 @@
       await addItemRow({
         item_code: TRAVEL_ITEM_CODE,
         description: description,
-        qty: travelQty,
-        rate: TRAVEL_RATE_PER_MILE,
-        amount: travelQty * TRAVEL_RATE_PER_MILE
+        qty: totalSessions,
+        rate: ratePerSession,
+        amount: totalSessions * ratePerSession
       });
       return;
     }
@@ -625,8 +622,8 @@
     const rateField = travelRow.querySelector("[data-item-field='rate']");
 
     if (descriptionField) descriptionField.value = description;
-    if (qtyField) qtyField.value = travelQty;
-    if (rateField) rateField.value = TRAVEL_RATE_PER_MILE;
+    if (qtyField) qtyField.value = totalSessions;
+    if (rateField) rateField.value = ratePerSession;
 
     recalcTotals();
   }
