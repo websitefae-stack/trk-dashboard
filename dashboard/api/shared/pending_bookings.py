@@ -303,21 +303,28 @@ def get_pending_bookings_for_calendar(dashboard_type, context, range_start_date,
     Lightweight preview rows for anything still queued/being retried, so a
     coach sees their booking in the calendar immediately instead of it
     looking like nothing happened while the background job keeps trying.
+    Failed bookings are included too (recent ones only) - a booking that
+    could never be created must not just silently vanish from view with no
+    explanation once the retries run out.
     """
-    filters = {"status": ["in", ["Pending", "Processing"]]}
+    recent_cutoff = add_to_date(frappe.utils.now_datetime(), hours=-24)
+    filters = [
+        ["status", "in", ["Pending", "Processing", "Failed"]],
+        ["modified", ">", recent_cutoff],
+    ]
 
     if dashboard_type == SESSION_WORKER_DASHBOARD:
         worker_name = (context.get("worker_name") or "").strip()
         if not worker_name:
             return []
-        filters["worker_filter_name"] = worker_name
+        filters.append(["worker_filter_name", "=", worker_name])
     else:
-        filters["view_as_user"] = context.get("view_as_user") or frappe.session.user
+        filters.append(["view_as_user", "=", context.get("view_as_user") or frappe.session.user])
 
     rows = frappe.get_all(
         "Pending Booking",
         filters=filters,
-        fields=["name", "preview_subject", "preview_windows_json"],
+        fields=["name", "preview_subject", "preview_windows_json", "status", "last_error"],
         ignore_permissions=True,
     )
 
@@ -332,6 +339,8 @@ def get_pending_bookings_for_calendar(dashboard_type, context, range_start_date,
         except Exception:
             windows = []
 
+        is_failed = row.status == "Failed"
+
         for window in windows:
             window_start = get_datetime(window.get("start"))
             window_end = get_datetime(window.get("end"))
@@ -342,13 +351,15 @@ def get_pending_bookings_for_calendar(dashboard_type, context, range_start_date,
             events.append({
                 "id": row.name,
                 "name": row.name,
-                "title": row.preview_subject,
-                "client_display_name": row.preview_subject,
+                "is_failed": 1 if is_failed else 0,
+                "last_error": row.last_error if is_failed else "",
+                "title": (row.preview_subject or "") + (" - could not be saved" if is_failed else ""),
+                "client_display_name": (row.preview_subject or "") + (" - could not be saved" if is_failed else ""),
                 "date": window_start.strftime("%Y-%m-%d"),
                 "start_time": window_start.strftime("%H:%M"),
                 "end_time": window_end.strftime("%H:%M"),
-                "type": "Saving",
-                "ui_status": "Pending",
+                "type": "Failed" if is_failed else "Saving",
+                "ui_status": "Failed" if is_failed else "Pending",
                 "is_pending": 1,
             })
 
