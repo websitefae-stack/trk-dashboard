@@ -533,14 +533,21 @@
       return null;
     }
 
-    const result = await apiPost(SHARED_API + ".resolve_invoice_context", {
-      client_name: clientName,
-      customer_name: customerName
-    });
+    try {
+      const result = await apiPost(SHARED_API + ".resolve_invoice_context", {
+        client_name: clientName,
+        customer_name: customerName
+      });
 
-    const context = result.message || result;
-    applyContextToPage(context);
-    return context;
+      const context = result.message || result;
+      applyContextToPage(context);
+      return context;
+    } catch (error) {
+      // Never let this take down the rest of init() (button/change-event
+      // bindings still need to run even if this particular refresh fails).
+      console.error("Could not resolve invoice context", error);
+      return null;
+    }
   }
 
   async function refreshItemRowDefaults(row, options) {
@@ -1163,8 +1170,12 @@
     await addItemRow({ qty: 1, rate: 0, amount: 0 });
   }
 
-  await restrictCustomerToClientBillingContact();
+  // refreshInvoiceContext() always recomputes bank details from the
+  // client's own default, so it must run before
+  // restrictCustomerToClientBillingContact() - otherwise it would clobber
+  // the one-time seeding of a previously-saved bank account override.
   await refreshInvoiceContext();
+  await restrictCustomerToClientBillingContact();
   await updateTravelRow();
 
   updateStatusBadge(el("invoice_status")?.value || "Draft");

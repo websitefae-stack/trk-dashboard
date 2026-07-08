@@ -614,7 +614,7 @@ def _normalise_invoice_row(row, client_map, dashboard_type):
         "customer_name": row.get("customer_name") or "",
         "status": row.get("status") or "",
         "status_class": _invoice_status_class(row.get("status") or ""),
-        "grand_total": row.get("grand_total") or row.get("rounded_total") or 0,
+        "grand_total": row.get("rounded_total") or row.get("grand_total") or 0,
         "outstanding_amount": row.get("outstanding_amount") or 0,
         "paid_amount": row.get("paid_amount") or 0,
         "currency": row.get("currency") or "GBP",
@@ -1453,7 +1453,11 @@ def _serialize_invoice(doc):
         "naming_series": doc.naming_series or "",
         "company": doc.company or context.get("company") or "",
         "contact_email": doc.contact_email or context.get("contact_email") or "",
-        "grand_total": doc.grand_total or 0,
+        # outstanding_amount is tracked against rounded_total, not the
+        # unrounded grand_total - showing raw grand_total here could make an
+        # unpaid invoice look like its outstanding amount doesn't match its
+        # total by a few pence of rounding.
+        "grand_total": doc.rounded_total or doc.grand_total or 0,
         "outstanding_amount": doc.outstanding_amount or 0,
         "paid_amount": doc.paid_amount or 0,
         "client_label": context.get("client_label") or "",
