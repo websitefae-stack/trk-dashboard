@@ -8,6 +8,7 @@ from dashboard.api.shared.contacts import (
 )
 from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
 from dashboard.api.shared.permissions import is_franchisor_user
+from dashboard.api.shared.pagination import make_pagination
 
 
 def get_current_coach_name():
@@ -81,6 +82,12 @@ def get_context(context):
                 contacts,
                 context.viewer_coach_name,
             )
+
+        # View mode loads every matching row at once (no server-side
+        # pagination), so this is just a single-page pagination object -
+        # the shared pagination template still needs one to render.
+        context.pagination = make_pagination(len(context.contacts), 1, max(len(context.contacts), 1))
+        context.search = ""
 
     else:
         context.dashboard_user_name = frappe.db.get_value(

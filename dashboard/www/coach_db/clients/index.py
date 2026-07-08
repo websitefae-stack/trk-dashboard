@@ -5,6 +5,7 @@ from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
 from dashboard.api.shared.clients import get_paginated_clients, get_client_types, normalize_client_row, CLIENT_FIELDS
 from dashboard.api.shared.directory import get_coach_display_name, get_session_workers
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
+from dashboard.api.shared.pagination import make_pagination
 
 
 def get_context(context):
@@ -41,6 +42,11 @@ def get_context(context):
         context.dashboard_user_name = context.coach_view_display_name
         context.clients = get_clients_for_view_coach(view_mode.get("view_coach_name"))
         context.session_workers = get_session_workers_for_view_coach(view_mode.get("view_coach_name"))
+        # View mode loads every matching row at once (no server-side
+        # pagination), so this is just a single-page pagination object -
+        # the shared pagination template still needs one to render.
+        context.pagination = make_pagination(len(context.clients), 1, max(len(context.clients), 1))
+        context.search = ""
     else:
         redirect_if_wrong_dashboard("coach")
         context.dashboard_user_name = get_coach_display_name()

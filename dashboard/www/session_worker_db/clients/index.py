@@ -6,6 +6,7 @@ from dashboard.api.shared.session_worker_view_mode import (
     get_session_worker_view_mode,
     get_clients_for_view_session_worker,
 )
+from dashboard.api.shared.pagination import make_pagination
 
 
 def get_session_worker_display_name():
@@ -79,6 +80,11 @@ def get_context(context):
     if context.session_worker_is_view_mode:
         context.dashboard_user_name = context.session_worker_view_display_name
         context.clients = get_clients_for_view_session_worker(view_mode.get("view_worker_name"))
+        # View mode loads every matching row at once (no server-side
+        # pagination), so this is just a single-page pagination object -
+        # the shared pagination template still needs one to render.
+        context.pagination = make_pagination(len(context.clients), 1, max(len(context.clients), 1))
+        context.search = ""
     else:
         context.dashboard_user_name = get_session_worker_display_name()
         client_data = get_paginated_clients()

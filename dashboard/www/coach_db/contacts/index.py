@@ -9,6 +9,7 @@ from dashboard.api.shared.contacts import (
     get_contact_rows_for_clients,
 )
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
+from dashboard.api.shared.pagination import make_pagination
 
 
 CLIENT_FIELDS = [
@@ -58,6 +59,11 @@ def get_context(context):
     if context.coach_is_view_mode:
         context.dashboard_user_name = context.coach_view_display_name
         context.contacts = get_contacts_for_view_coach(view_mode.get("view_coach_name"))
+        # View mode loads every matching row at once (no server-side
+        # pagination), so this is just a single-page pagination object -
+        # the shared pagination template still needs one to render.
+        context.pagination = make_pagination(len(context.contacts), 1, max(len(context.contacts), 1))
+        context.search = ""
     else:
         redirect_if_wrong_dashboard("coach")
 

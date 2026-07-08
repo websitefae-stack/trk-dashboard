@@ -4,6 +4,7 @@ from frappe import _
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
 from dashboard.api.shared import invoices as invoice_api
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
+from dashboard.api.shared.pagination import make_pagination
 
 
 def get_context(context):
@@ -51,6 +52,11 @@ def get_context(context):
         context.current_coach_label = get_coach_label(selected_coach)
         context.current_company = ""
         context.is_franchisor = 1
+        # View mode loads every matching row at once (no server-side
+        # pagination), so this is just a single-page pagination object -
+        # the shared pagination template still needs one to render.
+        context.pagination = make_pagination(len(context.invoices), 1, max(len(context.invoices), 1))
+        context.search = ""
 
     else:
         redirect_if_wrong_dashboard("coach")
