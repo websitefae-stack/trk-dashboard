@@ -231,3 +231,14 @@
   color: #6b7280;
   line-height: 1.4;
 }
+
+.dashboard-filter-search-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.dashboard-filter-search-row .dashboard-input {
+  flex: 1;
+  min-width: 0;
+}

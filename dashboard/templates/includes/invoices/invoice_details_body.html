@@ -155,6 +155,7 @@
     <input type="hidden" id="invoice_contact_email_hidden" value="{{ contact_email or '' }}">
     <input type="hidden" id="coachPhoneValue" value="{{ current_user_phone or '' }}">
     <input type="hidden" id="invoiceReturnClient" value="{{ doc.custom_client or '' }}">
+    <input type="hidden" id="invoice_stored_bank_account" value="{{ doc_bank_account or '' }}">
 
     <script type="application/json" id="invoiceInitialItems">{{ initial_items_json }}</script>
     <script type="application/json" id="invoiceInitialClientDefaults">{{ initial_client_defaults_json or "{}" }}</script>
@@ -273,6 +274,11 @@
           <div class="dashboard-detail-field">
             <label for="invoice_company">Company</label>
             <input type="text" id="invoice_company" class="dashboard-input" value="{{ company_label or doc.company or '' }}" readonly>
+          </div>
+
+          <div class="dashboard-detail-field dashboard-detail-field-full" id="invoice_bank_account_field" style="display:none;">
+            <label for="invoice_bank_account_select">Bank Account</label>
+            <select id="invoice_bank_account_select" class="dashboard-select" data-invoice-field="1"></select>
           </div>
 
           <div class="dashboard-detail-field dashboard-detail-field-full">

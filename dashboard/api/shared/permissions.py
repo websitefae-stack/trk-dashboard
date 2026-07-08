@@ -132,23 +132,28 @@ def get_allowed_client_or_filters():
     if dashboard_type == "coach":
         coach_name = get_current_coach_name(optional=True)
 
-        if not coach_name:
-            return [[CLIENT_DOCTYPE, "name", "=", "__no_client__"]]
+        # Franchise-type clients represent coaches themselves (for
+        # inter-franchisee/HQ invoicing) and aren't assigned to a specific
+        # primary/attending coach, so every coach needs to see them
+        # regardless - otherwise nobody but that client's own assigned
+        # coach (usually nobody) could ever invoice another coach.
+        filters = [[CLIENT_DOCTYPE, "client_type", "=", "Franchise"]]
 
-        return [
-            [CLIENT_DOCTYPE, "primary_coach", "=", coach_name],
-            [CLIENT_DOCTYPE, "attending_coach", "=", coach_name],
-        ]
+        if coach_name:
+            filters.append([CLIENT_DOCTYPE, "primary_coach", "=", coach_name])
+            filters.append([CLIENT_DOCTYPE, "attending_coach", "=", coach_name])
+
+        return filters
 
     if dashboard_type == "session_worker":
         session_worker_name = get_current_session_worker_name(optional=True)
 
-        if not session_worker_name:
-            return [[CLIENT_DOCTYPE, "name", "=", "__no_client__"]]
+        filters = [[CLIENT_DOCTYPE, "client_type", "=", "Franchise"]]
 
-        return [
-            [CLIENT_DOCTYPE, "session_worker", "=", session_worker_name],
-        ]
+        if session_worker_name:
+            filters.append([CLIENT_DOCTYPE, "session_worker", "=", session_worker_name])
+
+        return filters
 
     return [[CLIENT_DOCTYPE, "name", "=", "__no_client__"]]
 

@@ -245,7 +245,19 @@
       updateReadOnlyText("invoice_company", data.company || "");
       updateReadOnlyText("invoice_coach_label", data.coach_label || "");
       updateReadOnlyText("invoice_contact_email", data.contact_email || "");
-      updateReadOnlyText("invoice_bank_display", data.bank_display_text || "");
+
+      const storedBankField = el("invoice_stored_bank_account");
+      const storedBankAccount = storedBankField ? storedBankField.value : "";
+
+      if (storedBankAccount) {
+        // Only applies once, to seed the previously-saved override on initial
+        // page load - once consumed, later client changes fall back to that
+        // (possibly different) client's own default instead of reapplying it.
+        data.bank_account = storedBankAccount;
+        storedBankField.value = "";
+      }
+
+      updateBankAccountField(data);
       updateFieldValue("invoice_contact_email_hidden", data.contact_email || "");
 
       const emailRecipient = el("emailRecipient");
@@ -407,6 +419,69 @@
     field.value = value == null ? "" : value;
   }
 
+  function populateBankAccountOptions(select, options, value) {
+    select.innerHTML = "";
+
+    (options || []).forEach((row) => {
+      const option = document.createElement("option");
+      option.value = row.value;
+      option.textContent = row.label || row.value;
+      option.dataset.displayText = row.display_text || "";
+      if (row.value === value) option.selected = true;
+      select.appendChild(option);
+    });
+
+    if (value && !(options || []).some((row) => row.value === value)) {
+      const fallback = document.createElement("option");
+      fallback.value = value;
+      fallback.textContent = value;
+      fallback.selected = true;
+      select.appendChild(fallback);
+    }
+
+    select.value = value || select.value;
+  }
+
+  function updateBankAccountField(data) {
+    const field = el("invoice_bank_account_field");
+    const select = el("invoice_bank_account_select");
+    const allowOverride = !!(data && data.allow_bank_override);
+
+    if (field) field.style.display = allowOverride ? "" : "none";
+
+    if (select) {
+      if (allowOverride) {
+        populateBankAccountOptions(select, data.bank_account_options || [], data.bank_account || "");
+        select.dataset.clientDefault = data.client_bank_account || data.bank_account || "";
+      } else {
+        select.innerHTML = "";
+        select.dataset.clientDefault = "";
+      }
+    }
+
+    updateReadOnlyText("invoice_bank_display", data?.bank_display_text || "");
+  }
+
+  function confirmBankAccountOverrideIfNeeded() {
+    const field = el("invoice_bank_account_field");
+    const select = el("invoice_bank_account_select");
+
+    if (!field || field.style.display === "none" || !select) return true;
+
+    const selectedValue = select.value || "";
+    const defaultValue = select.dataset.clientDefault || "";
+
+    if (!selectedValue || selectedValue === defaultValue) return true;
+
+    const option = select.options[select.selectedIndex];
+    const label = (option && option.textContent ? option.textContent.trim() : "") || selectedValue;
+
+    return window.confirm(
+      `You have selected ${label}'s bank account for this invoice instead of the client's usual account. ` +
+      `Any payment received against this invoice will be recorded against ${label}'s account. Continue?`
+    );
+  }
+
   function updateInvoiceBackButton(clientName) {
     const button = el("invoiceBackButton");
     if (!button) return;
@@ -427,7 +502,7 @@
     updateReadOnlyText("invoice_price_list", "");
     updateReadOnlyText("invoice_coach_label", "");
     updateReadOnlyText("invoice_contact_email", "");
-    updateReadOnlyText("invoice_bank_display", "");
+    updateBankAccountField(null);
     updateFieldValue("invoice_contact_email_hidden", "");
     updateInvoiceBackButton("");
   }
@@ -441,7 +516,7 @@
     updateReadOnlyText("invoice_price_list", context.price_list || "");
     updateReadOnlyText("invoice_coach_label", context.coach_label || "");
     updateReadOnlyText("invoice_contact_email", context.contact_email || "");
-    updateReadOnlyText("invoice_bank_display", context.bank_display_text || "");
+    updateBankAccountField(context);
     updateFieldValue("invoice_contact_email_hidden", context.contact_email || "");
 
     const emailRecipient = el("emailRecipient");
@@ -709,6 +784,7 @@
       custom_client: el("invoice_custom_client")?.value || "",
       posting_date: el("invoice_posting_date")?.value || "",
       due_date: el("invoice_due_date")?.value || "",
+      bank_account: el("invoice_bank_account_select")?.value || "",
       items: qsa("#invoiceItemsBody tr").map((row) => ({
         item_code: row.querySelector("[data-item-field='item_code']")?.value || "",
         description: row.querySelector("[data-item-field='description']")?.value || "",
@@ -887,7 +963,11 @@
       price_list: payload.price_list,
       coach_label: payload.coach_label,
       contact_email: payload.contact_email,
-      bank_display_text: payload.bank_display_text
+      bank_account: payload.bank_account,
+      client_bank_account: payload.client_bank_account,
+      bank_display_text: payload.bank_display_text,
+      allow_bank_override: payload.allow_bank_override,
+      bank_account_options: payload.bank_account_options
     });
 
     forceEmailTemplate();
@@ -896,6 +976,7 @@
 
   async function saveDraft() {
     if (isSaving || !isEditable()) return;
+    if (!confirmBankAccountOverrideIfNeeded()) return;
 
     isSaving = true;
     updateActionState();
@@ -920,6 +1001,7 @@
 
   async function submitInvoice() {
     if (isSaving || !isEditable()) return;
+    if (!confirmBankAccountOverrideIfNeeded()) return;
 
     const confirmed = window.confirm(
       "Once submitted, this invoice can no longer be edited by coaches. Do you want to submit it now?"
@@ -1060,6 +1142,11 @@
   el("addInvoiceItem")?.addEventListener("click", async function () {
     await addItemRow({ qty: 1, rate: 0, amount: 0 });
     await updateTravelRow();
+  });
+
+  el("invoice_bank_account_select")?.addEventListener("change", function () {
+    const option = this.options[this.selectedIndex];
+    updateReadOnlyText("invoice_bank_display", (option && option.dataset.displayText) || "");
   });
 
   await loadAllLinkOptions();

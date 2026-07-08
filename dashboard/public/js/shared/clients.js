@@ -24,6 +24,7 @@
       row.dataset.email || "",
       row.dataset.mobile || "",
       row.dataset.coach || "",
+      row.dataset.attendingCoach || "",
       row.dataset.sessionWorker || "",
       row.dataset.type || "",
       row.dataset.status || ""
@@ -47,7 +48,12 @@
       return false;
     }
 
-    if (filters.coach && filters.coach !== "All" && row.dataset.coach !== filters.coach) {
+    if (
+      filters.coach &&
+      filters.coach !== "All" &&
+      row.dataset.coach !== filters.coach &&
+      row.dataset.attendingCoach !== filters.coach
+    ) {
       return false;
     }
 
@@ -78,8 +84,6 @@
 
     updateClientCount();
   }
-
-  var debounce = Dashboard.debounce;
 
   function isFranchisorClientsPage() {
     return window.location.pathname.indexOf("/franchisor_db/clients") !== -1;
@@ -145,7 +149,15 @@
       const eventName = field.tagName === "SELECT" ? "change" : "input";
 
       if (id === "clientSearch" && isFranchisorClientsPage()) {
-        field.addEventListener(eventName, debounce(runServerSearchForFranchisor, 500));
+        // Server-side search only runs on explicit submit (button/Enter),
+        // not on every keystroke - reloading the page mid-typing was
+        // cutting searches off before the coach had finished typing.
+        field.addEventListener("keydown", function (event) {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            runServerSearchForFranchisor();
+          }
+        });
       } else {
         field.addEventListener(eventName, renderClientFilters);
       }
@@ -167,6 +179,14 @@
     refreshBtn.addEventListener("click", function () {
       window.location.reload();
     });
+  }
+
+  function initClientSearchButton() {
+    const searchBtn = el("clientSearchBtn");
+    if (!searchBtn || searchBtn.dataset.searchBound === "1") return;
+
+    searchBtn.dataset.searchBound = "1";
+    searchBtn.addEventListener("click", runServerSearchForFranchisor);
   }
 
   function initClientSearchToggle() {
@@ -231,6 +251,7 @@
     defaultFranchisorCoachFilter();
     initClientFilterEvents();
     initRefreshButton();
+    initClientSearchButton();
     initClientSearchToggle();
     initAddClientButton();
     initClickableClientRows();
