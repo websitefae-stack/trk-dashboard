@@ -1163,8 +1163,12 @@
     await addItemRow({ qty: 1, rate: 0, amount: 0 });
   }
 
-  await restrictCustomerToClientBillingContact();
+  // refreshInvoiceContext() always recomputes bank details from the
+  // client's own default, so it must run before
+  // restrictCustomerToClientBillingContact() - otherwise it would clobber
+  // the one-time seeding of a previously-saved bank account override.
   await refreshInvoiceContext();
+  await restrictCustomerToClientBillingContact();
   await updateTravelRow();
 
   updateStatusBadge(el("invoice_status")?.value || "Draft");
