@@ -167,6 +167,8 @@ def get_context(context):
         or ""
     )
 
+    context.doc_bank_account = doc.get("custom_bank_account") or ""
+
     context.initial_client_defaults_json = json.dumps(client_defaults or {})
 
     context.initial_items_json = json.dumps([

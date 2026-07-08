@@ -248,7 +248,11 @@ def _get_bank_account_options():
     )
 
     return [
-        {"value": row.get("bank_account"), "label": _coach_label(row)}
+        {
+            "value": row.get("bank_account"),
+            "label": _coach_label(row),
+            "display_text": _bank_display_text(row.get("bank_account")),
+        }
         for row in rows
         if row.get("bank_account")
     ]
@@ -876,17 +880,27 @@ def _resolve_invoice_context(client_name=None, customer_name=None):
         "company": "",
         "price_list": "",
         "coach_label": "",
+        "bank_account": "",
+        "client_bank_account": "",
         "bank_display_text": "",
+        "allow_bank_override": False,
+        "bank_account_options": [],
         "contact_email": _customer_email(customer_name),
     }
 
     if client_name and frappe.db.exists("Client", client_name):
         client = frappe.get_doc("Client", client_name)
 
+        allow_bank_override = (client.get("client_type") or "") in BANK_OVERRIDE_CLIENT_TYPES
+
         context["company"] = client.get("company") or ""
         context["price_list"] = client.get("pricelist") or ""
         context["coach_label"] = _coach_label_from_name(client.get("attending_coach") or client.get("primary_coach") or "")
+        context["bank_account"] = client.get("banking") or ""
+        context["client_bank_account"] = client.get("banking") or ""
         context["bank_display_text"] = _bank_display_text(client.get("banking") or "")
+        context["allow_bank_override"] = allow_bank_override
+        context["bank_account_options"] = _get_bank_account_options() if allow_bank_override else []
 
         if not customer_name and client.get("billing_contact"):
             context["customer_name"] = client.get("billing_contact")
@@ -1064,6 +1078,7 @@ def get_client_invoice_defaults(client_name=None):
         "company": client.get("company") or "",
         "coach_label": _coach_label_from_name(client.get("attending_coach") or client.get("primary_coach") or ""),
         "bank_account": client.get("banking") or "",
+        "client_bank_account": client.get("banking") or "",
         "bank_display_text": _bank_display_text(client.get("banking") or ""),
         "allow_bank_override": allow_bank_override,
         "bank_account_options": _get_bank_account_options() if allow_bank_override else [],
@@ -1145,6 +1160,14 @@ def _set_invoice_header_fields(doc, payload):
 
     if doc.customer:
         doc.customer_name = _customer_display_name(doc.customer)
+
+    if doc.meta.has_field("custom_bank_account"):
+        submitted_bank_account = (payload.get("bank_account") or "").strip()
+
+        if context.get("allow_bank_override") and submitted_bank_account:
+            doc.custom_bank_account = submitted_bank_account
+        else:
+            doc.custom_bank_account = context.get("bank_account") or ""
 
     if context.get("contact_email"):
         doc.contact_email = context.get("contact_email")
@@ -1359,7 +1382,11 @@ def _serialize_invoice(doc):
         "customer_label": context.get("customer_label") or "",
         "price_list": doc.selling_price_list or context.get("price_list") or "",
         "coach_label": context.get("coach_label") or "",
+        "bank_account": (doc.get("custom_bank_account") if doc.meta.has_field("custom_bank_account") else "") or context.get("bank_account") or "",
+        "client_bank_account": context.get("client_bank_account") or "",
         "bank_display_text": context.get("bank_display_text") or "",
+        "allow_bank_override": context.get("allow_bank_override") or False,
+        "bank_account_options": context.get("bank_account_options") or [],
         "items": [
             {
                 "item_code": row.item_code or "",
@@ -1536,16 +1563,21 @@ def allocate_invoice_payment(invoice_name=None, posting_date=None, amount=None, 
 
     client_bank_account = ""
 
-    if invoice.get("custom_client"):
+    if invoice.meta.has_field("custom_bank_account") and invoice.get("custom_bank_account"):
+        # An invoice-specific override (e.g. Emily invoicing on SJ's behalf
+        # with her own bank account) takes priority over the client's own
+        # default - whoever's account is on the invoice is who gets paid.
+        client_bank_account = invoice.get("custom_bank_account")
+    elif invoice.get("custom_client"):
         client_bank_account = frappe.db.get_value(
             "Client",
             invoice.get("custom_client"),
             "banking",
         )
-    
+
     if not client_bank_account:
         frappe.throw(_("No bank account is selected on this invoice's client."))
-    
+
     paid_to_account = _get_bank_account_gl_account(client_bank_account)
 
     payment = frappe.new_doc("Payment Entry")
