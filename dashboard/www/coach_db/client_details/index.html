@@ -499,22 +499,6 @@
                       </div>
                     </div>
 
-                    <div class="dashboard-detail-field">
-                      <label for="clientTravelMilesOneWay">Travel Miles One Way</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        class="dashboard-input"
-                        id="clientTravelMilesOneWay"
-                        value="{{ travel_miles_one_way or 0 }}"
-                        data-client-field="1"
-                        data-fieldname="travel_miles_one_way"
-                        data-fieldtype="Float"
-                        data-meta-readonly="0"
-                        readonly
-                      >
-                    </div>
-
                     <div class="dashboard-detail-field" id="clientTravelChargePerSessionWrap" style="{{ 'display:none;' if not travel_charged else '' }}">
                       <label for="clientTravelChargePerSession">Travel Charge Per Session (&pound;)</label>
                       <input
