@@ -44,45 +44,73 @@
         </div>
       </div>
 
-      <div class="dashboard-summary-grid dashboard-home-summary-grid">
-        <a class="dashboard-summary-card dashboard-summary-card-link" href="/coach_db/clients{{ coach_view_query or '' }}">
-          <div class="dashboard-summary-label">Total Clients</div>
-          <div class="dashboard-summary-value" id="dashboardTotalClients">—</div>
-        </a>
+      <div class="dashboard-home-top-row">
+        <div class="dashboard-card dashboard-revenue-card">
+          <div class="dashboard-revenue-title">Revenue</div>
 
-        <div class="dashboard-summary-card">
-          <div class="dashboard-summary-label" id="dashboardPreviousMonthLabel">New Clients Last Month</div>
-          <div class="dashboard-summary-value" id="dashboardNewClientsPrevious">—</div>
+          <div class="dashboard-revenue-periods">
+            <div class="dashboard-revenue-period">
+              <div class="dashboard-revenue-period-label" id="dashboardRevenuePreviousLabel">Last Month</div>
+              <div class="dashboard-revenue-total" id="dashboardRevenuePreviousTotal">—</div>
+
+              <div class="dashboard-revenue-breakdown">
+                <div class="dashboard-revenue-row">
+                  <span>Client Invoices</span>
+                  <span id="dashboardRevenuePreviousClient">—</span>
+                </div>
+                <div class="dashboard-revenue-row">
+                  <span>Travel</span>
+                  <span id="dashboardRevenuePreviousTravel">—</span>
+                </div>
+                <div class="dashboard-revenue-row is-interbusiness">
+                  <span>Interbusiness Invoices</span>
+                  <span id="dashboardRevenuePreviousInterbusiness">—</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="dashboard-revenue-period">
+              <div class="dashboard-revenue-period-label" id="dashboardRevenueCurrentLabel">This Month</div>
+              <div class="dashboard-revenue-total" id="dashboardRevenueCurrentTotal">—</div>
+
+              <div class="dashboard-revenue-breakdown">
+                <div class="dashboard-revenue-row">
+                  <span>Client Invoices</span>
+                  <span id="dashboardRevenueCurrentClient">—</span>
+                </div>
+                <div class="dashboard-revenue-row">
+                  <span>Travel</span>
+                  <span id="dashboardRevenueCurrentTravel">—</span>
+                </div>
+                <div class="dashboard-revenue-row is-interbusiness">
+                  <span>Interbusiness Invoices</span>
+                  <span id="dashboardRevenueCurrentInterbusiness">—</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div class="dashboard-summary-card">
-          <div class="dashboard-summary-label" id="dashboardCurrentMonthLabel">New Clients This Month</div>
-          <div class="dashboard-summary-value" id="dashboardNewClientsCurrent">—</div>
-        </div>
+        <div class="dashboard-business-grid">
+          <a class="dashboard-summary-card dashboard-summary-card-link" href="/coach_db/clients{{ coach_view_query or '' }}">
+            <div class="dashboard-summary-label">Total Clients</div>
+            <div class="dashboard-summary-value" id="dashboardTotalClients">—</div>
+          </a>
 
-        <a class="dashboard-summary-card dashboard-summary-card-link" href="/coach_db/session_workers{{ coach_view_query or '' }}">
-          <div class="dashboard-summary-label">Session Workers</div>
-          <div class="dashboard-summary-value" id="dashboardTotalSessionWorkers">—</div>
-        </a>
+          <a class="dashboard-summary-card dashboard-summary-card-link" href="/coach_db/session_workers{{ coach_view_query or '' }}">
+            <div class="dashboard-summary-label">Session Workers</div>
+            <div class="dashboard-summary-value" id="dashboardTotalSessionWorkers">—</div>
+          </a>
 
-        <div class="dashboard-summary-card">
-          <div class="dashboard-summary-label" id="dashboardInvoicePreviousLabel">Invoice Total Last Month</div>
-          <div class="dashboard-summary-value" id="dashboardInvoicePreviousValue">—</div>
-        </div>
+          <div class="dashboard-summary-card">
+            <div class="dashboard-summary-label" id="dashboardPreviousMonthLabel">New Clients Last Month</div>
+            <div class="dashboard-summary-value" id="dashboardNewClientsPrevious">—</div>
+          </div>
 
-        <div class="dashboard-summary-card">
-          <div class="dashboard-summary-label" id="dashboardInvoiceCurrentLabel">Invoice Total This Month</div>
-          <div class="dashboard-summary-value" id="dashboardInvoiceCurrentValue">—</div>
-        </div>
-
-        <div class="dashboard-summary-card">
-          <div class="dashboard-summary-label" id="dashboardTravelPreviousLabel">Travel Total Last Month</div>
-          <div class="dashboard-summary-value" id="dashboardTravelPreviousValue">—</div>
-        </div>
-
-        <div class="dashboard-summary-card">
-          <div class="dashboard-summary-label" id="dashboardTravelCurrentLabel">Travel Total This Month</div>
-          <div class="dashboard-summary-value" id="dashboardTravelCurrentValue">—</div>
+          <div class="dashboard-summary-card">
+            <div class="dashboard-summary-label" id="dashboardCurrentMonthLabel">New Clients This Month</div>
+            <div class="dashboard-summary-value" id="dashboardNewClientsCurrent">—</div>
+          </div>
         </div>
       </div>
 

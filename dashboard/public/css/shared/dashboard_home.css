@@ -29,6 +29,131 @@
 }
 
 /* =========================================================
+   REVENUE + BUSINESS OVERVIEW ROW
+========================================================= */
+
+.dashboard-home-top-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 24px;
+}
+
+.dashboard-revenue-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.dashboard-revenue-title {
+  color: #434B49;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.dashboard-revenue-periods {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.dashboard-revenue-period {
+  padding: 16px;
+  border-radius: 12px;
+  background: #F2F8F8;
+}
+
+.dashboard-revenue-period-label {
+  margin-bottom: 8px;
+  color: #839898;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.dashboard-revenue-total {
+  margin-bottom: 14px;
+  color: #007274;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.dashboard-revenue-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dashboard-revenue-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #D9E6E6;
+  color: #5d6c69;
+  font-size: 13px;
+}
+
+.dashboard-revenue-row:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.dashboard-revenue-row span:last-child {
+  color: #434B49;
+  font-weight: 700;
+}
+
+.dashboard-revenue-row.is-interbusiness span:last-child {
+  color: #ac455c;
+}
+
+.dashboard-revenue-ytd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border: 1px solid #F0DFB8;
+  border-radius: 12px;
+  background: #FFF8ED;
+}
+
+.dashboard-revenue-ytd-label {
+  color: #8a7a4f;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.dashboard-revenue-ytd-value {
+  color: #434B49;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.dashboard-business-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-home-top-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-revenue-periods {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
    DASHBOARD HOME TABLE WIDTH FIXES
 ========================================================= */
 

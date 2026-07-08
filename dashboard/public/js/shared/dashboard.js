@@ -276,16 +276,20 @@
     setText("dashboardPreviousMonthLabel", `New Clients ${payload.previous_label || "Last Month"}`);
     setText("dashboardCurrentMonthLabel", `New Clients ${payload.current_label || "This Month"}`);
 
-    setText("dashboardInvoicePreviousLabel", `Invoice Total ${payload.previous_label || "Last Month"}`);
-    setText("dashboardInvoiceCurrentLabel", `Invoice Total ${payload.current_label || "This Month"}`);
+    setText("dashboardRevenuePreviousLabel", payload.previous_label || "Last Month");
+    setText("dashboardRevenueCurrentLabel", payload.current_label || "This Month");
 
-    setText("dashboardInvoicePreviousValue", formatMoney(payload.monthly_invoice_total_previous || 0, "GBP"));
-    setText("dashboardInvoiceCurrentValue", formatMoney(payload.monthly_invoice_total_current || 0, "GBP"));
+    setText("dashboardRevenuePreviousTotal", formatMoney(payload.revenue_total_previous || 0, "GBP"));
+    setText("dashboardRevenueCurrentTotal", formatMoney(payload.revenue_total_current || 0, "GBP"));
 
-    setText("dashboardTravelPreviousLabel", `Travel Total ${payload.previous_label || "Last Month"}`);
-    setText("dashboardTravelCurrentLabel", `Travel Total ${payload.current_label || "This Month"}`);
-    setText("dashboardTravelPreviousValue", formatMoney(payload.monthly_travel_total_previous || 0, "GBP"));
-    setText("dashboardTravelCurrentValue", formatMoney(payload.monthly_travel_total_current || 0, "GBP"));
+    setText("dashboardRevenuePreviousClient", formatMoney(payload.revenue_client_previous || 0, "GBP"));
+    setText("dashboardRevenueCurrentClient", formatMoney(payload.revenue_client_current || 0, "GBP"));
+
+    setText("dashboardRevenuePreviousTravel", formatMoney(payload.revenue_travel_previous || 0, "GBP"));
+    setText("dashboardRevenueCurrentTravel", formatMoney(payload.revenue_travel_current || 0, "GBP"));
+
+    setText("dashboardRevenuePreviousInterbusiness", formatMoney(payload.revenue_interbusiness_previous || 0, "GBP"));
+    setText("dashboardRevenueCurrentInterbusiness", formatMoney(payload.revenue_interbusiness_current || 0, "GBP"));
 
     renderUpcomingAppointments("dashboardUpcomingTableBody", payload.upcoming_appointments || []);
     renderOutstandingInvoices(payload.outstanding_invoices || []);

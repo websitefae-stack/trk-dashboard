@@ -804,7 +804,16 @@ def _sum_invoice_total(dashboard_type, context, start_date, end_date):
     return total
 
 
-def _sum_invoice_travel_total(dashboard_type, context, start_date, end_date):
+def _get_invoice_revenue_breakdown(dashboard_type, context, start_date, end_date):
+    """
+    Splits the period's invoice total into:
+    - client_total: ordinary client billing.
+    - travel_total: the travel line items within that ordinary billing.
+    - interbusiness_total: invoices raised against Franchise-type clients
+      (coaches/HQ invoicing each other) - these must never be folded into
+      the figure used to calculate franchisee fee/marketing invoices, since
+      they're internal cross-charges rather than real client revenue.
+    """
     filters = _get_invoice_filters(
         dashboard_type=dashboard_type,
         context=context,
@@ -813,31 +822,65 @@ def _sum_invoice_travel_total(dashboard_type, context, start_date, end_date):
         outstanding_only=False,
     )
 
-    invoice_names = frappe.get_all(
+    rows = frappe.get_all(
         "Sales Invoice",
         filters=filters,
-        pluck="name",
+        fields=["name", "custom_client", "grand_total", "rounded_total"],
         limit_page_length=10000,
         ignore_permissions=True,
     )
 
-    if not invoice_names:
-        return 0.0
+    if not rows:
+        return {"total": 0.0, "client_total": 0.0, "travel_total": 0.0, "interbusiness_total": 0.0}
 
-    rows = frappe.get_all(
-        "Sales Invoice Item",
-        filters={"parent": ["in", invoice_names], "item_code": TRAVEL_ITEM_CODE},
-        fields=["amount"],
-        limit_page_length=100000,
-        ignore_permissions=True,
-    )
+    invoice_names = [row.get("name") for row in rows if row.get("name")]
+    client_names = list({row.get("custom_client") for row in rows if row.get("custom_client")})
+
+    franchise_clients = set()
+
+    if client_names and frappe.db.has_column("Client", "client_type"):
+        franchise_clients = set(frappe.get_all(
+            "Client",
+            filters={"name": ["in", client_names], "client_type": "Franchise"},
+            pluck="name",
+            limit_page_length=len(client_names),
+            ignore_permissions=True,
+        ))
+
+    travel_by_invoice = {}
+
+    if invoice_names:
+        for row in frappe.get_all(
+            "Sales Invoice Item",
+            filters={"parent": ["in", invoice_names], "item_code": TRAVEL_ITEM_CODE},
+            fields=["parent", "amount"],
+            limit_page_length=100000,
+            ignore_permissions=True,
+        ):
+            parent = row.get("parent")
+            travel_by_invoice[parent] = travel_by_invoice.get(parent, 0.0) + flt(row.get("amount") or 0)
 
     total = 0.0
+    travel_total = 0.0
+    interbusiness_total = 0.0
 
     for row in rows:
-        total += flt(row.get("amount") or 0)
+        amount = flt(row.get("grand_total") or row.get("rounded_total") or 0)
+        total += amount
 
-    return total
+        if row.get("custom_client") in franchise_clients:
+            interbusiness_total += amount
+        else:
+            travel_total += travel_by_invoice.get(row.get("name"), 0.0)
+
+    client_total = total - travel_total - interbusiness_total
+
+    return {
+        "total": total,
+        "client_total": client_total,
+        "travel_total": travel_total,
+        "interbusiness_total": interbusiness_total,
+    }
 
 
 def _sum_invoice_total_ytd(dashboard_type, context):
@@ -1151,25 +1194,12 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
 
     client_rows = _get_dashboard_client_rows(dashboard_type, context, primary_only_for_coach=False)
 
-    monthly_travel_total_current = _sum_invoice_travel_total(
+    revenue_current = _get_invoice_revenue_breakdown(
         dashboard_type, context, current_month_start, current_month_end
     )
-    monthly_travel_total_previous = _sum_invoice_travel_total(
+    revenue_previous = _get_invoice_revenue_breakdown(
         dashboard_type, context, previous_month_start, previous_month_end
     )
-    monthly_invoice_total_current = _sum_invoice_total(
-        dashboard_type, context, current_month_start, current_month_end
-    )
-    monthly_invoice_total_previous = _sum_invoice_total(
-        dashboard_type, context, previous_month_start, previous_month_end
-    )
-
-    # Coach dashboard shows travel as its own pair of blocks rather than
-    # folded into the invoice totals, so it needs pulling back out here.
-    # Franchisor keeps the combined total as before - not asked to change.
-    if dashboard_type == COACH_DASHBOARD:
-        monthly_invoice_total_current -= monthly_travel_total_current
-        monthly_invoice_total_previous -= monthly_travel_total_previous
 
     response = {
         "dashboard_type": dashboard_type,
@@ -1182,10 +1212,15 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
 
         "upcoming_appointments": _get_upcoming_appointments(dashboard_type, context, limit=8),
 
-        "monthly_invoice_total_current": monthly_invoice_total_current,
-        "monthly_invoice_total_previous": monthly_invoice_total_previous,
-        "monthly_travel_total_current": monthly_travel_total_current,
-        "monthly_travel_total_previous": monthly_travel_total_previous,
+        "revenue_total_current": revenue_current["total"],
+        "revenue_total_previous": revenue_previous["total"],
+        "revenue_client_current": revenue_current["client_total"],
+        "revenue_client_previous": revenue_previous["client_total"],
+        "revenue_travel_current": revenue_current["travel_total"],
+        "revenue_travel_previous": revenue_previous["travel_total"],
+        "revenue_interbusiness_current": revenue_current["interbusiness_total"],
+        "revenue_interbusiness_previous": revenue_previous["interbusiness_total"],
+
         "year_to_date_income": _sum_invoice_total_ytd(
             dashboard_type,
             context,
