@@ -335,7 +335,7 @@
           <div class="invoice-summary-line">
             <span>Grand Total</span>
             <span>
-              <input type="text" id="invoice_grand_total" class="dashboard-input" value="{{ frappe.format_value(doc.rounded_total or doc.grand_total or 0, {'fieldtype': 'Currency'}) if doc.name else '0.00' }}" readonly>
+              <input type="text" id="invoice_grand_total" class="dashboard-input" value="{{ frappe.format_value(doc.grand_total or 0, {'fieldtype': 'Currency'}) if doc.name else '0.00' }}" readonly>
             </span>
           </div>
 
