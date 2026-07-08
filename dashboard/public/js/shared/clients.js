@@ -40,7 +40,15 @@
       return false;
     }
 
+    // Franchise-type rows represent coaches themselves (for cross-coach/HQ
+    // invoicing) and aren't assigned to any one coach or session worker, so
+    // those two filters must never hide them - otherwise the "show only my
+    // clients" default (which auto-selects the current user in the Coach
+    // filter) silently hides every other coach's record.
+    const isFranchiseRow = row.dataset.type === "Franchise";
+
     if (
+      !isFranchiseRow &&
       filters.sessionWorker &&
       filters.sessionWorker !== "All" &&
       row.dataset.sessionWorker !== filters.sessionWorker
@@ -49,6 +57,7 @@
     }
 
     if (
+      !isFranchiseRow &&
       filters.coach &&
       filters.coach !== "All" &&
       row.dataset.coach !== filters.coach &&
@@ -106,6 +115,18 @@
     window.location.href = window.location.pathname + "?" + params.toString();
   }
 
+  function runClientSearch() {
+    // Franchisor loads clients page-by-page from the server, so a search
+    // needs a fresh page load. Coach/session worker pages load every client
+    // they're allowed to see up front, so the search just re-applies the
+    // existing client-side filters - no reload needed.
+    if (isFranchisorClientsPage()) {
+      runServerSearchForFranchisor();
+    } else {
+      renderClientFilters();
+    }
+  }
+
   function defaultFranchisorCoachFilter() {
     const coachFilter = el("coachFilter");
     if (!coachFilter || coachFilter.dataset.defaultCoachDone === "1") return;
@@ -148,14 +169,14 @@
 
       const eventName = field.tagName === "SELECT" ? "change" : "input";
 
-      if (id === "clientSearch" && isFranchisorClientsPage()) {
-        // Server-side search only runs on explicit submit (button/Enter),
-        // not on every keystroke - reloading the page mid-typing was
-        // cutting searches off before the coach had finished typing.
+      if (id === "clientSearch") {
+        // Search only runs on explicit submit (button/Enter), not on every
+        // keystroke - filtering/reloading mid-typing was cutting searches
+        // off before the coach had finished typing.
         field.addEventListener("keydown", function (event) {
           if (event.key === "Enter") {
             event.preventDefault();
-            runServerSearchForFranchisor();
+            runClientSearch();
           }
         });
       } else {
@@ -186,7 +207,7 @@
     if (!searchBtn || searchBtn.dataset.searchBound === "1") return;
 
     searchBtn.dataset.searchBound = "1";
-    searchBtn.addEventListener("click", runServerSearchForFranchisor);
+    searchBtn.addEventListener("click", runClientSearch);
   }
 
   function initClientSearchToggle() {
