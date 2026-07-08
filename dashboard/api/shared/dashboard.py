@@ -737,13 +737,37 @@ def _get_invoice_client_names_for_dashboard(dashboard_type, context):
 def _get_invoice_filters(dashboard_type, context, start_date=None, end_date=None, outstanding_only=False):
     client_names = _get_invoice_client_names_for_dashboard(dashboard_type, context)
 
-    if not client_names:
+    or_conditions = []
+    if client_names:
+        or_conditions.append(["custom_client", "in", client_names])
+
+    if dashboard_type == COACH_DASHBOARD:
+        coach_name = context.get("coach_name")
+        if coach_name and frappe.get_meta("Sales Invoice").has_field("custom_income_owner_coach"):
+            # An invoice created with an overridden bank account (e.g. Emily
+            # invoicing on SJ's behalf with her own account) is attributed to
+            # the overriding coach via custom_income_owner_coach, even though
+            # the client itself isn't otherwise assigned to that coach - it
+            # still needs to count as that coach's own invoice/income.
+            or_conditions.append(["custom_income_owner_coach", "=", coach_name])
+
+    if not or_conditions:
         return {"name": ["in", []]}
 
-    filters = {
-        "custom_client": ["in", client_names],
-        "docstatus": ["!=", 2],
-    }
+    if len(or_conditions) == 1:
+        field, operator, value = or_conditions[0]
+        filters = {field: [operator, value]}
+    else:
+        matching_names = frappe.get_all(
+            "Sales Invoice",
+            or_filters=or_conditions,
+            pluck="name",
+            limit_page_length=100000,
+            ignore_permissions=True,
+        )
+        filters = {"name": ["in", matching_names]}
+
+    filters["docstatus"] = ["!=", 2]
 
     if start_date and end_date:
         filters["posting_date"] = ["between", [start_date, end_date]]
