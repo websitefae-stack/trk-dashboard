@@ -28,9 +28,12 @@
         <div class="dashboard-client-filter-body client-filter-row">
           <div class="dashboard-filter-field dashboard-filter-search">
             <label for="clientSearch">Search Client Name</label>
-            <input type="text" class="dashboard-input" id="clientSearch" placeholder="Search by client name">
+            <div class="dashboard-filter-search-row">
+              <input type="text" class="dashboard-input" id="clientSearch" placeholder="Search by client name">
+              <button type="button" class="dashboard-btn dashboard-btn-primary" id="clientSearchBtn">Search</button>
+            </div>
           </div>
-        
+
           <div class="dashboard-filter-field dashboard-filter-coach">
             <label for="coachFilter">Coach</label>
             <select
@@ -108,7 +111,6 @@
                   {% set row_type = c.client_type or "Not set" %}
                   {% set session_worker = c.session_worker or "Not set" %}
                   {% set coach_label = c.primary_coach_label or c.attending_coach_label or "Not set" %}
-                  {% set coach_value = c.primary_coach or c.attending_coach or "Not set" %}
 
                   <tr
                     class="dashboard-client-row"
@@ -117,7 +119,8 @@
                     data-status="{{ row_status }}"
                     data-type="{{ row_type }}"
                     data-session-worker="{{ session_worker }}"
-                    data-coach="{{ coach_value }}"
+                    data-coach="{{ c.primary_coach or '' }}"
+                    data-attending-coach="{{ c.attending_coach or '' }}"
                   >
                     <td>
                       <a class="dashboard-inline-link dashboard-client-name-link" href="/franchisor_db/client_details?name={{ c.name | urlencode }}">
