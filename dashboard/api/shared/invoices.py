@@ -274,6 +274,30 @@ def _get_bank_account_owner_coach(bank_account_name):
     return frappe.db.get_value("Coach", {"bank_account": bank_account_name}, "name") or ""
 
 
+def _ensure_default_bank_account_option(options, default_bank_account):
+    """
+    _get_bank_account_options() only lists Coach records that have their own
+    bank_account filled in on their profile. A client's own default account
+    (e.g. HQ's account on a Franchise-type client) may not be linked to any
+    Coach that way, which would leave it missing from the dropdown entirely -
+    always include it so the default itself is never unselectable.
+    """
+    if not default_bank_account:
+        return options
+
+    if any((opt or {}).get("value") == default_bank_account for opt in options):
+        return options
+
+    owner_coach = _get_bank_account_owner_coach(default_bank_account)
+    label = _coach_label_from_name(owner_coach) if owner_coach else _bank_display_text(default_bank_account) or default_bank_account
+
+    return options + [{
+        "value": default_bank_account,
+        "label": label,
+        "display_text": _bank_display_text(default_bank_account),
+    }]
+
+
 def _get_client_fields():
     if not _has_doctype("Client"):
         return []
@@ -614,7 +638,7 @@ def _normalise_invoice_row(row, client_map, dashboard_type):
         "customer_name": row.get("customer_name") or "",
         "status": row.get("status") or "",
         "status_class": _invoice_status_class(row.get("status") or ""),
-        "grand_total": row.get("rounded_total") or row.get("grand_total") or 0,
+        "grand_total": row.get("grand_total") or row.get("rounded_total") or 0,
         "outstanding_amount": row.get("outstanding_amount") or 0,
         "paid_amount": row.get("paid_amount") or 0,
         "currency": row.get("currency") or "GBP",
@@ -966,7 +990,10 @@ def _resolve_invoice_context(client_name=None, customer_name=None):
         context["client_bank_account"] = client.get("banking") or ""
         context["bank_display_text"] = _bank_display_text(client.get("banking") or "")
         context["allow_bank_override"] = allow_bank_override
-        context["bank_account_options"] = _get_bank_account_options() if allow_bank_override else []
+        context["bank_account_options"] = (
+            _ensure_default_bank_account_option(_get_bank_account_options(), context["bank_account"])
+            if allow_bank_override else []
+        )
 
         if not customer_name and client.get("billing_contact"):
             context["customer_name"] = client.get("billing_contact")
@@ -1147,7 +1174,10 @@ def get_client_invoice_defaults(client_name=None):
         "client_bank_account": client.get("banking") or "",
         "bank_display_text": _bank_display_text(client.get("banking") or ""),
         "allow_bank_override": allow_bank_override,
-        "bank_account_options": _get_bank_account_options() if allow_bank_override else [],
+        "bank_account_options": (
+            _ensure_default_bank_account_option(_get_bank_account_options(), client.get("banking") or "")
+            if allow_bank_override else []
+        ),
         "travel_charged": int(client.get("travel_charged") or 0),
         "travel_miles_one_way": float(client.get("travel_miles_one_way") or 0),
         "travel_charge_per_session": float(client.get("travel_charge_per_session") or 0),
@@ -1242,6 +1272,14 @@ def _set_invoice_header_fields(doc, payload):
     current_coach_name = current_coach.get("name") if current_coach else ""
 
     meta = frappe.get_meta("Sales Invoice")
+
+    if meta.has_field("disable_rounded_total"):
+        # The Currency/Company "round off" settings on this site round the
+        # total to the nearest whole pound (e.g. £35.80 -> £36), which then
+        # makes outstanding_amount wrong too - a coach trying to record the
+        # actual £35.80 payment gets told it must be £36. Dashboard invoices
+        # should always track the exact line-item total.
+        doc.disable_rounded_total = 1
 
     if meta.has_field("custom_created_by_coach") and current_coach_name and not doc.get("custom_created_by_coach"):
         doc.custom_created_by_coach = current_coach_name
@@ -1453,11 +1491,7 @@ def _serialize_invoice(doc):
         "naming_series": doc.naming_series or "",
         "company": doc.company or context.get("company") or "",
         "contact_email": doc.contact_email or context.get("contact_email") or "",
-        # outstanding_amount is tracked against rounded_total, not the
-        # unrounded grand_total - showing raw grand_total here could make an
-        # unpaid invoice look like its outstanding amount doesn't match its
-        # total by a few pence of rounding.
-        "grand_total": doc.rounded_total or doc.grand_total or 0,
+        "grand_total": doc.grand_total or 0,
         "outstanding_amount": doc.outstanding_amount or 0,
         "paid_amount": doc.paid_amount or 0,
         "client_label": context.get("client_label") or "",
