@@ -216,6 +216,44 @@ def _get_coach_options():
     ]
 
 
+BANK_OVERRIDE_CLIENT_TYPES = ("Franchise", "School")
+
+
+def _get_bank_account_options():
+    """
+    Bank Account records tied to a Coach, offered as override choices when
+    invoicing a Franchise/School client - e.g. Emily invoicing on SJ's
+    behalf needs to pick SJ's own bank account, not whichever one that
+    client defaults to.
+    """
+    if not _has_doctype("Coach"):
+        return []
+
+    meta = frappe.get_meta("Coach")
+    if not meta.has_field("bank_account"):
+        return []
+
+    fields = ["name", "bank_account"]
+    for fieldname in ["coach_name", "name1", "first_name", "last_name", "full_name"]:
+        if meta.has_field(fieldname):
+            fields.append(fieldname)
+
+    rows = frappe.get_all(
+        "Coach",
+        filters={"bank_account": ["is", "set"]},
+        fields=fields,
+        order_by="name asc",
+        limit_page_length=1000,
+        ignore_permissions=True,
+    )
+
+    return [
+        {"value": row.get("bank_account"), "label": _coach_label(row)}
+        for row in rows
+        if row.get("bank_account")
+    ]
+
+
 def _get_client_fields():
     if not _has_doctype("Client"):
         return []
@@ -1013,6 +1051,9 @@ def get_client_invoice_defaults(client_name=None):
             ignore_permissions=True,
         )
 
+    client_type = client.get("client_type") or ""
+    allow_bank_override = client_type in BANK_OVERRIDE_CLIENT_TYPES
+
     return {
         "client_name": client_name,
         "client_label": _client_display_name(client_name),
@@ -1022,7 +1063,10 @@ def get_client_invoice_defaults(client_name=None):
         "price_list": client.get("pricelist") or "",
         "company": client.get("company") or "",
         "coach_label": _coach_label_from_name(client.get("attending_coach") or client.get("primary_coach") or ""),
+        "bank_account": client.get("banking") or "",
         "bank_display_text": _bank_display_text(client.get("banking") or ""),
+        "allow_bank_override": allow_bank_override,
+        "bank_account_options": _get_bank_account_options() if allow_bank_override else [],
         "travel_charged": int(client.get("travel_charged") or 0),
         "travel_miles_one_way": float(client.get("travel_miles_one_way") or 0),
         "travel_charge_per_session": float(client.get("travel_charge_per_session") or 0),
