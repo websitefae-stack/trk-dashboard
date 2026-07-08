@@ -297,9 +297,12 @@
 
   async function loadDashboardSummary() {
     const dashboardType = getDashboardType();
+    const params = new URLSearchParams(window.location.search);
 
     const payload = await apiGet(SHARED_API + ".get_dashboard_summary", {
       dashboard_type: dashboardType,
+      view_as: params.get("view_as") || "",
+      viewer: params.get("viewer") || "",
       cache_bust: Date.now()
     });
 

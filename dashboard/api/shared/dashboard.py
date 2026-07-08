@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 from frappe.utils import today, getdate, get_datetime, add_to_date, flt, nowdate, get_fullname
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
+from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
 from dashboard.api.shared.utils import get_label as _get_label, get_request_payload as _get_request_payload, coalesce_raw as _coalesce_raw, coalesce_str as _coalesce_str, find_session_worker_for_user as _find_session_worker_for_user
 
 
@@ -281,7 +282,7 @@ def _get_client_fields():
         "status",
     ]
 
-    fields = []
+    fields = ["creation"]
 
     for fieldname in wanted:
         if fieldname == "name" or meta.has_field(fieldname):
@@ -424,16 +425,18 @@ def _get_dashboard_client_rows(dashboard_type, context, primary_only_for_coach=F
 
 
 def _count_clients_added(rows, start_date, end_date):
+    # Based on the Client record's own creation date in Frappe, not the
+    # (manually editable, sometimes stale/backfilled) date_added field.
     count = 0
 
     for row in rows:
-        date_added = row.get("date_added")
-        if not date_added:
+        created_on = row.get("creation")
+        if not created_on:
             continue
 
-        date_added = getdate(date_added)
+        created_on = getdate(created_on)
 
-        if getdate(start_date) <= date_added <= getdate(end_date):
+        if getdate(start_date) <= created_on <= getdate(end_date):
             count += 1
 
     return count
@@ -1131,7 +1134,22 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
             view_mode.get("view_coach_name"),
             "coach_email",
         ) or ""
-        
+
+    if dashboard_type == SESSION_WORKER_DASHBOARD and view_as:
+        view_mode = get_session_worker_view_mode(
+            scope=viewer,
+            worker_name=view_as,
+        )
+
+        if not view_mode.get("is_view_mode"):
+            frappe.throw(_("You do not have permission to view this session worker."), frappe.PermissionError)
+
+        context["session_worker_name"] = view_mode.get("view_worker_name")
+        context["session_worker_label"] = view_mode.get("view_worker_display_name")
+        context["is_dashboard_admin"] = 0
+        context["is_view_mode"] = 1
+        context["view_scope"] = viewer
+
     current_month_start, current_month_end = _get_current_month_range()
     previous_month_start, previous_month_end = _get_previous_month_range()
 
