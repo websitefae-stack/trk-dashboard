@@ -533,14 +533,21 @@
       return null;
     }
 
-    const result = await apiPost(SHARED_API + ".resolve_invoice_context", {
-      client_name: clientName,
-      customer_name: customerName
-    });
+    try {
+      const result = await apiPost(SHARED_API + ".resolve_invoice_context", {
+        client_name: clientName,
+        customer_name: customerName
+      });
 
-    const context = result.message || result;
-    applyContextToPage(context);
-    return context;
+      const context = result.message || result;
+      applyContextToPage(context);
+      return context;
+    } catch (error) {
+      // Never let this take down the rest of init() (button/change-event
+      // bindings still need to run even if this particular refresh fails).
+      console.error("Could not resolve invoice context", error);
+      return null;
+    }
   }
 
   async function refreshItemRowDefaults(row, options) {
