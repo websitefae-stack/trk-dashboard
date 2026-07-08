@@ -40,7 +40,15 @@
       return false;
     }
 
+    // Franchise-type rows represent coaches themselves (for cross-coach/HQ
+    // invoicing) and aren't assigned to any one coach or session worker, so
+    // those two filters must never hide them - otherwise the "show only my
+    // clients" default (which auto-selects the current user in the Coach
+    // filter) silently hides every other coach's record.
+    const isFranchiseRow = row.dataset.type === "Franchise";
+
     if (
+      !isFranchiseRow &&
       filters.sessionWorker &&
       filters.sessionWorker !== "All" &&
       row.dataset.sessionWorker !== filters.sessionWorker
@@ -49,6 +57,7 @@
     }
 
     if (
+      !isFranchiseRow &&
       filters.coach &&
       filters.coach !== "All" &&
       row.dataset.coach !== filters.coach &&

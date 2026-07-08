@@ -145,7 +145,30 @@ def get_paginated_clients():
     filters = []
 
     if search:
-        filters.append(["full_name", "like", f"%{search}%"])
+        # Some clients (e.g. Franchise-type records representing a coach
+        # for cross-coach/HQ invoicing) may not have full_name populated,
+        # only name1/last_name/preferred_name - search across all of them
+        # so those records are still findable by name.
+        search_names = frappe.get_all(
+            CLIENT_DOCTYPE,
+            or_filters=[
+                ["full_name", "like", f"%{search}%"],
+                ["name1", "like", f"%{search}%"],
+                ["last_name", "like", f"%{search}%"],
+                ["preferred_name", "like", f"%{search}%"],
+            ],
+            pluck="name",
+            limit_page_length=0,
+        )
+
+        if not search_names:
+            return {
+                "clients": [],
+                "pagination": make_pagination(0, page_args["page"], page_args["page_size"]),
+                "search": search,
+            }
+
+        filters.append(["name", "in", search_names])
 
     or_filters = get_allowed_client_or_filters()
 
