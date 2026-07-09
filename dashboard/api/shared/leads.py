@@ -154,12 +154,13 @@ def _get_lead_notes(doc):
         notes.append({
             "name": row.get("name"),
             "note": row.get("note") or "",
+            "note_date": row.get("note_date"),
             "added_by": row.get("added_by") or "",
             "added_on": row.get("added_on"),
             "idx": row.get("idx") or 0,
         })
 
-    notes.sort(key=lambda r: r.get("idx") or 0, reverse=True)
+    notes.sort(key=lambda r: (str(r.get("note_date") or ""), r.get("idx") or 0), reverse=True)
     return notes
 
 
@@ -180,8 +181,37 @@ def get_lead(name=None):
     row["converted_client"] = doc.get("converted_client") or ""
     row["converted_contact"] = doc.get("converted_contact") or ""
     row["intake_url"] = _intake_url(doc.name) if doc.get("intake_sent_on") else ""
+    row["call"] = _get_lead_call_info(doc.event)
 
     return row
+
+
+def _get_lead_call_info(event_name):
+    if not event_name or not frappe.db.exists("Event", event_name):
+        return None
+
+    event_meta = frappe.get_meta("Event")
+    fields = ["starts_on", "ends_on", "location"]
+
+    for fieldname in ["google_meet_link", "custom_google_meet_url"]:
+        if event_meta.has_field(fieldname):
+            fields.append(fieldname)
+
+    event = frappe.db.get_value("Event", event_name, fields, as_dict=True) or {}
+
+    online_link = event.get("google_meet_link") or event.get("custom_google_meet_url") or ""
+
+    starts_on = event.get("starts_on")
+    ends_on = event.get("ends_on")
+
+    return {
+        "event": event_name,
+        "date": starts_on.strftime("%Y-%m-%d") if starts_on else "",
+        "start_time": starts_on.strftime("%H:%M") if starts_on else "",
+        "end_time": ends_on.strftime("%H:%M") if ends_on else "",
+        "location": event.get("location") or "",
+        "online_link": online_link,
+    }
 
 
 @frappe.whitelist()
@@ -348,9 +378,10 @@ def update_lead_status(name=None, status=None, decline_reason=None):
 
 
 @frappe.whitelist()
-def add_lead_note(name=None, note=None):
+def add_lead_note(name=None, note=None, note_date=None):
     name = coalesce_str("name", name)
     note = coalesce_str("note", note)
+    note_date = coalesce_str("note_date", note_date)
 
     if not note:
         frappe.throw(_("Please enter a note."))
@@ -359,6 +390,7 @@ def add_lead_note(name=None, note=None):
 
     doc.append("notes", {
         "note": note,
+        "note_date": note_date or frappe.utils.today(),
         "added_by": frappe.session.user,
         "added_on": now_datetime(),
     })

@@ -6,6 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "note",
+  "note_date",
   "added_by",
   "added_on"
  ],
@@ -16,6 +17,13 @@
    "in_list_view": 1,
    "label": "Note",
    "reqd": 1
+  },
+  {
+   "fieldname": "note_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date",
+   "description": "The date this note is about (e.g. the call date) - defaults to today but can be changed."
   },
   {
    "fieldname": "added_by",
