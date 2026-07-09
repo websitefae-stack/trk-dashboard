@@ -37,6 +37,7 @@ FORCE_EDITABLE_FIELDS = {
     "last_name",
     "preferred_name",
     "therapy_location",
+    "main_therapy_location",
     "gender",
     "gender_identity",
     "sex",
@@ -107,7 +108,7 @@ LAYOUT = [
                 "fields": [
                     {"label": "Status", "candidates": ["status"]},
                     {"label": "Client Type", "candidates": ["client_type"]},
-                    {"label": "Main Therapy Location", "candidates": ["therapy_location"]},
+                    {"label": "Main Therapy Location", "candidates": ["main_therapy_location", "therapy_location"]},
 
                     {"label": "Primary Coach", "candidates": ["primary_coach"]},
                     {"label": "Attending Coach", "candidates": ["attending_coach"]},

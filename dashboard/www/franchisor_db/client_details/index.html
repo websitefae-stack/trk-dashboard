@@ -683,7 +683,7 @@
                                   {% endif %}
                                 </select>
 
-                                {% if item.fieldname == "therapy_location" %}
+                                {% if item.fieldname == "main_therapy_location" or item.fieldname == "therapy_location" %}
                                   <button type="button" class="dashboard-btn dashboard-btn-light" id="addTherapyLocationBtn" disabled>
                                     + New
                                   </button>

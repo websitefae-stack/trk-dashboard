@@ -1,5 +1,3 @@
-import math
-
 import frappe
 from frappe import _
 from frappe.utils import today, getdate, get_datetime, add_to_date, flt, nowdate, get_fullname
@@ -1103,21 +1101,7 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None):
     if invoice_doc.docstatus != 1:
         frappe.throw(_("Only submitted Sales Invoices can be marked as paid."))
 
-    # Re-read the outstanding amount fresh from the database rather than the
-    # already-loaded doc, and round it DOWN (never up) to 2dp. ERPNext's own
-    # Payment Entry validation re-checks the allocated amount against the
-    # current outstanding balance at insert time, and a value stored with a
-    # sub-penny remainder (e.g. 149.996 due to float rounding elsewhere) would
-    # get rounded UP to 150.00 by ordinary flt() rounding - which then exceeds
-    # the true outstanding balance and throws "Allocated Amount cannot be
-    # greater than outstanding amount". Flooring guarantees we never allocate
-    # more than what's actually outstanding.
-    raw_outstanding = frappe.db.get_value("Sales Invoice", invoice, "outstanding_amount")
-    if raw_outstanding is None:
-        raw_outstanding = invoice_doc.outstanding_amount or 0
-    outstanding_amount = math.floor(flt(raw_outstanding) * 100) / 100.0
-
-    if outstanding_amount <= 0:
+    if flt(invoice_doc.outstanding_amount) <= 0:
         return {
             "ok": True,
             "message": "Invoice is already paid.",
@@ -1131,39 +1115,25 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None):
     if not paid_to:
         frappe.throw(_("No valid Bank Account ledger account was found from the Client banking field."))
 
-    company = invoice_doc.company or (client_row.get("company") if client_row else "")
-
-    if not company:
-        frappe.throw(_("No company found for this invoice."))
-
     if not invoice_doc.customer:
         frappe.throw(_("No customer found for this invoice."))
 
-    payment_entry = frappe.get_doc({
-        "doctype": "Payment Entry",
-        "payment_type": "Receive",
-        "posting_date": payment_date,
-        "company": company,
-        "party_type": "Customer",
-        "party": invoice_doc.customer,
-        "party_name": invoice_doc.customer_name,
-        "paid_from": invoice_doc.debit_to,
-        "paid_to": paid_to,
-        "paid_amount": outstanding_amount,
-        "received_amount": outstanding_amount,
-        "reference_no": f"Dashboard payment - {invoice}",
-        "reference_date": payment_date,
-        "remarks": f"Payment marked as paid from dashboard by {user}",
-        "references": [
-            {
-                "reference_doctype": "Sales Invoice",
-                "reference_name": invoice,
-                "total_amount": flt(invoice_doc.grand_total or invoice_doc.rounded_total or 0, 2),
-                "outstanding_amount": outstanding_amount,
-                "allocated_amount": outstanding_amount,
-            }
-        ],
-    })
+    # Build the Payment Entry via ERPNext's own get_payment_entry() helper -
+    # the same code the standard "Make Payment" Desk button uses - instead of
+    # hand-rolling the allocation ourselves. It always reads the live
+    # outstanding/GL balance at build time, so it can't drift from what
+    # validate_allocated_amount_with_latest_data() independently re-checks
+    # at insert time (a hand-computed allocated_amount, however carefully
+    # rounded, kept tripping "Allocated Amount cannot be greater than
+    # outstanding amount" because that re-check isn't just re-reading the
+    # Sales Invoice's own outstanding_amount field).
+    from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
+
+    payment_entry = get_payment_entry("Sales Invoice", invoice, bank_account=paid_to)
+    payment_entry.posting_date = payment_date
+    payment_entry.reference_date = payment_date
+    payment_entry.reference_no = f"Dashboard payment - {invoice}"
+    payment_entry.remarks = f"Payment marked as paid from dashboard by {user}"
 
     payment_entry.insert(ignore_permissions=True)
     payment_entry.submit()
