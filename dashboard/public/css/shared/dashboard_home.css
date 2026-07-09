@@ -236,16 +236,22 @@
 
 .dashboard-home-invoices-table th:nth-child(6),
 .dashboard-home-invoices-table td:nth-child(6) {
-  width: 150px;
+  width: 130px;
 }
 
 .dashboard-home-invoices-table th:nth-child(7),
 .dashboard-home-invoices-table td:nth-child(7) {
+  width: 150px;
+}
+
+.dashboard-home-invoices-table th:nth-child(8),
+.dashboard-home-invoices-table td:nth-child(8) {
   width: 110px;
 }
 
-.dashboard-home-payment-date {
-  width: 128px;
+.dashboard-home-payment-date,
+.dashboard-home-payment-amount {
+  width: 118px;
   height: 38px;
   border: 1px solid #D9E6E6;
   border-radius: 10px;

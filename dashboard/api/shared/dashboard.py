@@ -1081,14 +1081,45 @@ def _resolve_paid_to_account(invoice_doc, client_row):
     return ""
 
 
+def _get_live_outstanding_amount(invoice_doc, invoice_name):
+    """
+    The Sales Invoice's own cached outstanding_amount field can drift from
+    the true Payment Ledger balance (this has been observed to disagree with
+    what ERPNext's validate_allocated_amount_with_latest_data() re-checks at
+    Payment Entry insert time, even when our own allocated amount is pinned
+    to - or floored below - the cached field). Query the ledger directly for
+    the authoritative current figure; fall back to the cached field if the
+    query can't run (e.g. a schema this site's ERPNext version doesn't have).
+    """
+    try:
+        row = frappe.db.sql(
+            """
+            select sum(amount_in_account_currency) as amount
+            from `tabPayment Ledger Entry`
+            where against_voucher_type = %s
+              and against_voucher_no = %s
+              and delinked = 0
+            """,
+            ("Sales Invoice", invoice_name),
+            as_dict=True,
+        )
+        if row and row[0].get("amount") is not None:
+            return flt(row[0]["amount"])
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "mark_invoice_paid - live outstanding lookup failed")
+
+    return flt(invoice_doc.outstanding_amount)
+
+
 @frappe.whitelist()
-def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None):
+def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None, amount_paid=None):
     user = _require_logged_in_user()
     dashboard_type = _normalise_dashboard_type(dashboard_type)
     context = _get_context_for_dashboard(dashboard_type)
 
     invoice = _coalesce_str("invoice", invoice)
     payment_date = _coalesce_str("payment_date", payment_date) or today()
+    amount_paid = _coalesce_str("amount_paid", amount_paid)
 
     if not invoice:
         frappe.throw(_("Please select an invoice."))
@@ -1101,12 +1132,25 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None):
     if invoice_doc.docstatus != 1:
         frappe.throw(_("Only submitted Sales Invoices can be marked as paid."))
 
-    if flt(invoice_doc.outstanding_amount) <= 0:
+    outstanding_amount = _get_live_outstanding_amount(invoice_doc, invoice)
+
+    if outstanding_amount <= 0:
         return {
             "ok": True,
             "message": "Invoice is already paid.",
             "invoice": invoice,
         }
+
+    party_amount = None
+
+    if amount_paid:
+        party_amount = flt(amount_paid)
+
+        if party_amount <= 0:
+            frappe.throw(_("Amount paid must be greater than zero."))
+
+        if party_amount > outstanding_amount:
+            frappe.throw(_("Amount paid cannot be greater than the outstanding amount ({0})").format(outstanding_amount))
 
     client_row = _get_client_row(invoice_doc.get("custom_client"))
 
@@ -1120,16 +1164,14 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None):
 
     # Build the Payment Entry via ERPNext's own get_payment_entry() helper -
     # the same code the standard "Make Payment" Desk button uses - instead of
-    # hand-rolling the allocation ourselves. It always reads the live
-    # outstanding/GL balance at build time, so it can't drift from what
-    # validate_allocated_amount_with_latest_data() independently re-checks
-    # at insert time (a hand-computed allocated_amount, however carefully
-    # rounded, kept tripping "Allocated Amount cannot be greater than
-    # outstanding amount" because that re-check isn't just re-reading the
-    # Sales Invoice's own outstanding_amount field).
+    # hand-rolling the allocation ourselves, and cap it to the live-ledger
+    # outstanding_amount above rather than whatever get_payment_entry() would
+    # otherwise default to from the (possibly stale) cached field.
     from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
 
-    payment_entry = get_payment_entry("Sales Invoice", invoice, bank_account=paid_to)
+    payment_entry = get_payment_entry(
+        "Sales Invoice", invoice, party_amount=party_amount or outstanding_amount, bank_account=paid_to
+    )
     payment_entry.posting_date = payment_date
     payment_entry.reference_date = payment_date
     payment_entry.reference_no = f"Dashboard payment - {invoice}"
@@ -1138,9 +1180,11 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None):
     payment_entry.insert(ignore_permissions=True)
     payment_entry.submit()
 
+    is_partial = flt(payment_entry.paid_amount) < outstanding_amount
+
     return {
         "ok": True,
-        "message": "Payment Entry created.",
+        "message": "Partial payment recorded." if is_partial else "Payment Entry created.",
         "invoice": invoice,
         "payment_entry": payment_entry.name,
     }

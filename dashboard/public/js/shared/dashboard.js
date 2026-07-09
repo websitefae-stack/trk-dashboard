@@ -79,6 +79,10 @@
     }
   }
 
+  function flt2(value) {
+    return (Number(value || 0)).toFixed(2);
+  }
+
   function formatMiles(value) {
     const number = Number(value || 0);
     return `${number % 1 === 0 ? number.toFixed(0) : number.toFixed(2)} miles`;
@@ -150,7 +154,7 @@
     if (!items || !items.length) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="7" class="dashboard-empty">No outstanding invoices found.</td>
+          <td colspan="8" class="dashboard-empty">No outstanding invoices found.</td>
         </tr>
       `;
       return;
@@ -170,6 +174,16 @@
           <td>${escapeHtml(formatMoney(item.outstanding_amount, item.currency))}</td>
           <td>
             <input
+              type="number"
+              step="0.01"
+              min="0"
+              class="dashboard-home-payment-amount"
+              value="${escapeHtml(flt2(item.outstanding_amount))}"
+              data-payment-amount-for="${escapeHtml(item.name || "")}"
+            >
+          </td>
+          <td>
+            <input
               type="date"
               class="dashboard-home-payment-date"
               value="${todayIso()}"
@@ -181,6 +195,7 @@
               type="button"
               class="dashboard-link-btn"
               data-dashboard-pay-invoice="${escapeHtml(item.name || "")}"
+              data-dashboard-pay-outstanding="${escapeHtml(flt2(item.outstanding_amount))}"
             >
               Mark Paid
             </button>
@@ -239,8 +254,26 @@
       return;
     }
 
+    const amountInput = document.querySelector(`[data-payment-amount-for="${CSS.escape(invoice)}"]`);
+    const outstanding = Number(button.dataset.dashboardPayOutstanding || 0);
+    const amountPaid = amountInput && amountInput.value !== "" ? Number(amountInput.value) : outstanding;
+
+    if (!amountPaid || amountPaid <= 0) {
+      alert("Please enter the amount paid.");
+      return;
+    }
+
+    if (amountPaid > outstanding) {
+      alert("Amount paid cannot be greater than the outstanding amount.");
+      return;
+    }
+
+    const isPartial = amountPaid < outstanding;
+
     const confirmed = window.confirm(
-      `Are you sure you want to mark invoice ${invoice} as paid?`
+      isPartial
+        ? `Record a partial payment of ${formatMoney(amountPaid)} for invoice ${invoice}?`
+        : `Are you sure you want to mark invoice ${invoice} as paid in full?`
     );
 
     if (!confirmed) {
@@ -254,7 +287,8 @@
       await apiPost(SHARED_API + ".mark_invoice_paid", {
         dashboard_type: getDashboardType(),
         invoice: invoice,
-        payment_date: paymentDate
+        payment_date: paymentDate,
+        amount_paid: amountPaid
       });
 
       await loadDashboardSummary();
