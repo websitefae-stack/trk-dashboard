@@ -16,6 +16,11 @@ DAY_NAMES = [
     "Friday", "Saturday", "Sunday",
 ]
 
+# Supervision and Parent Check-In are staff/client-portal only, never
+# publicly bookable - excluded from the picker so a coach can't
+# accidentally set up public availability windows for them.
+EXCLUDED_LABEL_FRAGMENTS = ["supervision", "parent check"]
+
 
 def _format_time_value(value):
     if value is None:
@@ -79,13 +84,17 @@ def get_appointment_template_options():
 
     rows = frappe.get_all("Appointment Template", fields=fields, order_by="name asc", limit_page_length=200)
 
-    return [
-        {
-            "value": row.get("name"),
-            "label": (row.get(label_field) if label_field else None) or row.get("name"),
-        }
-        for row in rows
-    ]
+    options = []
+    for row in rows:
+        label = (row.get(label_field) if label_field else None) or row.get("name")
+        label_lower = (label or "").lower()
+
+        if any(fragment in label_lower for fragment in EXCLUDED_LABEL_FRAGMENTS):
+            continue
+
+        options.append({"value": row.get("name"), "label": label})
+
+    return options
 
 
 @frappe.whitelist()

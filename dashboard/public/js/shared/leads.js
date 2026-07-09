@@ -57,6 +57,7 @@
 
     return `
       <a class="dashboard-lead-card" href="${detailUrl}">
+        ${lead.appointment_type ? `<span class="dashboard-badge dashboard-status-active dashboard-lead-card-type">${escapeHtml(lead.appointment_type)}</span>` : ""}
         <div class="dashboard-lead-card-client">${escapeHtml(lead.client_name || "—")}</div>
         <div class="dashboard-lead-card-contact">${escapeHtml(lead.contact_name || "—")}</div>
         ${metaBits.length ? `<div class="dashboard-lead-card-meta">${metaBits.join(" · ")}</div>` : ""}

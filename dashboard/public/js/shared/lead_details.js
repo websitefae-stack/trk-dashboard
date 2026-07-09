@@ -108,6 +108,7 @@
     setValue("lead_postal_code", lead.postal_code);
     setValue("lead_enquiry_reason", lead.enquiry_reason);
     setValue("lead_how_heard", lead.how_heard);
+    setValue("lead_location_address", lead.location_address);
 
     const consentField = el("lead_consent_given");
     if (consentField) consentField.checked = !!lead.consent_given;
@@ -116,6 +117,16 @@
       setValue("lead_status", lead.status || "New");
       setValue("lead_decline_reason", lead.decline_reason || "");
       toggleDeclineField();
+    }
+
+    const typeBadge = el("leadAppointmentTypeBadge");
+    if (typeBadge) {
+      if (lead.appointment_type) {
+        typeBadge.textContent = lead.appointment_type;
+        typeBadge.style.display = "";
+      } else {
+        typeBadge.style.display = "none";
+      }
     }
 
     const intakeInfo = el("leadIntakeInfo");
@@ -190,10 +201,19 @@
     } else {
       if (viewClientBtn) viewClientBtn.style.display = "none";
       if (sendBtn) sendBtn.style.display = "";
-      if (convertBtn) convertBtn.style.display = lead.intake_completed_on ? "" : "none";
-      if (linkExistingSection) {
-        linkExistingSection.style.display = "";
-        loadClientLinkOptions();
+
+      if (!lead.is_client_conversion) {
+        // e.g. Franchisee Call - turns into a Franchisee, not a Client;
+        // that conversion flow doesn't exist yet, so don't offer the
+        // Client-shaped conversion actions for it.
+        if (convertBtn) convertBtn.style.display = "none";
+        if (linkExistingSection) linkExistingSection.style.display = "none";
+      } else {
+        if (convertBtn) convertBtn.style.display = lead.intake_completed_on ? "" : "none";
+        if (linkExistingSection) {
+          linkExistingSection.style.display = "";
+          loadClientLinkOptions();
+        }
       }
     }
   }
@@ -283,6 +303,7 @@
       postal_code: getValue("lead_postal_code").trim(),
       enquiry_reason: getValue("lead_enquiry_reason").trim(),
       how_heard: getValue("lead_how_heard").trim(),
+      location_address: getValue("lead_location_address").trim(),
       consent_given: el("lead_consent_given") && el("lead_consent_given").checked ? 1 : 0,
     };
   }
@@ -317,6 +338,9 @@
 
         const coachField = el("lead_coach");
         if (coachField) payload.coach = coachField.value;
+
+        const appointmentTypeField = el("lead_appointment_type");
+        if (appointmentTypeField) payload.appointment_type = appointmentTypeField.value;
 
         const result = await apiPost(`${SHARED_API}.create_lead`, payload);
         window.location.href = `${baseUrl}/lead_details?name=${encodeURIComponent(result.name)}`;
