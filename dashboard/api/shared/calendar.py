@@ -2293,6 +2293,24 @@ def _create_booking_impl(
             )
             final_notes = f"Lead: {lead}\n\n{final_notes}".strip()
 
+            # Booked straight from the calendar (not via the Leads section's
+            # "Book a Call" button, which already supplies client_lead) -
+            # still needs to show up in the Leads section, so create one
+            # here too. Only the person's name is known at this point, so
+            # it's used for both contact and client - easy to split/correct
+            # on the Lead's own detail page afterwards.
+            if not client_lead:
+                from dashboard.api.shared.leads import create_lead_from_booking
+
+                booking_coach = frappe.db.get_value("Coach", {"user": calendar_owner}, "name") or \
+                    frappe.db.get_value("Coach", {"coach_email": calendar_owner}, "name")
+
+                client_lead = create_lead_from_booking(
+                    contact_name=lead_name,
+                    phone=phone,
+                    coach=booking_coach,
+                )
+
         if _to_int(google_meet):
             final_notes = "Google Meet required.\n\n" + final_notes
 
