@@ -1667,9 +1667,12 @@ def _send_legacy_notification(
         if _field_exists(NOTIFICATION_DOCTYPE, "from_user"):
             doc_data["from_user"] = frappe.session.user
 
-        if _field_exists(NOTIFICATION_DOCTYPE, "type"):
-            doc_data["type"] = notification_type
-
+        # NOTE: deliberately not setting "type" here - Notification Log's
+        # type field is Frappe's own internal classification (Mention/
+        # Energy Point/Assignment/Share/Alert), not a freeform label. Our
+        # custom notification_type values ("Task", "New Public Booking",
+        # etc.) aren't in that list and raise a ValidationError if assigned
+        # - the subject field above already carries the meaningful label.
         if _field_exists(NOTIFICATION_DOCTYPE, "priority"):
             doc_data["priority"] = priority
 
@@ -1756,9 +1759,8 @@ def create_trk_notification(
     if _field_exists(NOTIFICATION_DOCTYPE, "from_user"):
         doc_data["from_user"] = frappe.session.user
 
-    if _field_exists(NOTIFICATION_DOCTYPE, "type"):
-        doc_data["type"] = notification_type
-
+    # See the matching note in _send_legacy_notification() above - "type"
+    # is Frappe's own fixed classification, not a freeform label.
     if _field_exists(NOTIFICATION_DOCTYPE, "priority"):
         doc_data["priority"] = priority
 

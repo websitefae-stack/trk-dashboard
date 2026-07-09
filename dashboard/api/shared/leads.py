@@ -553,14 +553,20 @@ def submit_intake(
         )
 
         if coach_user:
-            create_trk_notification(
-                recipient_user=coach_user,
-                notification_type="Intake Form Completed",
-                message=f"{doc.client_name} - intake form has been completed. Review and convert to a client.",
-                priority="High",
-                reference_doctype=LEAD_DOCTYPE,
-                reference_name=doc.name,
-            )
+            # Best-effort - the intake submission itself is already saved
+            # above, a broken notification config must not make it look
+            # like the submission failed.
+            try:
+                create_trk_notification(
+                    recipient_user=coach_user,
+                    notification_type="Intake Form Completed",
+                    message=f"{doc.client_name} - intake form has been completed. Review and convert to a client.",
+                    priority="High",
+                    reference_doctype=LEAD_DOCTYPE,
+                    reference_name=doc.name,
+                )
+            except Exception:
+                frappe.log_error(frappe.get_traceback(), "Intake Submission - Coach Notification Failed")
 
     return {"ok": True, "already_done": False}
 

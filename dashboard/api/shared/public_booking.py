@@ -501,13 +501,57 @@ def submit_public_booking(
     lead.save(ignore_permissions=True)
     frappe.db.commit()
 
-    create_trk_notification(
-        recipient_user=coach_user,
-        notification_type="New Public Booking",
-        message=f"{contact_name} booked {appointment_type} for {date} at {time} via your public profile.",
-        priority="High",
-        reference_doctype=LEAD_DOCTYPE,
-        reference_name=lead.name,
-    )
+    # Both of these are best-effort side effects, not part of the booking
+    # itself (already committed above) - a broken email/notification
+    # config must never make the booking appear to have failed.
+    try:
+        create_trk_notification(
+            recipient_user=coach_user,
+            notification_type="New Public Booking",
+            message=f"{contact_name} booked {appointment_type} for {date} at {time} via your public profile.",
+            priority="High",
+            reference_doctype=LEAD_DOCTYPE,
+            reference_name=lead.name,
+        )
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Public Booking - Coach Notification Failed")
+
+    if contact_email:
+        try:
+            _send_booking_confirmation_email(
+                contact_email=contact_email,
+                contact_name=contact_name,
+                coach=coach,
+                appointment_type=appointment_type,
+                date=date,
+                time=time,
+                location_address=location_address,
+            )
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "Public Booking - Confirmation Email Failed")
 
     return {"ok": True}
+
+
+def _send_booking_confirmation_email(contact_email, contact_name, coach, appointment_type, date, time, location_address):
+    coach_display_name = frappe.db.get_value("Coach", coach, "coach_name") or coach
+
+    date_text = get_datetime(f"{date} 00:00:00").strftime("%A %d %B %Y")
+
+    lines = [
+        f"<p>Hi {frappe.utils.escape_html(contact_name)},</p>",
+        f"<p>Your {frappe.utils.escape_html(appointment_type)} with {frappe.utils.escape_html(coach_display_name)} is confirmed:</p>",
+        f"<p><strong>{frappe.utils.escape_html(date_text)} at {frappe.utils.escape_html(time)}</strong></p>",
+    ]
+
+    if location_address:
+        lines.append(f"<p>Location: {frappe.utils.escape_html(location_address)}</p>")
+
+    lines.append("<p>We'll be in touch if anything changes. See you then!</p>")
+
+    frappe.sendmail(
+        recipients=[contact_email],
+        subject=f"Your {appointment_type} is confirmed",
+        message="".join(lines),
+        now=True,
+    )
