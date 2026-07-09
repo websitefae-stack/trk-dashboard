@@ -124,6 +124,24 @@
 
     const title = el("leadPageTitle");
     if (title) title.textContent = lead.client_name || "Lead";
+
+    const baseUrl = getValue("leadBaseUrl") || "/coach_db";
+    const sendBtn = el("sendIntakeFormBtn");
+    const convertBtn = el("convertLeadBtn");
+    const viewClientBtn = el("viewConvertedClientBtn");
+
+    if (lead.status === "Converted" && lead.converted_client) {
+      if (sendBtn) sendBtn.style.display = "none";
+      if (convertBtn) convertBtn.style.display = "none";
+      if (viewClientBtn) {
+        viewClientBtn.style.display = "";
+        viewClientBtn.href = `${baseUrl}/client_details?name=${encodeURIComponent(lead.converted_client)}`;
+      }
+    } else {
+      if (viewClientBtn) viewClientBtn.style.display = "none";
+      if (sendBtn) sendBtn.style.display = "";
+      if (convertBtn) convertBtn.style.display = lead.status === "Intake Completed" ? "" : "none";
+    }
   }
 
   async function loadLead() {
@@ -209,6 +227,48 @@
     }
   }
 
+  async function sendIntakeForm() {
+    const name = getValue("leadDocname");
+    const sendBtn = el("sendIntakeFormBtn");
+    if (sendBtn) sendBtn.disabled = true;
+
+    try {
+      const result = await apiPost(`${SHARED_API}.send_intake_form`, { name });
+      showMessage(
+        result.email_sent
+          ? "Intake form sent."
+          : `Could not send the email, but here's the link to share directly: ${result.intake_url}`,
+        !result.email_sent
+      );
+      loadLead();
+    } catch (error) {
+      showMessage(error.message || "Could not send the intake form.", true);
+    } finally {
+      if (sendBtn) sendBtn.disabled = false;
+    }
+  }
+
+  async function convertLead() {
+    const name = getValue("leadDocname");
+
+    if (!window.confirm("Create a Client and Contact record from this lead's details?")) {
+      return;
+    }
+
+    const convertBtn = el("convertLeadBtn");
+    if (convertBtn) convertBtn.disabled = true;
+
+    try {
+      await apiPost(`${SHARED_API}.convert_lead_to_client`, { name });
+      showMessage("Converted to a Client.", false);
+      loadLead();
+    } catch (error) {
+      showMessage(error.message || "Could not convert this lead.", true);
+    } finally {
+      if (convertBtn) convertBtn.disabled = false;
+    }
+  }
+
   async function addNote() {
     const name = getValue("leadDocname");
     const noteField = el("leadNewNote");
@@ -239,6 +299,12 @@
 
     const addNoteBtn = el("addLeadNoteBtn");
     if (addNoteBtn) addNoteBtn.addEventListener("click", addNote);
+
+    const sendBtn = el("sendIntakeFormBtn");
+    if (sendBtn) sendBtn.addEventListener("click", sendIntakeForm);
+
+    const convertBtn = el("convertLeadBtn");
+    if (convertBtn) convertBtn.addEventListener("click", convertLead);
 
     const statusField = el("lead_status");
     if (statusField) statusField.addEventListener("change", toggleDeclineField);

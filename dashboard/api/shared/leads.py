@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import now_datetime
+from frappe.utils import now_datetime, get_url
 
 from dashboard.api.shared.permissions import (
     ensure_logged_in,
@@ -10,6 +10,10 @@ from dashboard.api.shared.permissions import (
 )
 from dashboard.api.shared.clients import get_coach_label
 from dashboard.api.shared.utils import coalesce_str, coalesce_raw
+from dashboard.api.shared.notifications import create_trk_notification
+
+
+INTAKE_ROUTE = "client-intake/new"
 
 
 LEAD_DOCTYPE = "Client Lead"
@@ -140,6 +144,10 @@ def get_lead(name=None):
     row["consent_given"] = int(doc.get("consent_given") or 0)
     row["notes"] = _get_lead_notes(doc)
     row["can_edit"] = 1
+    row["intake_sent_on"] = doc.get("intake_sent_on")
+    row["converted_client"] = doc.get("converted_client") or ""
+    row["converted_contact"] = doc.get("converted_contact") or ""
+    row["intake_url"] = _intake_url(doc.name) if doc.get("intake_sent_on") else ""
 
     return row
 
@@ -306,3 +314,212 @@ def add_lead_note(name=None, note=None):
     frappe.db.commit()
 
     return {"ok": True, "notes": _get_lead_notes(doc)}
+
+
+def _intake_url(name):
+    return get_url(f"/{INTAKE_ROUTE}?lead={name}")
+
+
+@frappe.whitelist()
+def send_intake_form(name=None):
+    doc = ensure_lead_access(coalesce_str("name", name))
+
+    if not doc.contact_email:
+        frappe.throw(_("This lead has no contact email address to send the intake form to."))
+
+    intake_url = _intake_url(doc.name)
+
+    try:
+        frappe.sendmail(
+            recipients=[doc.contact_email],
+            subject="Your Resilient Kid intake form",
+            message=(
+                f"<p>Hi {frappe.utils.escape_html(doc.contact_name or '')},</p>"
+                f"<p>Thanks for speaking with us. Please complete the short form below "
+                f"so we can get {frappe.utils.escape_html(doc.client_name or 'your young person')} set up:</p>"
+                f"<p><a href=\"{intake_url}\">{intake_url}</a></p>"
+            ),
+            now=True,
+        )
+        email_sent = True
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Send Intake Form Email Failed")
+        email_sent = False
+
+    doc.status = "Intake Sent"
+    doc.intake_sent_on = now_datetime()
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True, "intake_url": intake_url, "email_sent": email_sent, "status": doc.status}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_intake_lead(lead=None):
+    """
+    Public lookup for the intake form page - the Lead's own hash name is the
+    unguessable token (no separate secret needed), so this only ever exposes
+    the one record the link was generated for.
+    """
+    lead = coalesce_str("lead", lead)
+
+    if not lead or not frappe.db.exists(LEAD_DOCTYPE, lead):
+        frappe.throw(_("This intake link is invalid or has expired."))
+
+    doc = frappe.get_doc(LEAD_DOCTYPE, lead)
+
+    if doc.status in ("Converted",):
+        return {"already_done": True, "status": doc.status}
+
+    return {
+        "already_done": False,
+        "status": doc.status,
+        "contact_name": doc.contact_name or "",
+        "contact_email": doc.contact_email or "",
+        "contact_mobile": doc.contact_mobile or "",
+        "client_name": doc.client_name or "",
+        "client_age": doc.client_age or "",
+        "postal_code": doc.postal_code or "",
+        "enquiry_reason": doc.enquiry_reason or "",
+        "how_heard": doc.how_heard or "",
+        "consent_given": int(doc.consent_given or 0),
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def submit_intake(
+    lead=None,
+    contact_name=None,
+    contact_email=None,
+    contact_mobile=None,
+    client_name=None,
+    client_age=None,
+    postal_code=None,
+    enquiry_reason=None,
+    how_heard=None,
+    consent_given=None,
+):
+    lead = coalesce_str("lead", lead)
+
+    if not lead or not frappe.db.exists(LEAD_DOCTYPE, lead):
+        frappe.throw(_("This intake link is invalid or has expired."))
+
+    doc = frappe.get_doc(LEAD_DOCTYPE, lead)
+
+    if doc.status == "Converted":
+        return {"ok": True, "already_done": True}
+
+    contact_name = coalesce_str("contact_name", contact_name)
+    client_name = coalesce_str("client_name", client_name)
+
+    if not contact_name:
+        frappe.throw(_("Please enter the contact's name."))
+
+    if not client_name:
+        frappe.throw(_("Please enter the client's (young person's) name."))
+
+    doc.contact_name = contact_name
+    doc.contact_email = coalesce_str("contact_email", contact_email)
+    doc.contact_mobile = coalesce_str("contact_mobile", contact_mobile)
+    doc.client_name = client_name
+
+    client_age = coalesce_raw("client_age", client_age)
+    if client_age not in (None, ""):
+        try:
+            doc.client_age = int(client_age)
+        except Exception:
+            pass
+
+    doc.postal_code = coalesce_str("postal_code", postal_code)
+    doc.enquiry_reason = coalesce_str("enquiry_reason", enquiry_reason)
+    doc.how_heard = coalesce_str("how_heard", how_heard)
+
+    consent_given = coalesce_raw("consent_given", consent_given)
+    doc.consent_given = 1 if str(consent_given).lower() in ["1", "true", "yes", "on"] else 0
+
+    doc.status = "Intake Completed"
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    if doc.coach:
+        coach_user = frappe.db.get_value("Coach", doc.coach, "user") or frappe.db.get_value(
+            "Coach", doc.coach, "coach_email"
+        )
+
+        if coach_user:
+            create_trk_notification(
+                recipient_user=coach_user,
+                notification_type="Intake Form Completed",
+                message=f"{doc.client_name} - intake form has been completed. Review and convert to a client.",
+                priority="High",
+                reference_doctype=LEAD_DOCTYPE,
+                reference_name=doc.name,
+            )
+
+    return {"ok": True, "already_done": False}
+
+
+def _split_name(full_name):
+    parts = (full_name or "").strip().split(" ", 1)
+    first = parts[0] if parts else ""
+    last = parts[1] if len(parts) > 1 else ""
+    return first, last
+
+
+@frappe.whitelist()
+def convert_lead_to_client(name=None):
+    doc = ensure_lead_access(coalesce_str("name", name))
+
+    if doc.status == "Converted" and doc.converted_client:
+        return {"ok": True, "client": doc.converted_client, "contact": doc.converted_contact}
+
+    if not doc.contact_name or not doc.client_name:
+        frappe.throw(_("This lead is missing contact or client details."))
+
+    client_meta = frappe.get_meta("Client")
+    client_first, client_last = _split_name(doc.client_name)
+
+    client = frappe.new_doc("Client")
+    if client_meta.has_field("full_name"):
+        client.full_name = doc.client_name
+    if client_meta.has_field("name1"):
+        client.name1 = client_first
+    if client_meta.has_field("last_name"):
+        client.last_name = client_last
+    if client_meta.has_field("primary_coach") and doc.coach:
+        client.primary_coach = doc.coach
+    if client_meta.has_field("attending_coach") and doc.coach:
+        client.attending_coach = doc.coach
+    for age_field in ["client_age", "age"]:
+        if client_meta.has_field(age_field) and doc.client_age:
+            client.set(age_field, doc.client_age)
+            break
+    client.insert(ignore_permissions=True)
+
+    contact_first, contact_last = _split_name(doc.contact_name)
+    contact = frappe.new_doc("Contact")
+    contact.first_name = contact_first
+    if contact_last:
+        contact.last_name = contact_last
+    if doc.contact_email:
+        contact.append("email_ids", {"email_id": doc.contact_email, "is_primary": 1})
+    if doc.contact_mobile:
+        contact.append("phone_nos", {"phone": doc.contact_mobile, "is_primary_mobile_no": 1})
+    contact.insert(ignore_permissions=True)
+
+    if client_meta.has_field("client_contacts"):
+        client.append("client_contacts", {
+            "contact": contact.name,
+            "contact_name": doc.contact_name,
+            "phone": doc.contact_mobile or "",
+            "email_id": doc.contact_email or "",
+        })
+        client.save(ignore_permissions=True)
+
+    doc.converted_client = client.name
+    doc.converted_contact = contact.name
+    doc.status = "Converted"
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True, "client": client.name, "contact": contact.name}

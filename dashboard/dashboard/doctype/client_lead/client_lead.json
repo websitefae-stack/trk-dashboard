@@ -26,6 +26,9 @@
   "decline_reason",
   "column_break_outcome",
   "event",
+  "intake_sent_on",
+  "converted_client",
+  "converted_contact",
   "section_break_notes",
   "notes"
  ],
@@ -144,6 +147,26 @@
    "fieldtype": "Link",
    "label": "Booked Call",
    "options": "Event",
+   "read_only": 1
+  },
+  {
+   "fieldname": "intake_sent_on",
+   "fieldtype": "Datetime",
+   "label": "Intake Form Sent On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "converted_client",
+   "fieldtype": "Link",
+   "label": "Converted Client",
+   "options": "Client",
+   "read_only": 1
+  },
+  {
+   "fieldname": "converted_contact",
+   "fieldtype": "Link",
+   "label": "Converted Contact",
+   "options": "Contact",
    "read_only": 1
   },
   {
