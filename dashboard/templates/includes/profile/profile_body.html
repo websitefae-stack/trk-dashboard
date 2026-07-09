@@ -66,6 +66,9 @@
           <button type="button" class="dashboard-tab-btn is-active" data-tab="profile">Profile</button>
           <button type="button" class="dashboard-tab-btn" data-tab="legal">Legal Details</button>
           <button type="button" class="dashboard-tab-btn" data-tab="billing">Billing & Banking</button>
+          {% if profile_role in ["coach", "franchisor"] %}
+            <button type="button" class="dashboard-tab-btn" data-tab="availability">Availability</button>
+          {% endif %}
         </div>
       </div>
 
@@ -490,6 +493,93 @@
 
         </div>
       </div>
+
+      {% if profile_role in ["coach", "franchisor"] %}
+      <!-- AVAILABILITY TAB -->
+      <div class="dashboard-tab-panel" data-tab-panel="availability" style="display:none;">
+        <div class="dashboard-card">
+          <div class="dashboard-detail-section-head" style="margin-bottom:18px;">
+            <div>
+              <h3>Availability</h3>
+              <p class="dashboard-page-subtitle">Set the days and times potential clients can book an Initial Consultation with you online.</p>
+            </div>
+
+            <button type="button" class="dashboard-btn dashboard-btn-primary" id="addAvailabilityBtn">
+              + Add Availability
+            </button>
+          </div>
+
+          <div class="dashboard-detail-section" id="availabilityFormSection" style="display:none;">
+            <form id="availabilityForm">
+              <input type="hidden" id="availabilityRowName" value="">
+
+              <div class="dashboard-detail-grid dashboard-detail-grid-2">
+                <div class="dashboard-detail-field">
+                  <label for="availabilityAppointmentType">Appointment Type</label>
+                  <select class="dashboard-input" id="availabilityAppointmentType" required>
+                    <option value="">— Select appointment type —</option>
+                  </select>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="availabilityDay">Day of the Week</label>
+                  <select class="dashboard-input" id="availabilityDay" required>
+                    <option value="Monday">Monday</option>
+                    <option value="Tuesday">Tuesday</option>
+                    <option value="Wednesday">Wednesday</option>
+                    <option value="Thursday">Thursday</option>
+                    <option value="Friday">Friday</option>
+                    <option value="Saturday">Saturday</option>
+                    <option value="Sunday">Sunday</option>
+                  </select>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="availabilityStartTime">Start Time</label>
+                  <input class="dashboard-input" type="time" id="availabilityStartTime" required>
+                </div>
+
+                <div class="dashboard-detail-field">
+                  <label for="availabilityEndTime">End Time</label>
+                  <input class="dashboard-input" type="time" id="availabilityEndTime" required>
+                </div>
+
+                <div class="dashboard-detail-field dashboard-detail-field-checkbox">
+                  <label>
+                    <input type="checkbox" id="availabilityActive" checked>
+                    Active
+                  </label>
+                </div>
+              </div>
+
+              <div class="dashboard-detail-actions" style="margin-top:18px;">
+                <button class="dashboard-btn dashboard-btn-primary" type="submit" id="saveAvailabilityBtn">Save</button>
+                <button class="dashboard-btn dashboard-btn-light" type="button" id="cancelAvailabilityBtn">Cancel</button>
+                <span class="dashboard-help" id="availabilityFormMessage"></span>
+              </div>
+            </form>
+          </div>
+
+          <div class="dashboard-table-wrap">
+            <table class="dashboard-table dashboard-table-compact">
+              <thead>
+                <tr>
+                  <th>Appointment Type</th>
+                  <th>Day</th>
+                  <th>Start</th>
+                  <th>End</th>
+                  <th>Active</th>
+                  <th class="dashboard-action-col">Action</th>
+                </tr>
+              </thead>
+              <tbody id="availabilityTableBody">
+                <tr><td colspan="6" class="dashboard-empty">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% endif %}
 
     </div>
   </div>
