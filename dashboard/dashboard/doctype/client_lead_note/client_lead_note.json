@@ -1,0 +1,47 @@
+{
+ "actions": [],
+ "creation": "2026-07-09 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "note",
+  "added_by",
+  "added_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Note",
+   "reqd": 1
+  },
+  {
+   "fieldname": "added_by",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Added By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "added_on",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Added On",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-09 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "Client Lead Note",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

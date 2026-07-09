@@ -1,0 +1,174 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title" id="leadPageTitle">
+            {% if is_new %}New Lead{% else %}Lead{% endif %}
+          </h1>
+          <p class="dashboard-page-subtitle">Contact and client details for this enquiry</p>
+        </div>
+
+        <div class="dashboard-detail-actions dashboard-detail-actions-compact">
+          <a
+            href="/franchisor_db/leads"
+            class="dashboard-btn dashboard-btn-secondary"
+            onclick="if (document.referrer && document.referrer.indexOf(window.location.origin) === 0) { event.preventDefault(); window.history.back(); }"
+          >
+            Back
+          </a>
+          {% if not is_new %}
+            <a class="dashboard-btn dashboard-btn-light" id="bookLeadCallBtn" href="#">Book a Call</a>
+            <button type="button" class="dashboard-btn dashboard-btn-light" id="sendIntakeFormBtn" style="display:none;">Send Intake Form</button>
+            <button type="button" class="dashboard-btn dashboard-btn-primary" id="convertLeadBtn" style="display:none;">Convert to Client</button>
+            <a class="dashboard-btn dashboard-btn-light" id="viewConvertedClientBtn" href="#" style="display:none;">View Client</a>
+          {% endif %}
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveLeadBtn">
+            {% if is_new %}Save Lead{% else %}Save Changes{% endif %}
+          </button>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <form id="leadDetailsForm" onsubmit="return false;">
+          <div id="leadFormMessage" class="dashboard-form-message" style="display:none;"></div>
+          <input type="hidden" id="leadDocname" value="{{ lead_name }}">
+          <input type="hidden" id="leadIsNew" value="{{ 1 if is_new else 0 }}">
+          <input type="hidden" id="leadBaseUrl" value="{{ dashboard_base_url }}">
+
+          <section class="dashboard-detail-section">
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">{% if is_new %}Assign To{% else %}Status{% endif %}</h2>
+            </div>
+
+            <div class="dashboard-detail-grid dashboard-detail-grid-2">
+              {% if is_new %}
+              <div class="dashboard-detail-field">
+                <label for="lead_coach">Coach</label>
+                <select id="lead_coach" class="dashboard-input">
+                  <option value="">— Select coach —</option>
+                  {% for c in coaches %}
+                    <option value="{{ c.name }}">{{ c.coach_name or c.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              {% else %}
+              <div class="dashboard-detail-field">
+                <label for="lead_status">Status</label>
+                <select id="lead_status" class="dashboard-input">
+                  <option value="New">New</option>
+                  <option value="Assessing">Assessing</option>
+                  <option value="Can Help">Can Help</option>
+                  <option value="Can't Help">Can't Help</option>
+                  <option value="Intake Sent">Intake Sent</option>
+                  <option value="Intake Completed">Intake Completed</option>
+                  <option value="Converted">Converted</option>
+                  <option value="Declined">Declined</option>
+                </select>
+              </div>
+
+              <div class="dashboard-detail-field" id="leadDeclineReasonField" style="display:none;">
+                <label for="lead_decline_reason">Reason</label>
+                <input id="lead_decline_reason" type="text" class="dashboard-input" placeholder="Why can't we help / why declined">
+              </div>
+              {% endif %}
+            </div>
+          </section>
+
+          <section class="dashboard-detail-section">
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">Contact</h2>
+            </div>
+
+            <div class="dashboard-detail-grid dashboard-detail-grid-2">
+              <div class="dashboard-detail-field">
+                <label for="lead_contact_name">Contact Name</label>
+                <input id="lead_contact_name" type="text" class="dashboard-input" required>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label for="lead_contact_email">Contact Email</label>
+                <input id="lead_contact_email" type="email" class="dashboard-input">
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label for="lead_contact_mobile">Contact Mobile</label>
+                <input id="lead_contact_mobile" type="text" class="dashboard-input">
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label for="lead_postal_code">Postal Code</label>
+                <input id="lead_postal_code" type="text" class="dashboard-input">
+              </div>
+            </div>
+          </section>
+
+          <section class="dashboard-detail-section">
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">Client</h2>
+            </div>
+
+            <div class="dashboard-detail-grid dashboard-detail-grid-2">
+              <div class="dashboard-detail-field">
+                <label for="lead_client_name">Client Name</label>
+                <input id="lead_client_name" type="text" class="dashboard-input" required>
+                <div class="dashboard-field-hint">The young person this support is for - may be the same person as the contact above, or someone else.</div>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label for="lead_client_age">Client Age</label>
+                <input id="lead_client_age" type="number" min="0" class="dashboard-input">
+              </div>
+            </div>
+          </section>
+
+          <section class="dashboard-detail-section">
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">Enquiry</h2>
+            </div>
+
+            <div class="dashboard-detail-grid dashboard-detail-grid-2">
+              <div class="dashboard-detail-field">
+                <label for="lead_enquiry_reason">Why They're Contacting Us</label>
+                <textarea id="lead_enquiry_reason" class="dashboard-input" rows="3"></textarea>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label for="lead_how_heard">How They Heard About Us</label>
+                <input id="lead_how_heard" type="text" class="dashboard-input">
+              </div>
+
+              <div class="dashboard-detail-field dashboard-detail-field-checkbox">
+                <label>
+                  <input id="lead_consent_given" type="checkbox">
+                  Consent to be contacted
+                </label>
+              </div>
+            </div>
+          </section>
+
+          {% if not is_new %}
+          <section class="dashboard-detail-section" id="leadNotesSection">
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">Notes</h2>
+            </div>
+
+            <div class="dashboard-lead-note-form">
+              <textarea id="leadNewNote" class="dashboard-input" rows="2" placeholder="Add a note about this lead"></textarea>
+              <button type="button" class="dashboard-btn dashboard-btn-secondary" id="addLeadNoteBtn">Add Note</button>
+            </div>
+
+            <div id="leadNotesList" class="dashboard-lead-notes-list"></div>
+          </section>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

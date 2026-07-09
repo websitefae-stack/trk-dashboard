@@ -1,0 +1,97 @@
+{% include "dashboard/templates/includes/head/shared_head.html" %}
+
+<script src="/assets/dashboard/js/shared/intake.js?v=1"></script>
+
+<style>
+  .trk-intake-wrap {
+    max-width: 560px;
+    margin: 40px auto;
+    padding: 0 16px;
+  }
+  .trk-intake-logo {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #434B49;
+    font-weight: 700;
+    font-size: 20px;
+  }
+  .trk-intake-field {
+    margin-bottom: 16px;
+  }
+  .trk-intake-field label {
+    display: block;
+    margin-bottom: 6px;
+    color: #434B49;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .trk-intake-checkbox label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+  }
+</style>
+
+<div class="trk-intake-wrap">
+  <div class="trk-intake-logo">The Resilient Kid</div>
+
+  <div class="dashboard-card">
+    <div id="intakeFormMessage" class="dashboard-form-message" style="display:none;"></div>
+
+    <form id="intakeForm" onsubmit="return false;">
+      <input type="hidden" id="intakeLead" value="{{ lead }}">
+
+      <div class="trk-intake-field">
+        <label for="intake_contact_name">Your Name</label>
+        <input id="intake_contact_name" type="text" class="dashboard-input" required>
+      </div>
+
+      <div class="trk-intake-field">
+        <label for="intake_contact_email">Your Email</label>
+        <input id="intake_contact_email" type="email" class="dashboard-input">
+      </div>
+
+      <div class="trk-intake-field">
+        <label for="intake_contact_mobile">Your Mobile</label>
+        <input id="intake_contact_mobile" type="text" class="dashboard-input">
+      </div>
+
+      <div class="trk-intake-field">
+        <label for="intake_client_name">Young Person's Name</label>
+        <input id="intake_client_name" type="text" class="dashboard-input" required>
+      </div>
+
+      <div class="trk-intake-field">
+        <label for="intake_client_age">Young Person's Age</label>
+        <input id="intake_client_age" type="number" min="0" class="dashboard-input">
+      </div>
+
+      <div class="trk-intake-field">
+        <label for="intake_postal_code">Postal Code</label>
+        <input id="intake_postal_code" type="text" class="dashboard-input">
+      </div>
+
+      <div class="trk-intake-field">
+        <label for="intake_enquiry_reason">Why Are You Contacting Us?</label>
+        <textarea id="intake_enquiry_reason" class="dashboard-input" rows="3"></textarea>
+      </div>
+
+      <div class="trk-intake-field">
+        <label for="intake_how_heard">How Did You Hear About Us?</label>
+        <input id="intake_how_heard" type="text" class="dashboard-input">
+      </div>
+
+      <div class="trk-intake-field trk-intake-checkbox">
+        <label>
+          <input id="intake_consent_given" type="checkbox">
+          I consent to being contacted about this enquiry
+        </label>
+      </div>
+
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="submitIntakeBtn">
+        Submit
+      </button>
+    </form>
+  </div>
+</div>

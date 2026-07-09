@@ -83,7 +83,10 @@
     resolutionNote: "",
     selectedEvent: null,
     loading: false,
-    autoOpenBookingClient: ""
+    autoOpenBookingClient: "",
+    autoOpenBookingLead: "",
+    autoOpenBookingLeadName: "",
+    pendingClientLead: ""
   };
   function getDefaultCalendarView() {
     return window.innerWidth <= MOBILE_BREAKPOINT ? "day" : "week";
@@ -170,6 +173,8 @@
 
     const params = new URLSearchParams(window.location.search);
     state.autoOpenBookingClient = params.get("book_client") || "";
+    state.autoOpenBookingLead = params.get("book_lead") || "";
+    state.autoOpenBookingLeadName = params.get("book_lead_name") || "";
 
     state.selectedCalendarFor = getSelectedCalendarForFromPage();
 
@@ -452,6 +457,7 @@
       refreshSelectedEvent();
       setLoading(false);
       autoOpenBookingFromClient();
+      autoOpenBookingFromLead();
     }).catch(function (error) {
       console.error("Calendar bootstrap failed:", error);
 
@@ -1105,6 +1111,7 @@
       client_name: clientName,
       parent_contact: parentContact,
       lead_name: leadName,
+      client_lead: state.pendingClientLead || "",
       item_name: itemName,
       school: schoolId,
       school_name: schoolName,
@@ -1248,10 +1255,27 @@
     openBookingModal(formatDateKey(state.currentDate), "09:00", clientToBook);
   }
 
-  function openBookingModal(dateStr, timeStr, clientName) {
+  function autoOpenBookingFromLead() {
+    if (!state.autoOpenBookingLead) return;
+
+    const leadToBook = state.autoOpenBookingLead;
+    const leadName = state.autoOpenBookingLeadName;
+    state.autoOpenBookingLead = "";
+    state.autoOpenBookingLeadName = "";
+
+    openBookingModal(formatDateKey(state.currentDate), "09:00", "", {
+      appointmentType: "Initial Consultation",
+      clientLead: leadToBook,
+      leadName: leadName
+    });
+  }
+
+  function openBookingModal(dateStr, timeStr, clientName, options) {
+    options = options || {};
+
     setValue("trkCalendarClientSelect", clientName || "");
     setValue("trkCalendarParentContactSelect", "");
-    setValue("trkCalendarLeadName", "");
+    setValue("trkCalendarLeadName", options.leadName || "");
     setValue("trkCalendarItemName", "");
     setValue("trkCalendarSchoolSelect", "");
     setValue("trkCalendarSchoolManualName", "");
@@ -1261,8 +1285,8 @@
     setValue("trkCalendarFromDate", dateStr || "");
     setValue("trkCalendarToDate", dateStr || "");
 
-    setValue("trkCalendarType", "Therapy Session");
-    setValue("trkCalendarDuration", "45");
+    setValue("trkCalendarType", options.appointmentType || "Therapy Session");
+    setValue("trkCalendarDuration", String(DURATION_BY_TYPE[options.appointmentType] || 45));
     setValue("trkCalendarLocationType", "client_default");
     setValue("trkCalendarLocation", "");
     setValue("trkCalendarPhone", "");
@@ -1272,6 +1296,8 @@
     setValue("trkCalendarRecurringFrequency", "Weekly");
     setValue("trkCalendarRecurringCount", "4");
     setValue("trkCalendarNotes", "");
+
+    state.pendingClientLead = options.clientLead || "";
 
     if (clientName) {
       const clientSelect = document.getElementById("trkCalendarClientSelect");
