@@ -1403,6 +1403,16 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
     custom_client = row.get("custom_client")
     client_row = client_map.get(custom_client) if client_map else None
 
+    # Frappe's own built-in Google Calendar integration (separate from this
+    # app's push/pull sync, which uses custom_google_event_id/custom_google_meet_url)
+    # independently pulls the same pushed appointment back in as a second, blank
+    # Event once it appears on the coach's Google Calendar. That shadow copy has
+    # no custom_client and none of the session data - it's pure sync noise
+    # sitting on top of the real, fully-populated native booking, so it must
+    # never be shown as its own calendar entry.
+    if row.get("google_calendar_event_id") and not custom_client:
+        return None
+
     is_private_for_viewing_coach = False
 
     if dashboard_type == COACH_DASHBOARD and custom_client and not _coach_can_view_client(client_row or {}, context):

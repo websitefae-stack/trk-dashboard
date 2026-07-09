@@ -5,6 +5,8 @@ from frappe import _
 from dashboard.api.shared.permissions import (
     ensure_client_access,
     ensure_logged_in,
+    get_current_coach_name,
+    is_franchisor_user,
 )
 
 from dashboard.api.shared.directory import (
@@ -1065,9 +1067,23 @@ def get_client_invoices(client_name):
     if not invoice_names:
         return []
 
+    filters = {"name": ["in", list(invoice_names)]}
+
+    # Franchise-type clients represent coaches themselves (for cross-coach/
+    # HQ invoicing) - a coach viewing that client's file should only see the
+    # invoices they themselves raised against it, not every other coach's
+    # invoices to the same client. Franchisor still sees everything.
+    client_type = frappe.db.get_value("Client", client_name, "client_type")
+
+    if client_type == "Franchise" and not is_franchisor_user() and invoice_meta.has_field("custom_income_owner_coach"):
+        coach_name = get_current_coach_name(optional=True)
+
+        if coach_name:
+            filters["custom_income_owner_coach"] = coach_name
+
     return frappe.get_all(
         "Sales Invoice",
-        filters={"name": ["in", list(invoice_names)]},
+        filters=filters,
         fields=[
             "name",
             "posting_date",

@@ -778,7 +778,7 @@
             "</td>" +
             "<td>" + escapeHtml(row.phone || "—") + "</td>" +
             "<td>" + escapeHtml(row.email || "—") + "</td>" +
-            "<td>" + escapeHtml(row.company || "—") + "</td>" +
+            "<td>" + escapeHtml(row.relationship || "—") + "</td>" +
             "<td class=\"dashboard-action-cell\"><a class=\"dashboard-link-btn\" href=\"" + escapeHtml(row.link || "#") + "\">View</a></td>" +
           "</tr>"
         );

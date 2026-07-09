@@ -274,6 +274,21 @@ def _get_bank_account_owner_coach(bank_account_name):
     return frappe.db.get_value("Coach", {"bank_account": bank_account_name}, "name") or ""
 
 
+def _get_coach_company(coach_name):
+    if not coach_name or not _has_doctype("Coach"):
+        return ""
+
+    meta = frappe.get_meta("Coach")
+
+    for fieldname in ["company", "coach_company"]:
+        if meta.has_field(fieldname):
+            value = frappe.db.get_value("Coach", coach_name, fieldname)
+            if value:
+                return value
+
+    return ""
+
+
 def _ensure_default_bank_account_option(options, default_bank_account):
     """
     _get_bank_account_options() only lists Coach records that have their own
@@ -1264,6 +1279,18 @@ def _set_invoice_header_fields(doc, payload):
             doc.custom_bank_account = submitted_bank_account
         else:
             doc.custom_bank_account = context.get("bank_account") or ""
+
+        # Franchise-type clients (representing a coach, for cross-coach/HQ
+        # invoicing) often have no company of their own set at all - the
+        # invoice's company should follow whichever coach's bank account is
+        # actually on it (that coach's own business), not just rely on the
+        # client record's own (possibly blank) company field.
+        if doc.custom_bank_account:
+            bank_owner_coach = _get_bank_account_owner_coach(doc.custom_bank_account)
+            bank_owner_company = _get_coach_company(bank_owner_coach) if bank_owner_coach else ""
+
+            if bank_owner_company:
+                doc.company = bank_owner_company
 
     if context.get("contact_email"):
         doc.contact_email = context.get("contact_email")

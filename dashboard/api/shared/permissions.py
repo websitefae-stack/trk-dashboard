@@ -198,6 +198,7 @@ def user_can_access_client(client_name):
             "primary_coach",
             "attending_coach",
             "session_worker",
+            "client_type",
         ],
         as_dict=True,
     )
@@ -206,6 +207,12 @@ def user_can_access_client(client_name):
         return False
 
     dashboard_type = get_current_user_dashboard_type()
+
+    # Franchise-type clients represent coaches themselves (for cross-coach/
+    # HQ invoicing) and aren't tied to a specific primary/attending coach -
+    # every coach needs access regardless of assignment.
+    if client.get("client_type") == "Franchise" and dashboard_type in ("coach", "session_worker"):
+        return True
 
     if dashboard_type == "coach":
         coach_name = get_current_coach_name(optional=True)
@@ -235,6 +242,7 @@ def get_client_role(client_name):
     Returns the current user's relationship to a client.
     Possible values:
     - franchisor
+    - franchise_peer
     - primary_coach
     - attending_coach
     - session_worker
@@ -256,11 +264,18 @@ def get_client_role(client_name):
             "primary_coach",
             "attending_coach",
             "session_worker",
+            "client_type",
         ],
         as_dict=True,
     )
 
     dashboard_type = get_current_user_dashboard_type()
+
+    # Franchise-type clients represent coaches themselves (for cross-coach/
+    # HQ invoicing) and aren't tied to a specific primary/attending coach -
+    # every coach needs to be able to view and invoice them regardless.
+    if client.get("client_type") == "Franchise" and dashboard_type in ("coach", "session_worker"):
+        return "franchise_peer"
 
     if dashboard_type == "coach":
         coach_name = get_current_coach_name(optional=True)
@@ -341,6 +356,17 @@ def get_client_permissions(client_name):
             "can_allocate": False,
             "can_view_contacts": True,
             "can_send_notifications": True,
+        })
+
+    elif role == "franchise_peer":
+        permissions.update({
+            "can_view": True,
+            "can_edit": False,
+            "can_book": False,
+            "can_invoice": True,
+            "can_allocate": True,
+            "can_view_contacts": True,
+            "can_send_notifications": False,
         })
 
     if permissions["can_invoice"] and client_name and frappe.db.exists(CLIENT_DOCTYPE, client_name):

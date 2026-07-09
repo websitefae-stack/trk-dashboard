@@ -1,3 +1,5 @@
+import math
+
 import frappe
 from frappe import _
 from frappe.utils import today, getdate, get_datetime, add_to_date, flt, nowdate, get_fullname
@@ -1046,6 +1048,13 @@ def _user_can_access_invoice(invoice_name, dashboard_type, context):
     if context.get("is_dashboard_admin"):
         return True
 
+    # Franchise-type clients represent coaches themselves (for cross-coach/
+    # HQ invoicing) and aren't tied to a specific primary/attending coach -
+    # every coach needs access regardless of assignment.
+    client_type = frappe.db.get_value("Client", row.get("custom_client"), "client_type")
+    if client_type == "Franchise":
+        return True
+
     return (client_row.get("primary_coach") or "").strip() == (context.get("coach_name") or "").strip()
 
 
@@ -1094,7 +1103,19 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None):
     if invoice_doc.docstatus != 1:
         frappe.throw(_("Only submitted Sales Invoices can be marked as paid."))
 
-    outstanding_amount = flt(invoice_doc.outstanding_amount or 0, 2)
+    # Re-read the outstanding amount fresh from the database rather than the
+    # already-loaded doc, and round it DOWN (never up) to 2dp. ERPNext's own
+    # Payment Entry validation re-checks the allocated amount against the
+    # current outstanding balance at insert time, and a value stored with a
+    # sub-penny remainder (e.g. 149.996 due to float rounding elsewhere) would
+    # get rounded UP to 150.00 by ordinary flt() rounding - which then exceeds
+    # the true outstanding balance and throws "Allocated Amount cannot be
+    # greater than outstanding amount". Flooring guarantees we never allocate
+    # more than what's actually outstanding.
+    raw_outstanding = frappe.db.get_value("Sales Invoice", invoice, "outstanding_amount")
+    if raw_outstanding is None:
+        raw_outstanding = invoice_doc.outstanding_amount or 0
+    outstanding_amount = math.floor(flt(raw_outstanding) * 100) / 100.0
 
     if outstanding_amount <= 0:
         return {
@@ -1327,7 +1348,7 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
         ),
 
         "outstanding_invoices": _get_outstanding_invoices(dashboard_type, context, limit=8),
-        "outstanding_internal_invoices": _get_outstanding_internal_invoices(dashboard_type, context, limit=8),
+        "outstanding_internal_invoices": _get_outstanding_internal_invoices(dashboard_type, context, limit=5),
 
         "clients_url": {
             COACH_DASHBOARD: "/coach_db/clients",
