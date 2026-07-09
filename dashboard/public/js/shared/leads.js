@@ -6,6 +6,7 @@
   const SHARED_API = "dashboard.api.shared.leads";
 
   const STATUS_COLUMNS = ["New", "Intake Sent", "Converted", "Declined"];
+  const CONVERTED_PREVIEW_COUNT = 3;
 
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
@@ -67,6 +68,32 @@
     `;
   }
 
+  function renderConvertedColumnBody(rows, baseUrl, showCoach) {
+    if (!rows.length) {
+      return '<div class="dashboard-lead-column-empty">No leads</div>';
+    }
+
+    // Clients that still need billing set up (no invoice yet) surface first
+    // - a long-running app can accumulate a lot of Converted leads, and
+    // those are the ones still worth a coach's attention here.
+    const sorted = rows.slice().sort((a, b) => (a.has_invoice ? 1 : 0) - (b.has_invoice ? 1 : 0));
+    const visible = sorted.slice(0, CONVERTED_PREVIEW_COUNT);
+    const hidden = sorted.slice(CONVERTED_PREVIEW_COUNT);
+
+    let html = visible.map((lead) => renderCard(lead, baseUrl, showCoach)).join("");
+
+    if (hidden.length) {
+      html += `
+        <div class="dashboard-lead-column-hidden" style="display:none;">
+          ${hidden.map((lead) => renderCard(lead, baseUrl, showCoach)).join("")}
+        </div>
+        <button type="button" class="dashboard-lead-show-all-btn">Show all ${rows.length} converted</button>
+      `;
+    }
+
+    return html;
+  }
+
   function renderBoard(board, leads) {
     const baseUrl = board.dataset.baseUrl || "/coach_db";
     const showCoach = board.dataset.showCoach === "1";
@@ -81,6 +108,9 @@
 
     board.innerHTML = STATUS_COLUMNS.map((status) => {
       const rows = byStatus[status];
+      const body = status === "Converted"
+        ? renderConvertedColumnBody(rows, baseUrl, showCoach)
+        : (rows.length ? rows.map((lead) => renderCard(lead, baseUrl, showCoach)).join("") : '<div class="dashboard-lead-column-empty">No leads</div>');
 
       return `
         <div class="dashboard-lead-column">
@@ -89,11 +119,19 @@
             <span class="dashboard-lead-column-count">${rows.length}</span>
           </div>
           <div class="dashboard-lead-column-body">
-            ${rows.length ? rows.map((lead) => renderCard(lead, baseUrl, showCoach)).join("") : '<div class="dashboard-lead-column-empty">No leads</div>'}
+            ${body}
           </div>
         </div>
       `;
     }).join("");
+
+    board.querySelectorAll(".dashboard-lead-show-all-btn").forEach((btn) => {
+      btn.addEventListener("click", function () {
+        const hidden = btn.previousElementSibling;
+        if (hidden) hidden.style.display = "";
+        btn.style.display = "none";
+      });
+    });
   }
 
   function setCount(count) {

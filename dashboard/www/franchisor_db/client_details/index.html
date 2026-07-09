@@ -568,6 +568,57 @@
                   </div>
                 </div>
 
+              {% elif tab.custom == "files" %}
+                <div class="dashboard-detail-section">
+                  <div class="dashboard-detail-section-head">
+                    <h2 class="dashboard-detail-section-title">Files</h2>
+
+                    <div class="dashboard-detail-actions">
+                      <label class="dashboard-btn dashboard-btn-light dashboard-file-upload-btn">
+                        Upload File
+                        <input type="file" id="clientFileUploadInput" style="display:none;">
+                      </label>
+                    </div>
+                  </div>
+
+                  <div id="clientFileUploadStatus" class="dashboard-field-hint"></div>
+
+                  <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
+                    <table class="dashboard-table dashboard-client-file-table">
+                      <thead>
+                        <tr>
+                          <th>File</th>
+                          <th>Uploaded</th>
+                          <th class="dashboard-action-col">Action</th>
+                        </tr>
+                      </thead>
+
+                      <tbody id="clientFileTableBody">
+                        {% if client_files %}
+                          {% for f in client_files %}
+                            <tr>
+                              <td>
+                                {{ f.file_name }}
+                                {% if f.is_intake_form %}
+                                  <span class="dashboard-badge dashboard-status-active">Intake Form</span>
+                                {% endif %}
+                              </td>
+                              <td>{{ frappe.format(f.creation, {"fieldtype": "Datetime"}) if f.creation else "—" }}</td>
+                              <td class="dashboard-action-cell">
+                                <a class="dashboard-link-btn" href="{{ f.file_url }}" target="_blank" rel="noopener noreferrer">View</a>
+                              </td>
+                            </tr>
+                          {% endfor %}
+                        {% else %}
+                          <tr>
+                            <td colspan="3" class="dashboard-empty">No files yet.</td>
+                          </tr>
+                        {% endif %}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
               {% else %}
                 {% for section in tab.sections %}
                   <div class="dashboard-detail-section">

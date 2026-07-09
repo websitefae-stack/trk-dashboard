@@ -49,6 +49,29 @@
   gap: 8px;
 }
 
+.dashboard-lead-column-hidden {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dashboard-lead-show-all-btn {
+  margin-top: 2px;
+  padding: 8px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #007274;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+}
+
+.dashboard-lead-show-all-btn:hover {
+  background: #FFFFFF;
+}
+
 .dashboard-lead-column-empty {
   padding: 10px;
   color: #839898;

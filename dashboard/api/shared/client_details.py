@@ -125,6 +125,7 @@ LAYOUT = [
     {"tab": "Notes", "custom": "notes"},
     {"tab": "Appointments", "custom": "appointments"},
     {"tab": "Billing", "custom": "billing"},
+    {"tab": "Files", "custom": "files"},
 ]
 
 
@@ -1100,6 +1101,36 @@ def get_client_invoices(client_name):
         ignore_permissions=True,
     )
 
+
+def get_client_files(client_name):
+    if not client_name:
+        return []
+
+    rows = frappe.get_all(
+        "File",
+        filters={"attached_to_doctype": "Client", "attached_to_name": client_name},
+        fields=["name", "file_name", "file_url", "file_size", "creation", "attached_to_field"],
+        order_by="creation desc",
+        limit_page_length=200,
+        ignore_permissions=True,
+    )
+
+    files = []
+
+    for row in rows:
+        file_name = row.get("file_name") or ""
+
+        files.append({
+            "name": row.get("name"),
+            "file_name": file_name,
+            "file_url": row.get("file_url") or "",
+            "file_size": row.get("file_size") or 0,
+            "creation": row.get("creation"),
+            "is_intake_form": row.get("attached_to_field") == "intake_form" or file_name.lower().startswith("intake form"),
+        })
+
+    return files
+
 def get_coach_defaults_from_coach(coach_name):
     coach_name = (coach_name or "").strip()
 
@@ -1497,6 +1528,7 @@ def get_client_context_data(client_name=None, is_new=False, base_url="/coach_db"
         ) if is_existing_client else [],
         "package_balances": get_package_balances(doc.name if is_existing_client else ""),
         "client_invoices": get_client_invoices(doc.name if is_existing_client else ""),
+        "client_files": get_client_files(doc.name if is_existing_client else ""),
         "travel_charged": int(doc.get("travel_charged") or 0),
         "travel_miles_one_way": doc.get("travel_miles_one_way") or 0,
         "travel_charge_per_session": doc.get("travel_charge_per_session") or 0,
