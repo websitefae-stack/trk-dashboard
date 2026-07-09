@@ -221,6 +221,26 @@ def create_lead(
     return {"ok": True, "name": doc.name}
 
 
+def create_lead_from_booking(contact_name, phone=None, coach=None):
+    """
+    Internal (not whitelisted) - called from calendar.create_booking() when
+    an Initial Consultation is booked straight from the calendar rather than
+    via this section's own "Book a Call" button, so that path still lands
+    the enquiry in the Leads section instead of only the legacy Lead.
+    """
+    doc = frappe.new_doc(LEAD_DOCTYPE)
+    doc.status = "New"
+    doc.source = "Calendar Booking"
+    doc.coach = coach
+    doc.contact_name = contact_name
+    doc.contact_mobile = phone or ""
+    doc.client_name = contact_name
+    doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    return doc.name
+
+
 @frappe.whitelist()
 def update_lead(
     name=None,

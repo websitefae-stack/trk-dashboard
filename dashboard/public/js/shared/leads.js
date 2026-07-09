@@ -99,6 +99,11 @@
     }).join("");
   }
 
+  function setCount(count) {
+    const countEl = el("leadsCount");
+    if (countEl) countEl.textContent = `${count} lead${count === 1 ? "" : "s"}`;
+  }
+
   async function loadLeads() {
     const board = el("leadsKanbanBoard");
     if (!board) return;
@@ -108,10 +113,13 @@
         dashboard_type: getDashboardType(),
       });
 
-      renderBoard(board, Array.isArray(leads) ? leads : []);
+      const rows = Array.isArray(leads) ? leads : [];
+      renderBoard(board, rows);
+      setCount(rows.length);
     } catch (error) {
       console.error("Failed to load leads:", error);
       board.innerHTML = `<div class="dashboard-empty">${escapeHtml(error.message || "Could not load leads.")}</div>`;
+      setCount(0);
     }
   }
 
