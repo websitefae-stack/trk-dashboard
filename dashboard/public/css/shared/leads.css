@@ -1,0 +1,165 @@
+/* =========================================================
+   LEADS KANBAN BOARD
+========================================================= */
+
+.dashboard-leads-board {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.dashboard-lead-column {
+  flex: 0 0 260px;
+  display: flex;
+  flex-direction: column;
+  background: #F2F8F8;
+  border-radius: 12px;
+  padding: 12px;
+  min-height: 120px;
+}
+
+.dashboard-lead-column-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: #434B49;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.dashboard-lead-column-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #FFFFFF;
+  color: #839898;
+  font-size: 12px;
+}
+
+.dashboard-lead-column-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dashboard-lead-column-empty {
+  padding: 10px;
+  color: #839898;
+  font-size: 13px;
+}
+
+.dashboard-lead-card {
+  display: block;
+  padding: 12px;
+  background: #FFFFFF;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(67, 75, 73, 0.08);
+  color: inherit;
+  text-decoration: none;
+}
+
+.dashboard-lead-card:hover {
+  box-shadow: 0 2px 10px rgba(67, 75, 73, 0.16);
+}
+
+.dashboard-lead-card-client {
+  color: #434B49;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.dashboard-lead-card-contact {
+  margin-top: 2px;
+  color: #5d6c69;
+  font-size: 13px;
+}
+
+.dashboard-lead-card-meta {
+  margin-top: 6px;
+  color: #839898;
+  font-size: 12px;
+}
+
+.dashboard-lead-card-contact-methods {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: #839898;
+  font-size: 12px;
+}
+
+/* =========================================================
+   LEAD DETAILS FORM
+========================================================= */
+
+.dashboard-field-hint {
+  margin-top: 4px;
+  color: #839898;
+  font-size: 12px;
+}
+
+.dashboard-detail-field-checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #434B49;
+}
+
+.dashboard-form-message {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(37, 141, 59, 0.12);
+  color: #258D3B;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dashboard-form-message-error {
+  background: rgba(233, 71, 99, 0.12);
+  color: #C01C3E;
+}
+
+.dashboard-lead-note-form {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.dashboard-lead-note-form textarea {
+  flex: 1;
+}
+
+.dashboard-lead-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dashboard-lead-note {
+  padding: 10px 12px;
+  background: #F2F8F8;
+  border-radius: 10px;
+}
+
+.dashboard-lead-note-text {
+  color: #434B49;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+.dashboard-lead-note-meta {
+  margin-top: 4px;
+  color: #839898;
+  font-size: 12px;
+}

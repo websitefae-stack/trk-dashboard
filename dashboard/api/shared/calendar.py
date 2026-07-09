@@ -1971,6 +1971,7 @@ def _create_booking_impl(
     client_name=None,
     parent_contact=None,
     lead_name=None,
+    client_lead=None,
     item_name=None,
     school=None,
     school_name=None,
@@ -2014,6 +2015,7 @@ def _create_booking_impl(
     client_name = _coalesce_str("client_name", client_name)
     parent_contact = _coalesce_str("parent_contact", parent_contact)
     lead_name = _coalesce_str("lead_name", lead_name)
+    client_lead = _coalesce_str("client_lead", client_lead)
     item_name = _coalesce_str("item_name", item_name)
     school = _coalesce_str("school", school)
     school_name = _coalesce_str("school_name", school_name)
@@ -2070,6 +2072,9 @@ def _create_booking_impl(
 
     if appointment_type == "Initial Consultation" and not lead_name:
         frappe.throw(_("Please enter the person's name."))
+
+    if client_lead and not frappe.db.exists("Client Lead", client_lead):
+        frappe.throw(_("Selected lead was not found."))
 
     if appointment_type in ["Internal Training", "Event / Stall", "Personal"] and not item_name:
         frappe.throw(_("Please enter a title."))
@@ -2303,6 +2308,16 @@ def _create_booking_impl(
         event.insert(ignore_permissions=True)
         created_events.append(event)
 
+        # Real link field for bookings made from the Leads section, replacing
+        # the "Lead: <name>" description-parsing trick used by the legacy
+        # freeform Initial Consultation flow above (_get_lead_for_event()).
+        if client_lead and appointment_type == "Initial Consultation" and index == 0:
+            if _event_has_field("custom_client_lead"):
+                frappe.db.set_value("Event", event.name, "custom_client_lead", client_lead)
+
+            if frappe.get_meta("Client Lead").has_field("event"):
+                frappe.db.set_value("Client Lead", client_lead, "event", event.name)
+
     _ADDITIONAL_WORKER_TYPES = {"Internal Training", "Company Meeting", "School Visit", "Event / Stall"}
     if additional_workers and appointment_type in _ADDITIONAL_WORKER_TYPES and created_events:
         primary = created_events[0]
@@ -2413,6 +2428,7 @@ def create_booking(
     client_name=None,
     parent_contact=None,
     lead_name=None,
+    client_lead=None,
     item_name=None,
     school=None,
     school_name=None,
@@ -2462,6 +2478,7 @@ def create_booking(
         client_name=client_name,
         parent_contact=parent_contact,
         lead_name=lead_name,
+        client_lead=client_lead,
         item_name=item_name,
         school=school,
         school_name=school_name,

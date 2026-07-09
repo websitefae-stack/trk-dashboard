@@ -49,6 +49,11 @@
             <span>Contacts</span>
         </a>
 
+        <a href="/coach_db/leads{{ coach_view_query or '' }}" class="{% if active_page == 'leads' %}is-active{% endif %}">
+            <span class="dashboard-nav-icon">📞</span>
+            <span>Leads</span>
+        </a>
+
         <a href="/coach_db/calendar{{ coach_view_query or '' }}" class="{% if active_page == 'calendar' %}is-active{% endif %}">
             <span class="dashboard-nav-icon">📅</span>
             <span>Calendar</span>

@@ -1,2 +1,3 @@
 dashboard.patches.fix_public_events
 dashboard.patches.share_all_events_with_admins
+dashboard.patches.add_client_lead_link_to_event

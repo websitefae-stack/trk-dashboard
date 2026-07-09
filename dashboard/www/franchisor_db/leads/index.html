@@ -1,0 +1,31 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Leads</h1>
+          <p class="dashboard-page-subtitle">Potential clients across every coach</p>
+        </div>
+
+        <div class="dashboard-page-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-secondary" id="refreshLeads">
+            Refresh
+          </button>
+          <a class="dashboard-btn dashboard-btn-primary" href="/franchisor_db/lead_details?new=1">
+            Add Lead
+          </a>
+        </div>
+      </div>
+
+      <div id="leadsKanbanBoard" class="dashboard-leads-board" data-base-url="/franchisor_db" data-show-coach="1">
+        <div class="dashboard-empty">Loading leads…</div>
+      </div>
+    </div>
+  </div>
+</div>
