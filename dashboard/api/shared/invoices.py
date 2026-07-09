@@ -1305,8 +1305,11 @@ def _set_invoice_header_fields(doc, payload):
         # total to the nearest whole pound (e.g. £35.80 -> £36), which then
         # makes outstanding_amount wrong too - a coach trying to record the
         # actual £35.80 payment gets told it must be £36. Dashboard invoices
-        # should always track the exact line-item total.
+        # should always track the exact line-item total, in pounds and
+        # pence, never rounded to a whole pound.
         doc.disable_rounded_total = 1
+        doc.rounding_adjustment = 0
+        doc.base_rounding_adjustment = 0
 
     if meta.has_field("custom_created_by_coach") and current_coach_name and not doc.get("custom_created_by_coach"):
         doc.custom_created_by_coach = current_coach_name

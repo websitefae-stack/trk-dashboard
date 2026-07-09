@@ -921,8 +921,11 @@ def _get_outstanding_invoices(dashboard_type, context, limit=8):
         client_row = _get_client_row(row.get("custom_client"))
         client_name = _get_client_display(client_row) if client_row else row.get("customer_name") or row.get("customer")
 
-        live_outstanding = _get_live_outstanding_from_ledger(row.get("name"))
-        outstanding_amount = live_outstanding if live_outstanding is not None else flt(row.get("outstanding_amount") or 0)
+        outstanding_amount = _get_outstanding_amount_for_payment(
+            row.get("outstanding_amount"),
+            row.get("grand_total") or row.get("rounded_total"),
+            row.get("name"),
+        )
 
         invoices.append({
             "name": row.get("name"),
@@ -1084,38 +1087,54 @@ def _resolve_paid_to_account(invoice_doc, client_row):
     return ""
 
 
-def _get_live_outstanding_from_ledger(invoice_name):
+def _get_existing_payment_allocations(invoice_name):
     """
-    The Sales Invoice's own cached outstanding_amount field can drift from
-    the true Payment Ledger balance (observed to disagree with what
-    ERPNext's validate_allocated_amount_with_latest_data() re-checks at
-    Payment Entry insert time). Returns the authoritative current figure
-    from the ledger, or None if the query can't run (e.g. a schema this
-    site's ERPNext version doesn't have) so callers can fall back.
+    Sum of allocated_amount across every SUBMITTED Payment Entry already
+    referencing this invoice, read straight from Payment Entry Reference.
+    This is the simplest, most directly-verifiable source of "how much has
+    actually been paid" - unlike Payment Ledger Entry / GL Entry, whose
+    amounts can be re-derived by the accounting layer at a different
+    rounding precision than the Sales Invoice document's own 2-decimal-
+    place fields, which was previously (wrongly) treating a clean £439.20
+    invoice as £439.00.
     """
-    try:
-        row = frappe.db.sql(
-            """
-            select sum(amount_in_account_currency) as amount
-            from `tabPayment Ledger Entry`
-            where against_voucher_type = %s
-              and against_voucher_no = %s
-              and delinked = 0
-            """,
-            ("Sales Invoice", invoice_name),
-            as_dict=True,
-        )
-        if row and row[0].get("amount") is not None:
-            return flt(row[0]["amount"])
-    except Exception:
-        frappe.log_error(frappe.get_traceback(), "Live outstanding ledger lookup failed")
+    result = frappe.db.sql(
+        """
+        select sum(per.allocated_amount) as amount
+        from `tabPayment Entry Reference` per
+        inner join `tabPayment Entry` pe on pe.name = per.parent
+        where per.reference_doctype = 'Sales Invoice'
+          and per.reference_name = %s
+          and pe.docstatus = 1
+        """,
+        (invoice_name,),
+        as_dict=True,
+    )
 
-    return None
+    if result and result[0].get("amount") is not None:
+        return flt(result[0]["amount"], 2)
+
+    return 0.0
 
 
-def _get_live_outstanding_amount(invoice_doc, invoice_name):
-    live = _get_live_outstanding_from_ledger(invoice_name)
-    return live if live is not None else flt(invoice_doc.outstanding_amount)
+def _get_outstanding_amount_for_payment(cached_outstanding, grand_total, invoice_name):
+    """
+    Authoritative outstanding amount for payment purposes, always to 2dp -
+    never rounded to a whole pound. Cross-checks the invoice's own cached
+    outstanding_amount field against grand_total minus whatever has
+    actually been allocated via submitted Payment Entries so far, and
+    trusts whichever is lower (in case the cached field hasn't refreshed
+    after some other, separate payment already reduced the true balance).
+    """
+    cached_outstanding = flt(cached_outstanding, 2)
+    already_paid = _get_existing_payment_allocations(invoice_name)
+
+    if not already_paid:
+        return cached_outstanding
+
+    derived_outstanding = flt(flt(grand_total, 2) - already_paid, 2)
+
+    return min(cached_outstanding, derived_outstanding)
 
 
 @frappe.whitelist()
@@ -1139,7 +1158,9 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None, amou
     if invoice_doc.docstatus != 1:
         frappe.throw(_("Only submitted Sales Invoices can be marked as paid."))
 
-    outstanding_amount = _get_live_outstanding_amount(invoice_doc, invoice)
+    outstanding_amount = _get_outstanding_amount_for_payment(
+        invoice_doc.outstanding_amount, invoice_doc.grand_total, invoice
+    )
 
     if outstanding_amount <= 0:
         return {
@@ -1148,16 +1169,13 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None, amou
             "invoice": invoice,
         }
 
-    party_amount = None
+    final_amount = flt(amount_paid, 2) if amount_paid else outstanding_amount
 
-    if amount_paid:
-        party_amount = flt(amount_paid)
+    if final_amount <= 0:
+        frappe.throw(_("Amount paid must be greater than zero."))
 
-        if party_amount <= 0:
-            frappe.throw(_("Amount paid must be greater than zero."))
-
-        if party_amount > outstanding_amount:
-            frappe.throw(_("Amount paid cannot be greater than the outstanding amount ({0})").format(outstanding_amount))
+    if final_amount > outstanding_amount:
+        frappe.throw(_("Amount paid cannot be greater than the outstanding amount ({0})").format(outstanding_amount))
 
     client_row = _get_client_row(invoice_doc.get("custom_client"))
 
@@ -1170,24 +1188,28 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None, amou
         frappe.throw(_("No customer found for this invoice."))
 
     # Build the Payment Entry via ERPNext's own get_payment_entry() helper -
-    # the same code the standard "Make Payment" Desk button uses - instead of
-    # hand-rolling the allocation ourselves, and cap it to the live-ledger
-    # outstanding_amount above rather than whatever get_payment_entry() would
-    # otherwise default to from the (possibly stale) cached field.
+    # the same code the standard "Make Payment" Desk button uses - for the
+    # party/account boilerplate, then explicitly set every amount field to
+    # our own 2dp-precise figure rather than trusting whatever internal
+    # default get_payment_entry() would otherwise compute.
     from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
 
-    payment_entry = get_payment_entry(
-        "Sales Invoice", invoice, party_amount=party_amount or outstanding_amount, bank_account=paid_to
-    )
+    payment_entry = get_payment_entry("Sales Invoice", invoice, bank_account=paid_to)
     payment_entry.posting_date = payment_date
     payment_entry.reference_date = payment_date
     payment_entry.reference_no = f"Dashboard payment - {invoice}"
     payment_entry.remarks = f"Payment marked as paid from dashboard by {user}"
+    payment_entry.paid_amount = final_amount
+    payment_entry.received_amount = final_amount
+
+    for reference in payment_entry.references:
+        if reference.reference_doctype == "Sales Invoice" and reference.reference_name == invoice:
+            reference.allocated_amount = flt(final_amount, 2)
 
     payment_entry.insert(ignore_permissions=True)
     payment_entry.submit()
 
-    is_partial = flt(payment_entry.paid_amount) < outstanding_amount
+    is_partial = final_amount < outstanding_amount
 
     return {
         "ok": True,
