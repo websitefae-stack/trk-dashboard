@@ -190,6 +190,43 @@
     }).join("");
   }
 
+  function renderOutstandingInternalInvoices(items, dashboardType) {
+    const tbody = el("dashboardOutstandingInternalInvoicesTableBody");
+    if (!tbody) return;
+
+    const showCoachColumn = dashboardType === "franchisor";
+    const colspan = showCoachColumn ? 7 : 6;
+
+    if (!items || !items.length) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="${colspan}" class="dashboard-empty">No outstanding internal invoices found.</td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = items.map((item) => {
+      return `
+        <tr>
+          <td class="dashboard-home-invoice-number-col">
+            <a class="dashboard-table-link" href="${escapeHtml(item.invoice_url || "#")}">
+              ${escapeHtml(item.name || "")}
+            </a>
+          </td>
+          ${showCoachColumn ? `<td>${escapeHtml(item.coach_label || "")}</td>` : ""}
+          <td>${escapeHtml(formatDisplayDate(item.posting_date))}</td>
+          <td>${escapeHtml(formatDisplayDate(item.due_date))}</td>
+          <td>${escapeHtml(item.status || "")}</td>
+          <td>${escapeHtml(formatMoney(item.outstanding_amount, item.currency))}</td>
+          <td class="dashboard-text-right">
+            <a class="dashboard-link-btn" href="${escapeHtml(item.invoice_url || "#")}">View</a>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  }
+
   async function handlePayInvoice(button) {
     const invoice = button.dataset.dashboardPayInvoice || "";
     if (!invoice) return;
@@ -293,6 +330,7 @@
 
     renderUpcomingAppointments("dashboardUpcomingTableBody", payload.upcoming_appointments || []);
     renderOutstandingInvoices(payload.outstanding_invoices || []);
+    renderOutstandingInternalInvoices(payload.outstanding_internal_invoices || [], payload.dashboard_type);
   }
 
   async function loadDashboardSummary() {
