@@ -116,6 +116,28 @@
     }
   }
 
+  function dayCheckboxes() {
+    return Array.from(document.querySelectorAll('input[name="availabilityDay"]'));
+  }
+
+  function setCheckedDays(days) {
+    const daySet = new Set(days || []);
+    dayCheckboxes().forEach((cb) => { cb.checked = daySet.has(cb.value); });
+  }
+
+  function getCheckedDays() {
+    return dayCheckboxes().filter((cb) => cb.checked).map((cb) => cb.value);
+  }
+
+  function setDayPickerMode(isEditing) {
+    // Editing targets one specific existing row, so only one day can be
+    // picked - adding a new window can cover several days at once.
+    dayCheckboxes().forEach((cb) => {
+      if (isEditing && !cb.checked) cb.disabled = true;
+      else cb.disabled = false;
+    });
+  }
+
   function openForm(row) {
     const section = el("availabilityFormSection");
     if (section) section.style.display = "";
@@ -124,13 +146,11 @@
 
     el("availabilityRowName").value = row ? row.name : "";
     el("availabilityAppointmentType").value = row ? row.appointment_name : "";
-    el("availabilityDay").value = row ? row.day_of_the_week : "Monday";
+    setCheckedDays(row ? [row.day_of_the_week] : []);
+    setDayPickerMode(!!row);
     el("availabilityStartTime").value = row ? row.start_time : "";
     el("availabilityEndTime").value = row ? row.end_time : "";
     el("availabilityActive").checked = row ? !!row.active : true;
-
-    const addBtn = el("addAvailabilityBtn");
-    if (addBtn) addBtn.textContent = row ? "+ Add Availability" : "+ Add Availability";
   }
 
   function closeForm() {
@@ -141,6 +161,7 @@
     if (form) form.reset();
 
     el("availabilityRowName").value = "";
+    setDayPickerMode(false);
   }
 
   async function deleteRow(rowName) {
@@ -158,9 +179,20 @@
     event.preventDefault();
 
     const rowName = el("availabilityRowName").value;
-    const payload = {
+    const days = getCheckedDays();
+
+    if (!days.length) {
+      showMessage("Please select at least one day.", true);
+      return;
+    }
+
+    if (rowName && days.length > 1) {
+      showMessage("Editing an existing window can only target one day - remove this one and add separate windows instead if you need to change several days at once.", true);
+      return;
+    }
+
+    const basePayload = {
       appointment_name: el("availabilityAppointmentType").value,
-      day_of_the_week: el("availabilityDay").value,
       start_time: el("availabilityStartTime").value,
       end_time: el("availabilityEndTime").value,
       active: el("availabilityActive").checked ? 1 : 0,
@@ -170,10 +202,19 @@
     if (saveBtn) saveBtn.disabled = true;
 
     try {
-      const method = rowName ? "update_availability_row" : "add_availability_row";
-      if (rowName) payload.row_name = rowName;
+      let result;
 
-      const result = await apiPost(`${SHARED_API}.${method}`, payload);
+      if (rowName) {
+        result = await apiPost(`${SHARED_API}.update_availability_row`, Object.assign({}, basePayload, {
+          row_name: rowName,
+          day_of_the_week: days[0],
+        }));
+      } else {
+        result = await apiPost(`${SHARED_API}.add_availability_row`, Object.assign({}, basePayload, {
+          days: days,
+        }));
+      }
+
       renderRows(result.rows || []);
       closeForm();
     } catch (error) {

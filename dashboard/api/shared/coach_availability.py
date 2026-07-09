@@ -141,27 +141,49 @@ def _validate_availability_input(appointment_name, day_of_the_week, start_time, 
 
 
 @frappe.whitelist()
-def add_availability_row(appointment_name=None, day_of_the_week=None, start_time=None, end_time=None, active=1):
+def add_availability_row(appointment_name=None, days=None, start_time=None, end_time=None, active=1):
+    """
+    Accepts one or more days (e.g. Thursday and Friday, both with the same
+    time window) and creates one Coach.appointment_types row per day in a
+    single save, rather than making the coach repeat the whole form once
+    per day.
+    """
     appointment_name = coalesce_str("appointment_name", appointment_name)
-    day_of_the_week = coalesce_str("day_of_the_week", day_of_the_week)
+    days = coalesce_raw("days", days)
     start_time = coalesce_str("start_time", start_time)
     end_time = coalesce_str("end_time", end_time)
     active = coalesce_raw("active", active)
 
-    _validate_availability_input(appointment_name, day_of_the_week, start_time, end_time)
+    if isinstance(days, str):
+        try:
+            days = frappe.parse_json(days)
+        except Exception:
+            days = [d.strip() for d in days.split(",") if d.strip()]
+
+    days = [d for d in (days or []) if d]
+
+    if not days:
+        frappe.throw(_("Please select at least one day."))
+
+    for day in days:
+        _validate_availability_input(appointment_name, day, start_time, end_time)
 
     coach = _get_current_coach_doc()
 
     if not coach.meta.has_field("appointment_types"):
         frappe.throw(_("Availability is not set up on this site yet."))
 
-    coach.append("appointment_types", {
-        "active": 1 if str(active).lower() in ["1", "true", "yes", "on"] else 0,
-        "appointment_name": appointment_name,
-        "day_of_the_week": day_of_the_week,
-        "start_time": start_time,
-        "end_time": end_time,
-    })
+    active_value = 1 if str(active).lower() in ["1", "true", "yes", "on"] else 0
+
+    for day in days:
+        coach.append("appointment_types", {
+            "active": active_value,
+            "appointment_name": appointment_name,
+            "day_of_the_week": day,
+            "start_time": start_time,
+            "end_time": end_time,
+        })
+
     coach.save(ignore_permissions=True)
     frappe.db.commit()
 

@@ -521,17 +521,18 @@
                   </select>
                 </div>
 
-                <div class="dashboard-detail-field">
-                  <label for="availabilityDay">Day of the Week</label>
-                  <select class="dashboard-input" id="availabilityDay" required>
-                    <option value="Monday">Monday</option>
-                    <option value="Tuesday">Tuesday</option>
-                    <option value="Wednesday">Wednesday</option>
-                    <option value="Thursday">Thursday</option>
-                    <option value="Friday">Friday</option>
-                    <option value="Saturday">Saturday</option>
-                    <option value="Sunday">Sunday</option>
-                  </select>
+                <div class="dashboard-detail-field dashboard-detail-field-full">
+                  <label>Day(s) Of The Week</label>
+                  <div class="dashboard-availability-day-picker" id="availabilityDayPicker">
+                    <label><input type="checkbox" name="availabilityDay" value="Monday"> Mon</label>
+                    <label><input type="checkbox" name="availabilityDay" value="Tuesday"> Tue</label>
+                    <label><input type="checkbox" name="availabilityDay" value="Wednesday"> Wed</label>
+                    <label><input type="checkbox" name="availabilityDay" value="Thursday"> Thu</label>
+                    <label><input type="checkbox" name="availabilityDay" value="Friday"> Fri</label>
+                    <label><input type="checkbox" name="availabilityDay" value="Saturday"> Sat</label>
+                    <label><input type="checkbox" name="availabilityDay" value="Sunday"> Sun</label>
+                  </div>
+                  <p class="dashboard-field-hint">Tick every day this time window applies to (e.g. Thursday and Friday) - one availability entry will be created per day.</p>
                 </div>
 
                 <div class="dashboard-detail-field">
