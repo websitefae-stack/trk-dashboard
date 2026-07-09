@@ -301,23 +301,12 @@
     setValue("trkClientNoteSessionDate", data.session_date || "");
     setValue("trkClientNoteSessionType", mapAppointmentTypeToClientNoteType(data.appointment_type || ""));
 
-    renderClientNotes(data.client_notes || [], data);
+    renderClientNotes(data.client_notes || []);
   }
 
-  function renderClientNotes(notes, data) {
+  function renderClientNotes(notes) {
     const wrap = el("trkClientNotesHistory");
     if (!wrap) return;
-
-    // Appointments with neither a Client nor a Lead (Company Meeting,
-    // Internal Training, etc.) have nowhere to store structured notes, so
-    // they're logged as a running text log on the event itself instead.
-    if (data && !data.client_name && !data.lead_name) {
-      const text = (data.event_notes_text || "").trim();
-      wrap.innerHTML = text
-        ? '<pre class="dashboard-html-block calendar-event-notes-log">' + escapeHtml(text) + '</pre>'
-        : '<div class="dashboard-empty">No notes found.</div>';
-      return;
-    }
 
     if (!notes.length) {
       wrap.innerHTML = '<div class="dashboard-empty">No client notes found.</div>';

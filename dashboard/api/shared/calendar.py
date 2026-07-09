@@ -1760,9 +1760,8 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
         "travel_miles_one_way": float(event_doc.get("custom_travel_miles_one_way") or 0),
         "total_travel_miles": float(event_doc.get("custom_total_travel_miles") or 0),
         "client_notes": _get_notes_for_parent("Client", client) if client else (
-            _get_lead_notes(lead) if lead else []
+            _get_lead_notes(lead) if lead else _get_event_notes(event_name)
         ),
-        "event_notes_text": (event_doc.get("description") or "") if (not client and not lead) else "",
         "session_number": int(event_doc.get("custom_session_number") or 0),
         "total_sessions": int(event_doc.get("custom_total_sessions") or 0),
         "progress_text": event_doc.get("custom_progress_text") or "",
@@ -2669,30 +2668,12 @@ def delete_session(event=None, dashboard_type=None):
     return {"deleted": event_name}
 
 
-def _append_event_note(event_doc, session_date, session_type, notes_text, attachement=None):
-    """
-    Some appointment types (Company Meeting, Internal Training, etc.) are
-    deliberately booked without a Client or Lead attached, so there's no
-    Notes table to save a note against. Rather than blocking notes on those
-    entirely, log them straight onto the event's own description field -
-    already used as a free-text log for other booking context (parent
-    contact, lead id, meeting link), so this just extends that pattern.
-    """
-    date_label = getdate(session_date).strftime("%d %b %Y") if session_date else nowdate()
+def _get_event_notes_parentfield():
+    return _get_notes_parentfield("Event")
 
-    header = f"--- Note ({date_label}"
-    if session_type:
-        header += f", {session_type}"
-    header += f", {get_fullname(frappe.session.user)}) ---"
 
-    entry = header + "\n" + notes_text
-
-    if attachement:
-        entry += f"\nAttachment: {attachement}"
-
-    existing = (event_doc.get("description") or "").strip()
-    event_doc.description = (existing + "\n\n" + entry).strip() if existing else entry
-    event_doc.save(ignore_permissions=True)
+def _get_event_notes(event_name):
+    return _get_notes_for_parent("Event", event_name)
 
 
 @frappe.whitelist(allow_guest=False)
@@ -2723,16 +2704,36 @@ def add_client_note(client=None, lead=None, event=None, session_date=None, sessi
         session_type = "Other"
 
     # Some appointment types (Company Meeting, Internal Training, etc.) are
-    # booked without a Client or Lead at all - log the note onto the event
-    # itself instead of blocking it, so there's still some context recorded.
+    # booked without a Client or Lead at all - save the note straight onto
+    # the event's own Notes table instead of blocking it, the same shape
+    # (date/user/notes/attachment) as Client/Lead notes.
     if not client and not lead and event:
         event_doc = _get_event_doc(event)
-        _append_event_note(event_doc, raw_session_date, session_type, notes, attachement)
+        parentfield = _get_event_notes_parentfield()
+
+        if not parentfield:
+            frappe.throw(_(
+                "Notes aren't set up for Events on this site yet - ask your Frappe admin to "
+                "add a Table field (options: Notes) to the Event doctype, the same way it "
+                "exists on Client (session_notes)."
+            ))
+
+        new_note_row = {
+            "doctype": "Notes",
+            "session_date": raw_session_date,
+            "session_type": session_type,
+            "notes": notes,
+        }
+
+        if attachement and frappe.get_meta("Notes").has_field("attachement"):
+            new_note_row["attachement"] = attachement
+
+        event_doc.append(parentfield, new_note_row)
+        event_doc.save(ignore_permissions=True)
 
         return {
             "ok": True,
-            "client_notes": [],
-            "event_notes_text": event_doc.get("description") or "",
+            "client_notes": _get_event_notes(event),
         }
 
     # Initial Consultation appointments have a Lead, not a Client - notes go
