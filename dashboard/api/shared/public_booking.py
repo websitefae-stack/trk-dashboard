@@ -44,22 +44,33 @@ def _format_time_value(value):
 
 
 def _get_initial_consultation_template_names():
+    """
+    Case-insensitive "contains" match rather than an exact-name match -
+    matches the same relaxed check used on the coach profile page
+    template, so a template named e.g. "Initial Consultation (Online)" or
+    lowercase "initial consultation" still gets picked up on both sides
+    instead of the button silently doing nothing.
+    """
     if not frappe.db.exists("DocType", "Appointment Template"):
         return set()
 
-    names = set()
-
-    if frappe.db.exists("Appointment Template", INITIAL_CONSULTATION_LABEL):
-        names.add(INITIAL_CONSULTATION_LABEL)
-
+    label = INITIAL_CONSULTATION_LABEL.lower()
     meta = frappe.get_meta("Appointment Template")
+
+    candidate_fields = ["name"]
     for fieldname in ["appointment_type", "title", "template_name"]:
         if meta.has_field(fieldname):
-            names.update(frappe.get_all(
-                "Appointment Template",
-                filters={fieldname: INITIAL_CONSULTATION_LABEL},
-                pluck="name",
-            ))
+            candidate_fields.append(fieldname)
+
+    rows = frappe.get_all("Appointment Template", fields=candidate_fields, limit_page_length=1000)
+
+    names = set()
+    for row in rows:
+        for fieldname in candidate_fields:
+            value = (row.get(fieldname) or "")
+            if label in value.lower():
+                names.add(row.get("name"))
+                break
 
     return names
 
