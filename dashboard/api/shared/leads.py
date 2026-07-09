@@ -490,10 +490,23 @@ def convert_lead_to_client(name=None):
         client.primary_coach = doc.coach
     if client_meta.has_field("attending_coach") and doc.coach:
         client.attending_coach = doc.coach
-    for age_field in ["client_age", "age"]:
-        if client_meta.has_field(age_field) and doc.client_age:
-            client.set(age_field, doc.client_age)
-            break
+    if doc.client_age:
+        # Client works out age from a date of birth via its own script rather
+        # than storing age directly, so the Lead's approximate age (that's
+        # all a phone enquiry ever gives us) is converted to an estimated
+        # DOB here. It's a best guess (today's month/day, doc.client_age
+        # years ago) - close enough for the age script to show the right
+        # age immediately, but the coach should correct it to the real date
+        # of birth once they have it.
+        for dob_field in ["date_of_birth", "dob"]:
+            if client_meta.has_field(dob_field):
+                try:
+                    estimated_dob = frappe.utils.add_years(frappe.utils.today(), -int(doc.client_age))
+                    client.set(dob_field, estimated_dob)
+                except Exception:
+                    pass
+                break
+
     client.insert(ignore_permissions=True)
 
     contact_first, contact_last = _split_name(doc.contact_name)
