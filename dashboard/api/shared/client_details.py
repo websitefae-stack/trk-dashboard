@@ -459,6 +459,12 @@ def get_billing_contact(doc, contact_detail_base_url="/coach_db/contact_details"
 
     contact = get_or_create_contact_for_customer(customer_name)
 
+    relationship = ""
+    for row in doc.get("client_contacts") or []:
+        if row.get("is_billing_contact") or (contact and row.get("contact") == contact.get("name")):
+            relationship = row.get("relationship_type") or row.get("relationship") or row.get("relation") or ""
+            break
+
     if contact:
         display_name = (
             contact.get("full_name")
@@ -471,7 +477,7 @@ def get_billing_contact(doc, contact_detail_base_url="/coach_db/contact_details"
             "display_name": display_name,
             "phone": contact.get("mobile_no") or contact.get("phone") or "",
             "email": contact.get("email_id") or "",
-            "relationship": "",
+            "relationship": relationship,
             "link": f"{contact_detail_base_url}?name={contact.get('name')}",
         }
 
@@ -480,7 +486,7 @@ def get_billing_contact(doc, contact_detail_base_url="/coach_db/contact_details"
         "display_name": customer_name,
         "phone": "",
         "email": "",
-        "relationship": "",
+        "relationship": relationship,
         "link": "",
     }
 
@@ -507,7 +513,7 @@ def get_client_contacts(client_name=None, contact_detail_base_url="/coach_db/con
                 "phone": row.get("phone") or contact_data.get("phone") or "",
                 "email": row.get("email_id") or contact_data.get("email") or "",
                 "company": contact_data.get("company") or "",
-                "relationship": row.get("relationship") or row.get("relation") or "",
+                "relationship": row.get("relationship_type") or row.get("relationship") or row.get("relation") or "",
                 "link": f"{contact_detail_base_url}?name={contact_name}" if contact_name else "",
             }
         )
@@ -534,7 +540,7 @@ def get_client_contacts_for_context(doc, contact_detail_base_url="/coach_db/cont
             "phone": row.get("phone") or contact_data.get("phone") or "",
             "email": row.get("email_id") or contact_data.get("email") or "",
             "company": contact_data.get("company") or "",
-            "relationship": row.get("relationship") or row.get("relation") or "",
+            "relationship": row.get("relationship_type") or row.get("relationship") or row.get("relation") or "",
             "link": f"{contact_detail_base_url}?name={contact_name}" if contact_name else "",
         })
 

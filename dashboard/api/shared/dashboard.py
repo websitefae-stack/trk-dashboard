@@ -941,6 +941,86 @@ def _get_outstanding_invoices(dashboard_type, context, limit=8):
     return invoices
 
 
+def _get_outstanding_internal_invoices(dashboard_type, context, limit=8):
+    """
+    Invoices raised against a Coach's own linked Client record (e.g. HQ
+    invoicing a coach for fees) that are still outstanding. On the coach
+    dashboard this is just their own; on franchisor it's every coach's.
+    """
+    if not _has_doctype("Coach") or not frappe.get_meta("Coach").has_field("linked_client"):
+        return []
+
+    if dashboard_type == COACH_DASHBOARD:
+        coach_name = context.get("coach_name")
+        if not coach_name:
+            return []
+
+        linked_client = frappe.db.get_value("Coach", coach_name, "linked_client")
+        client_to_coach = {linked_client: coach_name} if linked_client else {}
+
+    elif dashboard_type == FRANCHISOR_DASHBOARD:
+        coach_rows = frappe.get_all(
+            "Coach",
+            filters={"linked_client": ["is", "set"]},
+            fields=["name", "linked_client"],
+            limit_page_length=1000,
+            ignore_permissions=True,
+        )
+        client_to_coach = {row.linked_client: row.name for row in coach_rows if row.linked_client}
+
+    else:
+        return []
+
+    client_names = list(client_to_coach.keys())
+
+    if not client_names:
+        return []
+
+    rows = frappe.get_all(
+        "Sales Invoice",
+        filters={
+            "custom_client": ["in", client_names],
+            "docstatus": 1,
+            "outstanding_amount": [">", 0],
+        },
+        fields=[
+            "name", "custom_client", "posting_date", "due_date",
+            "status", "grand_total", "rounded_total", "outstanding_amount", "currency",
+        ],
+        order_by="posting_date desc",
+        limit_page_length=limit,
+        ignore_permissions=True,
+    )
+
+    base_url = {
+        COACH_DASHBOARD: "/coach_db/invoice_details",
+        FRANCHISOR_DASHBOARD: "/franchisor_db/invoice_details",
+    }.get(dashboard_type, "/coach_db/invoice_details")
+
+    invoices = []
+
+    for row in rows:
+        coach_name = client_to_coach.get(row.get("custom_client")) or ""
+        coach_label = (
+            frappe.db.get_value("Coach", coach_name, "coach_name") or coach_name
+        ) if coach_name else ""
+
+        invoices.append({
+            "name": row.get("name"),
+            "coach": coach_name,
+            "coach_label": coach_label,
+            "posting_date": str(row.get("posting_date") or ""),
+            "due_date": str(row.get("due_date") or ""),
+            "status": row.get("status") or "",
+            "grand_total": flt(row.get("grand_total") or row.get("rounded_total") or 0),
+            "outstanding_amount": flt(row.get("outstanding_amount") or 0),
+            "currency": row.get("currency") or "GBP",
+            "invoice_url": f"{base_url}?name={row.get('name')}",
+        })
+
+    return invoices
+
+
 def _user_can_access_invoice(invoice_name, dashboard_type, context):
     row = frappe.db.get_value(
         "Sales Invoice",
@@ -1247,6 +1327,7 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
         ),
 
         "outstanding_invoices": _get_outstanding_invoices(dashboard_type, context, limit=8),
+        "outstanding_internal_invoices": _get_outstanding_internal_invoices(dashboard_type, context, limit=8),
 
         "clients_url": {
             COACH_DASHBOARD: "/coach_db/clients",

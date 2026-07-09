@@ -254,6 +254,12 @@
     });
 
     document.addEventListener("change", function (event) {
+      if (event.target && (event.target.matches("[data-occurrence-date]") || event.target.matches("[data-occurrence-time]"))) {
+        const row = event.target.closest("[data-occurrence-index]");
+        if (row) row.dataset.userEdited = "1";
+        return;
+      }
+
       if (event.target && event.target.id === "trkCalendarType") {
         setValue("trkCalendarDuration", String(DURATION_BY_TYPE[event.target.value] || 45));
         renderSchoolOptions();
@@ -1387,9 +1393,11 @@
       return;
     }
 
-    // Preserve any dates/times the coach has already adjusted by hand,
-    // rather than wiping them out every time something re-triggers this
-    // (e.g. re-checking the same frequency).
+    // Preserve dates/times the coach has genuinely adjusted by hand, but
+    // only those - previously ANY existing value (even ones nobody touched,
+    // just auto-computed from a stale frequency) was kept as-is, which meant
+    // switching Weekly -> Fortnightly/Monthly silently had no visible effect
+    // since every row's old date always "won" over the freshly computed one.
     const existingRows = list.querySelectorAll("[data-occurrence-index]");
     const existingValues = {};
     existingRows.forEach(function (row) {
@@ -1398,7 +1406,8 @@
       const timeField = row.querySelector("[data-occurrence-time]");
       existingValues[index] = {
         date: dateField ? dateField.value : "",
-        time: timeField ? timeField.value : ""
+        time: timeField ? timeField.value : "",
+        userEdited: row.dataset.userEdited === "1"
       };
     });
 
@@ -1419,10 +1428,12 @@
       }
 
       const previous = existingValues[String(index)];
-      const dateValue = previous && previous.date ? previous.date : formatDateKey(occurrenceDate);
-      const timeValue = previous && previous.time ? previous.time : baseTime;
+      const isUserEdited = !!(previous && previous.userEdited);
+      const dateValue = isUserEdited && previous.date ? previous.date : formatDateKey(occurrenceDate);
+      const timeValue = isUserEdited && previous.time ? previous.time : baseTime;
 
-      html += '<div class="trk-recurring-preview-row" data-occurrence-index="' + index + '">'
+      html += '<div class="trk-recurring-preview-row" data-occurrence-index="' + index + '"'
+        + (isUserEdited ? ' data-user-edited="1"' : '') + '>'
         + '<span class="trk-recurring-preview-index">' + (index + 1) + '</span>'
         + '<input type="date" class="dashboard-input" data-occurrence-date value="' + escapeHtml(dateValue) + '">'
         + '<input type="time" class="dashboard-input" data-occurrence-time value="' + escapeHtml(timeValue) + '">'
@@ -1442,6 +1453,16 @@
     if (!rows.length) return null;
 
     return rows.map(function (row) {
+      // Only send a date/time override for occurrences the coach actually
+      // hand-edited - the backend already computes correct weekly/
+      // fortnightly/monthly dates itself, and previously this sent the
+      // preview's displayed value for every occurrence unconditionally,
+      // which silently overrode that server-side math with whatever the
+      // (buggy, stale) preview happened to be showing at submit time.
+      if (row.dataset.userEdited !== "1") {
+        return { date: "", time: "" };
+      }
+
       return {
         date: row.querySelector("[data-occurrence-date]")?.value || "",
         time: row.querySelector("[data-occurrence-time]")?.value || ""
