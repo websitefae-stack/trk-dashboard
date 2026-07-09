@@ -1,9 +1,10 @@
 import json
 import frappe
 from frappe import _
-from frappe.utils import nowdate
+from frappe.utils import nowdate, flt
 
 from dashboard.api.shared.pagination import get_page_args, make_pagination
+from dashboard.api.shared import payment_utils
 
 
 FRANCHISOR_USERS = [
@@ -1706,14 +1707,16 @@ def allocate_invoice_payment(invoice_name=None, posting_date=None, amount=None, 
     if invoice.docstatus != 1:
         frappe.throw(_("Only submitted invoices can have payments allocated."))
 
-    outstanding = _to_float(invoice.outstanding_amount)
-    payment_amount = _to_float(amount)
+    outstanding = payment_utils.get_outstanding_amount_for_payment(
+        invoice.outstanding_amount, invoice.grand_total, invoice_name
+    )
+    payment_amount = flt(amount, 2)
 
     if payment_amount <= 0:
         frappe.throw(_("Payment amount must be greater than zero."))
 
     if payment_amount > outstanding:
-        frappe.throw(_("Payment amount cannot be more than the outstanding amount."))
+        frappe.throw(_("Payment amount cannot be more than the outstanding amount ({0}).").format(outstanding))
 
     client_bank_account = ""
 
@@ -1734,40 +1737,14 @@ def allocate_invoice_payment(invoice_name=None, posting_date=None, amount=None, 
 
     paid_to_account = _get_bank_account_gl_account(client_bank_account)
 
-    payment = frappe.new_doc("Payment Entry")
-    payment.payment_type = "Receive"
-    payment.posting_date = posting_date or nowdate()
-    payment.company = invoice.company
-    payment.party_type = "Customer"
-    payment.party = invoice.customer
-    payment.party_name = invoice.customer_name
-    payment.paid_amount = payment_amount
-    payment.received_amount = payment_amount
-    payment.paid_to = paid_to_account
-    payment.reference_no = reference_no or invoice.name
-    payment.reference_date = posting_date or nowdate()
-
-    payment.append("references", {
-        "reference_doctype": "Sales Invoice",
-        "reference_name": invoice.name,
-        "allocated_amount": payment_amount,
-        "total_amount": invoice.grand_total,
-        "outstanding_amount": outstanding,
-    })
-
-    if payment.meta.has_field("custom_bank_account"):
-        payment.custom_bank_account = client_bank_account
-
-    if payment.meta.has_field("custom_client"):
-        payment.custom_client = invoice.get("custom_client")
-
-    if payment.meta.has_field("custom_income_owner_coach") and invoice.meta.has_field("custom_income_owner_coach"):
-        payment.custom_income_owner_coach = invoice.get("custom_income_owner_coach")
-
-    payment.insert(ignore_permissions=True)
-    payment.submit()
-
-    frappe.db.commit()
+    payment = payment_utils.build_and_submit_payment_entry(
+        invoice_name=invoice.name,
+        paid_to_account=paid_to_account,
+        payment_date=posting_date or nowdate(),
+        remarks=f"Payment allocated from dashboard invoice details for {invoice.name}",
+        final_amount=payment_amount,
+        reference_no=reference_no or invoice.name,
+    )
 
     invoice.reload()
 
