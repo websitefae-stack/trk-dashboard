@@ -921,6 +921,9 @@ def _get_outstanding_invoices(dashboard_type, context, limit=8):
         client_row = _get_client_row(row.get("custom_client"))
         client_name = _get_client_display(client_row) if client_row else row.get("customer_name") or row.get("customer")
 
+        live_outstanding = _get_live_outstanding_from_ledger(row.get("name"))
+        outstanding_amount = live_outstanding if live_outstanding is not None else flt(row.get("outstanding_amount") or 0)
+
         invoices.append({
             "name": row.get("name"),
             "client": row.get("custom_client"),
@@ -930,7 +933,7 @@ def _get_outstanding_invoices(dashboard_type, context, limit=8):
             "due_date": str(row.get("due_date") or ""),
             "status": row.get("status") or "",
             "grand_total": flt(row.get("grand_total") or row.get("rounded_total") or 0),
-            "outstanding_amount": flt(row.get("outstanding_amount") or 0),
+            "outstanding_amount": outstanding_amount,
             "currency": row.get("currency") or "GBP",
             "invoice_url": {
                 COACH_DASHBOARD: "/coach_db/invoices",
@@ -1081,15 +1084,14 @@ def _resolve_paid_to_account(invoice_doc, client_row):
     return ""
 
 
-def _get_live_outstanding_amount(invoice_doc, invoice_name):
+def _get_live_outstanding_from_ledger(invoice_name):
     """
     The Sales Invoice's own cached outstanding_amount field can drift from
-    the true Payment Ledger balance (this has been observed to disagree with
-    what ERPNext's validate_allocated_amount_with_latest_data() re-checks at
-    Payment Entry insert time, even when our own allocated amount is pinned
-    to - or floored below - the cached field). Query the ledger directly for
-    the authoritative current figure; fall back to the cached field if the
-    query can't run (e.g. a schema this site's ERPNext version doesn't have).
+    the true Payment Ledger balance (observed to disagree with what
+    ERPNext's validate_allocated_amount_with_latest_data() re-checks at
+    Payment Entry insert time). Returns the authoritative current figure
+    from the ledger, or None if the query can't run (e.g. a schema this
+    site's ERPNext version doesn't have) so callers can fall back.
     """
     try:
         row = frappe.db.sql(
@@ -1106,9 +1108,14 @@ def _get_live_outstanding_amount(invoice_doc, invoice_name):
         if row and row[0].get("amount") is not None:
             return flt(row[0]["amount"])
     except Exception:
-        frappe.log_error(frappe.get_traceback(), "mark_invoice_paid - live outstanding lookup failed")
+        frappe.log_error(frappe.get_traceback(), "Live outstanding ledger lookup failed")
 
-    return flt(invoice_doc.outstanding_amount)
+    return None
+
+
+def _get_live_outstanding_amount(invoice_doc, invoice_name):
+    live = _get_live_outstanding_from_ledger(invoice_name)
+    return live if live is not None else flt(invoice_doc.outstanding_amount)
 
 
 @frappe.whitelist()
