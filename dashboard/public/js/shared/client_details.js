@@ -1146,7 +1146,7 @@
           postal_code: postalField ? postalField.value : ""
         });
 
-        const select = el("field_therapy_location");
+        const select = el("field_main_therapy_location") || el("field_therapy_location");
         if (select && result && result.name) {
           const option = document.createElement("option");
           option.value = result.name;
