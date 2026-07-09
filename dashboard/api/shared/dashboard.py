@@ -1,3 +1,5 @@
+import math
+
 import frappe
 from frappe import _
 from frappe.utils import today, getdate, get_datetime, add_to_date, flt, nowdate, get_fullname
@@ -1101,7 +1103,19 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None):
     if invoice_doc.docstatus != 1:
         frappe.throw(_("Only submitted Sales Invoices can be marked as paid."))
 
-    outstanding_amount = flt(invoice_doc.outstanding_amount or 0, 2)
+    # Re-read the outstanding amount fresh from the database rather than the
+    # already-loaded doc, and round it DOWN (never up) to 2dp. ERPNext's own
+    # Payment Entry validation re-checks the allocated amount against the
+    # current outstanding balance at insert time, and a value stored with a
+    # sub-penny remainder (e.g. 149.996 due to float rounding elsewhere) would
+    # get rounded UP to 150.00 by ordinary flt() rounding - which then exceeds
+    # the true outstanding balance and throws "Allocated Amount cannot be
+    # greater than outstanding amount". Flooring guarantees we never allocate
+    # more than what's actually outstanding.
+    raw_outstanding = frappe.db.get_value("Sales Invoice", invoice, "outstanding_amount")
+    if raw_outstanding is None:
+        raw_outstanding = invoice_doc.outstanding_amount or 0
+    outstanding_amount = math.floor(flt(raw_outstanding) * 100) / 100.0
 
     if outstanding_amount <= 0:
         return {
