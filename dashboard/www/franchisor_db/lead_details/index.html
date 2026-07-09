@@ -78,6 +78,35 @@
             </div>
           </section>
 
+          {% if not is_new %}
+          <section class="dashboard-detail-section" id="leadLinkExistingSection" style="display:none;">
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">Already Created This Client?</h2>
+            </div>
+            <p class="dashboard-field-hint">If this person has already been set up as a Client (and Contact), link this lead to those records instead of creating new ones.</p>
+
+            <div class="dashboard-detail-grid dashboard-detail-grid-2">
+              <div class="dashboard-detail-field">
+                <label for="lead_link_client">Client</label>
+                <select id="lead_link_client" class="dashboard-input">
+                  <option value="">— Select client —</option>
+                </select>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label for="lead_link_contact">Contact</label>
+                <select id="lead_link_contact" class="dashboard-input">
+                  <option value="">— No contact —</option>
+                </select>
+              </div>
+            </div>
+
+            <button type="button" class="dashboard-btn dashboard-btn-secondary" id="linkExistingClientBtn">
+              Link to This Client
+            </button>
+          </section>
+          {% endif %}
+
           <section class="dashboard-detail-section">
             <div class="dashboard-detail-section-head">
               <h2 class="dashboard-detail-section-title">Contact</h2>

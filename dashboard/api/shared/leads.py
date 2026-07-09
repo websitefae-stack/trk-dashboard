@@ -26,7 +26,7 @@ LEAD_LIST_FIELDS = [
     "name", "status", "source", "coach",
     "contact_name", "contact_email", "contact_mobile",
     "client_name", "client_age", "postal_code",
-    "event", "modified", "creation",
+    "event", "converted_client", "modified", "creation",
 ]
 
 
@@ -44,9 +44,42 @@ def _normalize_lead_row(row):
         "client_age": row.get("client_age") or "",
         "postal_code": row.get("postal_code") or "",
         "event": row.get("event") or "",
+        "converted_client": row.get("converted_client") or "",
+        "has_invoice": 0,
         "modified": row.get("modified"),
         "creation": row.get("creation"),
     }
+
+
+def _mark_converted_leads_with_invoices(rows):
+    """
+    Cheap "does this converted lead's client already have a Sales Invoice"
+    flag so the board can prioritise showing the ones that still need
+    billing set up, instead of just recency.
+    """
+    client_names = [
+        row["converted_client"] for row in rows
+        if row.get("status") == "Converted" and row.get("converted_client")
+    ]
+
+    if not client_names or not frappe.db.exists("DocType", "Sales Invoice"):
+        return rows
+
+    if not frappe.get_meta("Sales Invoice").has_field("custom_client"):
+        return rows
+
+    invoiced_clients = set(frappe.get_all(
+        "Sales Invoice",
+        filters={"custom_client": ["in", client_names]},
+        pluck="custom_client",
+        ignore_permissions=True,
+    ))
+
+    for row in rows:
+        if row.get("converted_client") in invoiced_clients:
+            row["has_invoice"] = 1
+
+    return rows
 
 
 def _current_coach_name():
@@ -110,7 +143,8 @@ def get_leads(dashboard_type=None):
 
     rows = frappe.get_all(**args, ignore_permissions=True)
 
-    return [_normalize_lead_row(row) for row in rows]
+    normalized = [_normalize_lead_row(row) for row in rows]
+    return _mark_converted_leads_with_invoices(normalized)
 
 
 def _get_lead_notes(doc):
@@ -488,6 +522,54 @@ def _split_name(full_name):
     return first, last
 
 
+def _attach_intake_pdf_to_client(doc, client_name):
+    """
+    Best-effort - a completed intake is data on the Lead, not a file, so
+    this renders a simple summary PDF and attaches it to the new Client so
+    it shows up on the Client's own Files tab. Never blocks conversion if
+    PDF generation fails for any reason (e.g. wkhtmltopdf not available on
+    the site).
+    """
+    if not doc.intake_completed_on:
+        return
+
+    try:
+        from frappe.utils.pdf import get_pdf
+
+        rows = "".join(
+            f"<tr><td style='padding:4px 8px;color:#839898;'>{label}</td>"
+            f"<td style='padding:4px 8px;'>{frappe.utils.escape_html(str(value or '-'))}</td></tr>"
+            for label, value in [
+                ("Contact Name", doc.contact_name),
+                ("Contact Email", doc.contact_email),
+                ("Contact Mobile", doc.contact_mobile),
+                ("Client Name", doc.client_name),
+                ("Client Age", doc.client_age),
+                ("Postal Code", doc.postal_code),
+                ("Why They're Contacting Us", doc.enquiry_reason),
+                ("How They Heard About Us", doc.how_heard),
+                ("Consent To Be Contacted", "Yes" if doc.consent_given else "No"),
+                ("Intake Completed On", doc.intake_completed_on),
+            ]
+        )
+
+        html = f"<h2>Intake Form - {frappe.utils.escape_html(doc.client_name)}</h2><table>{rows}</table>"
+        pdf_content = get_pdf(html)
+
+        file_doc = frappe.get_doc({
+            "doctype": "File",
+            "file_name": f"Intake Form - {doc.client_name}.pdf",
+            "attached_to_doctype": "Client",
+            "attached_to_name": client_name,
+            "attached_to_field": "intake_form",
+            "is_private": 1,
+            "content": pdf_content,
+        })
+        file_doc.insert(ignore_permissions=True)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Attach Intake PDF to Client Failed")
+
+
 @frappe.whitelist()
 def convert_lead_to_client(name=None):
     doc = ensure_lead_access(coalesce_str("name", name))
@@ -530,6 +612,7 @@ def convert_lead_to_client(name=None):
                 break
 
     client.insert(ignore_permissions=True)
+    _attach_intake_pdf_to_client(doc, client.name)
 
     contact_first, contact_last = _split_name(doc.contact_name)
     contact = frappe.new_doc("Contact")
@@ -558,3 +641,68 @@ def convert_lead_to_client(name=None):
     frappe.db.commit()
 
     return {"ok": True, "client": client.name, "contact": contact.name}
+
+
+@frappe.whitelist()
+def get_client_link_options():
+    """Clients the current user is allowed to see, for the 'Link to Existing
+    Client' picker on a Lead - reuses the same scoping as the Clients page."""
+    from dashboard.api.shared.clients import get_clients
+
+    return [
+        {"value": row.get("name"), "label": row.get("display_name") or row.get("name")}
+        for row in get_clients()
+    ]
+
+
+@frappe.whitelist()
+def get_client_contact_options(client=None):
+    from dashboard.api.shared.permissions import ensure_client_access
+
+    client = coalesce_str("client", client)
+    if not client:
+        return []
+
+    client_doc = ensure_client_access(client)
+
+    return [
+        {
+            "value": row.get("contact"),
+            "label": row.get("contact_name") or row.get("contact"),
+        }
+        for row in client_doc.get("client_contacts") or []
+        if row.get("contact")
+    ]
+
+
+@frappe.whitelist()
+def link_lead_to_existing_client(name=None, client=None, contact=None):
+    """
+    For when the coach already created the Client/Contact themselves (e.g.
+    before this Lead existed, or outside this flow) - links the Lead to
+    those existing records instead of creating duplicates, and marks it
+    Converted the same as a normal conversion would.
+    """
+    from dashboard.api.shared.permissions import ensure_client_access
+
+    doc = ensure_lead_access(coalesce_str("name", name))
+    client = coalesce_str("client", client)
+    contact = coalesce_str("contact", contact)
+
+    if not client:
+        frappe.throw(_("Please select the client to link this lead to."))
+
+    ensure_client_access(client)
+
+    if contact and not frappe.db.exists("Contact", contact):
+        frappe.throw(_("Selected contact was not found."))
+
+    _attach_intake_pdf_to_client(doc, client)
+
+    doc.converted_client = client
+    doc.converted_contact = contact
+    doc.status = "Converted"
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True, "client": client, "contact": contact}

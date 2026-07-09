@@ -1303,12 +1303,52 @@
       }
     }
 
+  function initFileUpload() {
+    const input = el("clientFileUploadInput");
+    if (!input) return;
+
+    input.addEventListener("change", async function () {
+      const file = input.files && input.files[0];
+      if (!file) return;
+
+      const status = el("clientFileUploadStatus");
+      if (status) status.textContent = "Uploading...";
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("is_private", 1);
+      formData.append("doctype", "Client");
+      formData.append("docname", getClientName());
+
+      try {
+        const response = await fetch("/api/method/upload_file", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "X-Frappe-CSRF-Token": getCsrfToken() },
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.exc) {
+          throw new Error(data.message || "Could not upload the file.");
+        }
+
+        window.location.reload();
+      } catch (error) {
+        if (status) status.textContent = "";
+        showError(error.message || "Could not upload the file.");
+      }
+    });
+  }
+
   function init() {
     if (!el("clientDetailsForm")) return;
 
     initTabs();
     initEditButton();
     initInvoiceButton();
+    initFileUpload();
     initAddNote();
     initLinkOptions();
     initPrimaryCoachDefaults();

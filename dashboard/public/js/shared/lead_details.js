@@ -140,10 +140,12 @@
     const sendBtn = el("sendIntakeFormBtn");
     const convertBtn = el("convertLeadBtn");
     const viewClientBtn = el("viewConvertedClientBtn");
+    const linkExistingSection = el("leadLinkExistingSection");
 
     if (lead.status === "Converted" && lead.converted_client) {
       if (sendBtn) sendBtn.style.display = "none";
       if (convertBtn) convertBtn.style.display = "none";
+      if (linkExistingSection) linkExistingSection.style.display = "none";
       if (viewClientBtn) {
         viewClientBtn.style.display = "";
         viewClientBtn.href = `${baseUrl}/client_details?name=${encodeURIComponent(lead.converted_client)}`;
@@ -152,6 +154,73 @@
       if (viewClientBtn) viewClientBtn.style.display = "none";
       if (sendBtn) sendBtn.style.display = "";
       if (convertBtn) convertBtn.style.display = lead.intake_completed_on ? "" : "none";
+      if (linkExistingSection) {
+        linkExistingSection.style.display = "";
+        loadClientLinkOptions();
+      }
+    }
+  }
+
+  async function loadClientLinkOptions() {
+    const clientSelect = el("lead_link_client");
+    if (!clientSelect || clientSelect.dataset.loaded === "1") return;
+
+    clientSelect.dataset.loaded = "1";
+
+    try {
+      const options = await apiPost(`${SHARED_API}.get_client_link_options`, {});
+      (options || []).forEach((option) => {
+        const opt = document.createElement("option");
+        opt.value = option.value;
+        opt.textContent = option.label;
+        clientSelect.appendChild(opt);
+      });
+    } catch (error) {
+      console.error("Could not load clients:", error);
+    }
+  }
+
+  async function loadContactOptionsForClient(client) {
+    const contactSelect = el("lead_link_contact");
+    if (!contactSelect) return;
+
+    contactSelect.innerHTML = '<option value="">— No contact —</option>';
+    if (!client) return;
+
+    try {
+      const options = await apiPost(`${SHARED_API}.get_client_contact_options`, { client });
+      (options || []).forEach((option) => {
+        const opt = document.createElement("option");
+        opt.value = option.value;
+        opt.textContent = option.label;
+        contactSelect.appendChild(opt);
+      });
+    } catch (error) {
+      console.error("Could not load contacts:", error);
+    }
+  }
+
+  async function linkExistingClient() {
+    const name = getValue("leadDocname");
+    const client = getValue("lead_link_client");
+    const contact = getValue("lead_link_contact");
+
+    if (!client) {
+      showMessage("Please select a client to link this lead to.", true);
+      return;
+    }
+
+    const linkBtn = el("linkExistingClientBtn");
+    if (linkBtn) linkBtn.disabled = true;
+
+    try {
+      await apiPost(`${SHARED_API}.link_lead_to_existing_client`, { name, client, contact });
+      showMessage("Linked to existing client.", false);
+      loadLead();
+    } catch (error) {
+      showMessage(error.message || "Could not link this lead.", true);
+    } finally {
+      if (linkBtn) linkBtn.disabled = false;
     }
   }
 
@@ -316,6 +385,16 @@
 
     const convertBtn = el("convertLeadBtn");
     if (convertBtn) convertBtn.addEventListener("click", convertLead);
+
+    const linkBtn = el("linkExistingClientBtn");
+    if (linkBtn) linkBtn.addEventListener("click", linkExistingClient);
+
+    const linkClientSelect = el("lead_link_client");
+    if (linkClientSelect) {
+      linkClientSelect.addEventListener("change", function () {
+        loadContactOptionsForClient(linkClientSelect.value);
+      });
+    }
 
     const statusField = el("lead_status");
     if (statusField) statusField.addEventListener("change", toggleDeclineField);
