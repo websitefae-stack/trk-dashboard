@@ -80,12 +80,20 @@
     }
 
     list.innerHTML = notes.map((note) => {
-      const when = note.added_on ? new Date(note.added_on).toLocaleString("en-GB") : "";
+      const dateText = note.note_date
+        ? new Date(`${note.note_date}T00:00:00`).toLocaleDateString("en-GB")
+        : "";
+      const addedText = note.added_on ? new Date(note.added_on).toLocaleString("en-GB") : "";
+
+      const metaBits = [];
+      if (dateText) metaBits.push(dateText);
+      if (note.added_by) metaBits.push(note.added_by);
+      if (addedText) metaBits.push(`added ${addedText}`);
 
       return `
         <div class="dashboard-lead-note">
           <div class="dashboard-lead-note-text">${escapeHtml(note.note)}</div>
-          <div class="dashboard-lead-note-meta">${escapeHtml(note.added_by || "")} ${when ? "· " + escapeHtml(when) : ""}</div>
+          <div class="dashboard-lead-note-meta">${escapeHtml(metaBits.join(" · "))}</div>
         </div>
       `;
     }).join("");
@@ -122,6 +130,35 @@
     }
 
     renderNotes(lead.notes || []);
+
+    const callSection = el("leadCallSection");
+    if (callSection) {
+      if (lead.call && lead.call.date) {
+        callSection.style.display = "";
+
+        const dateTimeEl = el("leadCallDateTime");
+        if (dateTimeEl) {
+          const dateText = new Date(`${lead.call.date}T00:00:00`).toLocaleDateString("en-GB", {
+            weekday: "long", day: "numeric", month: "long", year: "numeric"
+          });
+          const timeText = lead.call.start_time
+            ? `${lead.call.start_time}${lead.call.end_time ? " - " + lead.call.end_time : ""}`
+            : "";
+          dateTimeEl.textContent = [dateText, timeText].filter(Boolean).join(" at ");
+        }
+
+        const locationEl = el("leadCallLocation");
+        if (locationEl) {
+          if (lead.call.online_link) {
+            locationEl.innerHTML = `<a href="${escapeHtml(lead.call.online_link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(lead.call.online_link)}</a>`;
+          } else {
+            locationEl.textContent = lead.call.location || "—";
+          }
+        }
+      } else {
+        callSection.style.display = "none";
+      }
+    }
 
     const bookBtn = el("bookLeadCallBtn");
     if (bookBtn) {
@@ -353,6 +390,7 @@
     const name = getValue("leadDocname");
     const noteField = el("leadNewNote");
     const note = noteField ? noteField.value.trim() : "";
+    const noteDate = getValue("leadNewNoteDate");
 
     if (!note) return;
 
@@ -360,14 +398,21 @@
     if (addBtn) addBtn.disabled = true;
 
     try {
-      const result = await apiPost(`${SHARED_API}.add_lead_note`, { name, note });
+      const result = await apiPost(`${SHARED_API}.add_lead_note`, { name, note, note_date: noteDate });
       renderNotes(result.notes || []);
       if (noteField) noteField.value = "";
+      setValue("leadNewNoteDate", todayIso());
     } catch (error) {
       showMessage(error.message || "Could not add note.", true);
     } finally {
       if (addBtn) addBtn.disabled = false;
     }
+  }
+
+  function todayIso() {
+    const now = new Date();
+    const offset = now.getTimezoneOffset();
+    return new Date(now.getTime() - offset * 60000).toISOString().slice(0, 10);
   }
 
   function init() {
@@ -398,6 +443,9 @@
 
     const statusField = el("lead_status");
     if (statusField) statusField.addEventListener("change", toggleDeclineField);
+
+    const noteDateField = el("leadNewNoteDate");
+    if (noteDateField && !noteDateField.value) noteDateField.value = todayIso();
 
     if (getValue("leadIsNew") !== "1") {
       loadLead();

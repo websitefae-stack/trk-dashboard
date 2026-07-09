@@ -129,6 +129,23 @@
   font-size: 12px;
 }
 
+.dashboard-field-value {
+  padding: 10px 12px;
+  background: #F2F8F8;
+  border-radius: 10px;
+  color: #434B49;
+  font-size: 14px;
+  word-break: break-word;
+}
+
+.dashboard-field-value a {
+  color: #007274;
+}
+
+.dashboard-lead-note-date {
+  flex: 0 0 160px;
+}
+
 .dashboard-detail-field-checkbox label {
   display: flex;
   align-items: center;
