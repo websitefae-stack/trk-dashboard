@@ -1046,6 +1046,13 @@ def _user_can_access_invoice(invoice_name, dashboard_type, context):
     if context.get("is_dashboard_admin"):
         return True
 
+    # Franchise-type clients represent coaches themselves (for cross-coach/
+    # HQ invoicing) and aren't tied to a specific primary/attending coach -
+    # every coach needs access regardless of assignment.
+    client_type = frappe.db.get_value("Client", row.get("custom_client"), "client_type")
+    if client_type == "Franchise":
+        return True
+
     return (client_row.get("primary_coach") or "").strip() == (context.get("coach_name") or "").strip()
 
 
@@ -1327,7 +1334,7 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
         ),
 
         "outstanding_invoices": _get_outstanding_invoices(dashboard_type, context, limit=8),
-        "outstanding_internal_invoices": _get_outstanding_internal_invoices(dashboard_type, context, limit=8),
+        "outstanding_internal_invoices": _get_outstanding_internal_invoices(dashboard_type, context, limit=5),
 
         "clients_url": {
             COACH_DASHBOARD: "/coach_db/clients",

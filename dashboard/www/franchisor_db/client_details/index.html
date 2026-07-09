@@ -241,7 +241,7 @@
                           <th>Contact Name</th>
                           <th>Mobile</th>
                           <th>Email</th>
-                          <th>Company</th>
+                          <th>Relationship</th>
                           <th class="dashboard-action-col">Action</th>
                         </tr>
                       </thead>
@@ -265,7 +265,7 @@
                               </td>
                               <td>{{ contact.phone or "—" }}</td>
                               <td>{{ contact.email or "—" }}</td>
-                              <td>{{ contact.company or "—" }}</td>
+                              <td>{{ contact.relationship or "—" }}</td>
                               <td class="dashboard-action-cell">
                                 {% if contact.link %}
                                   <a class="dashboard-link-btn" href="{{ contact.link }}">View</a>
