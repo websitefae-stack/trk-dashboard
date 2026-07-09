@@ -1366,6 +1366,14 @@ def _validate_invoice(doc):
     if not doc.items:
         frappe.throw(_("At least one invoice item is required."))
 
+    has_negative_line = any(
+        _to_float(item.rate) < 0 or _to_float(item.amount) < 0
+        for item in doc.items
+    )
+
+    if has_negative_line and not _is_franchisor_user():
+        frappe.throw(_("Only HQ/Office can add a negative amount to an invoice."), frappe.PermissionError)
+
 
 def _prepare_invoice_for_save(doc):
     if hasattr(doc, "set_missing_values"):

@@ -312,9 +312,21 @@
                       <h2 class="dashboard-detail-section-title">Add Note</h2>
                     </div>
 
-                    <div class="dashboard-detail-field">
-                      <label for="newClientNoteText">Note</label>
-                      <textarea id="newClientNoteText" class="dashboard-textarea" placeholder="Write a client note"></textarea>
+                    <div class="dashboard-detail-grid dashboard-detail-grid-2">
+                      <div class="dashboard-detail-field">
+                        <label for="newClientNoteDate">Date</label>
+                        <input type="date" id="newClientNoteDate" class="dashboard-input">
+                      </div>
+
+                      <div class="dashboard-detail-field">
+                        <label for="newClientNoteFile">Attachment</label>
+                        <input type="file" id="newClientNoteFile" class="dashboard-input">
+                      </div>
+
+                      <div class="dashboard-detail-field dashboard-detail-field-full">
+                        <label for="newClientNoteText">Note</label>
+                        <textarea id="newClientNoteText" class="dashboard-textarea" placeholder="Write a client note"></textarea>
+                      </div>
                     </div>
 
                     <div class="dashboard-detail-actions" style="margin-top: 14px;">
@@ -337,6 +349,7 @@
                           <th>Date</th>
                           <th class="dashboard-note-user-cell">User</th>
                           <th>Notes</th>
+                          <th>Attachment</th>
                         </tr>
                       </thead>
 
@@ -347,11 +360,18 @@
                               <td>{{ frappe.format(note.session_date, {"fieldtype": "Date"}) if note.session_date else "—" }}</td>
                               <td class="dashboard-note-user-cell">{{ note.user_full_name or note.user or "—" }}</td>
                               <td>{{ note.notes or "—" }}</td>
+                              <td>
+                                {% if note.attachement %}
+                                  <a href="{{ note.attachement }}" target="_blank" rel="noopener noreferrer">View</a>
+                                {% else %}
+                                  —
+                                {% endif %}
+                              </td>
                             </tr>
                           {% endfor %}
                         {% else %}
                           <tr>
-                            <td colspan="3" class="dashboard-empty">No notes found.</td>
+                            <td colspan="4" class="dashboard-empty">No notes found.</td>
                           </tr>
                         {% endif %}
                       </tbody>
@@ -591,8 +611,8 @@
                                   <thead>
                                     <tr>
                                       <th>Diagnosis</th>
-                                      <th>Note</th>
                                       <th>Date</th>
+                                      <th>Attachment</th>
                                     </tr>
                                   </thead>
 
@@ -623,10 +643,18 @@
                                             >
                                           </td>
                                           <td>
-                                            <input class="dashboard-input" data-diagnosis-field="note" value="{{ row.note or '' }}" readonly>
+                                            <input type="date" class="dashboard-input" data-diagnosis-field="date" value="{{ row.date or '' }}" readonly>
                                           </td>
                                           <td>
-                                            <input type="date" class="dashboard-input" data-diagnosis-field="date" value="{{ row.date or '' }}" readonly>
+                                            <input type="file" class="dashboard-input" data-diagnosis-field="attachement_file" disabled>
+                                            <input type="hidden" data-diagnosis-field="attachement" value="{{ row.attachement or '' }}">
+                                            <div class="dashboard-field-note" data-diagnosis-attachment-status="1">
+                                              {% if row.attachement %}
+                                                Current file: <a href="{{ row.attachement }}" target="_blank" rel="noopener noreferrer">View</a>
+                                              {% else %}
+                                                No file attached
+                                              {% endif %}
+                                            </div>
                                           </td>
                                         </tr>
                                       {% endfor %}
@@ -659,22 +687,30 @@
                               </div>
 
                             {% elif item.is_link %}
-                              <select
-                                class="dashboard-select"
-                                id="field_{{ item.fieldname }}"
-                                data-client-field="1"
-                                data-fieldname="{{ item.fieldname }}"
-                                data-fieldtype="{{ item.fieldtype }}"
-                                data-link-doctype="{{ item.options }}"
-                                data-current-value="{{ item.value }}"
-                                data-meta-readonly="{{ item.read_only }}"
-                                disabled
-                              >
-                                <option value=""></option>
-                                {% if item.value %}
-                                  <option value="{{ item.value }}" selected>{{ item.value }}</option>
+                              <div class="dashboard-link-with-add">
+                                <select
+                                  class="dashboard-select"
+                                  id="field_{{ item.fieldname }}"
+                                  data-client-field="1"
+                                  data-fieldname="{{ item.fieldname }}"
+                                  data-fieldtype="{{ item.fieldtype }}"
+                                  data-link-doctype="{{ item.options }}"
+                                  data-current-value="{{ item.value }}"
+                                  data-meta-readonly="{{ item.read_only }}"
+                                  disabled
+                                >
+                                  <option value=""></option>
+                                  {% if item.value %}
+                                    <option value="{{ item.value }}" selected>{{ item.value }}</option>
+                                  {% endif %}
+                                </select>
+
+                                {% if item.fieldname == "therapy_location" %}
+                                  <button type="button" class="dashboard-btn dashboard-btn-light" id="addTherapyLocationBtn" disabled>
+                                    + New
+                                  </button>
                                 {% endif %}
-                              </select>
+                              </div>
 
                             {% elif item.is_select %}
                               <select

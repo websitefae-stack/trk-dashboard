@@ -230,7 +230,7 @@
         return;
       }
 
-      if (field.tagName === "SELECT") {
+      if (field.tagName === "SELECT" || field.type === "file") {
         field.disabled = !isEditing;
       } else {
         field.readOnly = !isEditing;
@@ -238,6 +238,11 @@
     });
 
     applyClientDetailVisibility(isEditing || isNewClientPage());
+
+    const addTherapyLocationBtn = el("addTherapyLocationBtn");
+    if (addTherapyLocationBtn) {
+      addTherapyLocationBtn.disabled = !roleConfig.canEdit || !isEditing;
+    }
 
     const editButton = el("editClient");
 
@@ -278,7 +283,7 @@
         qsa("[data-diagnosis-row='1']").forEach(function (row) {
           const diagnosisField = row.querySelector("[data-diagnosis-field='diagnosis'], [data-diagnosis-field='diagnoses']");
           const newDiagnosisField = row.querySelector("[data-diagnosis-field='new_diagnosis']");
-          const noteField = row.querySelector("[data-diagnosis-field='note']");
+          const attachementField = row.querySelector("[data-diagnosis-field='attachement']");
           const dateField = row.querySelector("[data-diagnosis-field='date']");
           const diagnosisValue = diagnosisField ? diagnosisField.value : "";
           const newDiagnosisValue = newDiagnosisField && !diagnosisValue ? newDiagnosisField.value : "";
@@ -287,7 +292,7 @@
             diagnosis: diagnosisValue,
             diagnoses: diagnosisValue,
             new_diagnosis: newDiagnosisValue,
-            note: noteField ? noteField.value : "",
+            attachement: attachementField ? attachementField.value : "",
             date: dateField ? dateField.value : ""
           });
         });
@@ -676,13 +681,28 @@
       return;
     }
 
+    const dateField = el("newClientNoteDate");
+    const fileInput = el("newClientNoteFile");
+    const file = fileInput && fileInput.files && fileInput.files[0];
+
     try {
+      let attachement = "";
+
+      if (file) {
+        const uploaded = await uploadFile(file);
+        attachement = (uploaded && uploaded.file_url) || "";
+      }
+
       await apiPost("add_client_note", {
         client_name: getClientName(),
-        note_text: noteText
+        note_text: noteText,
+        session_date: dateField ? dateField.value : "",
+        attachement: attachement
       });
 
       field.value = "";
+      if (dateField) dateField.value = "";
+      if (fileInput) fileInput.value = "";
       showSuccess("Note added");
 
       if (roleConfig.role === "session_worker") {
@@ -780,16 +800,21 @@
       });
 
       const rows = (notes || []).map(function (row) {
+        const attachment = row.attachement
+          ? "<a href=\"" + escapeHtml(row.attachement) + "\" target=\"_blank\" rel=\"noopener noreferrer\">View</a>"
+          : "—";
+
         return (
           "<tr>" +
             "<td>" + formatDate(row.note_date || row.session_date) + "</td>" +
             "<td class=\"dashboard-note-user-cell\">" + escapeHtml(row.note_user_name || row.user_full_name || row.note_user || row.user || "—") + "</td>" +
             "<td>" + escapeHtml(row.note_text || row.notes || "—") + "</td>" +
+            "<td>" + attachment + "</td>" +
           "</tr>"
         );
       });
 
-      renderSimpleTable("clientNotesTableBody", rows, "No notes found.", 3);
+      renderSimpleTable("clientNotesTableBody", rows, "No notes found.", 4);
     } catch (error) {
       renderSimpleTable("clientNotesTableBody", [], error.message || "Could not load notes.", 3);
     }
@@ -1017,8 +1042,166 @@
       }
     }
 
+    async function uploadFile(file) {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("is_private", 1);
+
+      const response = await fetch("/api/method/upload_file", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "X-Frappe-CSRF-Token": getCsrfToken()
+        },
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.exc) {
+        throw new Error(data.message || "Could not upload the file.");
+      }
+
+      return data.message;
+    }
+
+    function initDiagnosisAttachments() {
+      document.addEventListener("change", async function (event) {
+        const fileInput = event.target.closest("[data-diagnosis-field='attachement_file']");
+        if (!fileInput) return;
+
+        const row = fileInput.closest("[data-diagnosis-row='1']");
+        if (!row) return;
+
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+
+        const hiddenField = row.querySelector("[data-diagnosis-field='attachement']");
+        const status = row.querySelector("[data-diagnosis-attachment-status='1']");
+
+        if (status) status.textContent = "Uploading...";
+
+        try {
+          const uploaded = await uploadFile(file);
+          const fileUrl = uploaded && uploaded.file_url;
+
+          if (hiddenField) hiddenField.value = fileUrl || "";
+
+          if (status) {
+            status.innerHTML = fileUrl
+              ? "Current file: <a href=\"" + fileUrl + "\" target=\"_blank\" rel=\"noopener noreferrer\">View</a>"
+              : "No file attached";
+          }
+        } catch (error) {
+          if (status) status.textContent = "Upload failed.";
+          showError(error.message || "Could not upload the file.");
+        }
+      });
+    }
+
+    function openTherapyLocationModal() {
+      const modal = el("therapyLocationModal");
+      if (modal) modal.classList.add("show");
+    }
+
+    function closeTherapyLocationModal() {
+      const modal = el("therapyLocationModal");
+      if (modal) modal.classList.remove("show");
+    }
+
+    async function saveTherapyLocation() {
+      const nameField = el("newTherapyLocationName");
+      const typeField = el("newTherapyLocationType");
+      const address1Field = el("newTherapyAddress1");
+      const address2Field = el("newTherapyAddress2");
+      const cityField = el("newTherapyCity");
+      const postalField = el("newTherapyPostalCode");
+
+      const locationName = nameField ? nameField.value.trim() : "";
+      const locationType = typeField ? typeField.value : "";
+
+      if (!locationName) {
+        showError("Enter a location name.");
+        return;
+      }
+
+      if (!locationType) {
+        showError("Select a location type.");
+        return;
+      }
+
+      const button = el("saveTherapyLocationBtn");
+      if (button) {
+        button.disabled = true;
+        button.textContent = "Saving...";
+      }
+
+      try {
+        const result = await apiPost("create_therapy_location", {
+          location_name: locationName,
+          location_type: locationType,
+          address_line_1: address1Field ? address1Field.value : "",
+          address_line_2: address2Field ? address2Field.value : "",
+          city: cityField ? cityField.value : "",
+          postal_code: postalField ? postalField.value : ""
+        });
+
+        const select = el("field_therapy_location");
+        if (select && result && result.name) {
+          const option = document.createElement("option");
+          option.value = result.name;
+          option.textContent = result.label || result.name;
+          option.selected = true;
+          select.appendChild(option);
+          select.value = result.name;
+        }
+
+        if (nameField) nameField.value = "";
+        if (typeField) typeField.value = "";
+        if (address1Field) address1Field.value = "";
+        if (address2Field) address2Field.value = "";
+        if (cityField) cityField.value = "";
+        if (postalField) postalField.value = "";
+
+        closeTherapyLocationModal();
+        showSuccess("Location added");
+      } catch (error) {
+        showError(error.message || "Could not save the location.");
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = "Save Location";
+        }
+      }
+    }
+
+    function initTherapyLocationModal() {
+      const addBtn = el("addTherapyLocationBtn");
+      if (addBtn) {
+        addBtn.addEventListener("click", function (event) {
+          event.preventDefault();
+          openTherapyLocationModal();
+        });
+      }
+
+      const closeBtn = el("therapyLocationModalClose");
+      if (closeBtn) closeBtn.addEventListener("click", closeTherapyLocationModal);
+
+      const cancelBtn = el("therapyLocationModalCancel");
+      if (cancelBtn) cancelBtn.addEventListener("click", closeTherapyLocationModal);
+
+      const saveBtn = el("saveTherapyLocationBtn");
+      if (saveBtn) {
+        saveBtn.addEventListener("click", function (event) {
+          event.preventDefault();
+          saveTherapyLocation();
+        });
+      }
+    }
+
     function initDiagnosisRows() {
       qsa("[data-diagnosis-row='1']").forEach(setupDiagnosisRow);
+      initDiagnosisAttachments();
 
       document.addEventListener("click", function (event) {
         const button = event.target.closest("#addDiagnosisRow");
@@ -1042,8 +1225,12 @@
             '</select>' +
             '<input class="dashboard-input" data-diagnosis-field="new_diagnosis" placeholder="Type new diagnosis" style="margin-top:6px;display:none;">' +
           '</td>' +
-          '<td><input class="dashboard-input" data-diagnosis-field="note"></td>' +
-          '<td><input type="date" class="dashboard-input" data-diagnosis-field="date" value="' + todayIsoDate() + '"></td>';
+          '<td><input type="date" class="dashboard-input" data-diagnosis-field="date" value="' + todayIsoDate() + '"></td>' +
+          '<td>' +
+            '<input type="file" class="dashboard-input" data-diagnosis-field="attachement_file">' +
+            '<input type="hidden" data-diagnosis-field="attachement" value="">' +
+            '<div class="dashboard-field-note" data-diagnosis-attachment-status="1">No file attached</div>' +
+          '</td>';
 
         body.appendChild(row);
 
@@ -1131,6 +1318,7 @@
     initTravelChargeToggle();
     initChangeRequest();
     initExistingContactModal();
+    initTherapyLocationModal();
     initDiagnosisRows();
     initSaveBeforeNewContactLinks();
 

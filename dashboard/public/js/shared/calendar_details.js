@@ -86,6 +86,23 @@
     return handleApiResponse(response);
   }
 
+  async function uploadFile(file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("is_private", 1);
+
+    const response = await fetch("/api/method/upload_file", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "X-Frappe-CSRF-Token": getCsrfToken()
+      },
+      body: formData
+    });
+
+    return handleApiResponse(response);
+  }
+
   async function handleApiResponse(response) {
     let data = {};
     let text = "";
@@ -299,15 +316,19 @@
     wrap.innerHTML =
       '<div class="dashboard-table-wrap">'
       + '<table class="dashboard-table calendar-client-notes-table">'
-      + '<thead><tr><th>Date</th><th>User</th><th>Note</th></tr></thead>'
+      + '<thead><tr><th>Date</th><th>User</th><th>Note</th><th>Attachment</th></tr></thead>'
       + '<tbody>'
       + notes.map(function (note) {
         const noteUser = note.note_user_name || note.note_user || "—";
+        const attachment = note.attachement
+          ? '<a href="' + escapeHtml(note.attachement) + '" target="_blank" rel="noopener noreferrer">View</a>'
+          : "—";
 
         return '<tr>'
           + '<td>' + escapeHtml(note.session_date || "—") + '</td>'
           + '<td>' + escapeHtml(noteUser) + '</td>'
           + '<td>' + escapeHtml(note.notes || "—") + '</td>'
+          + '<td>' + attachment + '</td>'
           + '</tr>';
       }).join("")
       + '</tbody></table></div>';
@@ -475,14 +496,13 @@
     if (state.savingNote) return;
 
     const data = state.eventData;
-    if (!data || (!data.client_name && !data.lead_name)) {
-      alert("This session is not linked to a client.");
-      return;
-    }
+    if (!data) return;
 
     const sessionDate = getValue("trkClientNoteSessionDate") || data.session_date || "";
     const sessionType = getValue("trkClientNoteSessionType") || mapAppointmentTypeToClientNoteType(data.appointment_type || "");
     const notes = getValue("trkClientNoteText").trim();
+    const fileInput = el("trkClientNoteFile");
+    const file = fileInput && fileInput.files && fileInput.files[0];
 
     if (!notes) {
       alert("Please enter a note.");
@@ -498,14 +518,25 @@
     }
 
     try {
+      let attachement = "";
+
+      if (file) {
+        const uploaded = await uploadFile(file);
+        attachement = (uploaded && uploaded.file_url) || "";
+      }
+
       await apiPost(SHARED_API + ".add_client_note", {
         dashboard_type: state.dashboardType,
         client: data.client_name || "",
         lead: data.client_name ? "" : data.lead_name,
+        event: (!data.client_name && !data.lead_name) ? state.eventName : "",
         session_date: sessionDate,
         session_type: sessionType,
-        notes: notes
+        notes: notes,
+        attachement: attachement
       });
+
+      if (fileInput) fileInput.value = "";
 
       setValue("trkClientNoteText", "");
       await loadDetails();
@@ -530,6 +561,7 @@
       if (el("trkDetailDeleteBtn")) el("trkDetailDeleteBtn").style.display = "none";
       if (el("trkSaveClientNoteBtn")) el("trkSaveClientNoteBtn").style.display = "none";
       if (el("trkClientNoteText")) el("trkClientNoteText").setAttribute("readonly", "readonly");
+      if (el("trkClientNoteFile")) el("trkClientNoteFile").setAttribute("disabled", "disabled");
       return;
     }
     if (el("trkDetailEditBtn")) el("trkDetailEditBtn").addEventListener("click", openEditModal);

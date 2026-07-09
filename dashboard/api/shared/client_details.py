@@ -554,6 +554,7 @@ def get_session_notes(doc):
                 "notes": row.get("notes") or row.get("note") or row.get("note_text") or "",
                 "note_text": row.get("notes") or row.get("note") or row.get("note_text") or "",
                 "note_date": row.get("session_date"),
+                "attachement": row.get("attachement") or "",
                 "note_user": user,
                 "note_user_name": frappe.get_cached_value("User", user, "full_name") or user,
                 "user": user,
@@ -1277,7 +1278,7 @@ def save_client(docname=None, data=None):
                 or ""
             ).strip()
             new_diagnosis = (row_data.get("new_diagnosis") or "").strip()
-            note = (row_data.get("note") or "").strip()
+            attachement = (row_data.get("attachement") or "").strip()
             date = row_data.get("date") or None
 
             diagnosis_value = selected_diagnosis or new_diagnosis
@@ -1285,7 +1286,7 @@ def save_client(docname=None, data=None):
             if diagnosis_value and not date:
                 date = frappe.utils.nowdate()
 
-            if not diagnosis_value and not note and not date:
+            if not diagnosis_value and not date and not attachement:
                 continue
 
             if not selected_diagnosis and new_diagnosis and frappe.db.exists("DocType", "Diagnosis Option"):
@@ -1317,11 +1318,11 @@ def save_client(docname=None, data=None):
             if child.meta.has_field("diagnoses"):
                 child.diagnoses = diagnosis_value
 
-            if child.meta.has_field("note"):
-                child.note = note
-
             if child.meta.has_field("date"):
                 child.date = date
+
+            if child.meta.has_field("attachement"):
+                child.attachement = attachement
 
     if is_new_client:
         set_full_name_from_parts(doc, payload)
@@ -1343,7 +1344,7 @@ def save_client(docname=None, data=None):
 
 
 @frappe.whitelist()
-def add_client_note(client_name, note_text, session_date=None, session_type=None):
+def add_client_note(client_name, note_text, session_date=None, session_type=None, attachement=None):
     require_logged_in_user()
 
     if not client_name or not frappe.db.exists("Client", client_name):
@@ -1382,6 +1383,9 @@ def add_client_note(client_name, note_text, session_date=None, session_type=None
     if child.meta.has_field("session_type") and session_type:
         child.session_type = session_type
 
+    if child.meta.has_field("attachement") and attachement:
+        child.attachement = attachement
+
     if child.meta.has_field("user"):
         child.user = frappe.session.user
 
@@ -1389,7 +1393,50 @@ def add_client_note(client_name, note_text, session_date=None, session_type=None
     frappe.db.commit()
 
     return {"ok": 1, "message": _("Note added successfully.")}
-    
+
+
+@frappe.whitelist()
+def create_therapy_location(location_name=None, location_type=None, address_line_1=None, address_line_2=None, city=None, postal_code=None):
+    """
+    Lets a coach add a new Therapy Location inline from the Client form
+    instead of having to ask HQ to create it for them first.
+    """
+    require_logged_in_user()
+
+    if not frappe.db.exists("DocType", "Therapy Location"):
+        frappe.throw(_("Therapy Location doctype was not found."))
+
+    location_name = (location_name or "").strip()
+
+    if not location_name:
+        frappe.throw(_("Location Name is required."))
+
+    doc = frappe.new_doc("Therapy Location")
+
+    if doc.meta.has_field("location_name"):
+        doc.location_name = location_name
+
+    if doc.meta.has_field("location_type") and location_type:
+        doc.location_type = location_type
+
+    if doc.meta.has_field("address_line_1"):
+        doc.address_line_1 = (address_line_1 or "").strip()
+
+    if doc.meta.has_field("address_line_2"):
+        doc.address_line_2 = (address_line_2 or "").strip()
+
+    if doc.meta.has_field("city"):
+        doc.city = (city or "").strip()
+
+    if doc.meta.has_field("postal_code"):
+        doc.postal_code = (postal_code or "").strip()
+
+    doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"name": doc.name, "label": doc.get("location_name") or doc.name}
+
+
 def get_client_context_data(client_name=None, is_new=False, base_url="/coach_db", enforce_access=True, default_primary_coach=None):
     require_logged_in_user()
 

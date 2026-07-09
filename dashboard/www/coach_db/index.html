@@ -91,25 +91,32 @@
           </div>
         </div>
 
-        <div class="dashboard-business-grid">
-          <a class="dashboard-summary-card dashboard-summary-card-link" href="/coach_db/clients{{ coach_view_query or '' }}">
-            <div class="dashboard-summary-label">Total Clients</div>
-            <div class="dashboard-summary-value" id="dashboardTotalClients">—</div>
-          </a>
+        <div class="dashboard-business-column">
+          <div class="dashboard-business-grid">
+            <a class="dashboard-summary-card dashboard-summary-card-link" href="/coach_db/clients{{ coach_view_query or '' }}">
+              <div class="dashboard-summary-label">Total Clients</div>
+              <div class="dashboard-summary-value" id="dashboardTotalClients">—</div>
+            </a>
 
-          <a class="dashboard-summary-card dashboard-summary-card-link" href="/coach_db/session_workers{{ coach_view_query or '' }}">
-            <div class="dashboard-summary-label">Session Workers</div>
-            <div class="dashboard-summary-value" id="dashboardTotalSessionWorkers">—</div>
-          </a>
+            <a class="dashboard-summary-card dashboard-summary-card-link" href="/coach_db/session_workers{{ coach_view_query or '' }}">
+              <div class="dashboard-summary-label">Session Workers</div>
+              <div class="dashboard-summary-value" id="dashboardTotalSessionWorkers">—</div>
+            </a>
 
-          <div class="dashboard-summary-card">
-            <div class="dashboard-summary-label" id="dashboardCurrentMonthLabel">New Clients This Month</div>
-            <div class="dashboard-summary-value" id="dashboardNewClientsCurrent">—</div>
+            <div class="dashboard-summary-card">
+              <div class="dashboard-summary-label" id="dashboardCurrentMonthLabel">New Clients This Month</div>
+              <div class="dashboard-summary-value" id="dashboardNewClientsCurrent">—</div>
+            </div>
+
+            <div class="dashboard-summary-card">
+              <div class="dashboard-summary-label" id="dashboardPreviousMonthLabel">New Clients Last Month</div>
+              <div class="dashboard-summary-value" id="dashboardNewClientsPrevious">—</div>
+            </div>
           </div>
 
-          <div class="dashboard-summary-card">
-            <div class="dashboard-summary-label" id="dashboardPreviousMonthLabel">New Clients Last Month</div>
-            <div class="dashboard-summary-value" id="dashboardNewClientsPrevious">—</div>
+          <div class="dashboard-revenue-ytd">
+            <span class="dashboard-revenue-ytd-label">Year To Date Income</span>
+            <span class="dashboard-revenue-ytd-value" id="dashboardYearToDateIncome">—</span>
           </div>
         </div>
       </div>
