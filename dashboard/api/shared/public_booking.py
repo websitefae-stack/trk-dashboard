@@ -10,6 +10,8 @@ a single, non-recurring Initial Consultation Event plus its Client Lead,
 mirroring the shape calendar.py itself builds for that appointment type.
 """
 
+import calendar as _calendar_module
+
 import frappe
 from frappe import _
 from frappe.utils import get_datetime, add_to_date, getdate, now_datetime
@@ -190,6 +192,138 @@ def get_available_slots(coach=None, date=None):
         return []
 
     return _compute_available_slots(coach, date)
+
+
+def _get_windows_by_weekday(coach):
+    """Same as _get_coach_windows_for_date, but grouped by weekday and
+    computed once - used by the month view so it doesn't reload the Coach
+    doc once per day of the month."""
+    if not frappe.db.exists("Coach", coach):
+        return {}
+
+    coach_meta = frappe.get_meta("Coach")
+    if not coach_meta.has_field("appointment_types"):
+        return {}
+
+    template_names = _get_initial_consultation_template_names()
+    if not template_names:
+        return {}
+
+    coach_doc = frappe.get_doc("Coach", coach)
+    by_weekday = {day: [] for day in DAY_NAMES}
+
+    for row in coach_doc.get("appointment_types") or []:
+        if not row.get("active"):
+            continue
+
+        day_name = (row.get("day_of_the_week") or "").strip()
+        if day_name not in by_weekday:
+            continue
+
+        if row.get("appointment_name") not in template_names:
+            continue
+
+        start_time = _format_time_value(row.get("start_time"))
+        end_time = _format_time_value(row.get("end_time"))
+
+        if not start_time or not end_time:
+            continue
+
+        by_weekday[day_name].append((start_time, end_time))
+
+    return by_weekday
+
+
+@frappe.whitelist(allow_guest=True)
+def get_available_dates(coach=None, year=None, month=None):
+    """Which dates in the given month have at least one open Initial
+    Consultation slot, for greying out empty days in the calendar picker."""
+    coach = coalesce_str("coach", coach)
+    year = coalesce_str("year", year)
+    month = coalesce_str("month", month)
+
+    if not coach or not year or not month:
+        return []
+
+    try:
+        year = int(year)
+        month = int(month)
+    except Exception:
+        return []
+
+    windows_by_weekday = _get_windows_by_weekday(coach)
+    if not any(windows_by_weekday.values()):
+        return []
+
+    coach_user = _get_coach_user(coach)
+    if not coach_user:
+        return []
+
+    days_in_month = _calendar_module.monthrange(year, month)[1]
+    month_start = get_datetime(f"{year:04d}-{month:02d}-01 00:00:00")
+    month_end = add_to_date(month_start, days=days_in_month)
+
+    events = frappe.get_all(
+        "Event",
+        filters=[
+            ["owner", "=", coach_user],
+            ["starts_on", "<", month_end],
+            ["ends_on", ">", month_start],
+        ],
+        fields=["starts_on", "ends_on"],
+        ignore_permissions=True,
+    )
+
+    booked_by_date = {}
+    for event in events:
+        date_key = event.starts_on.strftime("%Y-%m-%d")
+        booked_by_date.setdefault(date_key, []).append((event.starts_on, event.ends_on))
+
+    now = now_datetime()
+    today = getdate(now)
+    available_dates = []
+
+    for day in range(1, days_in_month + 1):
+        date_obj = getdate(f"{year:04d}-{month:02d}-{day:02d}")
+
+        if date_obj < today or (date_obj - today).days > MAX_DAYS_AHEAD:
+            continue
+
+        day_name = DAY_NAMES[date_obj.weekday()]
+        windows = windows_by_weekday.get(day_name) or []
+        if not windows:
+            continue
+
+        date_str = date_obj.strftime("%Y-%m-%d")
+        booked = booked_by_date.get(date_str, [])
+
+        for start_time, end_time in windows:
+            window_start = get_datetime(f"{date_str} {start_time}")
+            window_end = get_datetime(f"{date_str} {end_time}")
+            cursor = window_start
+            found = False
+
+            while True:
+                slot_end = add_to_date(cursor, minutes=INITIAL_CONSULTATION_DURATION_MINUTES)
+                if slot_end > window_end:
+                    break
+
+                if cursor > now:
+                    conflict = any(
+                        cursor < booked_end and slot_end > booked_start
+                        for booked_start, booked_end in booked
+                    )
+                    if not conflict:
+                        found = True
+                        break
+
+                cursor = add_to_date(cursor, minutes=SLOT_GRID_MINUTES)
+
+            if found:
+                available_dates.append(date_str)
+                break
+
+    return available_dates
 
 
 @frappe.whitelist(allow_guest=True)
