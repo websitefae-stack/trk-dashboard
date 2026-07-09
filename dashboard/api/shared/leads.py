@@ -22,8 +22,14 @@ LEAD_STATUSES = ["New", "Intake Sent", "Converted", "Declined"]
 
 DECLINE_STATUSES = {"Declined"}
 
+# Franchisee Call leads turn into a Franchisee, not a Client - that
+# conversion flow doesn't exist yet, so "Convert to Client" / "Link to
+# Existing Client" are hidden for these on the frontend rather than
+# creating a wrong-shaped Client record.
+NON_CLIENT_APPOINTMENT_TYPES = {"franchisee call"}
+
 LEAD_LIST_FIELDS = [
-    "name", "status", "source", "coach",
+    "name", "status", "source", "appointment_type", "coach",
     "contact_name", "contact_email", "contact_mobile",
     "client_name", "client_age", "postal_code",
     "event", "converted_client", "modified", "creation",
@@ -35,6 +41,7 @@ def _normalize_lead_row(row):
         "name": row.get("name"),
         "status": row.get("status") or "New",
         "source": row.get("source") or "Coach Added",
+        "appointment_type": row.get("appointment_type") or "",
         "coach": row.get("coach") or "",
         "coach_label": get_coach_label(row.get("coach")) if row.get("coach") else "",
         "contact_name": row.get("contact_name") or "",
@@ -182,6 +189,8 @@ def get_lead(name=None):
     row["converted_contact"] = doc.get("converted_contact") or ""
     row["intake_url"] = _intake_url(doc.name) if doc.get("intake_sent_on") else ""
     row["call"] = _get_lead_call_info(doc.event)
+    row["location_address"] = doc.get("location_address") or ""
+    row["is_client_conversion"] = 0 if (doc.get("appointment_type") or "").strip().lower() in NON_CLIENT_APPOINTMENT_TYPES else 1
 
     return row
 
@@ -226,6 +235,8 @@ def create_lead(
     how_heard=None,
     consent_given=None,
     coach=None,
+    appointment_type=None,
+    location_address=None,
     dashboard_type=None,
 ):
     ensure_logged_in()
@@ -240,6 +251,8 @@ def create_lead(
     how_heard = coalesce_str("how_heard", how_heard)
     consent_given = coalesce_raw("consent_given", consent_given)
     coach = coalesce_str("coach", coach)
+    appointment_type = coalesce_str("appointment_type", appointment_type) or "Initial Consultation"
+    location_address = coalesce_str("location_address", location_address)
     dashboard_type = coalesce_str("dashboard_type", dashboard_type) or get_current_user_dashboard_type()
 
     if not contact_name:
@@ -260,6 +273,7 @@ def create_lead(
     doc = frappe.new_doc(LEAD_DOCTYPE)
     doc.status = "New"
     doc.source = "Coach Added"
+    doc.appointment_type = appointment_type
     doc.coach = coach
     doc.contact_name = contact_name
     doc.contact_email = contact_email
@@ -276,6 +290,7 @@ def create_lead(
     doc.enquiry_reason = enquiry_reason
     doc.how_heard = how_heard
     doc.consent_given = 1 if str(consent_given).lower() in ["1", "true", "yes", "on"] else 0
+    doc.location_address = location_address
 
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
@@ -293,6 +308,7 @@ def create_lead_from_booking(contact_name, phone=None, coach=None):
     doc = frappe.new_doc(LEAD_DOCTYPE)
     doc.status = "New"
     doc.source = "Calendar Booking"
+    doc.appointment_type = "Initial Consultation"
     doc.coach = coach
     doc.contact_name = contact_name
     doc.contact_mobile = phone or ""
@@ -315,6 +331,7 @@ def update_lead(
     enquiry_reason=None,
     how_heard=None,
     consent_given=None,
+    location_address=None,
 ):
     name = coalesce_str("name", name)
     doc = ensure_lead_access(name)
@@ -348,6 +365,7 @@ def update_lead(
 
     consent_given = coalesce_raw("consent_given", consent_given)
     doc.consent_given = 1 if str(consent_given).lower() in ["1", "true", "yes", "on"] else 0
+    doc.location_address = coalesce_str("location_address", location_address)
 
     doc.save(ignore_permissions=True)
     frappe.db.commit()

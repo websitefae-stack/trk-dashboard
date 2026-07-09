@@ -1,13 +1,18 @@
 """
-Guest-facing (no login) booking for a public "Initial Consultation" slot
-picker on a coach's public profile page (resilient_domains). Deliberately
-self-contained rather than reusing calendar.create_booking() - that
-function assumes a logged-in coach/session-worker session
+Guest-facing (no login) booking for the appointment types that are meant
+to be publicly bookable from a coach's profile page (resilient_domains).
+Deliberately self-contained rather than reusing calendar.create_booking()
+- that function assumes a logged-in coach/session-worker session
 (_require_logged_in_user()) and carries a lot of internal-dashboard-only
 complexity (recurring bookings, additional workers, school/company
 billing, travel charges) that doesn't apply here. This only ever creates
-a single, non-recurring Initial Consultation Event plus its Client Lead,
-mirroring the shape calendar.py itself builds for that appointment type.
+a single, non-recurring Event plus its Client Lead, mirroring the shape
+calendar.py itself builds for Initial Consultation.
+
+Coach.appointment_types can list appointment types that are staff/coach
+-only (Supervision, Parent Check-In) - these are never offered publicly,
+everything else (Franchisee Call, Initial Consultation, Podcast
+Recording, School Meeting, and anything added later) is fair game.
 """
 
 import calendar as _calendar_module
@@ -17,10 +22,23 @@ from frappe import _
 from frappe.utils import get_datetime, add_to_date, getdate, now_datetime
 
 from dashboard.api.shared.utils import coalesce_str
-from dashboard.api.shared.notifications import create_trk_notification
 
-INITIAL_CONSULTATION_LABEL = "Initial Consultation"
-INITIAL_CONSULTATION_DURATION_MINUTES = 60
+# Case-insensitive "contains" match against these means an appointment
+# type is never publicly bookable, regardless of what else it's named.
+EXCLUDED_LABEL_FRAGMENTS = ["supervision", "parent check"]
+
+# Minutes per appointment type, matched case-insensitively by substring
+# against whichever label was picked. Franchisee Call has no confirmed
+# duration yet - 30 min is a placeholder, change DEFAULT_DURATION_MINUTES
+# or add a specific entry here once that's confirmed.
+DURATION_MINUTES_BY_LABEL_FRAGMENT = {
+    "franchisee call": 30,
+    "initial consultation": 60,
+    "podcast recording": 60,
+    "school meeting": 60,
+}
+DEFAULT_DURATION_MINUTES = 60
+
 SLOT_GRID_MINUTES = 30
 MAX_DAYS_AHEAD = 60
 
@@ -28,6 +46,21 @@ DAY_NAMES = [
     "Monday", "Tuesday", "Wednesday", "Thursday",
     "Friday", "Saturday", "Sunday",
 ]
+
+
+def _is_publicly_bookable_label(label):
+    label_lower = (label or "").lower()
+    return not any(fragment in label_lower for fragment in EXCLUDED_LABEL_FRAGMENTS)
+
+
+def _get_duration_minutes(appointment_type_label):
+    label_lower = (appointment_type_label or "").lower()
+
+    for fragment, minutes in DURATION_MINUTES_BY_LABEL_FRAGMENT.items():
+        if fragment in label_lower:
+            return minutes
+
+    return DEFAULT_DURATION_MINUTES
 
 
 def _format_time_value(value):
@@ -45,18 +78,22 @@ def _format_time_value(value):
     return str(value)
 
 
-def _get_initial_consultation_template_names():
+def _get_template_names_for_type(appointment_type_label):
     """
     Case-insensitive "contains" match rather than an exact-name match -
     matches the same relaxed check used on the coach profile page
     template, so a template named e.g. "Initial Consultation (Online)" or
     lowercase "initial consultation" still gets picked up on both sides
-    instead of the button silently doing nothing.
+    instead of the button silently doing nothing. Never returns a
+    Supervision/Parent Check-In style template even if asked for one.
     """
+    if not appointment_type_label or not _is_publicly_bookable_label(appointment_type_label):
+        return set()
+
     if not frappe.db.exists("DocType", "Appointment Template"):
         return set()
 
-    label = INITIAL_CONSULTATION_LABEL.lower()
+    label = appointment_type_label.lower()
     meta = frappe.get_meta("Appointment Template")
 
     candidate_fields = ["name"]
@@ -77,7 +114,7 @@ def _get_initial_consultation_template_names():
     return names
 
 
-def _get_coach_windows_for_date(coach, date_str):
+def _get_coach_windows_for_date(coach, date_str, appointment_type):
     if not frappe.db.exists("Coach", coach):
         return []
 
@@ -85,7 +122,7 @@ def _get_coach_windows_for_date(coach, date_str):
     if not coach_meta.has_field("appointment_types"):
         return []
 
-    template_names = _get_initial_consultation_template_names()
+    template_names = _get_template_names_for_type(appointment_type)
     if not template_names:
         return []
 
@@ -140,11 +177,12 @@ def _get_coach_user(coach):
     return frappe.db.get_value("Coach", coach, "user") or frappe.db.get_value("Coach", coach, "coach_email")
 
 
-def _compute_available_slots(coach, date_str):
-    windows = _get_coach_windows_for_date(coach, date_str)
+def _compute_available_slots(coach, date_str, appointment_type):
+    windows = _get_coach_windows_for_date(coach, date_str, appointment_type)
     if not windows:
         return []
 
+    duration_minutes = _get_duration_minutes(appointment_type)
     coach_user = _get_coach_user(coach)
     booked = _get_coach_booked_windows(coach_user, date_str)
     now = now_datetime()
@@ -157,7 +195,7 @@ def _compute_available_slots(coach, date_str):
         cursor = window_start
 
         while True:
-            slot_end = add_to_date(cursor, minutes=INITIAL_CONSULTATION_DURATION_MINUTES)
+            slot_end = add_to_date(cursor, minutes=duration_minutes)
             if slot_end > window_end:
                 break
 
@@ -176,11 +214,12 @@ def _compute_available_slots(coach, date_str):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_available_slots(coach=None, date=None):
+def get_available_slots(coach=None, date=None, appointment_type=None):
     coach = coalesce_str("coach", coach)
     date = coalesce_str("date", date)
+    appointment_type = coalesce_str("appointment_type", appointment_type)
 
-    if not coach or not date:
+    if not coach or not date or not appointment_type:
         return []
 
     try:
@@ -191,10 +230,10 @@ def get_available_slots(coach=None, date=None):
     if requested < getdate(now_datetime()) or (requested - getdate(now_datetime())).days > MAX_DAYS_AHEAD:
         return []
 
-    return _compute_available_slots(coach, date)
+    return _compute_available_slots(coach, date, appointment_type)
 
 
-def _get_windows_by_weekday(coach):
+def _get_windows_by_weekday(coach, appointment_type):
     """Same as _get_coach_windows_for_date, but grouped by weekday and
     computed once - used by the month view so it doesn't reload the Coach
     doc once per day of the month."""
@@ -205,7 +244,7 @@ def _get_windows_by_weekday(coach):
     if not coach_meta.has_field("appointment_types"):
         return {}
 
-    template_names = _get_initial_consultation_template_names()
+    template_names = _get_template_names_for_type(appointment_type)
     if not template_names:
         return {}
 
@@ -235,14 +274,16 @@ def _get_windows_by_weekday(coach):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_available_dates(coach=None, year=None, month=None):
-    """Which dates in the given month have at least one open Initial
-    Consultation slot, for greying out empty days in the calendar picker."""
+def get_available_dates(coach=None, year=None, month=None, appointment_type=None):
+    """Which dates in the given month have at least one open slot for the
+    given appointment type, for greying out empty days in the calendar
+    picker."""
     coach = coalesce_str("coach", coach)
     year = coalesce_str("year", year)
     month = coalesce_str("month", month)
+    appointment_type = coalesce_str("appointment_type", appointment_type)
 
-    if not coach or not year or not month:
+    if not coach or not year or not month or not appointment_type:
         return []
 
     try:
@@ -251,9 +292,11 @@ def get_available_dates(coach=None, year=None, month=None):
     except Exception:
         return []
 
-    windows_by_weekday = _get_windows_by_weekday(coach)
+    windows_by_weekday = _get_windows_by_weekday(coach, appointment_type)
     if not any(windows_by_weekday.values()):
         return []
+
+    duration_minutes = _get_duration_minutes(appointment_type)
 
     coach_user = _get_coach_user(coach)
     if not coach_user:
@@ -304,7 +347,7 @@ def get_available_dates(coach=None, year=None, month=None):
             found = False
 
             while True:
-                slot_end = add_to_date(cursor, minutes=INITIAL_CONSULTATION_DURATION_MINUTES)
+                slot_end = add_to_date(cursor, minutes=duration_minutes)
                 if slot_end > window_end:
                     break
 
@@ -331,23 +374,30 @@ def submit_public_booking(
     coach=None,
     date=None,
     time=None,
+    appointment_type=None,
     contact_name=None,
     client_name=None,
     contact_mobile=None,
     contact_email=None,
     enquiry_reason=None,
+    location_address=None,
 ):
     coach = coalesce_str("coach", coach)
     date = coalesce_str("date", date)
     time = coalesce_str("time", time)
+    appointment_type = coalesce_str("appointment_type", appointment_type)
     contact_name = coalesce_str("contact_name", contact_name)
     client_name = coalesce_str("client_name", client_name)
     contact_mobile = coalesce_str("contact_mobile", contact_mobile)
     contact_email = coalesce_str("contact_email", contact_email)
     enquiry_reason = coalesce_str("enquiry_reason", enquiry_reason)
+    location_address = coalesce_str("location_address", location_address)
 
     if not coach or not frappe.db.exists("Coach", coach):
         frappe.throw(_("This coach was not found."))
+
+    if not appointment_type or not _is_publicly_bookable_label(appointment_type):
+        frappe.throw(_("This appointment type is not available for online booking."))
 
     if not date or not time:
         frappe.throw(_("Please select a date and time."))
@@ -361,10 +411,12 @@ def submit_public_booking(
     if not contact_mobile and not contact_email:
         frappe.throw(_("Please enter a mobile number or email address so we can reach you."))
 
+    duration_minutes = _get_duration_minutes(appointment_type)
+
     # Re-check against live availability right before writing anything -
     # closes most of the gap between the visitor loading the slot list and
     # clicking submit a minute later.
-    if time not in _compute_available_slots(coach, date):
+    if time not in _compute_available_slots(coach, date, appointment_type):
         frappe.throw(_("Sorry, that time is no longer available. Please choose another slot."))
 
     coach_user = _get_coach_user(coach)
@@ -372,7 +424,7 @@ def submit_public_booking(
         frappe.throw(_("This coach is not available for online booking right now."))
 
     start_dt = get_datetime(f"{date} {time}:00")
-    end_dt = add_to_date(start_dt, minutes=INITIAL_CONSULTATION_DURATION_MINUTES)
+    end_dt = add_to_date(start_dt, minutes=duration_minutes)
 
     # Final guard immediately before insert, to shrink the race window from
     # "load slots -> submit" down to just this one query -> insert gap.
@@ -396,25 +448,27 @@ def submit_public_booking(
     lead = frappe.new_doc(LEAD_DOCTYPE)
     lead.status = "New"
     lead.source = "Public Booking"
+    lead.appointment_type = appointment_type
     lead.coach = coach
     lead.contact_name = contact_name
     lead.contact_email = contact_email
     lead.contact_mobile = contact_mobile
     lead.client_name = client_name
     lead.enquiry_reason = enquiry_reason
+    lead.location_address = location_address
     lead.consent_given = 1
     lead.insert(ignore_permissions=True)
 
     event = frappe.new_doc("Event")
     event.owner = coach_user
-    event.subject = f"{contact_name} - {INITIAL_CONSULTATION_LABEL}"
+    event.subject = f"{contact_name} - {appointment_type}"
     event.starts_on = start_dt
     event.ends_on = end_dt
 
     if _event_has_field("event_type"):
         event.event_type = "Private"
 
-    _set_session_type(event, INITIAL_CONSULTATION_LABEL)
+    _set_session_type(event, appointment_type)
 
     if _event_has_field("custom_billing_type"):
         event.custom_billing_type = "Non-Billable"
@@ -427,9 +481,14 @@ def submit_public_booking(
     if _event_has_field("custom_client_lead"):
         event.custom_client_lead = lead.name
 
-    description_lines = [f"Booked online via public profile."]
+    if location_address and _event_has_field("location"):
+        event.location = location_address
+
+    description_lines = ["Booked online via public profile."]
     if contact_mobile:
         description_lines.append(f"Phone: {contact_mobile}")
+    if location_address:
+        description_lines.append(f"Location: {location_address}")
     if enquiry_reason:
         description_lines.append(enquiry_reason)
 
@@ -445,7 +504,7 @@ def submit_public_booking(
     create_trk_notification(
         recipient_user=coach_user,
         notification_type="New Public Booking",
-        message=f"{contact_name} booked an Initial Consultation for {date} at {time} via your public profile.",
+        message=f"{contact_name} booked {appointment_type} for {date} at {time} via your public profile.",
         priority="High",
         reference_doctype=LEAD_DOCTYPE,
         reference_name=lead.name,

@@ -8,6 +8,7 @@
  "field_order": [
   "status",
   "source",
+  "appointment_type",
   "coach",
   "column_break_contact",
   "contact_name",
@@ -22,6 +23,7 @@
   "enquiry_reason",
   "how_heard",
   "consent_given",
+  "location_address",
   "section_break_outcome",
   "decline_reason",
   "column_break_outcome",
@@ -51,6 +53,14 @@
    "label": "Source",
    "options": "Coach Added\nCalendar Booking\nPublic Booking",
    "default": "Coach Added"
+  },
+  {
+   "fieldname": "appointment_type",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Appointment Type",
+   "description": "What this enquiry is for (e.g. Initial Consultation, Podcast Recording, School Meeting, Franchisee Call)."
   },
   {
    "fieldname": "coach",
@@ -127,6 +137,12 @@
    "fieldname": "consent_given",
    "fieldtype": "Check",
    "label": "Consent To Be Contacted"
+  },
+  {
+   "fieldname": "location_address",
+   "fieldtype": "Small Text",
+   "label": "Location / Address",
+   "description": "Where this needs to take place, if not online (e.g. the school's address for a School Meeting)."
   },
   {
    "fieldname": "section_break_outcome",

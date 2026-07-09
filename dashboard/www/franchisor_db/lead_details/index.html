@@ -12,7 +12,10 @@
           <h1 class="dashboard-page-title" id="leadPageTitle">
             {% if is_new %}New Lead{% else %}Lead{% endif %}
           </h1>
-          <p class="dashboard-page-subtitle">Contact and client details for this enquiry</p>
+          <p class="dashboard-page-subtitle">
+            Contact and client details for this enquiry
+            <span id="leadAppointmentTypeBadge" class="dashboard-badge dashboard-status-active" style="display:none;"></span>
+          </p>
         </div>
 
         <div class="dashboard-detail-actions dashboard-detail-actions-compact">
@@ -56,6 +59,16 @@
                   {% for c in coaches %}
                     <option value="{{ c.name }}">{{ c.coach_name or c.name }}</option>
                   {% endfor %}
+                </select>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label for="lead_appointment_type">What Is This Enquiry For?</label>
+                <select id="lead_appointment_type" class="dashboard-input">
+                  <option value="Initial Consultation">Initial Consultation</option>
+                  <option value="Franchisee Call">Franchisee Call</option>
+                  <option value="Podcast Recording">Podcast Recording</option>
+                  <option value="School Meeting">School Meeting</option>
                 </select>
               </div>
               {% else %}
@@ -186,6 +199,11 @@
               <div class="dashboard-detail-field">
                 <label for="lead_how_heard">How They Heard About Us</label>
                 <input id="lead_how_heard" type="text" class="dashboard-input">
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label for="lead_location_address">Location / Address</label>
+                <input id="lead_location_address" type="text" class="dashboard-input" placeholder="Where this needs to take place, if not online">
               </div>
 
               <div class="dashboard-detail-field dashboard-detail-field-checkbox">
