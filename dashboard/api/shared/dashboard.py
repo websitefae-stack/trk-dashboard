@@ -969,16 +969,18 @@ def _user_can_access_invoice(invoice_name, dashboard_type, context):
     return (client_row.get("primary_coach") or "").strip() == (context.get("coach_name") or "").strip()
 
 
-def _get_paid_to_account_from_client(client_row):
-    if not client_row:
-        return ""
+def _resolve_paid_to_account(invoice_doc, client_row):
+    # An invoice-specific bank account override (e.g. Emily invoicing on
+    # SJ's behalf with her own account) takes priority over the client's
+    # own default - see the matching logic in invoices.allocate_invoice_payment.
+    bank_account = ""
 
-    bank_account = client_row.get("banking")
+    if invoice_doc.meta.has_field("custom_bank_account") and invoice_doc.get("custom_bank_account"):
+        bank_account = invoice_doc.get("custom_bank_account")
+    elif client_row:
+        bank_account = client_row.get("banking") or ""
 
-    if not bank_account:
-        return ""
-
-    if not frappe.db.exists("Bank Account", bank_account):
+    if not bank_account or not frappe.db.exists("Bank Account", bank_account):
         return ""
 
     bank_meta = frappe.get_meta("Bank Account")
@@ -1012,7 +1014,7 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None):
     if invoice_doc.docstatus != 1:
         frappe.throw(_("Only submitted Sales Invoices can be marked as paid."))
 
-    outstanding_amount = flt(invoice_doc.outstanding_amount or 0)
+    outstanding_amount = flt(invoice_doc.outstanding_amount or 0, 2)
 
     if outstanding_amount <= 0:
         return {
@@ -1023,7 +1025,7 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None):
 
     client_row = _get_client_row(invoice_doc.get("custom_client"))
 
-    paid_to = _get_paid_to_account_from_client(client_row)
+    paid_to = _resolve_paid_to_account(invoice_doc, client_row)
 
     if not paid_to:
         frappe.throw(_("No valid Bank Account ledger account was found from the Client banking field."))
@@ -1055,7 +1057,7 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None):
             {
                 "reference_doctype": "Sales Invoice",
                 "reference_name": invoice,
-                "total_amount": flt(invoice_doc.grand_total or invoice_doc.rounded_total or 0),
+                "total_amount": flt(invoice_doc.grand_total or invoice_doc.rounded_total or 0, 2),
                 "outstanding_amount": outstanding_amount,
                 "allocated_amount": outstanding_amount,
             }
