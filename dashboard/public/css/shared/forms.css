@@ -238,6 +238,17 @@
   align-items: center;
 }
 
+.dashboard-link-with-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.dashboard-link-with-add .dashboard-select {
+  flex: 1;
+  min-width: 0;
+}
+
 .dashboard-filter-search-row .dashboard-input {
   flex: 1;
   min-width: 0;

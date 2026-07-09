@@ -1069,6 +1069,7 @@ def _get_notes_for_parent(doctype, parent_name):
             "session_date": row.get("session_date").strftime("%Y-%m-%d") if row.get("session_date") else "",
             "session_type": row.get("session_type") or "",
             "notes": row.get("notes") or "",
+            "attachement": row.get("attachement") or "",
             "note_user": note_owner,
             "note_user_name": note_user_name or note_owner,
             "idx": row.get("idx") or 0,
@@ -1761,6 +1762,7 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
         "client_notes": _get_notes_for_parent("Client", client) if client else (
             _get_lead_notes(lead) if lead else []
         ),
+        "event_notes_text": (event_doc.get("description") or "") if (not client and not lead) else "",
         "session_number": int(event_doc.get("custom_session_number") or 0),
         "total_sessions": int(event_doc.get("custom_total_sessions") or 0),
         "progress_text": event_doc.get("custom_progress_text") or "",
@@ -2667,8 +2669,34 @@ def delete_session(event=None, dashboard_type=None):
     return {"deleted": event_name}
 
 
+def _append_event_note(event_doc, session_date, session_type, notes_text, attachement=None):
+    """
+    Some appointment types (Company Meeting, Internal Training, etc.) are
+    deliberately booked without a Client or Lead attached, so there's no
+    Notes table to save a note against. Rather than blocking notes on those
+    entirely, log them straight onto the event's own description field -
+    already used as a free-text log for other booking context (parent
+    contact, lead id, meeting link), so this just extends that pattern.
+    """
+    date_label = getdate(session_date).strftime("%d %b %Y") if session_date else nowdate()
+
+    header = f"--- Note ({date_label}"
+    if session_type:
+        header += f", {session_type}"
+    header += f", {get_fullname(frappe.session.user)}) ---"
+
+    entry = header + "\n" + notes_text
+
+    if attachement:
+        entry += f"\nAttachment: {attachement}"
+
+    existing = (event_doc.get("description") or "").strip()
+    event_doc.description = (existing + "\n\n" + entry).strip() if existing else entry
+    event_doc.save(ignore_permissions=True)
+
+
 @frappe.whitelist(allow_guest=False)
-def add_client_note(client=None, lead=None, session_date=None, session_type=None, notes=None, dashboard_type=None):
+def add_client_note(client=None, lead=None, event=None, session_date=None, session_type=None, notes=None, attachement=None, dashboard_type=None):
     _require_logged_in_user()
 
     dashboard_type = _normalise_dashboard_type(dashboard_type)
@@ -2676,11 +2704,13 @@ def add_client_note(client=None, lead=None, session_date=None, session_type=None
 
     client = _coalesce_str("client", client)
     lead = _coalesce_str("lead", lead)
+    event = _coalesce_str("event", event)
     session_type = _coalesce_str("session_type", session_type)
     notes = _coalesce_str("notes", notes)
+    attachement = _coalesce_str("attachement", attachement)
     raw_session_date = _coalesce_raw("session_date", session_date)
 
-    if not client and not lead:
+    if not client and not lead and not event:
         frappe.throw(_("Client is required."))
 
     if not notes:
@@ -2691,6 +2721,19 @@ def add_client_note(client=None, lead=None, session_date=None, session_type=None
 
     if not session_type:
         session_type = "Other"
+
+    # Some appointment types (Company Meeting, Internal Training, etc.) are
+    # booked without a Client or Lead at all - log the note onto the event
+    # itself instead of blocking it, so there's still some context recorded.
+    if not client and not lead and event:
+        event_doc = _get_event_doc(event)
+        _append_event_note(event_doc, raw_session_date, session_type, notes, attachement)
+
+        return {
+            "ok": True,
+            "client_notes": [],
+            "event_notes_text": event_doc.get("description") or "",
+        }
 
     # Initial Consultation appointments have a Lead, not a Client - notes go
     # on the Lead instead. A Lead isn't owned by a specific coach/worker the
@@ -2730,13 +2773,18 @@ def add_client_note(client=None, lead=None, session_date=None, session_type=None
         frappe.throw(_("Could not find the Notes child table field on Client."))
 
     client_doc = frappe.get_doc("Client", client)
-    client_doc.append(parentfield, {
+    new_note_row = {
         "doctype": "Notes",
         "client": client,
         "session_date": raw_session_date,
         "session_type": session_type,
         "notes": notes,
-    })
+    }
+
+    if attachement and frappe.get_meta("Notes").has_field("attachement"):
+        new_note_row["attachement"] = attachement
+
+    client_doc.append(parentfield, new_note_row)
     client_doc.save(ignore_permissions=True)
 
     return {
