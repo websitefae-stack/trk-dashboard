@@ -27,6 +27,7 @@
   "column_break_outcome",
   "event",
   "intake_sent_on",
+  "intake_completed_on",
   "converted_client",
   "converted_contact",
   "section_break_notes",
@@ -39,7 +40,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "New\nAssessing\nCan Help\nCan't Help\nIntake Sent\nIntake Completed\nConverted\nDeclined",
+   "options": "New\nIntake Sent\nConverted\nDeclined",
    "default": "New"
   },
   {
@@ -136,7 +137,7 @@
    "fieldname": "decline_reason",
    "fieldtype": "Small Text",
    "label": "Decline Reason",
-   "depends_on": "eval:[\"Can't Help\",\"Declined\"].includes(doc.status)"
+   "depends_on": "eval:doc.status==\"Declined\""
   },
   {
    "fieldname": "column_break_outcome",
@@ -153,6 +154,12 @@
    "fieldname": "intake_sent_on",
    "fieldtype": "Datetime",
    "label": "Intake Form Sent On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "intake_completed_on",
+   "fieldtype": "Datetime",
+   "label": "Intake Form Completed On",
    "read_only": 1
   },
   {

@@ -18,12 +18,9 @@ INTAKE_ROUTE = "client-intake/new"
 
 LEAD_DOCTYPE = "Client Lead"
 
-LEAD_STATUSES = [
-    "New", "Assessing", "Can Help", "Can't Help",
-    "Intake Sent", "Intake Completed", "Converted", "Declined",
-]
+LEAD_STATUSES = ["New", "Intake Sent", "Converted", "Declined"]
 
-DECLINE_STATUSES = {"Can't Help", "Declined"}
+DECLINE_STATUSES = {"Declined"}
 
 LEAD_LIST_FIELDS = [
     "name", "status", "source", "coach",
@@ -145,6 +142,7 @@ def get_lead(name=None):
     row["notes"] = _get_lead_notes(doc)
     row["can_edit"] = 1
     row["intake_sent_on"] = doc.get("intake_sent_on")
+    row["intake_completed_on"] = doc.get("intake_completed_on")
     row["converted_client"] = doc.get("converted_client") or ""
     row["converted_contact"] = doc.get("converted_contact") or ""
     row["intake_url"] = _intake_url(doc.name) if doc.get("intake_sent_on") else ""
@@ -457,7 +455,11 @@ def submit_intake(
     consent_given = coalesce_raw("consent_given", consent_given)
     doc.consent_given = 1 if str(consent_given).lower() in ["1", "true", "yes", "on"] else 0
 
-    doc.status = "Intake Completed"
+    # Status stays "Intake Sent" - the simplified pipeline (New / Intake
+    # Sent / Converted / Declined) has no separate "completed" status, so
+    # this timestamp is what tells the coach's "Convert to Client" button
+    # to appear instead.
+    doc.intake_completed_on = now_datetime()
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 

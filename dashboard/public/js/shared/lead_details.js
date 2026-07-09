@@ -4,7 +4,7 @@
   var el = Dashboard.el;
 
   const SHARED_API = "dashboard.api.shared.leads";
-  const DECLINE_STATUSES = ["Can't Help", "Declined"];
+  const DECLINE_STATUSES = ["Declined"];
 
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
@@ -110,6 +110,17 @@
       toggleDeclineField();
     }
 
+    const intakeInfo = el("leadIntakeInfo");
+    if (intakeInfo) {
+      if (lead.intake_completed_on) {
+        intakeInfo.textContent = `Intake form completed ${new Date(lead.intake_completed_on).toLocaleString("en-GB")}`;
+      } else if (lead.intake_sent_on) {
+        intakeInfo.textContent = `Intake form sent ${new Date(lead.intake_sent_on).toLocaleString("en-GB")} - not yet completed`;
+      } else {
+        intakeInfo.textContent = "Intake form not sent yet";
+      }
+    }
+
     renderNotes(lead.notes || []);
 
     const bookBtn = el("bookLeadCallBtn");
@@ -140,7 +151,7 @@
     } else {
       if (viewClientBtn) viewClientBtn.style.display = "none";
       if (sendBtn) sendBtn.style.display = "";
-      if (convertBtn) convertBtn.style.display = lead.status === "Intake Completed" ? "" : "none";
+      if (convertBtn) convertBtn.style.display = lead.intake_completed_on ? "" : "none";
     }
   }
 

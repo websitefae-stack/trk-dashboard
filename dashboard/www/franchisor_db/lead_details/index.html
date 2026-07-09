@@ -63,19 +63,16 @@
                 <label for="lead_status">Status</label>
                 <select id="lead_status" class="dashboard-input">
                   <option value="New">New</option>
-                  <option value="Assessing">Assessing</option>
-                  <option value="Can Help">Can Help</option>
-                  <option value="Can't Help">Can't Help</option>
                   <option value="Intake Sent">Intake Sent</option>
-                  <option value="Intake Completed">Intake Completed</option>
                   <option value="Converted">Converted</option>
                   <option value="Declined">Declined</option>
                 </select>
+                <div class="dashboard-field-hint" id="leadIntakeInfo"></div>
               </div>
 
               <div class="dashboard-detail-field" id="leadDeclineReasonField" style="display:none;">
                 <label for="lead_decline_reason">Reason</label>
-                <input id="lead_decline_reason" type="text" class="dashboard-input" placeholder="Why can't we help / why declined">
+                <input id="lead_decline_reason" type="text" class="dashboard-input" placeholder="Why we declined this lead">
               </div>
               {% endif %}
             </div>

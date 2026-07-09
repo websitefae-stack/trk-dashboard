@@ -5,10 +5,7 @@
 
   const SHARED_API = "dashboard.api.shared.leads";
 
-  const STATUS_COLUMNS = [
-    "New", "Assessing", "Can Help", "Can't Help",
-    "Intake Sent", "Intake Completed", "Converted", "Declined",
-  ];
+  const STATUS_COLUMNS = ["New", "Intake Sent", "Converted", "Declined"];
 
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
