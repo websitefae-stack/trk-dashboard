@@ -60,6 +60,10 @@
           </a>
 
           {% if not coach_is_view_mode %}
+            <button type="button" class="dashboard-btn dashboard-btn-pink" id="sendClientEmailBtn">
+              Send Email
+            </button>
+
             <a
               href="/coach_db/calendar?book_client={{ client_docname | urlencode }}"
               class="dashboard-btn dashboard-btn-light"
@@ -880,6 +884,52 @@
   
         <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveTherapyLocationBtn">
           Save Location
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-calendar-modal-backdrop" id="sendEmailModal">
+    <div class="trk-calendar-modal">
+      <div class="trk-calendar-modal-head">
+        <h3>Send Email</h3>
+
+        <button type="button" class="trk-calendar-icon-btn" id="sendEmailModalClose">
+          ✕
+        </button>
+      </div>
+
+      <div class="trk-calendar-modal-body">
+        <div class="trk-calendar-field">
+          <label for="sendEmailEmail">Send To</label>
+          <select id="sendEmailEmail" class="dashboard-select"></select>
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="sendEmailTemplate">Template</label>
+          <select id="sendEmailTemplate" class="dashboard-select"></select>
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="sendEmailSubject">Subject</label>
+          <input type="text" id="sendEmailSubject" class="dashboard-input">
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="sendEmailMessage">Message</label>
+          <textarea id="sendEmailMessage" class="dashboard-textarea" rows="10"></textarea>
+        </div>
+
+        <div class="dashboard-help" id="sendEmailStatus"></div>
+      </div>
+
+      <div class="trk-calendar-modal-foot">
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="sendEmailCancel">
+          Cancel
+        </button>
+
+        <button type="button" class="dashboard-btn dashboard-btn-pink" id="sendEmailSubmit">
+          Send
         </button>
       </div>
     </div>

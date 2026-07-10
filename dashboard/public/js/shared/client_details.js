@@ -1175,6 +1175,194 @@
       }
     }
 
+    async function apiPostRaw(fullMethod, args) {
+      const response = await fetch("/api/method/" + fullMethod, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Frappe-CSRF-Token": getCsrfToken()
+        },
+        body: JSON.stringify(args || {})
+      });
+
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (error) {
+        throw new Error("Could not read server response.");
+      }
+
+      if (!response.ok || data.exc) {
+        throw new Error(data.message || "Request failed.");
+      }
+
+      return data.message;
+    }
+
+    const sendEmailState = {
+      emailOptions: [],
+      templateOptions: []
+    };
+
+    function fillSelect(select, options, placeholder) {
+      if (!select) return;
+
+      const previous = select.value;
+      let html = placeholder ? `<option value="">${escapeHtml(placeholder)}</option>` : "";
+
+      html += options.map(function (opt) {
+        return `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`;
+      }).join("");
+
+      select.innerHTML = html;
+
+      if (previous && options.some(function (opt) { return opt.value === previous; })) {
+        select.value = previous;
+      }
+    }
+
+    async function refreshSendEmailMessage() {
+      const templateSelect = el("sendEmailTemplate");
+      const subjectField = el("sendEmailSubject");
+      const messageField = el("sendEmailMessage");
+      const client = getClientName();
+
+      if (!client) return;
+
+      try {
+        const defaults = await apiPostRaw("dashboard.api.shared.invoices.get_client_email_defaults", {
+          client_name: client,
+          template_name: templateSelect ? templateSelect.value : ""
+        });
+
+        if (subjectField && defaults && defaults.subject) subjectField.value = defaults.subject;
+        if (messageField && defaults && defaults.message) messageField.value = defaults.message;
+      } catch (error) {
+        showError(error.message || "Could not load the email template.");
+      }
+    }
+
+    async function openSendEmailModal() {
+      const modal = el("sendEmailModal");
+      const client = getClientName();
+
+      if (!modal || !client) return;
+
+      modal.classList.add("show");
+
+      const statusEl = el("sendEmailStatus");
+      if (statusEl) statusEl.textContent = "";
+
+      const emailSelect = el("sendEmailEmail");
+      const templateSelect = el("sendEmailTemplate");
+
+      if (emailSelect) emailSelect.innerHTML = '<option value="">Loading...</option>';
+      if (templateSelect) templateSelect.innerHTML = '<option value="">Loading...</option>';
+
+      try {
+        const [emailOptions, templateOptions] = await Promise.all([
+          apiPostRaw("dashboard.api.shared.invoices.get_client_email_options", { client_name: client }),
+          apiPostRaw("dashboard.api.shared.email_templates.get_email_template_options", {})
+        ]);
+
+        sendEmailState.emailOptions = emailOptions || [];
+        sendEmailState.templateOptions = templateOptions || [];
+
+        if (!sendEmailState.emailOptions.length && statusEl) {
+          statusEl.textContent = "This client has no email address on file.";
+        }
+
+        fillSelect(emailSelect, sendEmailState.emailOptions, sendEmailState.emailOptions.length ? "" : "No email on file");
+        fillSelect(templateSelect, sendEmailState.templateOptions, sendEmailState.templateOptions.length ? "" : "No templates");
+
+        if (templateSelect && sendEmailState.templateOptions.length) {
+          templateSelect.value = sendEmailState.templateOptions[0].value;
+        }
+
+        await refreshSendEmailMessage();
+      } catch (error) {
+        showError(error.message || "Could not load email details.");
+      }
+    }
+
+    function closeSendEmailModal() {
+      const modal = el("sendEmailModal");
+      if (modal) modal.classList.remove("show");
+    }
+
+    async function sendClientGenericEmail() {
+      const emailSelect = el("sendEmailEmail");
+      const subjectField = el("sendEmailSubject");
+      const messageField = el("sendEmailMessage");
+      const statusEl = el("sendEmailStatus");
+      const sendBtn = el("sendEmailSubmit");
+      const client = getClientName();
+
+      const recipient = emailSelect ? emailSelect.value : "";
+      const subject = subjectField ? subjectField.value.trim() : "";
+      const message = messageField ? messageField.value.trim() : "";
+
+      if (!recipient) {
+        showError("Select an email address to send to.");
+        return;
+      }
+
+      if (sendBtn) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = "Sending...";
+      }
+
+      if (statusEl) statusEl.textContent = "";
+
+      try {
+        await apiPostRaw("dashboard.api.shared.invoices.send_client_email", {
+          client_name: client,
+          recipient: recipient,
+          subject: subject,
+          message: message
+        });
+
+        showSuccess("Email sent");
+        closeSendEmailModal();
+      } catch (error) {
+        showError(error.message || "Could not send the email.");
+      } finally {
+        if (sendBtn) {
+          sendBtn.disabled = false;
+          sendBtn.textContent = "Send";
+        }
+      }
+    }
+
+    function initSendEmailModal() {
+      const openBtn = el("sendClientEmailBtn");
+
+      if (!roleConfig.canInvoice) {
+        if (openBtn) openBtn.style.display = "none";
+        return;
+      }
+
+      if (openBtn) {
+        openBtn.addEventListener("click", function (event) {
+          event.preventDefault();
+          openSendEmailModal();
+        });
+      }
+
+      const closeBtn = el("sendEmailModalClose");
+      if (closeBtn) closeBtn.addEventListener("click", closeSendEmailModal);
+
+      const cancelBtn = el("sendEmailCancel");
+      if (cancelBtn) cancelBtn.addEventListener("click", closeSendEmailModal);
+
+      const templateSelect = el("sendEmailTemplate");
+      if (templateSelect) templateSelect.addEventListener("change", refreshSendEmailMessage);
+
+      const submitBtn = el("sendEmailSubmit");
+      if (submitBtn) submitBtn.addEventListener("click", sendClientGenericEmail);
+    }
+
     function initTherapyLocationModal() {
       const addBtn = el("addTherapyLocationBtn");
       if (addBtn) {
@@ -1359,6 +1547,7 @@
     initChangeRequest();
     initExistingContactModal();
     initTherapyLocationModal();
+    initSendEmailModal();
     initDiagnosisRows();
     initSaveBeforeNewContactLinks();
 
