@@ -6,6 +6,9 @@ Falls back to the given hardcoded subject/message if the named template
 doesn't exist yet, or Email Template isn't a real doctype on this site.
 """
 
+import re
+from html import unescape as _html_unescape
+
 import frappe
 
 BOOKING_CONFIRMATION_TEMPLATE = "Booking Confirmation - Resilient Kid"
@@ -18,6 +21,8 @@ INVOICE_EMAIL_TEMPLATE = "Invoice Email - Resilient Kid"
 # patches/create_dashboard_email_templates.py).
 BODY_FIELD_CANDIDATES = ["response", "response_html", "message", "content"]
 
+_HTML_TAG_RE = re.compile(r"<[a-zA-Z/][^>]*>")
+
 
 def _body_fieldname(doc):
     for fieldname in BODY_FIELD_CANDIDATES:
@@ -26,15 +31,52 @@ def _body_fieldname(doc):
     return None
 
 
+def _looks_like_html(text):
+    return bool(_HTML_TAG_RE.search(text or ""))
+
+
+def _html_to_plain_text(html):
+    """
+    Some sites' Email Template body field is a rich-text (Quill) editor
+    rather than plain text, so editing a template there produces real
+    markup (e.g. `<div class="ql-editor read-mode"><p>Hi ...`) - that must
+    never reach a plain compose <textarea> as visible tag soup. Converts
+    block-level breaks to newlines, strips remaining tags, and collapses
+    to at most one blank line between paragraphs.
+    """
+    text = html or ""
+    text = re.sub(r"(?is)<br\s*/?>", "\n", text)
+    text = re.sub(r"(?is)</p\s*>", "\n\n", text)
+    text = re.sub(r"(?is)</div\s*>", "\n", text)
+    text = re.sub(r"(?is)<[^>]+>", "", text)
+    text = _html_unescape(text)
+
+    lines = [line.strip() for line in text.split("\n")]
+    cleaned = []
+    blank_run = 0
+
+    for line in lines:
+        if not line:
+            blank_run += 1
+            if blank_run <= 1:
+                cleaned.append("")
+        else:
+            blank_run = 0
+            cleaned.append(line)
+
+    return "\n".join(cleaned).strip("\n")
+
+
 def render_email(template_name, context, fallback_subject, fallback_message):
     """
-    Every dashboard Email Template is written and edited as plain text
-    (Ashley's site doesn't offer an HTML editor for these) - callers that
-    actually send mail should run the result through
-    plain_text_to_email_html() before handing it to frappe.sendmail(), so
+    The dashboard's own emails are written and edited as plain text (see
+    plain_text_to_email_html()) - callers that actually send mail should
+    run the result through that before handing it to frappe.sendmail() so
     line breaks show up correctly. Callers that just need to pre-fill an
-    editable plain-text textarea (e.g. the invoice compose modal) should
-    use the raw result as-is.
+    editable plain-text textarea (e.g. the invoice/client compose modals)
+    should use the raw result as-is; it's already guaranteed plain text
+    even if the underlying Email Template itself is HTML (a Quill/rich
+    editor field on some sites) - see _html_to_plain_text().
     """
     if template_name and frappe.db.exists("Email Template", template_name):
         try:
@@ -45,6 +87,13 @@ def render_email(template_name, context, fallback_subject, fallback_message):
             if (doc.get("subject") or "").strip() or (body or "").strip():
                 subject = frappe.render_template(doc.get("subject") or fallback_subject, context)
                 message = frappe.render_template(body or fallback_message, context)
+
+                if _looks_like_html(subject):
+                    subject = _html_to_plain_text(subject)
+
+                if _looks_like_html(message):
+                    message = _html_to_plain_text(message)
+
                 return subject, message
         except Exception:
             frappe.log_error(frappe.get_traceback(), f"Render Email Template Failed: {template_name}")

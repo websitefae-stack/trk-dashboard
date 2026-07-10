@@ -368,25 +368,111 @@
     }
   }
 
-  async function sendIntakeForm() {
+  function openIntakeEmailModal() {
+    const modal = el("intakeEmailModal");
+    if (modal) modal.classList.add("show");
+  }
+
+  function closeIntakeEmailModal() {
+    const modal = el("intakeEmailModal");
+    if (modal) modal.classList.remove("show");
+  }
+
+  async function prepareIntakeEmail() {
     const name = getValue("leadDocname");
+    const emailField = el("lead_contact_email");
+    const email = emailField ? emailField.value.trim() : "";
+
+    if (!email) {
+      showMessage("Add a contact email above before sending the intake form.", true);
+      if (emailField) emailField.focus();
+      return;
+    }
+
     const sendBtn = el("sendIntakeFormBtn");
     if (sendBtn) sendBtn.disabled = true;
 
     try {
-      const result = await apiPost(`${SHARED_API}.send_intake_form`, { name });
+      // get_intake_email_defaults reads the saved record, not the live
+      // form - if a coach types an email and opens this without a
+      // separate Save first, it would otherwise still see the old
+      // (possibly blank) value. Persist the current form first, same as
+      // the Save button does.
+      const payload = collectFormPayload();
+      payload.name = name;
+      await apiPost(`${SHARED_API}.update_lead`, payload);
+
+      const defaults = await apiPost(`${SHARED_API}.get_intake_email_defaults`, { name });
+
+      const recipientField = el("intakeEmailRecipient");
+      const subjectField = el("intakeEmailSubject");
+      const messageField = el("intakeEmailMessage");
+      const statusField = el("intakeEmailStatus");
+
+      if (recipientField) recipientField.value = defaults.recipient || "";
+      if (subjectField) subjectField.value = defaults.subject || "";
+      if (messageField) messageField.value = defaults.message || "";
+      if (statusField) statusField.textContent = "";
+
+      openIntakeEmailModal();
+    } catch (error) {
+      showMessage(error.message || "Could not load the intake form email.", true);
+    } finally {
+      if (sendBtn) sendBtn.disabled = false;
+    }
+  }
+
+  async function confirmSendIntakeForm() {
+    const name = getValue("leadDocname");
+    const subjectField = el("intakeEmailSubject");
+    const messageField = el("intakeEmailMessage");
+    const statusField = el("intakeEmailStatus");
+    const submitBtn = el("intakeEmailSubmit");
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Sending...";
+    }
+
+    if (statusField) statusField.textContent = "";
+
+    try {
+      const result = await apiPost(`${SHARED_API}.send_intake_form`, {
+        name,
+        subject: subjectField ? subjectField.value.trim() : "",
+        message: messageField ? messageField.value.trim() : "",
+      });
+
       showMessage(
         result.email_sent
           ? "Intake form sent."
           : `Could not send the email, but here's the link to share directly: ${result.intake_url}`,
         !result.email_sent
       );
+      closeIntakeEmailModal();
       loadLead();
     } catch (error) {
-      showMessage(error.message || "Could not send the intake form.", true);
+      if (statusField) statusField.textContent = error.message || "Could not send the intake form.";
     } finally {
-      if (sendBtn) sendBtn.disabled = false;
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Send";
+      }
     }
+  }
+
+  function initIntakeEmailModal() {
+    const openBtn = el("sendIntakeFormBtn");
+    if (openBtn) openBtn.addEventListener("click", prepareIntakeEmail);
+
+    const closeBtn = el("intakeEmailModalClose");
+    if (closeBtn) closeBtn.addEventListener("click", closeIntakeEmailModal);
+
+    const cancelBtn = el("intakeEmailCancel");
+    if (cancelBtn) cancelBtn.addEventListener("click", closeIntakeEmailModal);
+
+    const submitBtn = el("intakeEmailSubmit");
+    if (submitBtn) submitBtn.addEventListener("click", confirmSendIntakeForm);
   }
 
   async function convertLead() {
@@ -449,8 +535,7 @@
     const addNoteBtn = el("addLeadNoteBtn");
     if (addNoteBtn) addNoteBtn.addEventListener("click", addNote);
 
-    const sendBtn = el("sendIntakeFormBtn");
-    if (sendBtn) sendBtn.addEventListener("click", sendIntakeForm);
+    initIntakeEmailModal();
 
     const convertBtn = el("convertLeadBtn");
     if (convertBtn) convertBtn.addEventListener("click", convertLead);

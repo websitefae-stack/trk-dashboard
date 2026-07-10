@@ -949,6 +949,13 @@ FRANCHISE_FEE_TIERS = [
 ]
 FRANCHISE_FEE_DEFAULT_RATE = 0.07  # £3,000+
 
+# The franchise fee is always at least this, even on a £0 revenue month -
+# it's a standing due, not just a percentage of activity. In practice this
+# means anything up to £1,000 gross revenue (where 10% would be under
+# £100) is charged the flat £100 instead; above that, the normal tiered
+# percentage applies and naturally exceeds it.
+FRANCHISE_FEE_MINIMUM = 100
+
 
 def _franchise_fee_rate(gross_revenue):
     for ceiling, rate in FRANCHISE_FEE_TIERS:
@@ -964,18 +971,20 @@ def _compute_fees(revenue_breakdown):
     interbusiness). Franchise fee: a tiered percentage of Gross Revenue,
     which for this purpose is Client Invoices + Travel - interbusiness
     cross-charges are never counted (see _get_invoice_revenue_breakdown's
-    own docstring).
+    own docstring) - with a £100 minimum that always applies, including a
+    £0 revenue period.
     """
     client_total = flt(revenue_breakdown.get("client_total"))
     travel_total = flt(revenue_breakdown.get("travel_total"))
 
     gross_revenue = client_total + travel_total
     franchise_fee_rate = _franchise_fee_rate(gross_revenue)
+    franchise_fee = max(gross_revenue * franchise_fee_rate, FRANCHISE_FEE_MINIMUM)
 
     return {
         "gross_revenue": gross_revenue,
         "marketing_fee": client_total * MARKETING_FEE_RATE,
-        "franchise_fee": gross_revenue * franchise_fee_rate,
+        "franchise_fee": franchise_fee,
         "franchise_fee_rate": franchise_fee_rate,
     }
 
