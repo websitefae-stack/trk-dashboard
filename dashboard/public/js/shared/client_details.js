@@ -1200,8 +1200,7 @@
       return data.message;
     }
 
-    const sendInvoiceState = {
-      invoiceOptions: [],
+    const sendEmailState = {
       emailOptions: [],
       templateOptions: []
     };
@@ -1223,28 +1222,17 @@
       }
     }
 
-    function defaultInvoiceValue(options) {
-      const outstanding = options.find(function (opt) { return Number(opt.outstanding_amount || 0) > 0; });
-      return (outstanding || options[0] || {}).value || "";
-    }
+    async function refreshSendEmailMessage() {
+      const templateSelect = el("sendEmailTemplate");
+      const subjectField = el("sendEmailSubject");
+      const messageField = el("sendEmailMessage");
+      const client = getClientName();
 
-    function defaultTemplateValue(options) {
-      const preferred = options.find(function (opt) { return opt.value === "Invoice Email - Resilient Kid"; });
-      return (preferred || options[0] || {}).value || "";
-    }
-
-    async function refreshSendInvoiceMessage() {
-      const invoiceSelect = el("sendInvoiceInvoice");
-      const templateSelect = el("sendInvoiceTemplate");
-      const subjectField = el("sendInvoiceSubject");
-      const messageField = el("sendInvoiceMessage");
-
-      const docname = invoiceSelect ? invoiceSelect.value : "";
-      if (!docname) return;
+      if (!client) return;
 
       try {
-        const defaults = await apiPostRaw("dashboard.api.shared.invoices.get_invoice_email_defaults", {
-          docname: docname,
+        const defaults = await apiPostRaw("dashboard.api.shared.invoices.get_client_email_defaults", {
+          client_name: client,
           template_name: templateSelect ? templateSelect.value : ""
         });
 
@@ -1255,75 +1243,65 @@
       }
     }
 
-    async function openSendInvoiceModal() {
-      const modal = el("sendInvoiceModal");
+    async function openSendEmailModal() {
+      const modal = el("sendEmailModal");
       const client = getClientName();
 
       if (!modal || !client) return;
 
       modal.classList.add("show");
 
-      const statusEl = el("sendInvoiceStatus");
+      const statusEl = el("sendEmailStatus");
       if (statusEl) statusEl.textContent = "";
 
-      const invoiceSelect = el("sendInvoiceInvoice");
-      const emailSelect = el("sendInvoiceEmail");
-      const templateSelect = el("sendInvoiceTemplate");
+      const emailSelect = el("sendEmailEmail");
+      const templateSelect = el("sendEmailTemplate");
 
-      if (invoiceSelect) invoiceSelect.innerHTML = '<option value="">Loading...</option>';
       if (emailSelect) emailSelect.innerHTML = '<option value="">Loading...</option>';
       if (templateSelect) templateSelect.innerHTML = '<option value="">Loading...</option>';
 
       try {
-        const [invoiceOptions, emailOptions, templateOptions] = await Promise.all([
-          apiPostRaw("dashboard.api.shared.invoices.get_client_invoice_options", { client_name: client }),
+        const [emailOptions, templateOptions] = await Promise.all([
           apiPostRaw("dashboard.api.shared.invoices.get_client_email_options", { client_name: client }),
           apiPostRaw("dashboard.api.shared.email_templates.get_email_template_options", {})
         ]);
 
-        sendInvoiceState.invoiceOptions = invoiceOptions || [];
-        sendInvoiceState.emailOptions = emailOptions || [];
-        sendInvoiceState.templateOptions = templateOptions || [];
+        sendEmailState.emailOptions = emailOptions || [];
+        sendEmailState.templateOptions = templateOptions || [];
 
-        if (!sendInvoiceState.invoiceOptions.length) {
-          if (statusEl) statusEl.textContent = "This client has no submitted invoices to send.";
+        if (!sendEmailState.emailOptions.length && statusEl) {
+          statusEl.textContent = "This client has no email address on file.";
         }
 
-        fillSelect(invoiceSelect, sendInvoiceState.invoiceOptions, sendInvoiceState.invoiceOptions.length ? "" : "No invoices");
-        fillSelect(emailSelect, sendInvoiceState.emailOptions, sendInvoiceState.emailOptions.length ? "" : "No email on file");
-        fillSelect(templateSelect, sendInvoiceState.templateOptions, sendInvoiceState.templateOptions.length ? "" : "No templates");
+        fillSelect(emailSelect, sendEmailState.emailOptions, sendEmailState.emailOptions.length ? "" : "No email on file");
+        fillSelect(templateSelect, sendEmailState.templateOptions, sendEmailState.templateOptions.length ? "" : "No templates");
 
-        if (invoiceSelect) invoiceSelect.value = defaultInvoiceValue(sendInvoiceState.invoiceOptions);
-        if (templateSelect) templateSelect.value = defaultTemplateValue(sendInvoiceState.templateOptions);
+        if (templateSelect && sendEmailState.templateOptions.length) {
+          templateSelect.value = sendEmailState.templateOptions[0].value;
+        }
 
-        await refreshSendInvoiceMessage();
+        await refreshSendEmailMessage();
       } catch (error) {
-        showError(error.message || "Could not load invoice details.");
+        showError(error.message || "Could not load email details.");
       }
     }
 
-    function closeSendInvoiceModal() {
-      const modal = el("sendInvoiceModal");
+    function closeSendEmailModal() {
+      const modal = el("sendEmailModal");
       if (modal) modal.classList.remove("show");
     }
 
-    async function sendClientInvoiceEmail() {
-      const invoiceSelect = el("sendInvoiceInvoice");
-      const emailSelect = el("sendInvoiceEmail");
-      const subjectField = el("sendInvoiceSubject");
-      const messageField = el("sendInvoiceMessage");
-      const statusEl = el("sendInvoiceStatus");
-      const sendBtn = el("sendInvoiceSubmit");
+    async function sendClientGenericEmail() {
+      const emailSelect = el("sendEmailEmail");
+      const subjectField = el("sendEmailSubject");
+      const messageField = el("sendEmailMessage");
+      const statusEl = el("sendEmailStatus");
+      const sendBtn = el("sendEmailSubmit");
+      const client = getClientName();
 
-      const docname = invoiceSelect ? invoiceSelect.value : "";
       const recipient = emailSelect ? emailSelect.value : "";
       const subject = subjectField ? subjectField.value.trim() : "";
       const message = messageField ? messageField.value.trim() : "";
-
-      if (!docname) {
-        showError("Select an invoice to send.");
-        return;
-      }
 
       if (!recipient) {
         showError("Select an email address to send to.");
@@ -1338,17 +1316,17 @@
       if (statusEl) statusEl.textContent = "";
 
       try {
-        await apiPostRaw("dashboard.api.shared.invoices.send_invoice_email", {
-          docname: docname,
+        await apiPostRaw("dashboard.api.shared.invoices.send_client_email", {
+          client_name: client,
           recipient: recipient,
           subject: subject,
           message: message
         });
 
-        showSuccess("Invoice email sent");
-        closeSendInvoiceModal();
+        showSuccess("Email sent");
+        closeSendEmailModal();
       } catch (error) {
-        showError(error.message || "Could not send the invoice email.");
+        showError(error.message || "Could not send the email.");
       } finally {
         if (sendBtn) {
           sendBtn.disabled = false;
@@ -1357,8 +1335,8 @@
       }
     }
 
-    function initSendInvoiceModal() {
-      const openBtn = el("sendClientInvoiceBtn");
+    function initSendEmailModal() {
+      const openBtn = el("sendClientEmailBtn");
 
       if (!roleConfig.canInvoice) {
         if (openBtn) openBtn.style.display = "none";
@@ -1368,24 +1346,21 @@
       if (openBtn) {
         openBtn.addEventListener("click", function (event) {
           event.preventDefault();
-          openSendInvoiceModal();
+          openSendEmailModal();
         });
       }
 
-      const closeBtn = el("sendInvoiceModalClose");
-      if (closeBtn) closeBtn.addEventListener("click", closeSendInvoiceModal);
+      const closeBtn = el("sendEmailModalClose");
+      if (closeBtn) closeBtn.addEventListener("click", closeSendEmailModal);
 
-      const cancelBtn = el("sendInvoiceCancel");
-      if (cancelBtn) cancelBtn.addEventListener("click", closeSendInvoiceModal);
+      const cancelBtn = el("sendEmailCancel");
+      if (cancelBtn) cancelBtn.addEventListener("click", closeSendEmailModal);
 
-      const invoiceSelect = el("sendInvoiceInvoice");
-      if (invoiceSelect) invoiceSelect.addEventListener("change", refreshSendInvoiceMessage);
+      const templateSelect = el("sendEmailTemplate");
+      if (templateSelect) templateSelect.addEventListener("change", refreshSendEmailMessage);
 
-      const templateSelect = el("sendInvoiceTemplate");
-      if (templateSelect) templateSelect.addEventListener("change", refreshSendInvoiceMessage);
-
-      const submitBtn = el("sendInvoiceSubmit");
-      if (submitBtn) submitBtn.addEventListener("click", sendClientInvoiceEmail);
+      const submitBtn = el("sendEmailSubmit");
+      if (submitBtn) submitBtn.addEventListener("click", sendClientGenericEmail);
     }
 
     function initTherapyLocationModal() {
@@ -1572,7 +1547,7 @@
     initChangeRequest();
     initExistingContactModal();
     initTherapyLocationModal();
-    initSendInvoiceModal();
+    initSendEmailModal();
     initDiagnosisRows();
     initSaveBeforeNewContactLinks();
 

@@ -32,14 +32,14 @@
 }
 
 /* The Resilient Kid brand's pink/red accent (--brand-primary in
-   resilient_domains/public/css/trk.css) - used for the "Send Invoice"
+   resilient_domains/public/css/trk.css) - used for the "Send Email"
    button so it stands out from the neutral action buttons beside it. */
-.dashboard-btn-invoice-send {
+.dashboard-btn-pink {
   background: #E94763;
   color: #FFFFFF;
 }
 
-.dashboard-btn-invoice-send:hover {
+.dashboard-btn-pink:hover {
   background: #D13653;
   color: #FFFFFF;
 }

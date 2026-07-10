@@ -1712,11 +1712,12 @@ def get_invoice_email_defaults(docname=None, template_name=None):
 
 
 @frappe.whitelist()
-def get_client_invoice_options(client_name=None):
+def get_client_email_defaults(client_name=None, template_name=None):
     """
-    Submitted invoices for a client, for the "Send Invoice" picker on the
-    Client Details page - newest first, with each row's outstanding
-    amount so the frontend can default to the most recent unpaid one.
+    Subject/message for the generic "Send Email" button on the Client
+    Details page - not tied to any invoice or PDF attachment, just a
+    plain email to the client rendered from whichever Email Template is
+    picked (see email_templates.get_email_template_options).
     """
     _require_logged_in_user()
 
@@ -1728,35 +1729,77 @@ def get_client_invoice_options(client_name=None):
     if not _current_user_can_access_client(client_name):
         frappe.throw(_("You do not have permission to access this client."), frappe.PermissionError)
 
-    rows = frappe.get_all(
-        "Sales Invoice",
-        filters={"custom_client": client_name, "docstatus": 1},
-        fields=["name", "posting_date", "grand_total", "outstanding_amount", "status"],
-        order_by="posting_date desc, creation desc",
-        limit_page_length=100,
-        ignore_permissions=True,
+    if not frappe.db.exists("Client", client_name):
+        frappe.throw(_("Client not found."))
+
+    context_data = _resolve_invoice_context(client_name, None)
+    current_user_email = frappe.session.user if "@" in (frappe.session.user or "") else ""
+
+    context = {
+        "client_name": _client_display_name(client_name),
+        "contact_name": context_data.get("customer_label") or _client_display_name(client_name),
+        "coach_name": context_data.get("coach_label") or "Coach",
+        "company_label": context_data.get("company") or "The Resilient Kid",
+        "coach_email": current_user_email,
+        "coach_phone": _current_user_phone(),
+    }
+
+    fallback_message = (
+        "Hi {{ contact_name }},\n"
+        "\n"
+        "\n"
+        "\n"
+        "Warm regards,\n"
+        "{{ coach_name }}\n"
+        "{{ company_label }}"
+        "{% if coach_email %}\n\n{{ coach_email }}{% endif %}"
+        "{% if coach_phone %}\n{{ coach_phone }}{% endif %}"
     )
 
-    options = []
+    subject, message = render_email(
+        (template_name or "").strip(),
+        context,
+        fallback_subject="A message from {{ company_label }}",
+        fallback_message=fallback_message,
+    )
 
-    for row in rows:
-        amount = _to_float(row.get("outstanding_amount")) or _to_float(row.get("grand_total"))
-        posting_date = frappe.utils.formatdate(row.get("posting_date")) if row.get("posting_date") else ""
+    return {"subject": subject, "message": message}
 
-        options.append({
-            "value": row.get("name"),
-            "label": f"{row.get('name')} - {posting_date} - £{amount:.2f} ({row.get('status')})",
-            "outstanding_amount": _to_float(row.get("outstanding_amount")),
-            "status": row.get("status") or "",
-        })
 
-    return options
+@frappe.whitelist()
+def send_client_email(client_name=None, recipient=None, subject=None, message=None):
+    """Sends the "Send Email" compose modal's contents - no PDF, no invoice involved."""
+    _require_logged_in_user()
+
+    client_name = (client_name or "").strip()
+    recipient = (recipient or "").strip()
+
+    if not client_name:
+        frappe.throw(_("Client is required."))
+
+    if not _current_user_can_access_client(client_name):
+        frappe.throw(_("You do not have permission to email this client."), frappe.PermissionError)
+
+    if not recipient:
+        frappe.throw(_("Recipient email is required."))
+
+    subject = (subject or "Message").strip()
+    message = plain_text_to_email_html((message or "").strip())
+
+    frappe.sendmail(
+        recipients=[recipient],
+        subject=subject,
+        message=message,
+        now=True,
+    )
+
+    return {"ok": 1}
 
 
 @frappe.whitelist()
 def get_client_email_options(client_name=None):
     """
-    The two email addresses "Send Invoice" can offer: the client's own
+    The two email addresses "Send Email" can offer: the client's own
     email (if they have one on file) and their billing contact's email -
     Ashley's own wording for these is "client email" vs "contact email".
     """
