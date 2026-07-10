@@ -143,6 +143,18 @@
     });
   }
 
+  function formatDateOnly(value) {
+    if (!value) return "—";
+
+    const parsed = new Date(String(value).slice(0, 10) + "T00:00:00");
+
+    if (Number.isNaN(parsed.getTime())) {
+      return String(value);
+    }
+
+    return parsed.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  }
+
   function badge(value, type) {
     const clean = value || "Open";
     let cls = "dashboard-status-onhold";
@@ -257,7 +269,7 @@
     renderStatusPill(data.read_status === "Unread" ? "Unread" : (data.status || "Open"));
     setText("notificationCreatedByText", data.created_by_label || data.sent_from || "—");
     setText("notificationCreatedDateText", formatDateTime(data.notification_date));
-    setText("notificationDueDateText", data.due_date || "—");
+    setText("notificationDueDateText", formatDateOnly(data.due_date));
     setText("notificationRequiresResponseText", Number(data.requires_response || 0) ? "Yes" : "No");
 
     setHtml(

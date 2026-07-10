@@ -374,7 +374,7 @@
                         {% if session_notes %}
                           {% for note in session_notes %}
                             <tr>
-                              <td>{{ frappe.format(note.session_date, {"fieldtype": "Date"}) if note.session_date else "—" }}</td>
+                              <td>{{ frappe.utils.formatdate(note.session_date, "dd-MM-yyyy") if note.session_date else "—" }}</td>
                               <td class="dashboard-note-user-cell">{{ note.user_full_name or note.user or "—" }}</td>
                               <td>{{ note.notes or "—" }}</td>
                               <td>
@@ -429,7 +429,7 @@
                           {% for balance in package_balances %}
                             {% set pack_exhausted = ((balance.qty_available or 0)|int <= 0 and (balance.appointments_to_add or 0)|int <= 0) %}
                             <tr class="{% if pack_exhausted %}dashboard-pack-exhausted{% endif %}" data-pack-exhausted="{% if pack_exhausted %}1{% else %}0{% endif %}">
-                              <td>{{ frappe.format(balance.display_date, {"fieldtype": "Date"}) if balance.display_date else "—" }}</td>
+                              <td>{{ frappe.utils.formatdate(balance.display_date, "dd-MM-yyyy") if balance.display_date else "—" }}</td>
                               <td>{{ balance.name }}</td>
                               <td>{{ balance.service_item or "—" }}</td>
                               <td>{{ (balance.qty_purchased or 0)|int }}</td>
@@ -475,7 +475,7 @@
                                 data-appointment-status="{{ (appointment.display_status or appointment.status or '')|lower }}">
                               <td>
                                 <div class="dashboard-table-date">
-                                  {{ frappe.format(appointment.appointment_start, {"fieldtype": "Date"}) if appointment.appointment_start else "—" }}
+                                  {{ frappe.utils.formatdate(appointment.appointment_start, "dd-MM-yyyy") if appointment.appointment_start else "—" }}
                                 </div>
                                 <div class="dashboard-table-time">
                                   {{ frappe.format(appointment.appointment_start, {"fieldtype": "Time"}) if appointment.appointment_start else "" }}
@@ -587,8 +587,8 @@
                                   {{ invoice.name }}
                                 </a>
                               </td>
-                              <td>{{ frappe.format(invoice.posting_date, {"fieldtype": "Date"}) if invoice.posting_date else "—" }}</td>
-                              <td>{{ frappe.format(invoice.due_date, {"fieldtype": "Date"}) if invoice.due_date else "—" }}</td>
+                              <td>{{ frappe.utils.formatdate(invoice.posting_date, "dd-MM-yyyy") if invoice.posting_date else "—" }}</td>
+                              <td>{{ frappe.utils.formatdate(invoice.due_date, "dd-MM-yyyy") if invoice.due_date else "—" }}</td>
                               <td>{{ invoice.status or "—" }}</td>
                               <td>{{ frappe.format_value(invoice.grand_total or 0, {"fieldtype": "Currency"}) }}</td>
                               <td>{{ frappe.format_value(invoice.outstanding_amount or 0, {"fieldtype": "Currency"}) }}</td>
@@ -644,7 +644,7 @@
                                   <span class="dashboard-badge dashboard-status-active">Intake Form</span>
                                 {% endif %}
                               </td>
-                              <td>{{ frappe.format(f.creation, {"fieldtype": "Datetime"}) if f.creation else "—" }}</td>
+                              <td>{{ frappe.utils.format_datetime(f.creation, "dd-MM-yyyy HH:mm") if f.creation else "—" }}</td>
                               <td class="dashboard-action-cell">
                                 <a class="dashboard-link-btn" href="{{ f.file_url }}" target="_blank" rel="noopener noreferrer">View</a>
                               </td>

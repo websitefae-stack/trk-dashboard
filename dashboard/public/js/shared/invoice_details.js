@@ -12,6 +12,15 @@
   var el = Dashboard.el;
   var qsa = Dashboard.qsa;
 
+  function formatDisplayDate(value) {
+    if (!value) return "";
+
+    const date = new Date(String(value).slice(0, 10) + "T00:00:00");
+    if (isNaN(date.getTime())) return String(value);
+
+    return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  }
+
   function getDashboardBasePath() {
     const path = window.location.pathname || "";
     if (path.startsWith("/franchisor_db")) return "/franchisor_db";
@@ -837,7 +846,7 @@
     const customerName = selectedCustomerText() || el("invoice_customer")?.value || "Billing Contact";
     const invoiceNumber = el("invoice_name")?.value || "";
     const amountDue = el("invoice_outstanding_amount")?.value || "0.00";
-    const dueDate = el("invoice_due_date")?.value || "";
+    const dueDate = formatDisplayDate(el("invoice_due_date")?.value || "");
     const bankDetails = (el("invoice_bank_display")?.value || "Bank details available on request.").trim();
     const coachName = el("invoice_coach_label")?.value || "Coach";
     const companyLabel = el("invoice_company")?.value || "The Resilient Kid";

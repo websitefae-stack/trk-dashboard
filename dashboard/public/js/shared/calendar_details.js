@@ -53,6 +53,17 @@
       .replace(/'/g, "&#39;");
   }
 
+  function formatDisplayDate(value) {
+    if (!value) return "—";
+
+    const datePart = String(value).slice(0, 10);
+    const date = new Date(`${datePart}T00:00:00`);
+
+    if (isNaN(date.getTime())) return escapeHtml(String(value));
+
+    return escapeHtml(date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }));
+  }
+
   async function apiGet(method, params) {
     const url = new URL("/api/method/" + method, window.location.origin);
 
@@ -325,7 +336,7 @@
           : "—";
 
         return '<tr>'
-          + '<td>' + escapeHtml(note.session_date || "—") + '</td>'
+          + '<td>' + formatDisplayDate(note.session_date) + '</td>'
           + '<td>' + escapeHtml(noteUser) + '</td>'
           + '<td>' + escapeHtml(note.notes || "—") + '</td>'
           + '<td>' + attachment + '</td>'

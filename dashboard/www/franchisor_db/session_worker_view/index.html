@@ -121,7 +121,7 @@
                 {% for appointment in dashboard_summary.upcoming_appointments %}
                   <tr>
                     <td>
-                      {{ frappe.format(appointment.starts_on, {"fieldtype": "Datetime"}) if appointment.starts_on else "—" }}
+                      {{ frappe.utils.format_datetime(appointment.starts_on, "dd-MM-yyyy HH:mm") if appointment.starts_on else "—" }}
                     </td>
                     <td>{{ appointment.client_display or appointment.client or "—" }}</td>
                     <td>{{ appointment.session_type or appointment.appointment_type or "—" }}</td>

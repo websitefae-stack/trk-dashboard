@@ -350,8 +350,8 @@
                     {% for row in section.rows %}
                       <tr>
                         <td>{{ row.status or "—" }}</td>
-                        <td>{{ row.date_received or "—" }}</td>
-                        <td>{{ row.expiry_date or "—" }}</td>
+                        <td>{{ frappe.utils.formatdate(row.date_received, "dd-MM-yyyy") if row.date_received else "—" }}</td>
+                        <td>{{ frappe.utils.formatdate(row.expiry_date, "dd-MM-yyyy") if row.expiry_date else "—" }}</td>
                         <td>{{ row.get(section.number_field) or "—" }}</td>
                         {% if section.has_insurer %}
                           <td>{{ row.insurer_name or "—" }}</td>

@@ -741,9 +741,12 @@
     if (!value) return "—";
 
     const text = String(value);
-    if (text.length >= 10) return escapeHtml(text.slice(0, 10));
+    const datePart = text.length >= 10 ? text.slice(0, 10) : text;
+    const date = new Date(`${datePart}T00:00:00`);
 
-    return escapeHtml(text);
+    if (isNaN(date.getTime())) return escapeHtml(text);
+
+    return escapeHtml(date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }));
   }
 
   function formatTime(value) {

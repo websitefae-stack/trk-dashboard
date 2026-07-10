@@ -319,7 +319,7 @@
                     {% if package_balances %}
                       {% for balance in package_balances %}
                         <tr>
-                          <td>{{ frappe.format(balance.display_date, {"fieldtype": "Date"}) if balance.display_date else "—" }}</td>
+                          <td>{{ frappe.utils.formatdate(balance.display_date, "dd-MM-yyyy") if balance.display_date else "—" }}</td>
                           <td>{{ balance.name }}</td>
                           <td>{{ balance.service_item or "—" }}</td>
                           <td>{{ (balance.qty_purchased or 0)|int }}</td>
@@ -365,7 +365,7 @@
                             data-appointment-status="{{ (appointment.display_status or appointment.status or '')|lower }}">
                           <td>
                             <div class="dashboard-table-date">
-                              {{ frappe.format(appointment.appointment_start, {"fieldtype": "Date"}) if appointment.appointment_start else "—" }}
+                              {{ frappe.utils.formatdate(appointment.appointment_start, "dd-MM-yyyy") if appointment.appointment_start else "—" }}
                             </div>
                             <div class="dashboard-table-time">
                               {{ frappe.format(appointment.appointment_start, {"fieldtype": "Time"}) if appointment.appointment_start else "" }}

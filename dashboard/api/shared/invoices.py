@@ -641,9 +641,12 @@ def _normalise_invoice_row(row, client_map, dashboard_type):
 
     base_url = "/franchisor_db/invoice_details" if dashboard_type == FRANCHISOR_DASHBOARD else "/coach_db/invoice_details"
 
+    posting_date = row.get("posting_date")
+
     return {
         "name": row.get("name"),
-        "posting_date": str(row.get("posting_date") or ""),
+        "posting_date": str(posting_date or ""),
+        "posting_date_display": frappe.utils.formatdate(posting_date, "dd-MM-yyyy") if posting_date else "—",
         "due_date": str(row.get("due_date") or ""),
         "custom_client": client_name or "",
         "client_name": (
@@ -1682,7 +1685,7 @@ def get_invoice_email_defaults(docname=None, template_name=None):
         "customer_name": serialized.get("customer_label") or "Billing Contact",
         "invoice_number": doc.name,
         "amount_due": f"{_to_float(doc.outstanding_amount):.2f}",
-        "due_date": str(doc.due_date or ""),
+        "due_date": frappe.utils.formatdate(doc.due_date, "dd-MM-yyyy") if doc.due_date else "",
         "bank_details": serialized.get("bank_display_text") or "Bank details available on request.",
         "coach_name": serialized.get("coach_label") or "Coach",
         "company_label": serialized.get("company") or "The Resilient Kid",
