@@ -192,12 +192,33 @@
     activateTab(activeButton ? activeButton.dataset.tabTarget : buttons[0].dataset.tabTarget);
   }
 
+  function syncClientDateDisplay(field, showAsText) {
+    if (field.type !== "date") return;
+
+    const display = el(`${field.id}_display`);
+    if (!display) return;
+
+    if (showAsText) {
+      // <input type="date"> renders its own text using the visitor's
+      // browser/OS locale, not anything this code controls - this label
+      // guarantees day/month/year regardless of what the native picker
+      // would otherwise show (e.g. Date of Birth).
+      display.textContent = formatDate(field.value);
+      display.style.display = "";
+      field.style.display = "none";
+    } else {
+      display.style.display = "none";
+      field.style.display = "";
+    }
+  }
+
   function setFieldState(field, isEditing) {
     const readOnly = field.dataset.metaReadonly === "1";
 
     if (!roleConfig.canEdit || readOnly) {
       field.disabled = true;
       field.readOnly = true;
+      syncClientDateDisplay(field, true);
       return;
     }
 
@@ -206,6 +227,8 @@
     } else {
       field.readOnly = !isEditing;
     }
+
+    syncClientDateDisplay(field, !isEditing);
   }
 
   function applyClientDetailVisibility(isEditing) {
@@ -218,6 +241,30 @@
     if (lastNameWrap) lastNameWrap.style.display = isEditing ? "" : "none";
   }
 
+  function syncDiagnosisDateDisplay(field, showAsText) {
+    if (field.type !== "date") return;
+
+    // Diagnosis rows repeat, so there's no unique id to pair a display
+    // label with by id - the label is created on demand as the date
+    // field's next sibling instead. Same reasoning as syncClientDateDisplay:
+    // <input type="date"> renders per the visitor's own browser/OS locale.
+    let display = field.nextElementSibling;
+    if (!display || !display.classList.contains("dashboard-diagnosis-date-display")) {
+      display = document.createElement("div");
+      display.className = "dashboard-field-value dashboard-diagnosis-date-display";
+      field.insertAdjacentElement("afterend", display);
+    }
+
+    if (showAsText) {
+      display.textContent = formatDate(field.value);
+      display.style.display = "";
+      field.style.display = "none";
+    } else {
+      display.style.display = "none";
+      field.style.display = "";
+    }
+  }
+
   function applyEditMode(isEditing, isSaving) {
     qsa("[data-client-field='1']").forEach(function (field) {
       setFieldState(field, isEditing);
@@ -227,6 +274,7 @@
       if (!roleConfig.canEdit) {
         field.disabled = true;
         field.readOnly = true;
+        syncDiagnosisDateDisplay(field, true);
         return;
       }
 
@@ -235,6 +283,8 @@
       } else {
         field.readOnly = !isEditing;
       }
+
+      syncDiagnosisDateDisplay(field, !isEditing);
     });
 
     applyClientDetailVisibility(isEditing || isNewClientPage());

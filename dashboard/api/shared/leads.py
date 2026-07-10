@@ -1022,6 +1022,8 @@ def _intake_pdf_rows(doc):
 
         if df.fieldtype == "Check":
             value = "Yes" if value else None
+        elif df.fieldtype == "Date" and value:
+            value = frappe.utils.formatdate(value, "dd-MM-yyyy")
         elif not value:
             value = None
 
@@ -1031,7 +1033,11 @@ def _intake_pdf_rows(doc):
         rows.append((df.label or df.fieldname, value))
         seen.add(df.fieldname)
 
-    rows.append(("Intake Completed On", doc.intake_completed_on))
+    completed_on = doc.intake_completed_on
+    rows.append((
+        "Intake Completed On",
+        frappe.utils.format_datetime(completed_on, "dd-MM-yyyy HH:mm") if completed_on else completed_on,
+    ))
     return rows
 
 

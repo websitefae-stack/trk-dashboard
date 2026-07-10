@@ -128,7 +128,7 @@
 
                 <div class="dashboard-detail-field">
                   <label for="client_date_of_birth">Date of Birth</label>
-                  <input type="text" class="dashboard-input" id="client_date_of_birth" value="{{ client.date_of_birth or '' }}" readonly>
+                  <input type="text" class="dashboard-input" id="client_date_of_birth" value="{{ frappe.utils.formatdate(client.date_of_birth, 'dd-MM-yyyy') if client.date_of_birth else '' }}" readonly>
                 </div>
 
                 <div class="dashboard-detail-field">
