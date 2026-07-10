@@ -17,6 +17,68 @@ from dashboard.api.shared.email_templates import render_email, plain_text_to_ema
 
 INTAKE_ROUTE = "client-intake/new"
 
+# The detailed intake questions, beyond the always-present "headline" fields
+# (contact_name/contact_email/contact_mobile/client_name/client_age/
+# postal_code/enquiry_reason/how_heard/consent_given) that drive the Lead
+# list/Kanban display everywhere else in the app. These are only used for
+# the richer Client record built on conversion - which section applies
+# depends on client_type. Read via coalesce_str/coalesce_raw straight out of
+# the request payload rather than as ~70 named function parameters.
+INTAKE_TEXT_FIELDS = [
+    "client_type",
+    "young_person_first_name", "young_person_last_name", "young_person_preferred_name",
+    "young_person_mobile", "young_person_email", "young_person_pronouns", "young_person_sex",
+    "young_person_gender_identity", "young_person_address_line_1", "young_person_address_line_2",
+    "young_person_city", "young_person_postalcode",
+    "primary_caregiver_full_name", "primary_caregiver_mobile", "primary_caregiver_email",
+    "primary_relationship_to_client", "siblings",
+    "secondary_caregiver_full_name", "secondary_caregiver_mobile", "secondary_caregiver_email",
+    "secondary_relationship", "account_responsible_person",
+    "adult_first_name", "adult_last_name", "adult_preferred_name", "adult_address_1", "adult_address_2",
+    "adult_city", "adult_postalcode", "adult_mobile", "adult_email", "adult_pronouns", "adult_sex",
+    "adult_gender_identity", "adult_account_responsible_person",
+    "next_of_kin_name", "next_of_kin_email", "next_of_kin_mobile",
+    "school_name", "school_contact_name", "school_contact_role", "school_contact_email", "school_mobile",
+    "school_address_line_1", "school_address_line_2", "school_city", "school_postalcode", "school_support_required",
+    "company_name", "company_contact_name", "company_contact_role", "company_contact_email", "company_mobile",
+    "company_address_line_1", "company_address_line_2", "company_city", "company_postalcode", "company_support_required",
+    "billing_contact_full_name", "billing_contact_email", "billing_contact_mobile",
+    "billing_contact_address_line_1", "billing_contact_address_line_2", "billing_contact_city", "billing_contact_postal_code",
+    "support_required", "allergies", "neurodiverse_status", "neurodiverse_information", "doctor_details",
+    "main_therapy_location", "new_therapy_location_details",
+    "education_establishment", "year_group_teacher", "sendco_involved", "education_contact",
+    "signature_name",
+]
+
+INTAKE_DATE_FIELDS = ["young_person_date_of_birth", "adult_date_of_birth", "date_signed"]
+
+INTAKE_CHECK_FIELDS = [
+    "billing_contact_next_kin", "school_billing_same_as_contact", "company_billing_same_as_contact",
+    "therapy_location_not_listed", "agreement_confirmed",
+]
+
+INTAKE_DETAIL_FIELDS = INTAKE_TEXT_FIELDS + INTAKE_DATE_FIELDS + INTAKE_CHECK_FIELDS
+
+CLIENT_FIELD_LABELS = {
+    "name1": "First Name",
+    "last_name": "Last Name",
+    "preferred_name": "Preferred Name",
+    "mobile": "Mobile",
+    "email": "Email",
+    "pronouns": "Pronouns",
+    "sex": "Sex",
+    "gender_identity": "Gender Identity",
+    "address": "Address",
+    "city": "City",
+    "zip_code": "Postal Code",
+    "allergies": "Allergies",
+    "neurodiverse_status": "Neurodiverse Status",
+    "neurodiverse_information": "Neurodiverse Information",
+    "main_therapy_location": "Main Therapy Location",
+    "date_of_birth": "Date of Birth",
+    "dob": "Date of Birth",
+}
+
 
 LEAD_DOCTYPE = "Client Lead"
 
@@ -530,6 +592,24 @@ def send_intake_form(name=None, subject=None, message=None, cc=None, sender=None
 
 
 @frappe.whitelist(allow_guest=True)
+def get_intake_form_options():
+    """Guest-safe lookups the public intake form needs, e.g. Therapy Location choices."""
+    therapy_locations = []
+
+    if frappe.db.exists("DocType", "Therapy Location"):
+        rows = frappe.get_all(
+            "Therapy Location",
+            fields=["name"],
+            order_by="name asc",
+            limit_page_length=200,
+            ignore_permissions=True,
+        )
+        therapy_locations = [{"value": row["name"], "label": row["name"]} for row in rows]
+
+    return {"therapy_locations": therapy_locations}
+
+
+@frappe.whitelist(allow_guest=True)
 def get_intake_lead(lead=None):
     """
     Public lookup for the intake form page - the Lead's own hash name is the
@@ -546,7 +626,7 @@ def get_intake_lead(lead=None):
     if doc.status in ("Converted",):
         return {"already_done": True, "status": doc.status}
 
-    return {
+    result = {
         "already_done": False,
         "status": doc.status,
         "contact_name": doc.contact_name or "",
@@ -559,6 +639,14 @@ def get_intake_lead(lead=None):
         "how_heard": doc.how_heard or "",
         "consent_given": int(doc.consent_given or 0),
     }
+
+    for fieldname in INTAKE_TEXT_FIELDS + INTAKE_DATE_FIELDS:
+        result[fieldname] = doc.get(fieldname) or ""
+
+    for fieldname in INTAKE_CHECK_FIELDS:
+        result[fieldname] = int(doc.get(fieldname) or 0)
+
+    return result
 
 
 @frappe.whitelist(allow_guest=True)
@@ -573,7 +661,12 @@ def submit_intake(
     enquiry_reason=None,
     how_heard=None,
     consent_given=None,
+    **kwargs,
 ):
+    # kwargs absorbs the ~70 detailed intake fields (young person/caregiver/
+    # adult/school/company/billing/support/education/signature) - read back
+    # out of the request below via INTAKE_DETAIL_FIELDS rather than declared
+    # one by one here.
     lead = coalesce_str("lead", lead)
 
     if not lead or not frappe.db.exists(LEAD_DOCTYPE, lead):
@@ -611,6 +704,20 @@ def submit_intake(
 
     consent_given = coalesce_raw("consent_given", consent_given)
     doc.consent_given = 1 if str(consent_given).lower() in ["1", "true", "yes", "on"] else 0
+
+    for fieldname in INTAKE_TEXT_FIELDS:
+        value = coalesce_str(fieldname)
+        if value:
+            doc.set(fieldname, value)
+
+    for fieldname in INTAKE_DATE_FIELDS:
+        value = coalesce_str(fieldname)
+        if value:
+            doc.set(fieldname, value)
+
+    for fieldname in INTAKE_CHECK_FIELDS:
+        value = coalesce_raw(fieldname)
+        doc.set(fieldname, 1 if str(value).lower() in ["1", "true", "yes", "on"] else 0)
 
     # Status stays "Intake Sent" - the simplified pipeline (New / Intake
     # Sent / Converted / Declined) has no separate "completed" status, so
@@ -686,10 +793,14 @@ def _split_name(full_name):
 
 def _format_intake_notes(doc):
     """
-    A few things the intake form collects have no matching field on Client
-    (why they're getting in touch, how they heard about us, consent) - this
-    puts them somewhere visible on the new Client record instead of only
-    living in the attached PDF.
+    A few things the intake form collects have no single matching field on
+    Client - either because Client has nothing for them at all (why they're
+    getting in touch, how they heard about us, consent), or because the
+    obvious target is a child table (Session Notes) whose real field names
+    aren't known here (Client lives in a different app). Consolidating
+    everything into Additional Comments is a deliberate simplification -
+    safer than guessing at an unfamiliar child table's schema and risking a
+    failed conversion.
     """
     lines = []
     if doc.enquiry_reason:
@@ -698,11 +809,179 @@ def _format_intake_notes(doc):
         lines.append(f"How they heard about us: {doc.how_heard}")
     if doc.consent_given:
         lines.append("Consent to be contacted: Yes")
+    if doc.support_required:
+        lines.append(f"What support they'd like: {doc.support_required}")
+    if doc.siblings:
+        lines.append(f"Siblings: {doc.siblings}")
+    if doc.school_support_required:
+        lines.append(f"Support the school is interested in: {doc.school_support_required}")
+    if doc.company_support_required:
+        lines.append(f"Support the company is interested in: {doc.company_support_required}")
+    if doc.doctor_details:
+        lines.append(f"GP / Doctor details: {doc.doctor_details}")
+    if doc.therapy_location_not_listed and doc.new_therapy_location_details:
+        lines.append(f"Therapy location (not in the list): {doc.new_therapy_location_details}")
+    if doc.education_establishment:
+        lines.append(f"Education establishment: {doc.education_establishment}")
+    if doc.year_group_teacher:
+        lines.append(f"Class / year group / teacher: {doc.year_group_teacher}")
+    if doc.sendco_involved:
+        lines.append(f"SENDCO department involved: {doc.sendco_involved}")
+    if doc.education_contact:
+        lines.append(f"Other education contact: {doc.education_contact}")
 
     if not lines:
         return ""
 
     return "<p><strong>From intake form:</strong></p><p>" + "</p><p>".join(lines) + "</p>"
+
+
+def _client_field_values(doc):
+    """
+    Maps the detailed intake answers onto real Client field names, per
+    doc.client_type (which section of the intake form was filled in). An
+    empty dict means there's no detailed intake data (older/simpler leads,
+    or a lead created without going through the public form) - conversion
+    falls back to the always-present headline fields in that case.
+    """
+    client_type = doc.client_type or ""
+    values = {}
+
+    if client_type in ("Kid", "Teen", "Uni Student"):
+        values.update({
+            "name1": doc.young_person_first_name,
+            "last_name": doc.young_person_last_name,
+            "preferred_name": doc.young_person_preferred_name,
+            "mobile": doc.young_person_mobile,
+            "email": doc.young_person_email,
+            "date_of_birth": doc.young_person_date_of_birth,
+            "pronouns": doc.young_person_pronouns,
+            "sex": doc.young_person_sex,
+            "gender_identity": doc.young_person_gender_identity,
+            "address": doc.young_person_address_line_1,
+            "city": doc.young_person_city,
+            "zip_code": doc.young_person_postalcode,
+        })
+    elif client_type == "Adult":
+        values.update({
+            "name1": doc.adult_first_name,
+            "last_name": doc.adult_last_name,
+            "preferred_name": doc.adult_preferred_name,
+            "address": doc.adult_address_1,
+            "city": doc.adult_city,
+            "zip_code": doc.adult_postalcode,
+            "mobile": doc.adult_mobile,
+            "email": doc.adult_email,
+            "pronouns": doc.adult_pronouns,
+            "sex": doc.adult_sex,
+            "gender_identity": doc.adult_gender_identity,
+            "date_of_birth": doc.adult_date_of_birth,
+        })
+    elif client_type == "School":
+        values.update({
+            "name1": doc.school_name,
+            "email": doc.school_contact_email,
+            "mobile": doc.school_mobile,
+            "address": doc.school_address_line_1,
+            "city": doc.school_city,
+            "zip_code": doc.school_postalcode,
+        })
+    elif client_type == "Company":
+        values.update({
+            "name1": doc.company_name,
+            "email": doc.company_contact_email,
+            "mobile": doc.company_mobile,
+            "address": doc.company_address_line_1,
+            "city": doc.company_city,
+            "zip_code": doc.company_postalcode,
+        })
+
+    if client_type in ("Kid", "Teen", "Uni Student", "Adult"):
+        values.update({
+            "allergies": doc.allergies,
+            "neurodiverse_status": doc.neurodiverse_status,
+            "neurodiverse_information": doc.neurodiverse_information,
+            "main_therapy_location": doc.main_therapy_location,
+        })
+
+    return {k: v for k, v in values.items() if v}
+
+
+def _create_supplementary_contact(full_name, email, mobile, primary_contact_name):
+    """
+    Creates an extra Contact for a named person the intake form collected
+    (caregiver/next of kin/school or company contact/billing contact) -
+    skipped if blank, or if it's clearly the same person as the lead's own
+    top-level contact (avoids an obvious duplicate Contact record).
+    """
+    full_name = (full_name or "").strip()
+    if not full_name:
+        return None
+
+    if full_name.lower() == (primary_contact_name or "").strip().lower():
+        return None
+
+    first, last = _split_name(full_name)
+    contact = frappe.new_doc("Contact")
+    contact.first_name = first
+    if last:
+        contact.last_name = last
+    if email:
+        contact.append("email_ids", {"email_id": email, "is_primary": 1})
+    if mobile:
+        contact.append("phone_nos", {"phone": mobile, "is_primary_mobile_no": 1})
+    contact.insert(ignore_permissions=True)
+    return contact.name
+
+
+def _extra_contacts_for_lead(doc):
+    """
+    (label, full_name, email, mobile) tuples for every additional named
+    person the intake form may have collected, beyond the lead's own
+    top-level contact - which of these actually turn into new Contact
+    records depends on whether a name was given (see
+    _create_supplementary_contact).
+    """
+    client_type = doc.client_type or ""
+    extras = []
+
+    if client_type in ("Kid", "Teen", "Uni Student"):
+        extras.append(("Primary Caregiver", doc.primary_caregiver_full_name, doc.primary_caregiver_email, doc.primary_caregiver_mobile))
+        extras.append(("Secondary Caregiver", doc.secondary_caregiver_full_name, doc.secondary_caregiver_email, doc.secondary_caregiver_mobile))
+    elif client_type == "Adult":
+        extras.append(("Next of Kin", doc.next_of_kin_name, doc.next_of_kin_email, doc.next_of_kin_mobile))
+    elif client_type == "School":
+        extras.append(("School Contact", doc.school_contact_name, doc.school_contact_email, doc.school_mobile))
+    elif client_type == "Company":
+        extras.append(("Company Contact", doc.company_contact_name, doc.company_contact_email, doc.company_mobile))
+
+    # A dedicated billing contact is only filled in when billing isn't the
+    # same as one of the contacts above - Client.billing_contact itself
+    # links to a Customer, not a Contact, and this app doesn't create
+    # Customer records as part of conversion (that's a separate, existing
+    # manual step when Ashley first invoices), so this just makes sure the
+    # person's details aren't lost even though nothing wires them up as the
+    # billing party automatically yet.
+    extras.append(("Billing Contact", doc.billing_contact_full_name, doc.billing_contact_email, doc.billing_contact_mobile))
+
+    return extras
+
+
+def _proposed_client_field_values(doc):
+    """
+    Everything the intake form has to offer for the Client record, headline
+    fields plus whichever detailed section applies - used both when
+    creating a brand new Client (convert_lead_to_client) and when comparing
+    against an existing one (get_lead_client_diff/link_lead_to_existing_client).
+    """
+    field_values = {
+        "email": doc.contact_email,
+        "mobile": doc.contact_mobile,
+        "zip_code": doc.postal_code,
+        "address": doc.location_address,
+    }
+    field_values.update(_client_field_values(doc))
+    return {k: v for k, v in field_values.items() if v}
 
 
 def _attach_intake_pdf_to_client(doc, client_name):
@@ -766,39 +1045,55 @@ def convert_lead_to_client(name=None):
     client_meta = frappe.get_meta("Client")
     client_first, client_last = _split_name(doc.client_name)
 
+    # The detailed intake answers (young person/adult/school/company,
+    # per doc.client_type) take priority over the headline contact_email/
+    # contact_mobile/postal_code/location_address fields where both exist -
+    # they're the more specific, correct source (e.g. the young person's own
+    # email, not the parent's). The headline fields are the only thing
+    # available for older/simpler leads with no detailed intake data.
+    field_values = _proposed_client_field_values(doc)
+
     client = frappe.new_doc("Client")
     if client_meta.has_field("full_name"):
         client.full_name = doc.client_name
     if client_meta.has_field("name1"):
-        client.name1 = client_first
+        client.name1 = field_values.get("name1") or client_first
     if client_meta.has_field("last_name"):
-        client.last_name = client_last
+        client.last_name = field_values.get("last_name") or client_last
     if client_meta.has_field("primary_coach") and doc.coach:
         client.primary_coach = doc.coach
     if client_meta.has_field("attending_coach") and doc.coach:
         client.attending_coach = doc.coach
-    if client_meta.has_field("email") and doc.contact_email:
-        client.email = doc.contact_email
-    if client_meta.has_field("mobile") and doc.contact_mobile:
-        client.mobile = doc.contact_mobile
-    if client_meta.has_field("zip_code") and doc.postal_code:
-        client.zip_code = doc.postal_code
-    if client_meta.has_field("address") and doc.location_address:
-        client.address = doc.location_address
     if client_meta.has_field("date_added"):
         client.date_added = frappe.utils.today()
     if client_meta.has_field("additional_comments"):
         intake_notes = _format_intake_notes(doc)
         if intake_notes:
             client.additional_comments = intake_notes
-    if doc.client_age:
-        # Client works out age from a date of birth via its own script rather
-        # than storing age directly, so the Lead's approximate age (that's
-        # all a phone enquiry ever gives us) is converted to an estimated
-        # DOB here. It's a best guess (today's month/day, doc.client_age
-        # years ago) - close enough for the age script to show the right
-        # age immediately, but the coach should correct it to the real date
-        # of birth once they have it.
+
+    for fieldname in [
+        "preferred_name", "mobile", "email", "pronouns", "sex", "gender_identity",
+        "address", "city", "zip_code", "allergies", "neurodiverse_status",
+        "neurodiverse_information", "main_therapy_location",
+    ]:
+        value = field_values.get(fieldname)
+        if value and client_meta.has_field(fieldname):
+            client.set(fieldname, value)
+
+    dob_value = field_values.get("date_of_birth")
+    if dob_value:
+        for dob_field in ["date_of_birth", "dob"]:
+            if client_meta.has_field(dob_field):
+                client.set(dob_field, dob_value)
+                break
+    elif doc.client_age:
+        # No exact date of birth on file (older/simpler leads only ever
+        # captured an age) - Client works out age from a date of birth via
+        # its own script rather than storing age directly, so this is
+        # converted to an estimated DOB (today's month/day, doc.client_age
+        # years ago). Close enough for the age script to show the right age
+        # immediately, but the coach should correct it once they have the
+        # real date of birth.
         for dob_field in ["date_of_birth", "dob"]:
             if client_meta.has_field(dob_field):
                 try:
@@ -829,6 +1124,17 @@ def convert_lead_to_client(name=None):
             "phone": doc.contact_mobile or "",
             "email_id": doc.contact_email or "",
         })
+
+        for _label, full_name, email, mobile in _extra_contacts_for_lead(doc):
+            extra_contact_name = _create_supplementary_contact(full_name, email, mobile, doc.contact_name)
+            if extra_contact_name:
+                client.append("client_contacts", {
+                    "contact": extra_contact_name,
+                    "contact_name": full_name,
+                    "phone": mobile or "",
+                    "email_id": email or "",
+                })
+
         client.save(ignore_permissions=True)
 
     doc.converted_client = client.name
@@ -873,12 +1179,60 @@ def get_client_contact_options(client=None):
 
 
 @frappe.whitelist()
-def link_lead_to_existing_client(name=None, client=None, contact=None):
+def get_lead_client_diff(name=None, client=None):
+    """
+    For the "link this lead to an existing client" flow: compares what the
+    intake form collected against the client's current field values, so a
+    coach can see exactly what's proposed to change and choose, field by
+    field, whether to keep what's already on the client or take the new
+    answer instead - e.g. keep an existing Allergies note but take the
+    newly-given doctor details. Only returns fields that actually differ;
+    nothing to decide means nothing is shown.
+    """
+    from dashboard.api.shared.permissions import ensure_client_access
+
+    doc = ensure_lead_access(coalesce_str("name", name))
+    client = coalesce_str("client", client)
+
+    if not client:
+        frappe.throw(_("Please select the client to compare against."))
+
+    client_doc = ensure_client_access(client)
+    client_meta = frappe.get_meta("Client")
+
+    field_values = _proposed_client_field_values(doc)
+
+    rows = []
+    for fieldname, new_value in field_values.items():
+        if not client_meta.has_field(fieldname):
+            continue
+
+        current_value = client_doc.get(fieldname)
+
+        if str(current_value or "").strip().lower() == str(new_value).strip().lower():
+            continue
+
+        rows.append({
+            "fieldname": fieldname,
+            "label": CLIENT_FIELD_LABELS.get(fieldname, fieldname.replace("_", " ").title()),
+            "current_value": current_value or "",
+            "new_value": new_value,
+        })
+
+    return {"rows": rows}
+
+
+@frappe.whitelist()
+def link_lead_to_existing_client(name=None, client=None, contact=None, field_choices=None):
     """
     For when the coach already created the Client/Contact themselves (e.g.
     before this Lead existed, or outside this flow) - links the Lead to
     those existing records instead of creating duplicates, and marks it
-    Converted the same as a normal conversion would.
+    Converted the same as a normal conversion would. field_choices (from
+    the compare screen backed by get_lead_client_diff) is a
+    fieldname -> "keep"/"use_new" map - only fields explicitly marked
+    "use_new" are written onto the existing Client; anything else, or no
+    field_choices at all, leaves the client untouched.
     """
     from dashboard.api.shared.permissions import ensure_client_access
 
@@ -889,10 +1243,34 @@ def link_lead_to_existing_client(name=None, client=None, contact=None):
     if not client:
         frappe.throw(_("Please select the client to link this lead to."))
 
-    ensure_client_access(client)
+    client_doc = ensure_client_access(client)
 
     if contact and not frappe.db.exists("Contact", contact):
         frappe.throw(_("Selected contact was not found."))
+
+    field_choices = coalesce_raw("field_choices", field_choices)
+    if isinstance(field_choices, str):
+        try:
+            field_choices = frappe.parse_json(field_choices)
+        except Exception:
+            field_choices = {}
+
+    if field_choices:
+        client_meta = frappe.get_meta("Client")
+        field_values = _proposed_client_field_values(doc)
+
+        changed = False
+        for fieldname, choice in field_choices.items():
+            if choice != "use_new":
+                continue
+
+            value = field_values.get(fieldname)
+            if value and client_meta.has_field(fieldname):
+                client_doc.set(fieldname, value)
+                changed = True
+
+        if changed:
+            client_doc.save(ignore_permissions=True)
 
     _attach_intake_pdf_to_client(doc, client)
 

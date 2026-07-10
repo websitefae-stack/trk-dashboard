@@ -1,10 +1,10 @@
 {% include "dashboard/templates/includes/head/shared_head.html" %}
 
-<script src="/assets/dashboard/js/shared/intake.js?v=1"></script>
+<script src="/assets/dashboard/js/shared/intake.js?v=2"></script>
 
 <style>
   .trk-intake-wrap {
-    max-width: 560px;
+    max-width: 640px;
     margin: 40px auto;
     padding: 0 16px;
   }
@@ -14,6 +14,26 @@
     color: #434B49;
     font-weight: 700;
     font-size: 20px;
+  }
+  .trk-intake-section {
+    margin-bottom: 24px;
+    padding-top: 16px;
+    border-top: 1px solid #D9E6E6;
+  }
+  .trk-intake-section:first-of-type {
+    border-top: none;
+    padding-top: 0;
+  }
+  .trk-intake-section-title {
+    margin: 0 0 12px;
+    color: #434B49;
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .trk-intake-section-hint {
+    margin: -6px 0 12px;
+    color: #839898;
+    font-size: 13px;
   }
   .trk-intake-field {
     margin-bottom: 16px;
@@ -25,11 +45,24 @@
     font-weight: 600;
     font-size: 14px;
   }
+  .trk-intake-row {
+    display: flex;
+    gap: 12px;
+  }
+  .trk-intake-row .trk-intake-field {
+    flex: 1;
+  }
   .trk-intake-checkbox label {
     display: flex;
     align-items: center;
     gap: 8px;
     font-weight: 600;
+  }
+  @media (max-width: 560px) {
+    .trk-intake-row {
+      flex-direction: column;
+      gap: 0;
+    }
   }
 </style>
 
@@ -42,51 +75,304 @@
     <form id="intakeForm" onsubmit="return false;">
       <input type="hidden" id="intakeLead" value="{{ lead }}">
 
-      <div class="trk-intake-field">
-        <label for="intake_contact_name">Your Name</label>
-        <input id="intake_contact_name" type="text" class="dashboard-input" required>
+      <div class="trk-intake-section">
+        <h3 class="trk-intake-section-title">Who Is This Enquiry For?</h3>
+        <div class="trk-intake-field">
+          <label for="intake_client_type">Please Select</label>
+          <select id="intake_client_type" class="dashboard-input">
+            <option value="">— Select —</option>
+            <option value="Kid">Kid</option>
+            <option value="Teen">Teen</option>
+            <option value="Uni Student">Uni Student</option>
+            <option value="Adult">Adult</option>
+            <option value="School">School</option>
+            <option value="Company">Company</option>
+          </select>
+        </div>
       </div>
 
-      <div class="trk-intake-field">
-        <label for="intake_contact_email">Your Email</label>
-        <input id="intake_contact_email" type="email" class="dashboard-input">
+      <div class="trk-intake-section">
+        <h3 class="trk-intake-section-title">Contact</h3>
+        <div class="trk-intake-field">
+          <label for="intake_contact_name">Your Name</label>
+          <input id="intake_contact_name" type="text" class="dashboard-input" required>
+        </div>
+
+        <div class="trk-intake-row">
+          <div class="trk-intake-field">
+            <label for="intake_contact_email">Your Email</label>
+            <input id="intake_contact_email" type="email" class="dashboard-input">
+          </div>
+          <div class="trk-intake-field">
+            <label for="intake_contact_mobile">Your Mobile</label>
+            <input id="intake_contact_mobile" type="text" class="dashboard-input">
+          </div>
+        </div>
       </div>
 
-      <div class="trk-intake-field">
-        <label for="intake_contact_mobile">Your Mobile</label>
-        <input id="intake_contact_mobile" type="text" class="dashboard-input">
+      <div class="trk-intake-section">
+        <h3 class="trk-intake-section-title">Client</h3>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field">
+            <label for="intake_client_name" id="intake_client_name_label">Client Name</label>
+            <input id="intake_client_name" type="text" class="dashboard-input" required>
+          </div>
+          <div class="trk-intake-field" id="intake_client_age_field">
+            <label for="intake_client_age">Age</label>
+            <input id="intake_client_age" type="number" min="0" class="dashboard-input">
+          </div>
+        </div>
       </div>
 
-      <div class="trk-intake-field">
-        <label for="intake_client_name">Young Person's Name</label>
-        <input id="intake_client_name" type="text" class="dashboard-input" required>
+      <div class="trk-intake-section" id="section_young_person" style="display:none;">
+        <h3 class="trk-intake-section-title">Young Person Details</h3>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="young_person_first_name">First Name</label><input id="young_person_first_name" type="text" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="young_person_last_name">Last Name</label><input id="young_person_last_name" type="text" class="dashboard-input"></div>
+        </div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="young_person_preferred_name">Preferred Name</label><input id="young_person_preferred_name" type="text" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="young_person_date_of_birth">Date of Birth</label><input id="young_person_date_of_birth" type="date" class="dashboard-input"></div>
+        </div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="young_person_mobile">Mobile Number if 16+</label><input id="young_person_mobile" type="text" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="young_person_email">Email if Zoom Sessions Required</label><input id="young_person_email" type="email" class="dashboard-input"></div>
+        </div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field">
+            <label for="young_person_pronouns">Pronouns</label>
+            <select id="young_person_pronouns" class="dashboard-input"><option value="">— Select —</option><option>she/her</option><option>he/him</option><option>they/them</option></select>
+          </div>
+          <div class="trk-intake-field">
+            <label for="young_person_sex">Sex</label>
+            <select id="young_person_sex" class="dashboard-input"><option value="">— Select —</option><option>Female</option><option>Male</option><option>Intersex</option><option>Unspecified</option></select>
+          </div>
+        </div>
+        <div class="trk-intake-field">
+          <label for="young_person_gender_identity">Gender Identity</label>
+          <select id="young_person_gender_identity" class="dashboard-input"><option value="">— Select —</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Agender</option><option>Bigender</option><option>Unspecified</option></select>
+        </div>
+        <div class="trk-intake-field"><label for="young_person_address_line_1">Address Line 1</label><input id="young_person_address_line_1" type="text" class="dashboard-input"></div>
+        <div class="trk-intake-field"><label for="young_person_address_line_2">Address Line 2</label><input id="young_person_address_line_2" type="text" class="dashboard-input"></div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="young_person_city">City</label><input id="young_person_city" type="text" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="young_person_postalcode">Postal Code</label><input id="young_person_postalcode" type="text" class="dashboard-input"></div>
+        </div>
       </div>
 
-      <div class="trk-intake-field">
-        <label for="intake_client_age">Young Person's Age</label>
-        <input id="intake_client_age" type="number" min="0" class="dashboard-input">
+      <div class="trk-intake-section" id="section_caregivers" style="display:none;">
+        <h3 class="trk-intake-section-title">Parent / Guardian / Caregiver</h3>
+        <div class="trk-intake-field"><label for="primary_caregiver_full_name">Primary Caregiver Full Name</label><input id="primary_caregiver_full_name" type="text" class="dashboard-input"></div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="primary_caregiver_mobile">Primary Caregiver Mobile</label><input id="primary_caregiver_mobile" type="text" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="primary_caregiver_email">Primary Caregiver Email</label><input id="primary_caregiver_email" type="email" class="dashboard-input"></div>
+        </div>
+        <div class="trk-intake-field">
+          <label for="primary_relationship_to_client">Relationship to Client</label>
+          <select id="primary_relationship_to_client" class="dashboard-input"><option value="">— Select —</option><option>Self</option><option>Mother</option><option>Father</option><option>Sister</option><option>Brother</option><option>Aunt</option><option>Uncle</option><option>Grandparent</option><option>Other</option></select>
+        </div>
+
+        <div class="trk-intake-field"><label for="secondary_caregiver_full_name">Secondary Caregiver Full Name</label><input id="secondary_caregiver_full_name" type="text" class="dashboard-input"></div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="secondary_caregiver_mobile">Secondary Caregiver Mobile</label><input id="secondary_caregiver_mobile" type="text" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="secondary_caregiver_email">Secondary Caregiver Email</label><input id="secondary_caregiver_email" type="email" class="dashboard-input"></div>
+        </div>
+        <div class="trk-intake-field">
+          <label for="secondary_relationship">Relationship to Client</label>
+          <select id="secondary_relationship" class="dashboard-input"><option value="">— Select —</option><option>Self</option><option>Mother</option><option>Father</option><option>Sister</option><option>Brother</option><option>Aunt</option><option>Uncle</option><option>Grandparent</option><option>Other</option></select>
+        </div>
+
+        <div class="trk-intake-field"><label for="siblings">Names and Ages of Siblings</label><textarea id="siblings" class="dashboard-input" rows="2"></textarea></div>
+        <div class="trk-intake-field">
+          <label for="account_responsible_person">Who Is Responsible For The Account?</label>
+          <select id="account_responsible_person" class="dashboard-input"><option value="">— Select —</option><option>Primary Caregiver</option><option>Secondary Caregiver</option><option>Other</option></select>
+        </div>
       </div>
 
-      <div class="trk-intake-field">
-        <label for="intake_postal_code">Postal Code</label>
-        <input id="intake_postal_code" type="text" class="dashboard-input">
+      <div class="trk-intake-section" id="section_adult" style="display:none;">
+        <h3 class="trk-intake-section-title">Adult Client Details</h3>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="adult_first_name">First Name</label><input id="adult_first_name" type="text" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="adult_last_name">Last Name</label><input id="adult_last_name" type="text" class="dashboard-input"></div>
+        </div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="adult_preferred_name">Preferred Name</label><input id="adult_preferred_name" type="text" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="adult_date_of_birth">Date of Birth</label><input id="adult_date_of_birth" type="date" class="dashboard-input"></div>
+        </div>
+        <div class="trk-intake-field"><label for="adult_address_1">Address Line 1</label><input id="adult_address_1" type="text" class="dashboard-input"></div>
+        <div class="trk-intake-field"><label for="adult_address_2">Address Line 2</label><input id="adult_address_2" type="text" class="dashboard-input"></div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="adult_city">City</label><input id="adult_city" type="text" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="adult_postalcode">Postal Code</label><input id="adult_postalcode" type="text" class="dashboard-input"></div>
+        </div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="adult_mobile">Mobile</label><input id="adult_mobile" type="text" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="adult_email">Email</label><input id="adult_email" type="email" class="dashboard-input"></div>
+        </div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field">
+            <label for="adult_pronouns">Pronouns</label>
+            <select id="adult_pronouns" class="dashboard-input"><option value="">— Select —</option><option>she/her</option><option>he/him</option><option>they/them</option></select>
+          </div>
+          <div class="trk-intake-field">
+            <label for="adult_sex">Sex</label>
+            <select id="adult_sex" class="dashboard-input"><option value="">— Select —</option><option>Female</option><option>Male</option><option>Intersex</option><option>Unspecified</option></select>
+          </div>
+        </div>
+        <div class="trk-intake-field">
+          <label for="adult_gender_identity">Gender Identity</label>
+          <select id="adult_gender_identity" class="dashboard-input"><option value="">— Select —</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Agender</option><option>Bigender</option><option>Unspecified</option></select>
+        </div>
+        <div class="trk-intake-field">
+          <label for="adult_account_responsible_person">Who Is Responsible For The Account?</label>
+          <select id="adult_account_responsible_person" class="dashboard-input"><option value="">— Select —</option><option>Self</option><option>Next of Kin</option><option>Other</option></select>
+        </div>
       </div>
 
-      <div class="trk-intake-field">
-        <label for="intake_enquiry_reason">Why Are You Contacting Us?</label>
-        <textarea id="intake_enquiry_reason" class="dashboard-input" rows="3"></textarea>
+      <div class="trk-intake-section" id="section_next_of_kin" style="display:none;">
+        <h3 class="trk-intake-section-title">Next of Kin</h3>
+        <div class="trk-intake-field"><label for="next_of_kin_name">Name</label><input id="next_of_kin_name" type="text" class="dashboard-input"></div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="next_of_kin_email">Email</label><input id="next_of_kin_email" type="email" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="next_of_kin_mobile">Mobile</label><input id="next_of_kin_mobile" type="text" class="dashboard-input"></div>
+        </div>
+        <div class="trk-intake-field trk-intake-checkbox">
+          <label><input id="billing_contact_next_kin" type="checkbox"> Billing contact is the same as next of kin</label>
+        </div>
       </div>
 
-      <div class="trk-intake-field">
-        <label for="intake_how_heard">How Did You Hear About Us?</label>
-        <input id="intake_how_heard" type="text" class="dashboard-input">
+      <div class="trk-intake-section" id="section_school" style="display:none;">
+        <h3 class="trk-intake-section-title">School Details</h3>
+        <div class="trk-intake-field"><label for="school_name">School Name</label><input id="school_name" type="text" class="dashboard-input"></div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="school_contact_name">Contact Person</label><input id="school_contact_name" type="text" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="school_contact_role">Role of Contact Person</label><input id="school_contact_role" type="text" class="dashboard-input"></div>
+        </div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="school_contact_email">School Email</label><input id="school_contact_email" type="email" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="school_mobile">School Phone</label><input id="school_mobile" type="text" class="dashboard-input"></div>
+        </div>
+        <div class="trk-intake-field"><label for="school_address_line_1">School Address Line 1</label><input id="school_address_line_1" type="text" class="dashboard-input"></div>
+        <div class="trk-intake-field"><label for="school_address_line_2">School Address Line 2</label><input id="school_address_line_2" type="text" class="dashboard-input"></div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="school_city">School City</label><input id="school_city" type="text" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="school_postalcode">School Postal Code</label><input id="school_postalcode" type="text" class="dashboard-input"></div>
+        </div>
+        <div class="trk-intake-field trk-intake-checkbox">
+          <label><input id="school_billing_same_as_contact" type="checkbox" checked> Is the billing contact the same as the main school contact?</label>
+        </div>
+        <div class="trk-intake-field"><label for="school_support_required">What Support Are You Interested In?</label><textarea id="school_support_required" class="dashboard-input" rows="3"></textarea></div>
       </div>
 
-      <div class="trk-intake-field trk-intake-checkbox">
-        <label>
-          <input id="intake_consent_given" type="checkbox">
-          I consent to being contacted about this enquiry
-        </label>
+      <div class="trk-intake-section" id="section_company" style="display:none;">
+        <h3 class="trk-intake-section-title">Company Details</h3>
+        <div class="trk-intake-field"><label for="company_name">Company Name</label><input id="company_name" type="text" class="dashboard-input"></div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="company_contact_name">Company Contact Person</label><input id="company_contact_name" type="text" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="company_contact_role">Role of Company Contact Person</label><input id="company_contact_role" type="text" class="dashboard-input"></div>
+        </div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="company_contact_email">Company Email</label><input id="company_contact_email" type="email" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="company_mobile">Company Phone</label><input id="company_mobile" type="text" class="dashboard-input"></div>
+        </div>
+        <div class="trk-intake-field"><label for="company_address_line_1">Company Address Line 1</label><input id="company_address_line_1" type="text" class="dashboard-input"></div>
+        <div class="trk-intake-field"><label for="company_address_line_2">Company Address Line 2</label><input id="company_address_line_2" type="text" class="dashboard-input"></div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="company_city">Company City</label><input id="company_city" type="text" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="company_postalcode">Company Postal Code</label><input id="company_postalcode" type="text" class="dashboard-input"></div>
+        </div>
+        <div class="trk-intake-field trk-intake-checkbox">
+          <label><input id="company_billing_same_as_contact" type="checkbox" checked> Is the billing contact the same as the main company contact?</label>
+        </div>
+        <div class="trk-intake-field"><label for="company_support_required">What Support Are You Interested In?</label><textarea id="company_support_required" class="dashboard-input" rows="3"></textarea></div>
+      </div>
+
+      <div class="trk-intake-section" id="section_billing_contact">
+        <h3 class="trk-intake-section-title">Billing Contact</h3>
+        <p class="trk-intake-section-hint">Only fill this in if billing isn't the same as the contact(s) already given above.</p>
+        <div class="trk-intake-field"><label for="billing_contact_full_name">Billing Contact Full Name</label><input id="billing_contact_full_name" type="text" class="dashboard-input"></div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="billing_contact_email">Billing Contact Email</label><input id="billing_contact_email" type="email" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="billing_contact_mobile">Billing Contact Mobile</label><input id="billing_contact_mobile" type="text" class="dashboard-input"></div>
+        </div>
+        <div class="trk-intake-field"><label for="billing_contact_address_line_1">Billing Contact Address Line 1</label><input id="billing_contact_address_line_1" type="text" class="dashboard-input"></div>
+        <div class="trk-intake-field"><label for="billing_contact_address_line_2">Billing Contact Address Line 2</label><input id="billing_contact_address_line_2" type="text" class="dashboard-input"></div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="billing_contact_city">Billing Contact City</label><input id="billing_contact_city" type="text" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="billing_contact_postal_code">Billing Contact Postal Code</label><input id="billing_contact_postal_code" type="text" class="dashboard-input"></div>
+        </div>
+      </div>
+
+      <div class="trk-intake-section" id="section_support" style="display:none;">
+        <h3 class="trk-intake-section-title">Support Information</h3>
+        <div class="trk-intake-field"><label for="support_required">What Would You Like Support With?</label><textarea id="support_required" class="dashboard-input" rows="3"></textarea></div>
+        <div class="trk-intake-field"><label for="allergies">Any Allergies We Should Be Aware Of?</label><textarea id="allergies" class="dashboard-input" rows="2"></textarea></div>
+        <div class="trk-intake-field">
+          <label for="neurodiverse_status">Neurodiverse Status</label>
+          <select id="neurodiverse_status" class="dashboard-input"><option value="">— Select —</option><option>Not Applicable</option><option>Diagnosed</option><option>Suspected</option><option>Under Assessment</option><option>Prefer not to say</option></select>
+        </div>
+        <div class="trk-intake-field"><label for="neurodiverse_information">Neurodiverse Information</label><textarea id="neurodiverse_information" class="dashboard-input" rows="2" placeholder="Please tell us about any formal diagnosis, suspected neurodivergence, or current assessment"></textarea></div>
+        <div class="trk-intake-field"><label for="doctor_details">GP / Doctor Name, Address and Telephone Number</label><textarea id="doctor_details" class="dashboard-input" rows="2"></textarea></div>
+        <div class="trk-intake-field">
+          <label for="main_therapy_location">Main Therapy Location</label>
+          <select id="main_therapy_location" class="dashboard-input"><option value="">— Select —</option></select>
+        </div>
+        <div class="trk-intake-field trk-intake-checkbox">
+          <label><input id="therapy_location_not_listed" type="checkbox"> My therapy location isn't listed</label>
+        </div>
+        <div class="trk-intake-field" id="new_therapy_location_details_field" style="display:none;">
+          <label for="new_therapy_location_details">Please provide the therapy location name and address</label>
+          <textarea id="new_therapy_location_details" class="dashboard-input" rows="2"></textarea>
+        </div>
+      </div>
+
+      <div class="trk-intake-section" id="section_education" style="display:none;">
+        <h3 class="trk-intake-section-title">Education</h3>
+        <div class="trk-intake-field"><label for="education_establishment">Name of Education Establishment and Address</label><textarea id="education_establishment" class="dashboard-input" rows="2"></textarea></div>
+        <div class="trk-intake-field"><label for="year_group_teacher">Class / Year Group and Teacher's Name</label><textarea id="year_group_teacher" class="dashboard-input" rows="2"></textarea></div>
+        <div class="trk-intake-field">
+          <label for="sendco_involved">Is SENDCO Department Involved?</label>
+          <select id="sendco_involved" class="dashboard-input"><option value="">— Select —</option><option>No</option><option>Yes</option><option>Not Sure</option><option>Not Applicable</option></select>
+        </div>
+        <div class="trk-intake-field"><label for="education_contact">Any Other Education Contact We Should Be Aware Of?</label><textarea id="education_contact" class="dashboard-input" rows="2"></textarea></div>
+      </div>
+
+      <div class="trk-intake-section">
+        <h3 class="trk-intake-section-title">Enquiry</h3>
+        <div class="trk-intake-field">
+          <label for="intake_postal_code">Postal Code</label>
+          <input id="intake_postal_code" type="text" class="dashboard-input">
+        </div>
+
+        <div class="trk-intake-field">
+          <label for="intake_enquiry_reason">Why Are You Contacting Us?</label>
+          <textarea id="intake_enquiry_reason" class="dashboard-input" rows="3"></textarea>
+        </div>
+
+        <div class="trk-intake-field">
+          <label for="intake_how_heard">How Did You Hear About Us?</label>
+          <input id="intake_how_heard" type="text" class="dashboard-input">
+        </div>
+      </div>
+
+      <div class="trk-intake-section">
+        <h3 class="trk-intake-section-title">Signature</h3>
+        <div class="trk-intake-field trk-intake-checkbox">
+          <label>
+            <input id="intake_consent_given" type="checkbox">
+            I consent to being contacted about this enquiry
+          </label>
+        </div>
+        <div class="trk-intake-field trk-intake-checkbox">
+          <label>
+            <input id="agreement_confirmed" type="checkbox">
+            I have read and understood the information above
+          </label>
+        </div>
+        <div class="trk-intake-row">
+          <div class="trk-intake-field"><label for="signature_name">Signature Name</label><input id="signature_name" type="text" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="date_signed">Date</label><input id="date_signed" type="date" class="dashboard-input"></div>
+        </div>
       </div>
 
       <button type="button" class="dashboard-btn dashboard-btn-primary" id="submitIntakeBtn">

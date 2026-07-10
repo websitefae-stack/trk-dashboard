@@ -239,3 +239,49 @@
   color: #839898;
   font-size: 12px;
 }
+
+/* =========================================================
+   LINK-TO-EXISTING-CLIENT COMPARE/MERGE
+========================================================= */
+
+.trk-lead-diff-row {
+  padding: 12px;
+  margin-bottom: 10px;
+  background: #F2F8F8;
+  border-radius: 10px;
+}
+
+.trk-lead-diff-label {
+  margin-bottom: 8px;
+  color: #434B49;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.trk-lead-diff-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: #434B49;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.trk-lead-diff-option input {
+  margin-top: 3px;
+}
+
+.trk-lead-diff-option:last-child {
+  margin-bottom: 0;
+}
+
+.trk-lead-diff-value {
+  color: #839898;
+  word-break: break-word;
+}
+
+.trk-lead-diff-option-new .trk-lead-diff-value {
+  color: #007274;
+  font-weight: 600;
+}

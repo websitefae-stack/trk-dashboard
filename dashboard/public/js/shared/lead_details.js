@@ -264,6 +264,59 @@
     }
   }
 
+  function openLinkClientDiffModal() {
+    const modal = el("linkClientDiffModal");
+    if (modal) modal.classList.add("show");
+  }
+
+  function closeLinkClientDiffModal() {
+    const modal = el("linkClientDiffModal");
+    if (modal) modal.classList.remove("show");
+  }
+
+  function renderDiffRows(rows) {
+    const container = el("linkClientDiffRows");
+    if (!container) return;
+
+    container.innerHTML = rows.map((row) => `
+      <div class="trk-lead-diff-row" data-fieldname="${escapeHtml(row.fieldname)}">
+        <div class="trk-lead-diff-label">${escapeHtml(row.label)}</div>
+        <label class="trk-lead-diff-option">
+          <input type="radio" name="diff_${escapeHtml(row.fieldname)}" value="keep" checked>
+          Keep: <span class="trk-lead-diff-value">${escapeHtml(row.current_value) || "(blank)"}</span>
+        </label>
+        <label class="trk-lead-diff-option trk-lead-diff-option-new">
+          <input type="radio" name="diff_${escapeHtml(row.fieldname)}" value="use_new">
+          Use new: <span class="trk-lead-diff-value">${escapeHtml(row.new_value)}</span>
+        </label>
+      </div>
+    `).join("");
+  }
+
+  function collectFieldChoices() {
+    const choices = {};
+    document.querySelectorAll("#linkClientDiffRows .trk-lead-diff-row").forEach((row) => {
+      const fieldname = row.dataset.fieldname;
+      const selected = row.querySelector("input[type=radio]:checked");
+      choices[fieldname] = selected ? selected.value : "keep";
+    });
+    return choices;
+  }
+
+  async function finishLinkingClient(name, client, contact, fieldChoices) {
+    await apiPost(`${SHARED_API}.link_lead_to_existing_client`, {
+      name,
+      client,
+      contact,
+      field_choices: fieldChoices ? JSON.stringify(fieldChoices) : undefined,
+    });
+    showMessage("Linked to existing client.", false);
+    closeLinkClientDiffModal();
+    loadLead();
+  }
+
+  let pendingLinkClient = null;
+
   async function linkExistingClient() {
     const name = getValue("leadDocname");
     const client = getValue("lead_link_client");
@@ -278,14 +331,50 @@
     if (linkBtn) linkBtn.disabled = true;
 
     try {
-      await apiPost(`${SHARED_API}.link_lead_to_existing_client`, { name, client, contact });
-      showMessage("Linked to existing client.", false);
-      loadLead();
+      const diff = await apiPost(`${SHARED_API}.get_lead_client_diff`, { name, client });
+      const rows = (diff && diff.rows) || [];
+
+      if (!rows.length) {
+        await finishLinkingClient(name, client, contact, null);
+        return;
+      }
+
+      pendingLinkClient = { name, client, contact };
+      renderDiffRows(rows);
+      openLinkClientDiffModal();
     } catch (error) {
       showMessage(error.message || "Could not link this lead.", true);
     } finally {
       if (linkBtn) linkBtn.disabled = false;
     }
+  }
+
+  async function confirmLinkClientDiff() {
+    if (!pendingLinkClient) return;
+
+    const confirmBtn = el("linkClientDiffConfirm");
+    if (confirmBtn) confirmBtn.disabled = true;
+
+    try {
+      const { name, client, contact } = pendingLinkClient;
+      await finishLinkingClient(name, client, contact, collectFieldChoices());
+      pendingLinkClient = null;
+    } catch (error) {
+      showMessage(error.message || "Could not link this lead.", true);
+    } finally {
+      if (confirmBtn) confirmBtn.disabled = false;
+    }
+  }
+
+  function initLinkClientDiffModal() {
+    const closeBtn = el("linkClientDiffClose");
+    if (closeBtn) closeBtn.addEventListener("click", closeLinkClientDiffModal);
+
+    const cancelBtn = el("linkClientDiffCancel");
+    if (cancelBtn) cancelBtn.addEventListener("click", closeLinkClientDiffModal);
+
+    const confirmBtn = el("linkClientDiffConfirm");
+    if (confirmBtn) confirmBtn.addEventListener("click", confirmLinkClientDiff);
   }
 
   async function loadLead() {
@@ -580,6 +669,7 @@
     if (addNoteBtn) addNoteBtn.addEventListener("click", addNote);
 
     initIntakeEmailModal();
+    initLinkClientDiffModal();
 
     const convertBtn = el("convertLeadBtn");
     if (convertBtn) convertBtn.addEventListener("click", convertLead);
