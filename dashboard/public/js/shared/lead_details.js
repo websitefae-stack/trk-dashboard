@@ -201,7 +201,12 @@
       }
     } else {
       if (viewClientBtn) viewClientBtn.style.display = "none";
-      if (sendBtn) sendBtn.style.display = "";
+
+      // Same button slot changes from "Send Intake Form" to "Convert to
+      // Client" once intake is done, rather than showing both at once -
+      // there's nothing left to (re)send by that point.
+      const intakeDone = !!lead.intake_completed_on;
+      if (sendBtn) sendBtn.style.display = intakeDone ? "none" : "";
 
       if (!lead.is_client_conversion) {
         // e.g. Franchisee Call - turns into a Franchisee, not a Client;
@@ -210,7 +215,7 @@
         if (convertBtn) convertBtn.style.display = "none";
         if (linkExistingSection) linkExistingSection.style.display = "none";
       } else {
-        if (convertBtn) convertBtn.style.display = lead.intake_completed_on ? "" : "none";
+        if (convertBtn) convertBtn.style.display = intakeDone ? "" : "none";
         if (linkExistingSection) {
           linkExistingSection.style.display = "";
           loadClientLinkOptions();
