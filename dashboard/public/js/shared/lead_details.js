@@ -203,10 +203,11 @@
       if (viewClientBtn) viewClientBtn.style.display = "none";
 
       // Same button slot changes from "Send Intake Form" to "Convert to
-      // Client" once intake is done, rather than showing both at once -
-      // there's nothing left to (re)send by that point.
+      // Client" - Send Intake Form disappears as soon as it's been sent
+      // (nothing to resend), Convert to Client appears once it's done.
+      const intakeSent = !!lead.intake_sent_on;
       const intakeDone = !!lead.intake_completed_on;
-      if (sendBtn) sendBtn.style.display = intakeDone ? "none" : "";
+      if (sendBtn) sendBtn.style.display = intakeSent ? "none" : "";
 
       if (!lead.is_client_conversion) {
         // e.g. Franchisee Call - turns into a Franchisee, not a Client;
@@ -487,6 +488,7 @@
 
   async function convertLead() {
     const name = getValue("leadDocname");
+    const baseUrl = getValue("leadBaseUrl") || "/coach_db";
 
     if (!window.confirm("Create a Client and Contact record from this lead's details?")) {
       return;
@@ -496,7 +498,16 @@
     if (convertBtn) convertBtn.disabled = true;
 
     try {
-      await apiPost(`${SHARED_API}.convert_lead_to_client`, { name });
+      const result = await apiPost(`${SHARED_API}.convert_lead_to_client`, { name });
+
+      // The Contact is created automatically alongside it - nothing to
+      // review there. Land straight on the new Client record so it can be
+      // checked over and any extra details filled in and saved.
+      if (result && result.client) {
+        window.location.href = `${baseUrl}/client_details?name=${encodeURIComponent(result.client)}`;
+        return;
+      }
+
       showMessage("Converted to a Client.", false);
       loadLead();
     } catch (error) {
