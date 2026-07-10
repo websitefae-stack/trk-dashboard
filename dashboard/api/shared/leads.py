@@ -10,7 +10,7 @@ from dashboard.api.shared.permissions import (
 )
 from dashboard.api.shared.clients import get_coach_label
 from dashboard.api.shared.utils import coalesce_str, coalesce_raw
-from dashboard.api.shared.notifications import create_trk_notification
+from dashboard.api.shared.notifications import create_trk_notification, FRANCHISOR_USERS
 from dashboard.api.shared.appointment_types import creates_client_on_conversion
 from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, INTAKE_INVITE_TEMPLATE
 
@@ -28,7 +28,7 @@ LEAD_LIST_FIELDS = [
     "name", "status", "source", "appointment_type", "coach",
     "contact_name", "contact_email", "contact_mobile",
     "client_name", "client_age", "postal_code",
-    "event", "converted_client", "modified", "creation",
+    "event", "converted_client", "intake_completed_on", "modified", "creation",
 ]
 
 
@@ -48,6 +48,10 @@ def _normalize_lead_row(row):
         "postal_code": row.get("postal_code") or "",
         "event": row.get("event") or "",
         "converted_client": row.get("converted_client") or "",
+        "intake_completed_on": row.get("intake_completed_on"),
+        "needs_conversion_review": 1 if (
+            row.get("intake_completed_on") and (row.get("status") or "New") not in ("Converted", "Declined")
+        ) else 0,
         "has_invoice": 0,
         "modified": row.get("modified"),
         "creation": row.get("creation"),
@@ -606,26 +610,59 @@ def submit_intake(
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 
+    notification_message = f"{doc.client_name} - intake form has been completed. Review and convert to a client."
+    coach_user = ""
+
     if doc.coach:
         coach_user = frappe.db.get_value("Coach", doc.coach, "user") or frappe.db.get_value(
             "Coach", doc.coach, "coach_email"
         )
 
-        if coach_user:
-            # Best-effort - the intake submission itself is already saved
-            # above, a broken notification config must not make it look
-            # like the submission failed.
-            try:
-                create_trk_notification(
-                    recipient_user=coach_user,
-                    notification_type="Intake Form Completed",
-                    message=f"{doc.client_name} - intake form has been completed. Review and convert to a client.",
-                    priority="High",
-                    reference_doctype=LEAD_DOCTYPE,
-                    reference_name=doc.name,
-                )
-            except Exception:
-                frappe.log_error(frappe.get_traceback(), "Intake Submission - Coach Notification Failed")
+    if coach_user:
+        # Best-effort - the intake submission itself is already saved
+        # above, a broken notification config must not make it look
+        # like the submission failed.
+        try:
+            create_trk_notification(
+                recipient_user=coach_user,
+                notification_type="Intake Form Completed",
+                message=notification_message,
+                priority="High",
+                reference_doctype=LEAD_DOCTYPE,
+                reference_name=doc.name,
+            )
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "Intake Submission - Coach Notification Failed")
+    elif doc.coach:
+        # The lead has a coach assigned, but that Coach record has no
+        # linked user/coach_email to notify - this would otherwise fail
+        # completely silently (no exception, nothing to see in the Error
+        # Log), so it's logged explicitly to be diagnosable.
+        frappe.log_error(
+            f"Lead {doc.name}: Coach {doc.coach} has no linked user or coach_email - could not notify.",
+            "Intake Submission - No Coach Recipient",
+        )
+
+    # Belt and suspenders: notified separately from the coach (not as a
+    # substitute) so this is never missed just because a specific Coach
+    # record's user/coach_email is misconfigured, or the coach simply
+    # hasn't checked their own notifications yet - the franchisor can
+    # always see it and act (reassign, remind, or convert directly).
+    for admin_user in FRANCHISOR_USERS:
+        if not frappe.db.exists("User", admin_user):
+            continue
+
+        try:
+            create_trk_notification(
+                recipient_user=admin_user,
+                notification_type="Intake Form Completed",
+                message=notification_message,
+                priority="High",
+                reference_doctype=LEAD_DOCTYPE,
+                reference_name=doc.name,
+            )
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "Intake Submission - Admin Notification Failed")
 
     return {"ok": True, "already_done": False}
 
