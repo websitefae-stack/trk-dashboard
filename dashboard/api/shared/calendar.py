@@ -748,6 +748,9 @@ def _get_event_fields():
     if _event_has_field("google_calendar_event_id"):
         fields.append("google_calendar_event_id")
 
+    if _event_has_field("custom_google_event_id"):
+        fields.append("custom_google_event_id")
+
     return fields
 
 
@@ -1403,14 +1406,23 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
     custom_client = row.get("custom_client")
     client_row = client_map.get(custom_client) if client_map else None
 
-    # Frappe's own built-in Google Calendar integration (separate from this
-    # app's push/pull sync, which uses custom_google_event_id/custom_google_meet_url)
-    # independently pulls the same pushed appointment back in as a second, blank
-    # Event once it appears on the coach's Google Calendar. That shadow copy has
-    # no custom_client and none of the session data - it's pure sync noise
-    # sitting on top of the real, fully-populated native booking, so it must
-    # never be shown as its own calendar entry.
+    # Frappe's own built-in Google Calendar integration independently pulls
+    # the same pushed appointment back in as a second, blank Event once it
+    # appears on the coach's Google Calendar. That shadow copy has no
+    # custom_client and none of the session data - it's pure sync noise
+    # sitting on top of the real, fully-populated native booking, so it
+    # must never be shown as its own calendar entry.
     if row.get("google_calendar_event_id") and not custom_client:
+        return None
+
+    # The coach_calendar_sync app's own pull (custom_google_event_id) also
+    # imports a coach's personal Google Calendar events - genuinely real
+    # appointments, but not client sessions, and Ashley doesn't want them
+    # cluttering the dashboard grid. coach_calendar_sync's own daily
+    # notification job already flags these ("N appointments from Google
+    # Calendar need a client linked") with a link straight to the Event in
+    # the desk, so they're still reachable - just not shown here.
+    if row.get("custom_google_event_id") and not custom_client:
         return None
 
     is_private_for_viewing_coach = False

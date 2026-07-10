@@ -1546,6 +1546,22 @@ def reply_to_notification(name=None, message=None, attachment=None):
 
 
 @frappe.whitelist()
+def _kanban_bucket_for(row):
+    """
+    Same New / In Progress / Past Due / Archived bucketing the Notifications
+    Kanban board uses on the frontend (see bucketFor() in notifications.js) -
+    kept in sync so the sidebar badge counts the same thing the board shows.
+    """
+    if (row.get("status") or "Open") == "Archived":
+        return "Archived"
+
+    due_date = row.get("due_date")
+    if not due_date:
+        return "New"
+
+    return "Past Due" if str(due_date) < nowdate() else "In Progress"
+
+
 def get_dashboard_notification_summary():
     ensure_logged_in()
 
@@ -1555,13 +1571,16 @@ def get_dashboard_notification_summary():
     open_count = 0
 
     for row in notifications:
-        read_status = (row.get("read_status") or "").strip()
-        status = (row.get("status") or "").strip()
+        bucket = _kanban_bucket_for(row)
 
-        if read_status == "Unread":
+        # The badge is meant to flag what actually needs attention - a
+        # notification sitting in "In Progress" already has a future due
+        # date and someone's on it, so it isn't counted here even if
+        # nobody has opened it yet.
+        if bucket in ["New", "Past Due"]:
             unread_count += 1
 
-        if status not in ["Done", "Archived", "Closed"]:
+        if bucket != "Archived":
             open_count += 1
 
     latest = notifications[:5]
