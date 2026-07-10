@@ -45,7 +45,7 @@
               data-status="{{ inv.status or '' }}"
               data-date="{{ inv.posting_date or '' }}"
             >
-              <td>{{ inv.posting_date or "—" }}</td>
+              <td>{{ inv.posting_date_display or "—" }}</td>
 
               <td>
                 <a class="dashboard-table-link" href="{{ inv.details_url }}">

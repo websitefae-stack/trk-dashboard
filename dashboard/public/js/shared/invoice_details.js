@@ -12,6 +12,15 @@
   var el = Dashboard.el;
   var qsa = Dashboard.qsa;
 
+  function formatDisplayDate(value) {
+    if (!value) return "";
+
+    const date = new Date(String(value).slice(0, 10) + "T00:00:00");
+    if (isNaN(date.getTime())) return String(value);
+
+    return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  }
+
   function getDashboardBasePath() {
     const path = window.location.pathname || "";
     if (path.startsWith("/franchisor_db")) return "/franchisor_db";
@@ -118,6 +127,26 @@
     }
   }
 
+  async function loadEmailSenderOptions() {
+    const select = el("emailSender");
+    if (!select) return;
+
+    try {
+      const result = await apiPost("dashboard.api.shared.email_templates.get_email_sender_options", {});
+      const options = (result.message || result) || [];
+
+      select.innerHTML = "";
+      options.forEach((opt) => {
+        const option = document.createElement("option");
+        option.value = opt.value;
+        option.textContent = opt.label;
+        select.appendChild(option);
+      });
+    } catch (error) {
+      console.error("Could not load sender options", error);
+    }
+  }
+
   async function openEmailModal() {
     if (getDocstatus() !== 1) {
       showError("Only submitted invoices can be emailed.");
@@ -125,6 +154,10 @@
     }
 
     await forceEmailTemplate();
+    await loadEmailSenderOptions();
+
+    const ccField = el("emailCc");
+    if (ccField) ccField.value = "";
 
     const modal = el("invoiceEmailModal");
     if (modal) {
@@ -813,7 +846,7 @@
     const customerName = selectedCustomerText() || el("invoice_customer")?.value || "Billing Contact";
     const invoiceNumber = el("invoice_name")?.value || "";
     const amountDue = el("invoice_outstanding_amount")?.value || "0.00";
-    const dueDate = el("invoice_due_date")?.value || "";
+    const dueDate = formatDisplayDate(el("invoice_due_date")?.value || "");
     const bankDetails = (el("invoice_bank_display")?.value || "Bank details available on request.").trim();
     const coachName = el("invoice_coach_label")?.value || "Coach";
     const companyLabel = el("invoice_company")?.value || "The Resilient Kid";
@@ -1087,7 +1120,9 @@
         recipient: el("emailRecipient")?.value || "",
         reply_to: el("emailReplyTo")?.value || "",
         subject: el("emailSubject")?.value || "",
-        message: el("emailMessage")?.value || ""
+        message: el("emailMessage")?.value || "",
+        sender: el("emailSender")?.value || "",
+        cc: el("emailCc")?.value || ""
       });
 
       closeEmailModal();

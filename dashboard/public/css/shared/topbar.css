@@ -35,6 +35,108 @@
   font-weight: 700;
 }
 
+.dashboard-topbar-search {
+  position: relative;
+  flex: 1 1 auto;
+  max-width: 360px;
+}
+
+.dashboard-topbar-search-icon {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  font-size: 13px;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.dashboard-topbar-search-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 14px 0 34px;
+  border: 1px solid #D9E6E6;
+  border-radius: 999px;
+  background: #F2F8F8;
+  color: #434B49;
+  font-family: 'Comfortaa', sans-serif;
+  font-size: 13px;
+}
+
+.dashboard-topbar-search-input:focus {
+  outline: none;
+  border-color: #00A19E;
+  background: #FFFFFF;
+}
+
+.dashboard-topbar-search-results {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid #D9E6E6;
+  border-radius: 12px;
+  background: #FFFFFF;
+  box-shadow: 0 8px 24px rgba(67, 75, 73, 0.14);
+}
+
+.dashboard-topbar-search-group-label {
+  padding: 6px 10px 4px;
+  color: #839898;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.dashboard-topbar-search-result {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #434B49;
+  text-decoration: none;
+}
+
+.dashboard-topbar-search-result:hover,
+.dashboard-topbar-search-result.is-active {
+  background: #F2F8F8;
+  color: #007274;
+}
+
+.dashboard-topbar-search-result-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.dashboard-topbar-search-result-subtitle {
+  margin-top: 2px;
+  color: #839898;
+  font-size: 12px;
+}
+
+.dashboard-topbar-search-result:hover .dashboard-topbar-search-result-subtitle,
+.dashboard-topbar-search-result.is-active .dashboard-topbar-search-result-subtitle {
+  color: #007274;
+}
+
+.dashboard-topbar-search-empty {
+  padding: 10px;
+  color: #839898;
+  font-size: 13px;
+}
+
+@media (max-width: 860px) {
+  .dashboard-topbar-search {
+    order: 3;
+    max-width: none;
+    width: 100%;
+  }
+}
+
 .dashboard-topbar-actions {
   display: flex;
   flex-flow: row nowrap;

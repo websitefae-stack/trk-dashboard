@@ -201,7 +201,13 @@
       }
     } else {
       if (viewClientBtn) viewClientBtn.style.display = "none";
-      if (sendBtn) sendBtn.style.display = "";
+
+      // Same button slot changes from "Send Intake Form" to "Convert to
+      // Client" - Send Intake Form disappears as soon as it's been sent
+      // (nothing to resend), Convert to Client appears once it's done.
+      const intakeSent = !!lead.intake_sent_on;
+      const intakeDone = !!lead.intake_completed_on;
+      if (sendBtn) sendBtn.style.display = intakeSent ? "none" : "";
 
       if (!lead.is_client_conversion) {
         // e.g. Franchisee Call - turns into a Franchisee, not a Client;
@@ -210,7 +216,7 @@
         if (convertBtn) convertBtn.style.display = "none";
         if (linkExistingSection) linkExistingSection.style.display = "none";
       } else {
-        if (convertBtn) convertBtn.style.display = lead.intake_completed_on ? "" : "none";
+        if (convertBtn) convertBtn.style.display = intakeDone ? "" : "none";
         if (linkExistingSection) {
           linkExistingSection.style.display = "";
           loadClientLinkOptions();
@@ -258,6 +264,59 @@
     }
   }
 
+  function openLinkClientDiffModal() {
+    const modal = el("linkClientDiffModal");
+    if (modal) modal.classList.add("show");
+  }
+
+  function closeLinkClientDiffModal() {
+    const modal = el("linkClientDiffModal");
+    if (modal) modal.classList.remove("show");
+  }
+
+  function renderDiffRows(rows) {
+    const container = el("linkClientDiffRows");
+    if (!container) return;
+
+    container.innerHTML = rows.map((row) => `
+      <div class="trk-lead-diff-row" data-fieldname="${escapeHtml(row.fieldname)}">
+        <div class="trk-lead-diff-label">${escapeHtml(row.label)}</div>
+        <label class="trk-lead-diff-option">
+          <input type="radio" name="diff_${escapeHtml(row.fieldname)}" value="keep" checked>
+          Keep: <span class="trk-lead-diff-value">${escapeHtml(row.current_value) || "(blank)"}</span>
+        </label>
+        <label class="trk-lead-diff-option trk-lead-diff-option-new">
+          <input type="radio" name="diff_${escapeHtml(row.fieldname)}" value="use_new">
+          Use new: <span class="trk-lead-diff-value">${escapeHtml(row.new_value)}</span>
+        </label>
+      </div>
+    `).join("");
+  }
+
+  function collectFieldChoices() {
+    const choices = {};
+    document.querySelectorAll("#linkClientDiffRows .trk-lead-diff-row").forEach((row) => {
+      const fieldname = row.dataset.fieldname;
+      const selected = row.querySelector("input[type=radio]:checked");
+      choices[fieldname] = selected ? selected.value : "keep";
+    });
+    return choices;
+  }
+
+  async function finishLinkingClient(name, client, contact, fieldChoices) {
+    await apiPost(`${SHARED_API}.link_lead_to_existing_client`, {
+      name,
+      client,
+      contact,
+      field_choices: fieldChoices ? JSON.stringify(fieldChoices) : undefined,
+    });
+    showMessage("Linked to existing client.", false);
+    closeLinkClientDiffModal();
+    loadLead();
+  }
+
+  let pendingLinkClient = null;
+
   async function linkExistingClient() {
     const name = getValue("leadDocname");
     const client = getValue("lead_link_client");
@@ -272,14 +331,50 @@
     if (linkBtn) linkBtn.disabled = true;
 
     try {
-      await apiPost(`${SHARED_API}.link_lead_to_existing_client`, { name, client, contact });
-      showMessage("Linked to existing client.", false);
-      loadLead();
+      const diff = await apiPost(`${SHARED_API}.get_lead_client_diff`, { name, client });
+      const rows = (diff && diff.rows) || [];
+
+      if (!rows.length) {
+        await finishLinkingClient(name, client, contact, null);
+        return;
+      }
+
+      pendingLinkClient = { name, client, contact };
+      renderDiffRows(rows);
+      openLinkClientDiffModal();
     } catch (error) {
       showMessage(error.message || "Could not link this lead.", true);
     } finally {
       if (linkBtn) linkBtn.disabled = false;
     }
+  }
+
+  async function confirmLinkClientDiff() {
+    if (!pendingLinkClient) return;
+
+    const confirmBtn = el("linkClientDiffConfirm");
+    if (confirmBtn) confirmBtn.disabled = true;
+
+    try {
+      const { name, client, contact } = pendingLinkClient;
+      await finishLinkingClient(name, client, contact, collectFieldChoices());
+      pendingLinkClient = null;
+    } catch (error) {
+      showMessage(error.message || "Could not link this lead.", true);
+    } finally {
+      if (confirmBtn) confirmBtn.disabled = false;
+    }
+  }
+
+  function initLinkClientDiffModal() {
+    const closeBtn = el("linkClientDiffClose");
+    if (closeBtn) closeBtn.addEventListener("click", closeLinkClientDiffModal);
+
+    const cancelBtn = el("linkClientDiffCancel");
+    if (cancelBtn) cancelBtn.addEventListener("click", closeLinkClientDiffModal);
+
+    const confirmBtn = el("linkClientDiffConfirm");
+    if (confirmBtn) confirmBtn.addEventListener("click", confirmLinkClientDiff);
   }
 
   async function loadLead() {
@@ -413,11 +508,29 @@
       const subjectField = el("intakeEmailSubject");
       const messageField = el("intakeEmailMessage");
       const statusField = el("intakeEmailStatus");
+      const senderField = el("intakeEmailSender");
+      const ccField = el("intakeEmailCc");
 
       if (recipientField) recipientField.value = defaults.recipient || "";
       if (subjectField) subjectField.value = defaults.subject || "";
       if (messageField) messageField.value = defaults.message || "";
       if (statusField) statusField.textContent = "";
+      if (ccField) ccField.value = "";
+
+      if (senderField) {
+        try {
+          const senderOptions = await apiPost("dashboard.api.shared.email_templates.get_email_sender_options", {});
+          senderField.innerHTML = "";
+          (senderOptions || []).forEach((opt) => {
+            const option = document.createElement("option");
+            option.value = opt.value;
+            option.textContent = opt.label;
+            senderField.appendChild(option);
+          });
+        } catch (error) {
+          console.error("Could not load sender options", error);
+        }
+      }
 
       openIntakeEmailModal();
     } catch (error) {
@@ -442,10 +555,15 @@
     if (statusField) statusField.textContent = "";
 
     try {
+      const senderField = el("intakeEmailSender");
+      const ccField = el("intakeEmailCc");
+
       const result = await apiPost(`${SHARED_API}.send_intake_form`, {
         name,
         subject: subjectField ? subjectField.value.trim() : "",
         message: messageField ? messageField.value.trim() : "",
+        sender: senderField ? senderField.value : "",
+        cc: ccField ? ccField.value.trim() : "",
       });
 
       showMessage(
@@ -482,6 +600,7 @@
 
   async function convertLead() {
     const name = getValue("leadDocname");
+    const baseUrl = getValue("leadBaseUrl") || "/coach_db";
 
     if (!window.confirm("Create a Client and Contact record from this lead's details?")) {
       return;
@@ -491,7 +610,16 @@
     if (convertBtn) convertBtn.disabled = true;
 
     try {
-      await apiPost(`${SHARED_API}.convert_lead_to_client`, { name });
+      const result = await apiPost(`${SHARED_API}.convert_lead_to_client`, { name });
+
+      // The Contact is created automatically alongside it - nothing to
+      // review there. Land straight on the new Client record so it can be
+      // checked over and any extra details filled in and saved.
+      if (result && result.client) {
+        window.location.href = `${baseUrl}/client_details?name=${encodeURIComponent(result.client)}`;
+        return;
+      }
+
       showMessage("Converted to a Client.", false);
       loadLead();
     } catch (error) {
@@ -541,6 +669,7 @@
     if (addNoteBtn) addNoteBtn.addEventListener("click", addNote);
 
     initIntakeEmailModal();
+    initLinkClientDiffModal();
 
     const convertBtn = el("convertLeadBtn");
     if (convertBtn) convertBtn.addEventListener("click", convertLead);

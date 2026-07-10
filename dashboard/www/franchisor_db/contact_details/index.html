@@ -363,14 +363,14 @@
                               </a>
                               <div class="dashboard-client-type-mobile">
                                 Client: {{ invoice.client_display or invoice.client or "—" }}<br>
-                                Date: {{ frappe.format(invoice.posting_date, {"fieldtype": "Date"}) if invoice.posting_date else "—" }}<br>
+                                Date: {{ frappe.utils.formatdate(invoice.posting_date, "dd-MM-yyyy") if invoice.posting_date else "—" }}<br>
                                 Status: {{ invoice.status or "—" }}<br>
                                 Total: {{ frappe.format_value(invoice.grand_total or 0, {"fieldtype": "Currency"}) }}
                               </div>
                             </td>
                             <td>{{ invoice.client_display or invoice.client or "—" }}</td>
-                            <td>{{ frappe.format(invoice.posting_date, {"fieldtype": "Date"}) if invoice.posting_date else "—" }}</td>
-                            <td>{{ frappe.format(invoice.due_date, {"fieldtype": "Date"}) if invoice.due_date else "—" }}</td>
+                            <td>{{ frappe.utils.formatdate(invoice.posting_date, "dd-MM-yyyy") if invoice.posting_date else "—" }}</td>
+                            <td>{{ frappe.utils.formatdate(invoice.due_date, "dd-MM-yyyy") if invoice.due_date else "—" }}</td>
                             <td>{{ invoice.status or "—" }}</td>
                             <td>{{ frappe.format_value(invoice.grand_total or 0, {"fieldtype": "Currency"}) }}</td>
                             <td>{{ frappe.format_value(invoice.outstanding_amount or 0, {"fieldtype": "Currency"}) }}</td>

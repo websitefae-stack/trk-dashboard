@@ -4,7 +4,7 @@ from frappe import _
 from frappe.utils import nowdate, flt
 
 from dashboard.api.shared.pagination import get_page_args, make_pagination
-from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, INVOICE_EMAIL_TEMPLATE
+from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, parse_email_list, INVOICE_EMAIL_TEMPLATE
 from dashboard.api.shared import payment_utils
 
 
@@ -641,9 +641,12 @@ def _normalise_invoice_row(row, client_map, dashboard_type):
 
     base_url = "/franchisor_db/invoice_details" if dashboard_type == FRANCHISOR_DASHBOARD else "/coach_db/invoice_details"
 
+    posting_date = row.get("posting_date")
+
     return {
         "name": row.get("name"),
-        "posting_date": str(row.get("posting_date") or ""),
+        "posting_date": str(posting_date or ""),
+        "posting_date_display": frappe.utils.formatdate(posting_date, "dd-MM-yyyy") if posting_date else "—",
         "due_date": str(row.get("due_date") or ""),
         "custom_client": client_name or "",
         "client_name": (
@@ -663,6 +666,15 @@ def _normalise_invoice_row(row, client_map, dashboard_type):
         "docstatus": row.get("docstatus") or 0,
         "details_url": f"{base_url}?name={row.get('name')}",
     }
+
+
+def _amount_search_text(amount):
+    """Lets the invoice list's search box match on the total, e.g. "150" finds a £150.00 invoice."""
+    try:
+        value = float(amount or 0)
+    except (TypeError, ValueError):
+        return ""
+    return f"{value:.2f} {value:g}"
 
 
 def _get_invoices_for_clients(client_rows, dashboard_type, owner_coach_name=None):
@@ -730,6 +742,7 @@ def _get_invoices_for_clients(client_rows, dashboard_type, owner_coach_name=None
             or search in (inv.get("customer_name") or "").lower()
             or search in (inv.get("customer") or "").lower()
             or search in (inv.get("company") or "").lower()
+            or search in _amount_search_text(inv.get("grand_total"))
         ]
 
         total = len(invoices)
@@ -1672,7 +1685,7 @@ def get_invoice_email_defaults(docname=None, template_name=None):
         "customer_name": serialized.get("customer_label") or "Billing Contact",
         "invoice_number": doc.name,
         "amount_due": f"{_to_float(doc.outstanding_amount):.2f}",
-        "due_date": str(doc.due_date or ""),
+        "due_date": frappe.utils.formatdate(doc.due_date, "dd-MM-yyyy") if doc.due_date else "",
         "bank_details": serialized.get("bank_display_text") or "Bank details available on request.",
         "coach_name": serialized.get("coach_label") or "Coach",
         "company_label": serialized.get("company") or "The Resilient Kid",
@@ -1767,7 +1780,7 @@ def get_client_email_defaults(client_name=None, template_name=None):
 
 
 @frappe.whitelist()
-def send_client_email(client_name=None, recipient=None, subject=None, message=None):
+def send_client_email(client_name=None, recipient=None, subject=None, message=None, cc=None, sender=None):
     """Sends the "Send Email" compose modal's contents - no PDF, no invoice involved."""
     _require_logged_in_user()
 
@@ -1786,12 +1799,22 @@ def send_client_email(client_name=None, recipient=None, subject=None, message=No
     subject = (subject or "Message").strip()
     message = plain_text_to_email_html((message or "").strip())
 
-    frappe.sendmail(
-        recipients=[recipient],
-        subject=subject,
-        message=message,
-        now=True,
-    )
+    kwargs = {
+        "recipients": [recipient],
+        "subject": subject,
+        "message": message,
+        "now": True,
+    }
+
+    cc_list = parse_email_list(cc)
+    if cc_list:
+        kwargs["cc"] = cc_list
+
+    sender = (sender or "").strip()
+    if sender:
+        kwargs["sender"] = sender
+
+    frappe.sendmail(**kwargs)
 
     return {"ok": 1}
 
@@ -1833,7 +1856,7 @@ def get_client_email_options(client_name=None):
 
 
 @frappe.whitelist()
-def send_invoice_email(docname, recipient=None, reply_to=None, subject=None, message=None):
+def send_invoice_email(docname, recipient=None, reply_to=None, subject=None, message=None, cc=None, sender=None):
     _require_logged_in_user()
 
     if not docname:
@@ -1877,6 +1900,14 @@ def send_invoice_email(docname, recipient=None, reply_to=None, subject=None, mes
 
     if reply_to:
         kwargs["reply_to"] = reply_to
+
+    cc_list = parse_email_list(cc)
+    if cc_list:
+        kwargs["cc"] = cc_list
+
+    sender = (sender or "").strip()
+    if sender:
+        kwargs["sender"] = sender
 
     frappe.sendmail(**kwargs)
 

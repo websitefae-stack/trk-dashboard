@@ -128,7 +128,7 @@
 
     try {
       const date = new Date(value);
-      return date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+      return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
     } catch (error) {
       return String(value);
     }

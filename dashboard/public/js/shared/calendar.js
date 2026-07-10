@@ -689,7 +689,7 @@
       event: eventName,
       date: targetDate
     }).then(function () {
-      showToast("Session moved to " + targetDate);
+      showToast("Session moved to " + formatLongDisplayDate(targetDate));
       loadCalendarData();
     }).catch(function (error) {
       console.error("Reschedule event failed:", error);

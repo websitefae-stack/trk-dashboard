@@ -263,6 +263,16 @@
         </div>
 
         <div class="trk-calendar-field">
+          <label for="intakeEmailSender">From</label>
+          <select id="intakeEmailSender" class="dashboard-input"></select>
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="intakeEmailCc">Cc</label>
+          <input type="text" id="intakeEmailCc" class="dashboard-input" placeholder="Optional, comma separated">
+        </div>
+
+        <div class="trk-calendar-field">
           <label for="intakeEmailSubject">Subject</label>
           <input type="text" id="intakeEmailSubject" class="dashboard-input">
         </div>
@@ -282,6 +292,33 @@
 
         <button type="button" class="dashboard-btn dashboard-btn-primary" id="intakeEmailSubmit">
           Send
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-calendar-modal-backdrop" id="linkClientDiffModal">
+    <div class="trk-calendar-modal">
+      <div class="trk-calendar-modal-head">
+        <h3>Review Changes Before Linking</h3>
+
+        <button type="button" class="trk-calendar-icon-btn" id="linkClientDiffClose">
+          ✕
+        </button>
+      </div>
+
+      <div class="trk-calendar-modal-body">
+        <p class="dashboard-field-hint">The intake form has different answers to what's already on this client. Choose which value to keep for each one.</p>
+        <div id="linkClientDiffRows"></div>
+      </div>
+
+      <div class="trk-calendar-modal-foot">
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="linkClientDiffCancel">
+          Cancel
+        </button>
+
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="linkClientDiffConfirm">
+          Confirm &amp; Link
         </button>
       </div>
     </div>

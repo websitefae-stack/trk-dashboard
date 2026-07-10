@@ -545,6 +545,7 @@ def get_client_contacts_for_context(doc, contact_detail_base_url="/coach_db/cont
             "email": row.get("email_id") or contact_data.get("email") or "",
             "company": contact_data.get("company") or "",
             "relationship": row.get("relationship_type") or row.get("relationship") or row.get("relation") or "",
+            "is_billing_contact": int(row.get("is_billing_contact") or 0),
             "link": f"{contact_detail_base_url}?name={contact_name}" if contact_name else "",
         })
 

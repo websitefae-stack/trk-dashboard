@@ -741,9 +741,12 @@
     if (!value) return "—";
 
     const text = String(value);
-    if (text.length >= 10) return escapeHtml(text.slice(0, 10));
+    const datePart = text.length >= 10 ? text.slice(0, 10) : text;
+    const date = new Date(`${datePart}T00:00:00`);
 
-    return escapeHtml(text);
+    if (isNaN(date.getTime())) return escapeHtml(text);
+
+    return escapeHtml(date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }));
   }
 
   function formatTime(value) {
@@ -1260,10 +1263,15 @@
       if (emailSelect) emailSelect.innerHTML = '<option value="">Loading...</option>';
       if (templateSelect) templateSelect.innerHTML = '<option value="">Loading...</option>';
 
+      const senderSelect = el("sendEmailSender");
+      const ccField = el("sendEmailCc");
+      if (ccField) ccField.value = "";
+
       try {
-        const [emailOptions, templateOptions] = await Promise.all([
+        const [emailOptions, templateOptions, senderOptions] = await Promise.all([
           apiPostRaw("dashboard.api.shared.invoices.get_client_email_options", { client_name: client }),
-          apiPostRaw("dashboard.api.shared.email_templates.get_email_template_options", {})
+          apiPostRaw("dashboard.api.shared.email_templates.get_email_template_options", {}),
+          apiPostRaw("dashboard.api.shared.email_templates.get_email_sender_options", {})
         ]);
 
         sendEmailState.emailOptions = emailOptions || [];
@@ -1275,6 +1283,7 @@
 
         fillSelect(emailSelect, sendEmailState.emailOptions, sendEmailState.emailOptions.length ? "" : "No email on file");
         fillSelect(templateSelect, sendEmailState.templateOptions, sendEmailState.templateOptions.length ? "" : "No templates");
+        fillSelect(senderSelect, senderOptions || [], "");
 
         if (templateSelect && sendEmailState.templateOptions.length) {
           templateSelect.value = sendEmailState.templateOptions[0].value;
@@ -1295,6 +1304,8 @@
       const emailSelect = el("sendEmailEmail");
       const subjectField = el("sendEmailSubject");
       const messageField = el("sendEmailMessage");
+      const senderSelect = el("sendEmailSender");
+      const ccField = el("sendEmailCc");
       const statusEl = el("sendEmailStatus");
       const sendBtn = el("sendEmailSubmit");
       const client = getClientName();
@@ -1320,7 +1331,9 @@
           client_name: client,
           recipient: recipient,
           subject: subject,
-          message: message
+          message: message,
+          sender: senderSelect ? senderSelect.value : "",
+          cc: ccField ? ccField.value.trim() : ""
         });
 
         showSuccess("Email sent");
@@ -1491,6 +1504,36 @@
       }
     }
 
+    function initBillingContactButtons() {
+      qsa(".dashboard-set-billing-contact-btn").forEach(function (button) {
+        button.addEventListener("click", async function (event) {
+          event.preventDefault();
+
+          const contactName = button.dataset.contact || "";
+          if (!contactName) return;
+
+          try {
+            button.disabled = true;
+            button.textContent = "Setting...";
+
+            await apiPost("link_existing_contact_to_client", {
+              client_name: getClientName(),
+              contact_name: contactName,
+              relationship_type: button.dataset.relationship || "",
+              is_billing_contact: 1
+            });
+
+            showSuccess("Billing contact set");
+            window.location.reload();
+          } catch (error) {
+            showError(error.message || "Could not set this contact as billing.");
+            button.disabled = false;
+            button.textContent = "Set as Billing";
+          }
+        });
+      });
+    }
+
   function initFileUpload() {
     const input = el("clientFileUploadInput");
     if (!input) return;
@@ -1546,6 +1589,7 @@
     initTravelChargeToggle();
     initChangeRequest();
     initExistingContactModal();
+    initBillingContactButtons();
     initTherapyLocationModal();
     initSendEmailModal();
     initDiagnosisRows();

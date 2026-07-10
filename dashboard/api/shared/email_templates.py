@@ -122,6 +122,45 @@ def get_email_template_options():
     return [{"value": row.get("name"), "label": row.get("name")} for row in rows]
 
 
+def _default_outgoing_email():
+    if not frappe.db.exists("DocType", "Email Account"):
+        return ""
+    return frappe.db.get_value("Email Account", {"default_outgoing": 1}, "email_id") or ""
+
+
+@frappe.whitelist()
+def get_email_sender_options():
+    """
+    "From" choices for the compose modals: the site's own default outgoing
+    (office) email account, plus the logged-in user's own address if they
+    have one - Ashley's own wording is "our office email" vs "the coach's
+    own email address". Whether a given address can actually send (its own
+    Email Account with SMTP credentials) is a site-admin setup step, same
+    as the rest of outgoing mail configuration - this just offers the
+    choice; frappe.sendmail falls back to the office account if a chosen
+    sender has no working outgoing account behind it.
+    """
+    if frappe.session.user == "Guest":
+        frappe.throw(frappe._("Login required"), frappe.PermissionError)
+
+    default_email = _default_outgoing_email()
+    office_label = f"Office email ({default_email})" if default_email else "Office email (default)"
+    options = [{"value": "", "label": office_label}]
+
+    user_email = frappe.session.user
+    if user_email and user_email not in ("Guest", "Administrator") and user_email != default_email:
+        options.append({"value": user_email, "label": f"My email ({user_email})"})
+
+    return options
+
+
+def parse_email_list(value):
+    """Splits a comma/semicolon separated "Cc" field into a clean list."""
+    if not value:
+        return []
+    return [addr.strip() for addr in re.split(r"[,;]", value) if addr.strip()]
+
+
 def plain_text_to_email_html(message):
     """
     Wraps plain-text lines (real newlines, no markup) into <p> tags for
