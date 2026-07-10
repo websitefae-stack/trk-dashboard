@@ -669,6 +669,7 @@
       renderNotes(result.notes || []);
       if (noteField) noteField.value = "";
       setValue("leadNewNoteDate", todayIso());
+      updateNoteDateDisplay();
     } catch (error) {
       showMessage(error.message || "Could not add note.", true);
     } finally {
@@ -680,6 +681,25 @@
     const now = new Date();
     const offset = now.getTimezoneOffset();
     return new Date(now.getTime() - offset * 60000).toISOString().slice(0, 10);
+  }
+
+  function updateNoteDateDisplay() {
+    const field = el("leadNewNoteDate");
+    const display = el("leadNewNoteDateDisplay");
+    if (!field || !display) return;
+
+    if (!field.value) {
+      display.textContent = "";
+      return;
+    }
+
+    // <input type="date"> renders its own text using the visitor's browser/
+    // OS locale, not anything this code controls - this label guarantees
+    // day/month/year regardless of what the native picker shows.
+    const date = new Date(`${field.value}T00:00:00`);
+    display.textContent = isNaN(date.getTime())
+      ? ""
+      : date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   }
 
   function init() {
@@ -713,6 +733,8 @@
 
     const noteDateField = el("leadNewNoteDate");
     if (noteDateField && !noteDateField.value) noteDateField.value = todayIso();
+    updateNoteDateDisplay();
+    if (noteDateField) noteDateField.addEventListener("change", updateNoteDateDisplay);
 
     if (getValue("leadIsNew") !== "1") {
       loadLead();

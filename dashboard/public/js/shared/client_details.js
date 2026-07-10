@@ -702,6 +702,7 @@
 
       field.value = "";
       if (dateField) dateField.value = "";
+      updateNoteDateDisplay();
       if (fileInput) fileInput.value = "";
       showSuccess("Note added");
 
@@ -715,8 +716,22 @@
     }
   }
 
+  function updateNoteDateDisplay() {
+    const field = el("newClientNoteDate");
+    const display = el("newClientNoteDateDisplay");
+    if (!field || !display) return;
+
+    // <input type="date"> renders its own text using the visitor's browser/
+    // OS locale, not anything this code controls - this label guarantees
+    // day/month/year regardless of what the native picker shows.
+    display.textContent = field.value ? formatDate(field.value) : "";
+  }
+
   function initAddNote() {
     const button = el("addClientNote");
+    const dateField = el("newClientNoteDate");
+    if (dateField) dateField.addEventListener("change", updateNoteDateDisplay);
+
     if (!button) return;
 
     button.addEventListener("click", function (event) {

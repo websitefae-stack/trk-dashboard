@@ -228,7 +228,10 @@
 
             <div class="dashboard-lead-note-form">
               <textarea id="leadNewNote" class="dashboard-input" rows="2" placeholder="Add a note about this lead"></textarea>
-              <input id="leadNewNoteDate" type="date" class="dashboard-input dashboard-lead-note-date">
+              <div class="dashboard-lead-note-date">
+                <input id="leadNewNoteDate" type="date" class="dashboard-input">
+                <div class="dashboard-field-hint" id="leadNewNoteDateDisplay"></div>
+              </div>
               <button type="button" class="dashboard-btn dashboard-btn-secondary" id="addLeadNoteBtn">Add Note</button>
             </div>
 

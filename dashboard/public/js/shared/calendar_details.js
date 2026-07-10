@@ -313,6 +313,7 @@
     if (emailBtn) emailBtn.style.display = data.client_name ? "" : "none";
 
     setValue("trkClientNoteSessionDate", data.session_date || "");
+    updateNoteDateDisplay();
     setValue("trkClientNoteSessionType", mapAppointmentTypeToClientNoteType(data.appointment_type || ""));
 
     renderClientNotes(data.client_notes || []);
@@ -567,6 +568,17 @@
     }
   }
 
+  function updateNoteDateDisplay() {
+    const field = el("trkClientNoteSessionDate");
+    const display = el("trkClientNoteSessionDateDisplay");
+    if (!field || !display) return;
+
+    // <input type="date"> renders its own text using the visitor's browser/
+    // OS locale, not anything this code controls - this label guarantees
+    // day/month/year regardless of what the native picker shows.
+    display.textContent = field.value ? formatDisplayDate(field.value) : "";
+  }
+
   function fillSelect(select, options) {
     if (!select) return;
     select.innerHTML = "";
@@ -685,6 +697,7 @@
     if (el("trkDetailEditSaveBtn")) el("trkDetailEditSaveBtn").addEventListener("click", saveEdit);
     if (el("trkSaveClientNoteBtn")) el("trkSaveClientNoteBtn").addEventListener("click", saveClientNote);
     if (el("trkDetailEditType")) el("trkDetailEditType").addEventListener("change", syncEditFields);
+    if (el("trkClientNoteSessionDate")) el("trkClientNoteSessionDate").addEventListener("change", updateNoteDateDisplay);
 
     if (el("trkDetailEmailBtn")) el("trkDetailEmailBtn").addEventListener("click", prepareBookingEmail);
     if (el("trkBookingEmailModalClose")) el("trkBookingEmailModalClose").addEventListener("click", closeBookingEmailModal);

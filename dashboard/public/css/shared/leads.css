@@ -164,6 +164,10 @@
   flex: 0 0 160px;
 }
 
+.dashboard-lead-note-date input {
+  width: 100%;
+}
+
 .dashboard-availability-day-picker {
   display: flex;
   flex-wrap: wrap;
