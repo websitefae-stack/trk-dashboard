@@ -684,6 +684,27 @@ def _split_name(full_name):
     return first, last
 
 
+def _format_intake_notes(doc):
+    """
+    A few things the intake form collects have no matching field on Client
+    (why they're getting in touch, how they heard about us, consent) - this
+    puts them somewhere visible on the new Client record instead of only
+    living in the attached PDF.
+    """
+    lines = []
+    if doc.enquiry_reason:
+        lines.append(f"Why they're contacting us: {doc.enquiry_reason}")
+    if doc.how_heard:
+        lines.append(f"How they heard about us: {doc.how_heard}")
+    if doc.consent_given:
+        lines.append("Consent to be contacted: Yes")
+
+    if not lines:
+        return ""
+
+    return "<p><strong>From intake form:</strong></p><p>" + "</p><p>".join(lines) + "</p>"
+
+
 def _attach_intake_pdf_to_client(doc, client_name):
     """
     Best-effort - a completed intake is data on the Lead, not a file, so
@@ -756,6 +777,20 @@ def convert_lead_to_client(name=None):
         client.primary_coach = doc.coach
     if client_meta.has_field("attending_coach") and doc.coach:
         client.attending_coach = doc.coach
+    if client_meta.has_field("email") and doc.contact_email:
+        client.email = doc.contact_email
+    if client_meta.has_field("mobile") and doc.contact_mobile:
+        client.mobile = doc.contact_mobile
+    if client_meta.has_field("zip_code") and doc.postal_code:
+        client.zip_code = doc.postal_code
+    if client_meta.has_field("address") and doc.location_address:
+        client.address = doc.location_address
+    if client_meta.has_field("date_added"):
+        client.date_added = frappe.utils.today()
+    if client_meta.has_field("additional_comments"):
+        intake_notes = _format_intake_notes(doc)
+        if intake_notes:
+            client.additional_comments = intake_notes
     if doc.client_age:
         # Client works out age from a date of birth via its own script rather
         # than storing age directly, so the Lead's approximate age (that's
