@@ -142,7 +142,7 @@
     const isArchived = bucket === "Archived";
 
     return `
-      <div class="dashboard-notif-card ${borderClassFor(bucket)}" data-name="${escapeHtml(row.name)}" data-detail-url="${escapeHtml(getDetailUrl(row))}">
+      <div class="dashboard-notif-card ${borderClassFor(bucket)}" draggable="true" data-name="${escapeHtml(row.name)}" data-detail-url="${escapeHtml(getDetailUrl(row))}">
         <div class="dashboard-notif-card-heading">
           <h3 class="dashboard-notif-card-title">${escapeHtml(row.title || row.notification_type || "Notification")}</h3>
           <span class="dashboard-priority-pill priority-${priorityClass}">${escapeHtml(row.priority || "Normal")}</span>
@@ -163,6 +163,49 @@
 
     await callApi(method, { name: name });
     await loadNotifications();
+  }
+
+  async function setDueDate(name, dueDate) {
+    await callApi("dashboard.api.shared.notifications.set_notification_due_date", {
+      name: name,
+      due_date: dueDate || ""
+    });
+    await loadNotifications();
+  }
+
+  function suggestedDueDate() {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.getFullYear() + "-" + String(tomorrow.getMonth() + 1).padStart(2, "0") + "-" + String(tomorrow.getDate()).padStart(2, "0");
+  }
+
+  // New/In Progress/Past Due aren't independent states a card can just be
+  // set to - they're derived from due_date (see bucketFor). So dropping on
+  // New clears the due date, and dropping on In Progress/Past Due asks for
+  // one (there's no other way to know what date the coach means), then
+  // lets bucketFor() sort out which of those two columns it actually lands
+  // in once that date is saved.
+  function handleColumnDrop(name, bucket) {
+    if (bucket === "Archived") {
+      toggleArchive(name, "archive");
+      return;
+    }
+
+    if (bucket === "New") {
+      setDueDate(name, "");
+      return;
+    }
+
+    const entered = window.prompt("Due date (YYYY-MM-DD):", suggestedDueDate());
+    if (entered === null) return;
+
+    const trimmed = entered.trim();
+    if (trimmed && !/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      window.alert("Please enter a date as YYYY-MM-DD.");
+      return;
+    }
+
+    setDueDate(name, trimmed);
   }
 
   function renderBoard(rows) {
@@ -189,7 +232,7 @@
         : '<div class="dashboard-notif-column-empty">Nothing here</div>';
 
       return `
-        <div class="dashboard-notif-column">
+        <div class="dashboard-notif-column" data-bucket="${escapeHtml(bucket)}">
           <div class="dashboard-notif-column-head">
             <span>${escapeHtml(bucket)}</span>
             <span class="dashboard-notif-column-count">${items.length}</span>
@@ -211,6 +254,40 @@
 
         const url = card.getAttribute("data-detail-url");
         if (url) window.location.href = url;
+      });
+
+      card.addEventListener("dragstart", function (event) {
+        event.dataTransfer.setData("text/plain", card.getAttribute("data-name"));
+        event.dataTransfer.effectAllowed = "move";
+        card.classList.add("is-dragging");
+      });
+
+      card.addEventListener("dragend", function () {
+        card.classList.remove("is-dragging");
+      });
+    });
+
+    board.querySelectorAll(".dashboard-notif-column").forEach(function (column) {
+      column.addEventListener("dragover", function (event) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        column.classList.add("is-drag-over");
+      });
+
+      column.addEventListener("dragleave", function () {
+        column.classList.remove("is-drag-over");
+      });
+
+      column.addEventListener("drop", function (event) {
+        event.preventDefault();
+        column.classList.remove("is-drag-over");
+
+        const name = event.dataTransfer.getData("text/plain");
+        const bucket = column.getAttribute("data-bucket");
+
+        if (name && bucket) {
+          handleColumnDrop(name, bucket);
+        }
       });
     });
 

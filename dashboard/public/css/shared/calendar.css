@@ -264,6 +264,21 @@
   transform: translateY(-1px);
 }
 
+.trk-calendar-event[draggable="true"] {
+  cursor: grab;
+}
+
+.trk-calendar-event.is-dragging {
+  opacity: 0.45;
+  cursor: grabbing;
+}
+
+.trk-calendar-day-column.is-drag-over {
+  background: rgba(0, 161, 158, 0.10);
+  outline: 2px dashed #00A19E;
+  outline-offset: -2px;
+}
+
 
 .trk-calendar-event-title {
   display: block;

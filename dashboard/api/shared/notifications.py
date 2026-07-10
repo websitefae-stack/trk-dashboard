@@ -1412,6 +1412,62 @@ def unarchive_notification(name=None):
 
 
 @frappe.whitelist()
+def set_notification_due_date(name=None, due_date=None):
+    """
+    Moves a notification between New / In Progress / Past Due on the
+    Kanban board by changing its due date (an empty due_date clears it
+    back to New). Also un-archives it, since dragging a card out of the
+    Archived column onto any of these implies it's active again.
+    """
+    ensure_logged_in()
+
+    name = _coalesce_str("name", name)
+    due_date = _coalesce_str("due_date", due_date)
+
+    if not name:
+        frappe.throw(_("Notification not found."))
+
+    doc = ensure_notification_access(name)
+
+    if doc.doctype != CONVERSATION_DOCTYPE:
+        if not _field_exists(NOTIFICATION_DOCTYPE, "custom_due_date"):
+            frappe.throw(_("Due dates aren't set up on this site yet."))
+
+        updates = {"custom_due_date": due_date or None}
+
+        if _field_exists(NOTIFICATION_DOCTYPE, "custom_archived"):
+            updates["custom_archived"] = 0
+
+        frappe.db.set_value(NOTIFICATION_DOCTYPE, doc.name, updates)
+        frappe.db.commit()
+
+        return {
+            "ok": True,
+            "notification": _format_notification_log(
+                frappe.db.get_value(NOTIFICATION_DOCTYPE, doc.name, _notification_log_fields(), as_dict=True)
+            ),
+        }
+
+    if doc.get("created_by_user") != frappe.session.user and not _is_franchisor_user():
+        frappe.throw(_("Only the conversation author can change this notification's due date."), frappe.PermissionError)
+
+    doc.due_date = due_date or None
+
+    if doc.get("status") == "Archived":
+        doc.status = "Open"
+
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    fresh_doc = frappe.get_doc(CONVERSATION_DOCTYPE, doc.name)
+
+    return {
+        "ok": True,
+        "notification": _format_conversation(fresh_doc),
+    }
+
+
+@frappe.whitelist()
 def reply_to_notification(name=None, message=None, attachment=None):
     ensure_logged_in()
 

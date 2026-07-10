@@ -552,6 +552,21 @@
   box-shadow: 0 2px 10px rgba(67, 75, 73, 0.16);
 }
 
+.dashboard-notif-card[draggable="true"] {
+  cursor: grab;
+}
+
+.dashboard-notif-card.is-dragging {
+  opacity: 0.45;
+  cursor: grabbing;
+}
+
+.dashboard-notif-column.is-drag-over {
+  background: rgba(0, 161, 158, 0.10);
+  outline: 2px dashed #00A19E;
+  outline-offset: -2px;
+}
+
 .dashboard-notif-card-heading {
   display: flex;
   justify-content: space-between;

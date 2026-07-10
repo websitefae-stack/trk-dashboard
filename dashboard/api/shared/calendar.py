@@ -2681,6 +2681,76 @@ def update_session(
 
 
 @frappe.whitelist(allow_guest=False)
+def reschedule_event(event=None, date=None, dashboard_type=None):
+    """
+    Moves an appointment to a different day via drag-and-drop on the
+    calendar grid, keeping its time-of-day and duration exactly as they
+    were - deliberately narrower than update_session(), which defaults
+    several other fields (status, billing type, ...) when they're not
+    passed and would silently reset them on a plain drag-drop.
+    """
+    _require_logged_in_user()
+
+    dashboard_type = _normalise_dashboard_type(dashboard_type)
+    context = _get_context_for_dashboard(dashboard_type)
+
+    event_name = _coalesce_str("event", event)
+    date = _coalesce_str("date", date)
+
+    if not event_name or not date:
+        frappe.throw(_("Event and date are required."))
+
+    event_doc = frappe.get_doc("Event", event_name)
+
+    if not _can_modify_event(event_doc, dashboard_type, context):
+        frappe.throw(_("You do not have permission to move this session."), frappe.PermissionError)
+
+    if not event_doc.starts_on:
+        frappe.throw(_("This session has no start time to move."))
+
+    old_start = get_datetime(event_doc.starts_on)
+    old_end = get_datetime(event_doc.ends_on) if event_doc.ends_on else None
+    duration_minutes = max(int((old_end - old_start).total_seconds() / 60), 15) if old_end else 45
+
+    new_start = get_datetime(f"{date} {old_start.strftime('%H:%M:%S')}")
+    new_end = add_to_date(new_start, minutes=duration_minutes)
+
+    if new_start == old_start:
+        return {
+            "name": event_doc.name,
+            "date": old_start.strftime("%Y-%m-%d"),
+            "start_time": old_start.strftime("%H:%M"),
+            "end_time": old_end.strftime("%H:%M") if old_end else "",
+        }
+
+    conflict = frappe.get_all(
+        "Event",
+        filters=[
+            ["name", "!=", event_doc.name],
+            ["owner", "=", event_doc.owner],
+            ["starts_on", "<", new_end],
+            ["ends_on", ">", new_start],
+        ],
+        limit_page_length=1,
+        ignore_permissions=True,
+    )
+
+    if conflict:
+        frappe.throw(_("There's already a session booked at that time - drop it on a free day instead."))
+
+    event_doc.starts_on = new_start
+    event_doc.ends_on = new_end
+    event_doc.save(ignore_permissions=True)
+
+    return {
+        "name": event_doc.name,
+        "date": new_start.strftime("%Y-%m-%d"),
+        "start_time": new_start.strftime("%H:%M"),
+        "end_time": new_end.strftime("%H:%M"),
+    }
+
+
+@frappe.whitelist(allow_guest=False)
 def delete_session(event=None, dashboard_type=None):
     """
     Permanently remove an appointment from the calendar (coach, franchisor and
