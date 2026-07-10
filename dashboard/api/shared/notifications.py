@@ -1676,6 +1676,19 @@ def _send_legacy_notification(
         if _field_exists(NOTIFICATION_DOCTYPE, "priority"):
             doc_data["priority"] = priority
 
+        # Frappe's own Notification Log.after_insert() unconditionally
+        # builds a "view record" link from document_type/document_name
+        # (get_url_to_form -> slug()), which crashes with
+        # "'NoneType' object has no attribute 'lower'" if both are left
+        # blank - this legacy broadcast notification has no specific
+        # record to link to, so point it at the recipient's own User
+        # record instead of leaving it unset.
+        if _field_exists(NOTIFICATION_DOCTYPE, "document_type"):
+            doc_data["document_type"] = "User"
+
+        if _field_exists(NOTIFICATION_DOCTYPE, "document_name"):
+            doc_data["document_name"] = recipient_user
+
         doc = frappe.get_doc(doc_data)
         doc.insert(ignore_permissions=True)
         created.append(doc.name)
@@ -1764,11 +1777,16 @@ def create_trk_notification(
     if _field_exists(NOTIFICATION_DOCTYPE, "priority"):
         doc_data["priority"] = priority
 
-    if _field_exists(NOTIFICATION_DOCTYPE, "document_type") and reference_doctype:
-        doc_data["document_type"] = reference_doctype
+    # Same crash guard as _send_legacy_notification() above - Frappe's own
+    # after_insert hook needs document_type/document_name to both be set
+    # to something real, or get_url_to_form() throws building the email
+    # link. Fall back to the recipient's own User record when no specific
+    # reference was given.
+    if _field_exists(NOTIFICATION_DOCTYPE, "document_type"):
+        doc_data["document_type"] = reference_doctype or "User"
 
-    if _field_exists(NOTIFICATION_DOCTYPE, "document_name") and reference_name:
-        doc_data["document_name"] = reference_name
+    if _field_exists(NOTIFICATION_DOCTYPE, "document_name"):
+        doc_data["document_name"] = reference_name or recipient_user
 
     doc = frappe.get_doc(doc_data)
     doc.insert(ignore_permissions=True)
