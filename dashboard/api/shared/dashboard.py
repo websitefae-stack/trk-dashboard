@@ -3,6 +3,7 @@ from frappe import _
 from frappe.utils import today, getdate, get_datetime, add_to_date, flt, nowdate, get_fullname
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
+from dashboard.api.shared import payment_utils
 from dashboard.api.shared.utils import get_label as _get_label, get_request_payload as _get_request_payload, coalesce_raw as _coalesce_raw, coalesce_str as _coalesce_str, find_session_worker_for_user as _find_session_worker_for_user
 
 
@@ -921,6 +922,12 @@ def _get_outstanding_invoices(dashboard_type, context, limit=8):
         client_row = _get_client_row(row.get("custom_client"))
         client_name = _get_client_display(client_row) if client_row else row.get("customer_name") or row.get("customer")
 
+        outstanding_amount = payment_utils.get_outstanding_amount_for_payment(
+            row.get("outstanding_amount"),
+            row.get("grand_total") or row.get("rounded_total"),
+            row.get("name"),
+        )
+
         invoices.append({
             "name": row.get("name"),
             "client": row.get("custom_client"),
@@ -930,7 +937,7 @@ def _get_outstanding_invoices(dashboard_type, context, limit=8):
             "due_date": str(row.get("due_date") or ""),
             "status": row.get("status") or "",
             "grand_total": flt(row.get("grand_total") or row.get("rounded_total") or 0),
-            "outstanding_amount": flt(row.get("outstanding_amount") or 0),
+            "outstanding_amount": outstanding_amount,
             "currency": row.get("currency") or "GBP",
             "invoice_url": {
                 COACH_DASHBOARD: "/coach_db/invoices",
@@ -1081,36 +1088,6 @@ def _resolve_paid_to_account(invoice_doc, client_row):
     return ""
 
 
-def _get_live_outstanding_amount(invoice_doc, invoice_name):
-    """
-    The Sales Invoice's own cached outstanding_amount field can drift from
-    the true Payment Ledger balance (this has been observed to disagree with
-    what ERPNext's validate_allocated_amount_with_latest_data() re-checks at
-    Payment Entry insert time, even when our own allocated amount is pinned
-    to - or floored below - the cached field). Query the ledger directly for
-    the authoritative current figure; fall back to the cached field if the
-    query can't run (e.g. a schema this site's ERPNext version doesn't have).
-    """
-    try:
-        row = frappe.db.sql(
-            """
-            select sum(amount_in_account_currency) as amount
-            from `tabPayment Ledger Entry`
-            where against_voucher_type = %s
-              and against_voucher_no = %s
-              and delinked = 0
-            """,
-            ("Sales Invoice", invoice_name),
-            as_dict=True,
-        )
-        if row and row[0].get("amount") is not None:
-            return flt(row[0]["amount"])
-    except Exception:
-        frappe.log_error(frappe.get_traceback(), "mark_invoice_paid - live outstanding lookup failed")
-
-    return flt(invoice_doc.outstanding_amount)
-
-
 @frappe.whitelist()
 def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None, amount_paid=None):
     user = _require_logged_in_user()
@@ -1132,7 +1109,9 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None, amou
     if invoice_doc.docstatus != 1:
         frappe.throw(_("Only submitted Sales Invoices can be marked as paid."))
 
-    outstanding_amount = _get_live_outstanding_amount(invoice_doc, invoice)
+    outstanding_amount = payment_utils.get_outstanding_amount_for_payment(
+        invoice_doc.outstanding_amount, invoice_doc.grand_total, invoice
+    )
 
     if outstanding_amount <= 0:
         return {
@@ -1141,16 +1120,13 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None, amou
             "invoice": invoice,
         }
 
-    party_amount = None
+    final_amount = flt(amount_paid, 2) if amount_paid else outstanding_amount
 
-    if amount_paid:
-        party_amount = flt(amount_paid)
+    if final_amount <= 0:
+        frappe.throw(_("Amount paid must be greater than zero."))
 
-        if party_amount <= 0:
-            frappe.throw(_("Amount paid must be greater than zero."))
-
-        if party_amount > outstanding_amount:
-            frappe.throw(_("Amount paid cannot be greater than the outstanding amount ({0})").format(outstanding_amount))
+    if final_amount > outstanding_amount:
+        frappe.throw(_("Amount paid cannot be greater than the outstanding amount ({0})").format(outstanding_amount))
 
     client_row = _get_client_row(invoice_doc.get("custom_client"))
 
@@ -1162,25 +1138,15 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None, amou
     if not invoice_doc.customer:
         frappe.throw(_("No customer found for this invoice."))
 
-    # Build the Payment Entry via ERPNext's own get_payment_entry() helper -
-    # the same code the standard "Make Payment" Desk button uses - instead of
-    # hand-rolling the allocation ourselves, and cap it to the live-ledger
-    # outstanding_amount above rather than whatever get_payment_entry() would
-    # otherwise default to from the (possibly stale) cached field.
-    from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
-
-    payment_entry = get_payment_entry(
-        "Sales Invoice", invoice, party_amount=party_amount or outstanding_amount, bank_account=paid_to
+    payment_entry = payment_utils.build_and_submit_payment_entry(
+        invoice_name=invoice,
+        paid_to_account=paid_to,
+        payment_date=payment_date,
+        remarks=f"Payment marked as paid from dashboard by {user}",
+        final_amount=final_amount,
     )
-    payment_entry.posting_date = payment_date
-    payment_entry.reference_date = payment_date
-    payment_entry.reference_no = f"Dashboard payment - {invoice}"
-    payment_entry.remarks = f"Payment marked as paid from dashboard by {user}"
 
-    payment_entry.insert(ignore_permissions=True)
-    payment_entry.submit()
-
-    is_partial = flt(payment_entry.paid_amount) < outstanding_amount
+    is_partial = final_amount < outstanding_amount
 
     return {
         "ok": True,
@@ -1188,6 +1154,145 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None, amou
         "invoice": invoice,
         "payment_entry": payment_entry.name,
     }
+
+
+@frappe.whitelist()
+def run_invoice_rounding_selftest(reference_invoice=None, test_amount=439.20, confirm=0):
+    """
+    Admin-only, self-cleaning diagnostic. Clones reference_invoice's
+    customer/company/bank/item setup into a brand new test Sales Invoice
+    for test_amount, submits it, records the GL Entries and Payment
+    Ledger Entries ERPNext actually posted for it, pays it in full
+    through the exact same code path real users go through
+    (payment_utils.build_and_submit_payment_entry), and reports success
+    or failure with full diagnostic detail - then cancels and deletes
+    every test document it created, regardless of outcome.
+
+    Requires confirm=1 (this creates and cancels real accounting
+    documents on this site) and the System Manager role.
+    """
+    if "System Manager" not in frappe.get_roles():
+        frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+    if not int(confirm or 0):
+        frappe.throw(_("Pass confirm=1 to run this - it creates and cancels a real Sales Invoice and Payment Entry."))
+
+    reference_invoice = _coalesce_str("reference_invoice", reference_invoice)
+
+    if not reference_invoice or not frappe.db.exists("Sales Invoice", reference_invoice):
+        frappe.throw(_("Please provide a valid reference_invoice name to clone the customer/company/bank setup from."))
+
+    test_amount = flt(test_amount or 439.20, 2)
+    ref_doc = frappe.get_doc("Sales Invoice", reference_invoice)
+
+    report = {
+        "reference_invoice": reference_invoice,
+        "reference_invoice_totals": {
+            "grand_total": ref_doc.grand_total,
+            "rounded_total": ref_doc.rounded_total,
+            "outstanding_amount": ref_doc.outstanding_amount,
+            "rounding_adjustment": ref_doc.rounding_adjustment,
+            "disable_rounded_total": ref_doc.get("disable_rounded_total"),
+        },
+        "reference_gl_entries": payment_utils.dump_gl_entries(reference_invoice),
+        "reference_payment_ledger_entries": payment_utils.dump_payment_ledger_entries(reference_invoice),
+    }
+
+    test_invoice_name = None
+    test_payment_name = None
+
+    try:
+        test_doc = frappe.new_doc("Sales Invoice")
+        test_doc.customer = ref_doc.customer
+        test_doc.company = ref_doc.company
+        test_doc.posting_date = nowdate()
+        test_doc.due_date = nowdate()
+
+        if test_doc.meta.has_field("custom_client"):
+            test_doc.custom_client = ref_doc.get("custom_client")
+
+        if test_doc.meta.has_field("custom_bank_account"):
+            test_doc.custom_bank_account = ref_doc.get("custom_bank_account")
+
+        if test_doc.meta.has_field("custom_income_owner_coach"):
+            test_doc.custom_income_owner_coach = ref_doc.get("custom_income_owner_coach")
+
+        if test_doc.meta.has_field("disable_rounded_total"):
+            test_doc.disable_rounded_total = 1
+            test_doc.rounding_adjustment = 0
+            test_doc.base_rounding_adjustment = 0
+
+        first_item = ref_doc.items[0]
+        test_doc.append("items", {
+            "item_code": first_item.item_code,
+            "qty": 1,
+            "rate": test_amount,
+        })
+
+        test_doc.insert(ignore_permissions=True)
+        test_doc.submit()
+        test_invoice_name = test_doc.name
+
+        report["test_invoice"] = test_invoice_name
+        report["test_invoice_totals"] = {
+            "grand_total": test_doc.grand_total,
+            "rounded_total": test_doc.rounded_total,
+            "outstanding_amount": test_doc.outstanding_amount,
+            "rounding_adjustment": test_doc.rounding_adjustment,
+        }
+        report["test_gl_entries"] = payment_utils.dump_gl_entries(test_invoice_name)
+        report["test_payment_ledger_entries"] = payment_utils.dump_payment_ledger_entries(test_invoice_name)
+
+        client_row = _get_client_row(test_doc.get("custom_client")) if test_doc.get("custom_client") else None
+        paid_to = _resolve_paid_to_account(test_doc, client_row)
+
+        if not paid_to:
+            report["success"] = False
+            report["error"] = "No valid Bank Account ledger account found to run the payment leg of the test."
+        else:
+            outstanding_amount = payment_utils.get_outstanding_amount_for_payment(
+                test_doc.outstanding_amount, test_doc.grand_total, test_invoice_name
+            )
+
+            payment_entry = payment_utils.build_and_submit_payment_entry(
+                invoice_name=test_invoice_name,
+                paid_to_account=paid_to,
+                payment_date=nowdate(),
+                remarks="Dashboard invoice/payment rounding self-test",
+                final_amount=outstanding_amount,
+            )
+            test_payment_name = payment_entry.name
+
+            report["success"] = True
+            report["payment_entry"] = test_payment_name
+            report["payment_amount"] = payment_entry.paid_amount
+
+    except Exception:
+        report["success"] = False
+        report["traceback"] = frappe.get_traceback()
+
+    finally:
+        if test_payment_name and frappe.db.exists("Payment Entry", test_payment_name):
+            try:
+                pe = frappe.get_doc("Payment Entry", test_payment_name)
+                if pe.docstatus == 1:
+                    pe.cancel()
+                pe.delete()
+            except Exception:
+                report["cleanup_error_payment"] = frappe.get_traceback()
+
+        if test_invoice_name and frappe.db.exists("Sales Invoice", test_invoice_name):
+            try:
+                inv = frappe.get_doc("Sales Invoice", test_invoice_name)
+                if inv.docstatus == 1:
+                    inv.cancel()
+                inv.delete()
+            except Exception:
+                report["cleanup_error_invoice"] = frappe.get_traceback()
+
+        frappe.db.commit()
+
+    return report
 
 
 # =========================================================
