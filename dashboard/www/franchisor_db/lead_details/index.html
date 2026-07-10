@@ -83,6 +83,17 @@
                 <div class="dashboard-field-hint" id="leadIntakeInfo"></div>
               </div>
 
+              <div class="dashboard-detail-field">
+                <label for="lead_coach">Coach</label>
+                <select id="lead_coach" class="dashboard-input">
+                  <option value="">— Unassigned —</option>
+                  {% for c in coaches %}
+                    <option value="{{ c.name }}">{{ c.coach_name or c.name }}</option>
+                  {% endfor %}
+                </select>
+                <div class="dashboard-field-hint">Reassigning moves this lead to a different coach's Leads list.</div>
+              </div>
+
               <div class="dashboard-detail-field" id="leadDeclineReasonField" style="display:none;">
                 <label for="lead_decline_reason">Reason</label>
                 <input id="lead_decline_reason" type="text" class="dashboard-input" placeholder="Why we declined this lead">
