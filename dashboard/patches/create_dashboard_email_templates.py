@@ -25,32 +25,36 @@ BODY_FIELD_CANDIDATES = ["response", "response_html", "message", "content"]
 
 TEMPLATES = [
     {
+        # Plain text (not HTML) - none of these three use the desk's HTML
+        # editor. plain_text_to_email_html() wraps this into <p> tags per
+        # line at send time.
         "name": BOOKING_CONFIRMATION_TEMPLATE,
         "subject": "Your {{ appointment_type }} is confirmed",
         "body": (
-            "<p>Hi {{ contact_name }},</p>"
-            "<p>Your {{ appointment_type }} with {{ coach_name }} is confirmed:</p>"
-            "<p><strong>{{ date }} at {{ time }}</strong></p>"
-            "{% if location_address %}<p>Location: {{ location_address }}</p>{% endif %}"
-            "<p>We'll be in touch if anything changes. See you then!</p>"
+            "Hi {{ contact_name }},\n"
+            "\n"
+            "Your {{ appointment_type }} with {{ coach_name }} is confirmed:\n"
+            "\n"
+            "{{ date }} at {{ time }}"
+            "{% if location_address %}\n"
+            "Location: {{ location_address }}{% endif %}\n"
+            "\n"
+            "We'll be in touch if anything changes. See you then!"
         ),
     },
     {
         "name": INTAKE_INVITE_TEMPLATE,
         "subject": "Your Resilient Kid intake form",
         "body": (
-            "<p>Hi {{ contact_name }},</p>"
-            "<p>Thanks for speaking with us. Please complete the short form below "
-            "so we can get {{ client_name }} set up:</p>"
-            "<p><a href=\"{{ intake_url }}\">{{ intake_url }}</a></p>"
+            "Hi {{ contact_name }},\n"
+            "\n"
+            "Thanks for speaking with us. Please complete the short form below "
+            "so we can get {{ client_name }} set up:\n"
+            "\n"
+            "{{ intake_url }}"
         ),
     },
     {
-        # Plain text (not HTML) - this one populates a plain <textarea> the
-        # coach can freely edit before sending, and gets wrapped into <p>
-        # tags per line by send_invoice_email() at send time. Keep this as
-        # plain lines rather than <p>/<br> markup so that round-trip still
-        # works cleanly if it's ever edited back in the desk.
         "name": INVOICE_EMAIL_TEMPLATE,
         "subject": "Invoice {{ invoice_number }}",
         "body": (
@@ -117,10 +121,6 @@ def execute():
                     doc.subject = tpl["subject"]
 
                 doc.set(body_fieldname, tpl["body"])
-
-                if meta.has_field("use_html"):
-                    doc.use_html = 1
-
                 doc.save(ignore_permissions=True)
                 continue
 
@@ -131,10 +131,6 @@ def execute():
                 doc.subject = tpl["subject"]
 
             doc.set(body_fieldname, tpl["body"])
-
-            if meta.has_field("use_html"):
-                doc.use_html = 1
-
             doc.insert(ignore_permissions=True)
         except Exception:
             frappe.log_error(frappe.get_traceback(), f"Create Dashboard Email Template Failed: {tpl['name']}")

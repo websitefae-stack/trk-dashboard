@@ -27,7 +27,7 @@ from dashboard.api.shared.appointment_types import (
     get_duration_minutes,
     get_matching_templates,
 )
-from dashboard.api.shared.email_templates import render_email, BOOKING_CONFIRMATION_TEMPLATE
+from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, BOOKING_CONFIRMATION_TEMPLATE
 
 SLOT_GRID_MINUTES = 30
 MAX_DAYS_AHEAD = 60
@@ -503,11 +503,15 @@ def _send_booking_confirmation_email(contact_email, contact_name, coach, appoint
     }
 
     fallback_message = (
-        "<p>Hi {{ contact_name }},</p>"
-        "<p>Your {{ appointment_type }} with {{ coach_name }} is confirmed:</p>"
-        "<p><strong>{{ date }} at {{ time }}</strong></p>"
-        "{% if location_address %}<p>Location: {{ location_address }}</p>{% endif %}"
-        "<p>We'll be in touch if anything changes. See you then!</p>"
+        "Hi {{ contact_name }},\n"
+        "\n"
+        "Your {{ appointment_type }} with {{ coach_name }} is confirmed:\n"
+        "\n"
+        "{{ date }} at {{ time }}"
+        "{% if location_address %}\n"
+        "Location: {{ location_address }}{% endif %}\n"
+        "\n"
+        "We'll be in touch if anything changes. See you then!"
     )
 
     subject, message = render_email(
@@ -520,6 +524,6 @@ def _send_booking_confirmation_email(contact_email, contact_name, coach, appoint
     frappe.sendmail(
         recipients=[contact_email],
         subject=subject,
-        message=message,
+        message=plain_text_to_email_html(message),
         now=True,
     )

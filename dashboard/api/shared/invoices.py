@@ -4,7 +4,7 @@ from frappe import _
 from frappe.utils import nowdate, flt
 
 from dashboard.api.shared.pagination import get_page_args, make_pagination
-from dashboard.api.shared.email_templates import render_email, INVOICE_EMAIL_TEMPLATE
+from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, INVOICE_EMAIL_TEMPLATE
 from dashboard.api.shared import payment_utils
 
 
@@ -1729,15 +1729,7 @@ def send_invoice_email(docname, recipient=None, reply_to=None, subject=None, mes
 
     subject = (subject or f"Invoice {doc.name}").strip()
     message = (message or f"Please find attached invoice {doc.name}.").strip()
-
-    # Plain-text lines (the normal case, typed/edited in the compose
-    # textarea) get wrapped into <p> per line. A message that's already
-    # block-level HTML (e.g. an Email Template edited with <p>/<div> markup
-    # in the desk) is sent as-is instead, so it isn't double-wrapped.
-    if not message[:10].lstrip().lower().startswith(("<p", "<div")):
-        message = "<p>" + "</p><p>".join(
-            line.strip() for line in message.splitlines() if line.strip()
-        ) + "</p>"
+    message = plain_text_to_email_html(message)
 
     reply_to = (reply_to or "").strip()
 

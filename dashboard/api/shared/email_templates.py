@@ -27,6 +27,15 @@ def _body_fieldname(doc):
 
 
 def render_email(template_name, context, fallback_subject, fallback_message):
+    """
+    Every dashboard Email Template is written and edited as plain text
+    (Ashley's site doesn't offer an HTML editor for these) - callers that
+    actually send mail should run the result through
+    plain_text_to_email_html() before handing it to frappe.sendmail(), so
+    line breaks show up correctly. Callers that just need to pre-fill an
+    editable plain-text textarea (e.g. the invoice compose modal) should
+    use the raw result as-is.
+    """
     if template_name and frappe.db.exists("Email Template", template_name):
         try:
             doc = frappe.get_doc("Email Template", template_name)
@@ -44,3 +53,21 @@ def render_email(template_name, context, fallback_subject, fallback_message):
         frappe.render_template(fallback_subject, context),
         frappe.render_template(fallback_message, context),
     )
+
+
+def plain_text_to_email_html(message):
+    """
+    Wraps plain-text lines (real newlines, no markup) into <p> tags for
+    sendmail - unless the text already looks like it contains block-level
+    HTML (e.g. someone pasted markup straight into the plain Email
+    Template field), in which case it's sent through as-is rather than
+    being double-wrapped.
+    """
+    message = (message or "").strip()
+
+    if message[:10].lstrip().lower().startswith(("<p", "<div")):
+        return message
+
+    return "<p>" + "</p><p>".join(
+        line.strip() for line in message.splitlines() if line.strip()
+    ) + "</p>"
