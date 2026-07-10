@@ -653,6 +653,48 @@
         openBookingModal(this.dataset.date, this.dataset.time);
       });
     });
+
+    grid.querySelectorAll(".trk-calendar-day-column").forEach(function (column) {
+      column.addEventListener("dragover", function (dragEvent) {
+        dragEvent.preventDefault();
+        dragEvent.dataTransfer.dropEffect = "move";
+        column.classList.add("is-drag-over");
+      });
+
+      column.addEventListener("dragleave", function () {
+        column.classList.remove("is-drag-over");
+      });
+
+      column.addEventListener("drop", function (dragEvent) {
+        dragEvent.preventDefault();
+        column.classList.remove("is-drag-over");
+
+        const eventName = dragEvent.dataTransfer.getData("text/plain");
+        const targetSlot = column.querySelector(".trk-calendar-grid-slot");
+        const targetDate = targetSlot ? targetSlot.dataset.date : "";
+
+        if (eventName && targetDate) {
+          moveEventToDate(eventName, targetDate);
+        }
+      });
+    });
+  }
+
+  function moveEventToDate(eventName, targetDate) {
+    const event = getEventByName(eventName);
+    if (event && event.date === targetDate) return;
+
+    apiPost(SHARED_API + ".reschedule_event", {
+      dashboard_type: state.dashboardType,
+      event: eventName,
+      date: targetDate
+    }).then(function () {
+      showToast("Session moved to " + targetDate);
+      loadCalendarData();
+    }).catch(function (error) {
+      console.error("Reschedule event failed:", error);
+      showToast(error.message || "Could not move this session");
+    });
   }
 
   function renderEvents() {
@@ -709,6 +751,24 @@
           panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
         }
       });
+
+      // Private placeholders (a coach can't see another coach's client
+      // details) and still-queued "pending booking" preview rows aren't
+      // real, movable Event records - dragging either would either fail
+      // server-side or move the wrong thing.
+      if (!event.is_private && !event.is_pending && state.currentView !== "month") {
+        eventNode.draggable = true;
+
+        eventNode.addEventListener("dragstart", function (dragEvent) {
+          dragEvent.dataTransfer.setData("text/plain", event.name);
+          dragEvent.dataTransfer.effectAllowed = "move";
+          eventNode.classList.add("is-dragging");
+        });
+
+        eventNode.addEventListener("dragend", function () {
+          eventNode.classList.remove("is-dragging");
+        });
+      }
 
       dayColumn.appendChild(eventNode);
     });

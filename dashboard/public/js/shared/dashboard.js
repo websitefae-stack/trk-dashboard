@@ -335,6 +335,41 @@
     renderUpcomingAppointments("swDashboardUpcomingTableBody", payload.upcoming_appointments || []);
   }
 
+  function formatBirthdayDate(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value || "");
+
+    return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  }
+
+  function renderBirthdays(items) {
+    const card = el("dashboardBirthdaysCard");
+    const list = el("dashboardBirthdaysList");
+    if (!card || !list) return;
+
+    if (!items || !items.length) {
+      card.style.display = "none";
+      list.innerHTML = "";
+      return;
+    }
+
+    card.style.display = "";
+
+    list.innerHTML = items.map(function (item) {
+      return `
+        <div class="dashboard-birthday-row">
+          <span class="dashboard-birthday-name">${escapeHtml(item.client_label || "")}</span>
+          <span class="dashboard-birthday-date">${escapeHtml(formatBirthdayDate(item.date))} · turning ${escapeHtml(item.turning_age)}</span>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function franchiseFeeLabel(rate) {
+    const pct = Math.round((rate || 0) * 100);
+    return `Franchise Fee (${pct}%)`;
+  }
+
   function renderCoachFranchisorDashboard(payload) {
     setText("dashboardTotalClients", payload.total_clients ?? 0);
     setText("dashboardTotalSessionWorkers", payload.total_session_workers ?? 0);
@@ -361,6 +396,20 @@
 
     setText("dashboardRevenuePreviousInterbusiness", formatMoney(payload.revenue_interbusiness_previous || 0, "GBP"));
     setText("dashboardRevenueCurrentInterbusiness", formatMoney(payload.revenue_interbusiness_current || 0, "GBP"));
+
+    setText("dashboardFeesPreviousLabel", payload.previous_label || "Last Month");
+    setText("dashboardFeesCurrentLabel", payload.current_label || "This Month");
+
+    setText("dashboardFeesPreviousMarketing", formatMoney(payload.marketing_fee_previous || 0, "GBP"));
+    setText("dashboardFeesCurrentMarketing", formatMoney(payload.marketing_fee_current || 0, "GBP"));
+
+    setText("dashboardFeesPreviousFranchiseLabel", franchiseFeeLabel(payload.franchise_fee_rate_previous));
+    setText("dashboardFeesCurrentFranchiseLabel", franchiseFeeLabel(payload.franchise_fee_rate_current));
+
+    setText("dashboardFeesPreviousFranchise", formatMoney(payload.franchise_fee_previous || 0, "GBP"));
+    setText("dashboardFeesCurrentFranchise", formatMoney(payload.franchise_fee_current || 0, "GBP"));
+
+    renderBirthdays(payload.upcoming_birthdays || []);
 
     renderUpcomingAppointments("dashboardUpcomingTableBody", payload.upcoming_appointments || []);
     renderOutstandingInvoices(payload.outstanding_invoices || []);

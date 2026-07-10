@@ -281,6 +281,7 @@ def _get_client_fields():
         "pricelist",
         "billing_contact",
         "status",
+        "date_of_birth",
     ]
 
     fields = ["creation"]
@@ -441,6 +442,55 @@ def _count_clients_added(rows, start_date, end_date):
             count += 1
 
     return count
+
+
+def _next_birthday(dob, from_date):
+    """
+    This year's (or next year's, if it's already passed) occurrence of the
+    given date-of-birth's month/day. A 29 Feb birthday lands on 1 Mar in a
+    non-leap year, matching how that's commonly observed.
+    """
+    for year in (from_date.year, from_date.year + 1):
+        try:
+            candidate = getdate(f"{year}-{dob.month:02d}-{dob.day:02d}")
+        except Exception:
+            if dob.month == 2 and dob.day == 29:
+                candidate = getdate(f"{year}-03-01")
+            else:
+                continue
+
+        if candidate >= from_date:
+            return candidate
+
+    return None
+
+
+def _get_upcoming_birthdays(client_rows, days_ahead=14):
+    today_date = getdate(nowdate())
+    window_end = add_to_date(today_date, days=days_ahead)
+
+    upcoming = []
+
+    for row in client_rows:
+        dob_value = row.get("date_of_birth")
+        if not dob_value:
+            continue
+
+        dob = getdate(dob_value)
+        next_birthday = _next_birthday(dob, today_date)
+
+        if not next_birthday or next_birthday > window_end:
+            continue
+
+        upcoming.append({
+            "client": row.get("name"),
+            "client_label": _get_client_display(row) or row.get("name"),
+            "date": next_birthday.strftime("%Y-%m-%d"),
+            "turning_age": next_birthday.year - dob.year,
+        })
+
+    upcoming.sort(key=lambda item: item["date"])
+    return upcoming
 
 
 # =========================================================
@@ -884,6 +934,49 @@ def _get_invoice_revenue_breakdown(dashboard_type, context, start_date, end_date
         "client_total": client_total,
         "travel_total": travel_total,
         "interbusiness_total": interbusiness_total,
+    }
+
+
+MARKETING_FEE_RATE = 0.02
+
+# (ceiling, rate) - the first tier whose ceiling the gross revenue doesn't
+# exceed applies. "Up to £1,500" and "Between £1,500 - £2,999" both name
+# exactly £1,500 in the source table; treated here as belonging to the
+# first (lower) tier, matching the more natural reading of "up to".
+FRANCHISE_FEE_TIERS = [
+    (1500, 0.10),
+    (2999.99, 0.08),
+]
+FRANCHISE_FEE_DEFAULT_RATE = 0.07  # £3,000+
+
+
+def _franchise_fee_rate(gross_revenue):
+    for ceiling, rate in FRANCHISE_FEE_TIERS:
+        if gross_revenue <= ceiling:
+            return rate
+
+    return FRANCHISE_FEE_DEFAULT_RATE
+
+
+def _compute_fees(revenue_breakdown):
+    """
+    Marketing fee: 2% of Client Invoices specifically (not travel, not
+    interbusiness). Franchise fee: a tiered percentage of Gross Revenue,
+    which for this purpose is Client Invoices + Travel - interbusiness
+    cross-charges are never counted (see _get_invoice_revenue_breakdown's
+    own docstring).
+    """
+    client_total = flt(revenue_breakdown.get("client_total"))
+    travel_total = flt(revenue_breakdown.get("travel_total"))
+
+    gross_revenue = client_total + travel_total
+    franchise_fee_rate = _franchise_fee_rate(gross_revenue)
+
+    return {
+        "gross_revenue": gross_revenue,
+        "marketing_fee": client_total * MARKETING_FEE_RATE,
+        "franchise_fee": gross_revenue * franchise_fee_rate,
+        "franchise_fee_rate": franchise_fee_rate,
     }
 
 
@@ -1441,6 +1534,9 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
         dashboard_type, context, previous_month_start, previous_month_end
     )
 
+    fees_current = _compute_fees(revenue_current)
+    fees_previous = _compute_fees(revenue_previous)
+
     response = {
         "dashboard_type": dashboard_type,
         "current_label": _get_month_label(current_month_start),
@@ -1451,6 +1547,7 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
         "new_clients_previous_month": _count_clients_added(client_rows, previous_month_start, previous_month_end),
 
         "upcoming_appointments": _get_upcoming_appointments(dashboard_type, context, limit=8),
+        "upcoming_birthdays": _get_upcoming_birthdays(client_rows, days_ahead=14),
 
         "revenue_total_current": revenue_current["total"],
         "revenue_total_previous": revenue_previous["total"],
@@ -1460,6 +1557,15 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
         "revenue_travel_previous": revenue_previous["travel_total"],
         "revenue_interbusiness_current": revenue_current["interbusiness_total"],
         "revenue_interbusiness_previous": revenue_previous["interbusiness_total"],
+
+        "gross_revenue_current": fees_current["gross_revenue"],
+        "gross_revenue_previous": fees_previous["gross_revenue"],
+        "marketing_fee_current": fees_current["marketing_fee"],
+        "marketing_fee_previous": fees_previous["marketing_fee"],
+        "franchise_fee_current": fees_current["franchise_fee"],
+        "franchise_fee_previous": fees_previous["franchise_fee"],
+        "franchise_fee_rate_current": fees_current["franchise_fee_rate"],
+        "franchise_fee_rate_previous": fees_previous["franchise_fee_rate"],
 
         "year_to_date_income": _sum_invoice_total_ytd(
             dashboard_type,

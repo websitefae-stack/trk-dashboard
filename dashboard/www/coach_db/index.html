@@ -44,6 +44,11 @@
         </div>
       </div>
 
+      <div class="dashboard-card dashboard-birthdays-card" id="dashboardBirthdaysCard" style="display:none;">
+        <div class="dashboard-birthdays-title">🎂 Upcoming Birthdays</div>
+        <div class="dashboard-birthdays-list" id="dashboardBirthdaysList"></div>
+      </div>
+
       <div class="dashboard-home-top-row">
         <div class="dashboard-card dashboard-revenue-card">
           <div class="dashboard-revenue-title">Revenue</div>
@@ -117,6 +122,42 @@
           <div class="dashboard-revenue-ytd">
             <span class="dashboard-revenue-ytd-label">Year To Date Income</span>
             <span class="dashboard-revenue-ytd-value" id="dashboardYearToDateIncome">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard-card dashboard-fees-card">
+        <div class="dashboard-revenue-title">Fees</div>
+
+        <div class="dashboard-revenue-periods">
+          <div class="dashboard-revenue-period">
+            <div class="dashboard-revenue-period-label" id="dashboardFeesPreviousLabel">Last Month</div>
+
+            <div class="dashboard-revenue-breakdown">
+              <div class="dashboard-revenue-row">
+                <span>Marketing Fee (2%)</span>
+                <span id="dashboardFeesPreviousMarketing">—</span>
+              </div>
+              <div class="dashboard-revenue-row">
+                <span id="dashboardFeesPreviousFranchiseLabel">Franchise Fee</span>
+                <span id="dashboardFeesPreviousFranchise">—</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="dashboard-revenue-period">
+            <div class="dashboard-revenue-period-label" id="dashboardFeesCurrentLabel">This Month</div>
+
+            <div class="dashboard-revenue-breakdown">
+              <div class="dashboard-revenue-row">
+                <span>Marketing Fee (2%)</span>
+                <span id="dashboardFeesCurrentMarketing">—</span>
+              </div>
+              <div class="dashboard-revenue-row">
+                <span id="dashboardFeesCurrentFranchiseLabel">Franchise Fee</span>
+                <span id="dashboardFeesCurrentFranchise">—</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

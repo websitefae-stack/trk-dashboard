@@ -1412,6 +1412,62 @@ def unarchive_notification(name=None):
 
 
 @frappe.whitelist()
+def set_notification_due_date(name=None, due_date=None):
+    """
+    Moves a notification between New / In Progress / Past Due on the
+    Kanban board by changing its due date (an empty due_date clears it
+    back to New). Also un-archives it, since dragging a card out of the
+    Archived column onto any of these implies it's active again.
+    """
+    ensure_logged_in()
+
+    name = _coalesce_str("name", name)
+    due_date = _coalesce_str("due_date", due_date)
+
+    if not name:
+        frappe.throw(_("Notification not found."))
+
+    doc = ensure_notification_access(name)
+
+    if doc.doctype != CONVERSATION_DOCTYPE:
+        if not _field_exists(NOTIFICATION_DOCTYPE, "custom_due_date"):
+            frappe.throw(_("Due dates aren't set up on this site yet."))
+
+        updates = {"custom_due_date": due_date or None}
+
+        if _field_exists(NOTIFICATION_DOCTYPE, "custom_archived"):
+            updates["custom_archived"] = 0
+
+        frappe.db.set_value(NOTIFICATION_DOCTYPE, doc.name, updates)
+        frappe.db.commit()
+
+        return {
+            "ok": True,
+            "notification": _format_notification_log(
+                frappe.db.get_value(NOTIFICATION_DOCTYPE, doc.name, _notification_log_fields(), as_dict=True)
+            ),
+        }
+
+    if doc.get("created_by_user") != frappe.session.user and not _is_franchisor_user():
+        frappe.throw(_("Only the conversation author can change this notification's due date."), frappe.PermissionError)
+
+    doc.due_date = due_date or None
+
+    if doc.get("status") == "Archived":
+        doc.status = "Open"
+
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    fresh_doc = frappe.get_doc(CONVERSATION_DOCTYPE, doc.name)
+
+    return {
+        "ok": True,
+        "notification": _format_conversation(fresh_doc),
+    }
+
+
+@frappe.whitelist()
 def reply_to_notification(name=None, message=None, attachment=None):
     ensure_logged_in()
 
@@ -1490,6 +1546,22 @@ def reply_to_notification(name=None, message=None, attachment=None):
 
 
 @frappe.whitelist()
+def _kanban_bucket_for(row):
+    """
+    Same New / In Progress / Past Due / Archived bucketing the Notifications
+    Kanban board uses on the frontend (see bucketFor() in notifications.js) -
+    kept in sync so the sidebar badge counts the same thing the board shows.
+    """
+    if (row.get("status") or "Open") == "Archived":
+        return "Archived"
+
+    due_date = row.get("due_date")
+    if not due_date:
+        return "New"
+
+    return "Past Due" if str(due_date) < nowdate() else "In Progress"
+
+
 def get_dashboard_notification_summary():
     ensure_logged_in()
 
@@ -1499,13 +1571,16 @@ def get_dashboard_notification_summary():
     open_count = 0
 
     for row in notifications:
-        read_status = (row.get("read_status") or "").strip()
-        status = (row.get("status") or "").strip()
+        bucket = _kanban_bucket_for(row)
 
-        if read_status == "Unread":
+        # The badge is meant to flag what actually needs attention - a
+        # notification sitting in "In Progress" already has a future due
+        # date and someone's on it, so it isn't counted here even if
+        # nobody has opened it yet.
+        if bucket in ["New", "Past Due"]:
             unread_count += 1
 
-        if status not in ["Done", "Archived", "Closed"]:
+        if bucket != "Archived":
             open_count += 1
 
     latest = notifications[:5]

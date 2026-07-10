@@ -748,6 +748,9 @@ def _get_event_fields():
     if _event_has_field("google_calendar_event_id"):
         fields.append("google_calendar_event_id")
 
+    if _event_has_field("custom_google_event_id"):
+        fields.append("custom_google_event_id")
+
     return fields
 
 
@@ -1403,14 +1406,23 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
     custom_client = row.get("custom_client")
     client_row = client_map.get(custom_client) if client_map else None
 
-    # Frappe's own built-in Google Calendar integration (separate from this
-    # app's push/pull sync, which uses custom_google_event_id/custom_google_meet_url)
-    # independently pulls the same pushed appointment back in as a second, blank
-    # Event once it appears on the coach's Google Calendar. That shadow copy has
-    # no custom_client and none of the session data - it's pure sync noise
-    # sitting on top of the real, fully-populated native booking, so it must
-    # never be shown as its own calendar entry.
+    # Frappe's own built-in Google Calendar integration independently pulls
+    # the same pushed appointment back in as a second, blank Event once it
+    # appears on the coach's Google Calendar. That shadow copy has no
+    # custom_client and none of the session data - it's pure sync noise
+    # sitting on top of the real, fully-populated native booking, so it
+    # must never be shown as its own calendar entry.
     if row.get("google_calendar_event_id") and not custom_client:
+        return None
+
+    # The coach_calendar_sync app's own pull (custom_google_event_id) also
+    # imports a coach's personal Google Calendar events - genuinely real
+    # appointments, but not client sessions, and Ashley doesn't want them
+    # cluttering the dashboard grid. coach_calendar_sync's own daily
+    # notification job already flags these ("N appointments from Google
+    # Calendar need a client linked") with a link straight to the Event in
+    # the desk, so they're still reachable - just not shown here.
+    if row.get("custom_google_event_id") and not custom_client:
         return None
 
     is_private_for_viewing_coach = False
@@ -2677,6 +2689,76 @@ def update_session(
         "travel_charged": int(event_doc.get("custom_travel_charged") or 0),
         "travel_miles_one_way": float(event_doc.get("custom_travel_miles_one_way") or 0),
         "total_travel_miles": float(event_doc.get("custom_total_travel_miles") or 0),
+    }
+
+
+@frappe.whitelist(allow_guest=False)
+def reschedule_event(event=None, date=None, dashboard_type=None):
+    """
+    Moves an appointment to a different day via drag-and-drop on the
+    calendar grid, keeping its time-of-day and duration exactly as they
+    were - deliberately narrower than update_session(), which defaults
+    several other fields (status, billing type, ...) when they're not
+    passed and would silently reset them on a plain drag-drop.
+    """
+    _require_logged_in_user()
+
+    dashboard_type = _normalise_dashboard_type(dashboard_type)
+    context = _get_context_for_dashboard(dashboard_type)
+
+    event_name = _coalesce_str("event", event)
+    date = _coalesce_str("date", date)
+
+    if not event_name or not date:
+        frappe.throw(_("Event and date are required."))
+
+    event_doc = frappe.get_doc("Event", event_name)
+
+    if not _can_modify_event(event_doc, dashboard_type, context):
+        frappe.throw(_("You do not have permission to move this session."), frappe.PermissionError)
+
+    if not event_doc.starts_on:
+        frappe.throw(_("This session has no start time to move."))
+
+    old_start = get_datetime(event_doc.starts_on)
+    old_end = get_datetime(event_doc.ends_on) if event_doc.ends_on else None
+    duration_minutes = max(int((old_end - old_start).total_seconds() / 60), 15) if old_end else 45
+
+    new_start = get_datetime(f"{date} {old_start.strftime('%H:%M:%S')}")
+    new_end = add_to_date(new_start, minutes=duration_minutes)
+
+    if new_start == old_start:
+        return {
+            "name": event_doc.name,
+            "date": old_start.strftime("%Y-%m-%d"),
+            "start_time": old_start.strftime("%H:%M"),
+            "end_time": old_end.strftime("%H:%M") if old_end else "",
+        }
+
+    conflict = frappe.get_all(
+        "Event",
+        filters=[
+            ["name", "!=", event_doc.name],
+            ["owner", "=", event_doc.owner],
+            ["starts_on", "<", new_end],
+            ["ends_on", ">", new_start],
+        ],
+        limit_page_length=1,
+        ignore_permissions=True,
+    )
+
+    if conflict:
+        frappe.throw(_("There's already a session booked at that time - drop it on a free day instead."))
+
+    event_doc.starts_on = new_start
+    event_doc.ends_on = new_end
+    event_doc.save(ignore_permissions=True)
+
+    return {
+        "name": event_doc.name,
+        "date": new_start.strftime("%Y-%m-%d"),
+        "start_time": new_start.strftime("%H:%M"),
+        "end_time": new_end.strftime("%H:%M"),
     }
 
 
