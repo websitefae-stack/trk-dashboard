@@ -36,7 +36,6 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-bottom: 24px;
 }
 
 .dashboard-birthdays-title {
@@ -77,12 +76,18 @@
    REVENUE + BUSINESS OVERVIEW ROW
 ========================================================= */
 
-.dashboard-home-top-row {
+.dashboard-home-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
   gap: 24px;
   align-items: start;
   margin-bottom: 24px;
+}
+
+.dashboard-home-grid-col {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 .dashboard-revenue-card {
@@ -186,14 +191,8 @@
   gap: 16px;
 }
 
-.dashboard-business-column {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
 @media (max-width: 1100px) {
-  .dashboard-home-top-row {
+  .dashboard-home-grid {
     grid-template-columns: 1fr;
   }
 }
