@@ -124,7 +124,8 @@
 
               <div class="dashboard-detail-field">
                 <label>Birthday</label>
-                <input class="dashboard-input js-profile-editable" type="date" name="birth_date" value="{{ user_doc.birth_date or '' }}" readonly>
+                <input class="dashboard-input js-profile-editable" type="date" name="birth_date" id="profile_birth_date" value="{{ user_doc.birth_date or '' }}" readonly>
+                <div class="dashboard-field-value" id="profile_birth_date_display" style="display:none;"></div>
               </div>
 
               <div class="dashboard-detail-field dashboard-detail-field-full">

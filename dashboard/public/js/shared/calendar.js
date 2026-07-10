@@ -308,6 +308,20 @@
       editTypeSelect.addEventListener("change", syncEditFields);
     }
 
+    const editDateField = document.getElementById("trkEditDate");
+    if (editDateField) {
+      editDateField.addEventListener("change", function () {
+        updateDatePickerDisplay("trkEditDate", "trkEditDateDisplay");
+      });
+    }
+
+    const noteDateField = document.getElementById("trkNoteSessionDate");
+    if (noteDateField) {
+      noteDateField.addEventListener("change", function () {
+        updateDatePickerDisplay("trkNoteSessionDate", "trkNoteSessionDateDisplay");
+      });
+    }
+
     document.addEventListener("click", function (event) {
       const editBtn = event.target.closest("[data-calendar-action='edit-session']");
       if (editBtn) {
@@ -1398,6 +1412,7 @@
 
     setValue("trkEditEventName", event.name || "");
     setValue("trkEditDate", event.date || "");
+    updateDatePickerDisplay("trkEditDate", "trkEditDateDisplay");
     setValue("trkEditTime", event.start_time || "");
     setValue("trkEditStatus", event.ui_status || "Booked");
     setValue("trkEditType", event.type || "Therapy Session");
@@ -1450,6 +1465,7 @@
     setValue("trkNoteEventName", event.name || "");
     setValue("trkNoteClientName", event.client_name || "");
     setValue("trkNoteSessionDate", event.date || "");
+    updateDatePickerDisplay("trkNoteSessionDate", "trkNoteSessionDateDisplay");
     setValue("trkNoteSessionType", mapAppointmentTypeToClientNoteType(event.type || ""));
     setValue("trkNoteText", "");
 
@@ -2061,6 +2077,18 @@
 
   function formatDisplayDate(date) {
     return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  }
+
+  function updateDatePickerDisplay(inputId, displayId) {
+    // <input type="date"> renders its own text using the visitor's browser/
+    // OS locale, not anything this code controls - this label guarantees
+    // day/month/year regardless of what the native picker shows.
+    const field = document.getElementById(inputId);
+    const display = document.getElementById(displayId);
+    if (!field || !display) return;
+
+    const date = parseDateKey(field.value);
+    display.textContent = date ? formatDisplayDate(date) : "";
   }
 
   function formatLongDisplayDate(dateKey) {

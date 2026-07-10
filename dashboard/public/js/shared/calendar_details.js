@@ -362,6 +362,7 @@
 
     setValue("trkDetailEditEventName", data.name || state.eventName);
     setValue("trkDetailEditDate", data.session_date || "");
+    updateEditDateDisplay();
     setValue("trkDetailEditTime", data.start_time || "");
     setValue("trkDetailEditStatus", data.ui_status || "Booked");
     setValue("trkDetailEditType", data.appointment_type || "Therapy Session");
@@ -579,6 +580,14 @@
     display.textContent = field.value ? formatDisplayDate(field.value) : "";
   }
 
+  function updateEditDateDisplay() {
+    const field = el("trkDetailEditDate");
+    const display = el("trkDetailEditDateDisplay");
+    if (!field || !display) return;
+
+    display.textContent = field.value ? formatDisplayDate(field.value) : "";
+  }
+
   function fillSelect(select, options) {
     if (!select) return;
     select.innerHTML = "";
@@ -698,6 +707,7 @@
     if (el("trkSaveClientNoteBtn")) el("trkSaveClientNoteBtn").addEventListener("click", saveClientNote);
     if (el("trkDetailEditType")) el("trkDetailEditType").addEventListener("change", syncEditFields);
     if (el("trkClientNoteSessionDate")) el("trkClientNoteSessionDate").addEventListener("change", updateNoteDateDisplay);
+    if (el("trkDetailEditDate")) el("trkDetailEditDate").addEventListener("change", updateEditDateDisplay);
 
     if (el("trkDetailEmailBtn")) el("trkDetailEmailBtn").addEventListener("click", prepareBookingEmail);
     if (el("trkBookingEmailModalClose")) el("trkBookingEmailModalClose").addEventListener("click", closeBookingEmailModal);
