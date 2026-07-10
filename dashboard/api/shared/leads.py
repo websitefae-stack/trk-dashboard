@@ -12,7 +12,7 @@ from dashboard.api.shared.clients import get_coach_label
 from dashboard.api.shared.utils import coalesce_str, coalesce_raw
 from dashboard.api.shared.notifications import create_trk_notification
 from dashboard.api.shared.appointment_types import creates_client_on_conversion
-from dashboard.api.shared.email_templates import render_email, INTAKE_INVITE_TEMPLATE
+from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, INTAKE_INVITE_TEMPLATE
 
 
 INTAKE_ROUTE = "client-intake/new"
@@ -435,10 +435,12 @@ def send_intake_form(name=None):
         }
 
         fallback_message = (
-            "<p>Hi {{ contact_name }},</p>"
-            "<p>Thanks for speaking with us. Please complete the short form below "
-            "so we can get {{ client_name }} set up:</p>"
-            "<p><a href=\"{{ intake_url }}\">{{ intake_url }}</a></p>"
+            "Hi {{ contact_name }},\n"
+            "\n"
+            "Thanks for speaking with us. Please complete the short form below "
+            "so we can get {{ client_name }} set up:\n"
+            "\n"
+            "{{ intake_url }}"
         )
 
         subject, message = render_email(
@@ -451,7 +453,7 @@ def send_intake_form(name=None):
         frappe.sendmail(
             recipients=[doc.contact_email],
             subject=subject,
-            message=message,
+            message=plain_text_to_email_html(message),
             now=True,
         )
         email_sent = True

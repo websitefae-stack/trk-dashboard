@@ -73,40 +73,191 @@
       .replace(/'/g, "&#039;");
   }
 
-  function applyFilters() {
-    const searchInput = el("notificationSearch");
-    const statusFilter = el("notificationStatusFilter");
-    const typeFilter = el("notificationTypeFilter");
-    const rows = document.querySelectorAll(".dashboard-card:not(.dashboard-archived-section) .dashboard-notification-row");
-    const countEl = el("notificationCount");
+  const STATUS_COLUMNS = ["New", "In Progress", "Past Due", "Archived"];
 
-    const search = searchInput ? searchInput.value.toLowerCase().trim() : "";
-    const status = statusFilter ? statusFilter.value : "All";
-    const type = typeFilter ? typeFilter.value : "All";
+  let allNotifications = [];
 
-    let visibleCount = 0;
+  function todayIso() {
+    const now = new Date();
+    return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
+  }
 
-    rows.forEach(function (row) {
-      const rowSearch = row.getAttribute("data-search") || "";
-      const rowStatus = row.getAttribute("data-status") || "";
-      const rowReadStatus = row.getAttribute("data-read-status") || "";
-      const rowType = row.getAttribute("data-type") || "";
+  // Bucket is derived from status + due_date rather than a stored value,
+  // so it works the same way whether a row came from the "Dashboard
+  // Conversation" doctype or the legacy Notification Log fallback (see
+  // _format_conversation / _format_notification_log in notifications.py)
+  // - both already expose status/due_date/read_status in this same shape.
+  function bucketFor(row) {
+    if ((row.status || "Open") === "Archived") return "Archived";
 
-      const statusMatch = status === "All" || rowStatus === status || rowReadStatus === status;
-      const typeMatch = type === "All" || rowType === type;
-      const searchMatch = !search || rowSearch.indexOf(search) !== -1;
+    const dueDate = row.due_date || "";
+    if (!dueDate) return "New";
 
-      const visible = searchMatch && statusMatch && typeMatch;
+    return dueDate < todayIso() ? "Past Due" : "In Progress";
+  }
 
-      row.style.display = visible ? "" : "none";
+  function borderClassFor(bucket) {
+    if (bucket === "Archived") return "status-border-archived";
+    if (bucket === "Past Due") return "status-border-overdue";
+    if (bucket === "In Progress") return "status-border-unread";
+    return "";
+  }
 
-      if (visible) {
-        visibleCount += 1;
-      }
+  function getViewModeQueryString() {
+    const params = new URLSearchParams(window.location.search);
+    const keep = new URLSearchParams();
+
+    ["view_as", "viewer"].forEach(function (key) {
+      const value = params.get(key);
+      if (value) keep.set(key, value);
     });
 
+    const query = keep.toString();
+    return query ? "&" + query : "";
+  }
+
+  function getDetailUrl(row) {
+    return getDashboardBaseUrl()
+      + "/notification_details?name="
+      + encodeURIComponent(row.name)
+      + getViewModeQueryString();
+  }
+
+  function formatDate(value) {
+    if (!value) return "—";
+
+    try {
+      const date = new Date(value);
+      return date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+    } catch (error) {
+      return String(value);
+    }
+  }
+
+  function renderCard(row) {
+    const priorityClass = (row.priority || "Normal").toLowerCase().replace(/\s+/g, "-");
+    const readStatus = row.read_status || "Read";
+    const bucket = bucketFor(row);
+    const canArchive = Number(row.can_archive || 0);
+    const isArchived = bucket === "Archived";
+
+    return `
+      <div class="dashboard-notif-card ${borderClassFor(bucket)}" data-name="${escapeHtml(row.name)}" data-detail-url="${escapeHtml(getDetailUrl(row))}">
+        <div class="dashboard-notif-card-heading">
+          <h3 class="dashboard-notif-card-title">${escapeHtml(row.title || row.notification_type || "Notification")}</h3>
+          <span class="dashboard-priority-pill priority-${priorityClass}">${escapeHtml(row.priority || "Normal")}</span>
+        </div>
+        <div class="dashboard-notif-card-message">${escapeHtml(row.message || "")}</div>
+        <div class="dashboard-notif-card-meta">
+          <span>${readStatus === "Unread" ? "Unread · " : ""}${row.due_date ? "Due " + formatDate(row.due_date) : formatDate(row.notification_date)}</span>
+          ${canArchive ? `<button type="button" class="dashboard-notif-card-archive-btn" data-archive-toggle="${isArchived ? "unarchive" : "archive"}">${isArchived ? "Restore" : "Archive"}</button>` : ""}
+        </div>
+      </div>
+    `;
+  }
+
+  async function toggleArchive(name, action) {
+    const method = action === "unarchive"
+      ? "dashboard.api.shared.notifications.unarchive_notification"
+      : "dashboard.api.shared.notifications.archive_notification";
+
+    await callApi(method, { name: name });
+    await loadNotifications();
+  }
+
+  function renderBoard(rows) {
+    const board = el("notificationsKanbanBoard");
+    if (!board) return;
+
+    const byBucket = {};
+    STATUS_COLUMNS.forEach(function (bucket) { byBucket[bucket] = []; });
+
+    rows.forEach(function (row) {
+      byBucket[bucketFor(row)].push(row);
+    });
+
+    STATUS_COLUMNS.forEach(function (bucket) {
+      byBucket[bucket].sort(function (a, b) {
+        return String(b.notification_date || "").localeCompare(String(a.notification_date || ""));
+      });
+    });
+
+    board.innerHTML = STATUS_COLUMNS.map(function (bucket) {
+      const items = byBucket[bucket];
+      const body = items.length
+        ? items.map(renderCard).join("")
+        : '<div class="dashboard-notif-column-empty">Nothing here</div>';
+
+      return `
+        <div class="dashboard-notif-column">
+          <div class="dashboard-notif-column-head">
+            <span>${escapeHtml(bucket)}</span>
+            <span class="dashboard-notif-column-count">${items.length}</span>
+          </div>
+          <div class="dashboard-notif-column-body">${body}</div>
+        </div>
+      `;
+    }).join("");
+
+    board.querySelectorAll(".dashboard-notif-card").forEach(function (card) {
+      card.addEventListener("click", function (event) {
+        const archiveBtn = event.target.closest("[data-archive-toggle]");
+
+        if (archiveBtn) {
+          event.stopPropagation();
+          toggleArchive(card.getAttribute("data-name"), archiveBtn.getAttribute("data-archive-toggle"));
+          return;
+        }
+
+        const url = card.getAttribute("data-detail-url");
+        if (url) window.location.href = url;
+      });
+    });
+
+    const countEl = el("notificationCount");
     if (countEl) {
-      countEl.textContent = visibleCount + (visibleCount === 1 ? " conversation" : " conversations");
+      countEl.textContent = rows.length + (rows.length === 1 ? " notification" : " notifications");
+    }
+  }
+
+  function applyFilters() {
+    const searchInput = el("notificationSearch");
+    const typeFilter = el("notificationTypeFilter");
+
+    const search = searchInput ? searchInput.value.toLowerCase().trim() : "";
+    const type = typeFilter ? typeFilter.value : "All";
+
+    const filtered = allNotifications.filter(function (row) {
+      const rowType = row.conversation_type || row.notification_type || "Message";
+      const typeMatch = type === "All" || rowType === type;
+
+      const searchBlob = [row.title, row.notification_type, row.message, row.client, row.event, row.created_by_label, row.reference_name]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      const searchMatch = !search || searchBlob.indexOf(search) !== -1;
+
+      return typeMatch && searchMatch;
+    });
+
+    renderBoard(filtered);
+  }
+
+  async function loadNotifications() {
+    const board = el("notificationsKanbanBoard");
+    if (!board) return;
+
+    try {
+      const rows = await callApi("dashboard.api.shared.notifications.get_notification_list_for_page", {
+        status: "All",
+        limit: 500,
+      });
+
+      allNotifications = Array.isArray(rows) ? rows : [];
+      applyFilters();
+    } catch (error) {
+      console.error("Failed to load notifications:", error);
+      board.innerHTML = `<div class="dashboard-empty">${escapeHtml(error.message || "Could not load notifications.")}</div>`;
     }
   }
 
@@ -403,38 +554,6 @@
     }
   }
 
-    function getViewModeQueryString() {
-      const params = new URLSearchParams(window.location.search);
-      const keep = new URLSearchParams();
-  
-      ["view_as", "viewer"].forEach(function (key) {
-        const value = params.get(key);
-        if (value) keep.set(key, value);
-      });
-  
-      const query = keep.toString();
-      return query ? "&" + query : "";
-    }
-  
-    function makeRowsClickable() {
-      const baseUrl = getDashboardBaseUrl();
-      const viewModeQuery = getViewModeQueryString();
-  
-      document.querySelectorAll(".dashboard-notification-row").forEach(function (row) {
-        row.addEventListener("click", function (event) {
-          if (event.target.closest("a, button, input, select, textarea")) return;
-  
-          const name = row.getAttribute("data-name") || "";
-          if (!name) return;
-  
-          window.location.href = baseUrl
-            + "/notification_details?name="
-            + encodeURIComponent(name)
-            + viewModeQuery;
-        });
-      });
-    }
-
   function bindLinkedClientChange() {
     const clientSelect = el("notificationLinkedClient");
 
@@ -447,50 +566,29 @@
 
   function init() {
     const searchInput = el("notificationSearch");
-    const statusFilter = el("notificationStatusFilter");
     const typeFilter = el("notificationTypeFilter");
     const refreshBtn = el("refreshNotifications");
     const openBtn = el("openSendNotification");
     const cancelBtn = el("cancelSendNotification");
     const form = el("sendNotificationForm");
-    const toggleMainBtn = el("toggleMainConversations");
-    const mainSection = el("mainConversationSection");
-    const toggleArchivedBtn = el("toggleArchivedConversations");
-    const archivedSection = el("archivedConversationsSection");
-  
+
     if (searchInput) searchInput.addEventListener("input", applyFilters);
-    if (statusFilter) statusFilter.addEventListener("change", applyFilters);
     if (typeFilter) typeFilter.addEventListener("change", applyFilters);
-  
+
     if (refreshBtn) {
-      refreshBtn.addEventListener("click", function () {
-        window.location.reload();
-      });
+      refreshBtn.addEventListener("click", loadNotifications);
     }
 
-    if (toggleMainBtn && mainSection) {
-      toggleMainBtn.addEventListener("click", function () {
-        mainSection.classList.toggle("is-collapsed");
-      });
-    }
-        
-    if (toggleArchivedBtn && archivedSection) {
-      toggleArchivedBtn.addEventListener("click", function () {
-        archivedSection.classList.toggle("is-collapsed");
-      });
-    }
-  
     if (openBtn) openBtn.addEventListener("click", openPanel);
     if (cancelBtn) cancelBtn.addEventListener("click", closePanel);
-  
+
     if (form && form.dataset.notificationsBound !== "1") {
       form.dataset.notificationsBound = "1";
       form.addEventListener("submit", sendNotification);
     }
-  
+
     bindLinkedClientChange();
-    makeRowsClickable();
-    applyFilters();
+    loadNotifications();
   }
 
   if (document.readyState === "loading") {

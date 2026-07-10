@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import add_to_date, now_datetime
+from frappe.utils import add_to_date, now_datetime, getdate, nowdate
 from dashboard.api.shared.utils import get_label as _get_label, get_request_payload as _get_request_payload, coalesce_raw as _coalesce_raw, coalesce_str as _coalesce_str
 
 
@@ -891,6 +891,8 @@ def _format_conversation(doc):
 
 def _format_notification_log(row):
     read_value = row.get("read")
+    archived = int(row.get("custom_archived") or 0)
+    due_date = row.get("custom_due_date")
 
     return {
         "name": row.get("name"),
@@ -898,10 +900,17 @@ def _format_notification_log(row):
         "conversation_type": row.get("type") or "Notification",
         "title": row.get("subject") or row.get("type") or "Notification",
         "message": row.get("email_content") or row.get("subject") or "",
-        "status": "Unread" if not read_value else "Read",
+        # Raw workflow status - matches _format_conversation()'s shape so
+        # the Kanban board on the frontend can bucket rows from either
+        # source (New / In Progress / Past Due / Archived) the same way,
+        # purely from status + due_date + read_status.
+        "status": "Archived" if archived else "Open",
         "read_status": "Unread" if not read_value else "Read",
         "priority": row.get("priority") or "Normal",
         "notification_date": row.get("creation"),
+        "due_date": str(due_date) if due_date else "",
+        "is_archived": archived,
+        "can_archive": 1,
         "client": row.get("document_name") if row.get("document_type") == "Client" else "",
         "coach": "",
         "session_worker": "",
@@ -935,6 +944,8 @@ def _notification_log_fields():
         "document_name",
         "from_user",
         "for_user",
+        "custom_due_date",
+        "custom_archived",
     ]
 
     for fieldname in optional_fields:
@@ -1093,6 +1104,22 @@ def get_notifications(status="All", limit=20):
                 continue
 
             result.append(_format_conversation(doc))
+    else:
+        # No "Dashboard Conversation" doctype on this site - sending falls
+        # back to plain Notification Log records (_send_legacy_notification
+        # / create_trk_notification), so reading has to fall back the same
+        # way, or every sent notification would be invisible here even
+        # though it was created successfully.
+        log_rows = frappe.get_all(
+            NOTIFICATION_DOCTYPE,
+            fields=_notification_log_fields(),
+            filters=_get_notification_log_filters(status),
+            order_by="creation desc",
+            limit_page_length=500,
+            ignore_permissions=True,
+        )
+
+        result = [_format_notification_log(row) for row in log_rows]
 
     response_needed = [
         row for row in result
@@ -1298,7 +1325,18 @@ def archive_notification(name=None):
     doc = ensure_notification_access(name)
 
     if doc.doctype != CONVERSATION_DOCTYPE:
-        frappe.throw(_("Only dashboard conversations can be archived."))
+        if not _field_exists(NOTIFICATION_DOCTYPE, "custom_archived"):
+            frappe.throw(_("Archiving isn't set up on this site yet."))
+
+        frappe.db.set_value(NOTIFICATION_DOCTYPE, doc.name, "custom_archived", 1)
+        frappe.db.commit()
+
+        return {
+            "ok": True,
+            "notification": _format_notification_log(
+                frappe.db.get_value(NOTIFICATION_DOCTYPE, doc.name, _notification_log_fields(), as_dict=True)
+            ),
+        }
 
     if doc.get("created_by_user") != frappe.session.user and not _is_franchisor_user():
         frappe.throw(_("Only the conversation author can archive this conversation."), frappe.PermissionError)
@@ -1309,6 +1347,55 @@ def archive_notification(name=None):
     _create_conversation_message(
         conversation=doc.name,
         message="Conversation archived.",
+        message_type="Status Update",
+        sent_by=frappe.session.user,
+        role_type=_get_current_role(),
+    )
+
+    frappe.db.commit()
+
+    fresh_doc = frappe.get_doc(CONVERSATION_DOCTYPE, doc.name)
+
+    return {
+        "ok": True,
+        "notification": _format_conversation(fresh_doc),
+    }
+
+
+@frappe.whitelist()
+def unarchive_notification(name=None):
+    ensure_logged_in()
+
+    name = _coalesce_str("name", name)
+
+    if not name:
+        frappe.throw(_("Notification not found."))
+
+    doc = ensure_notification_access(name)
+
+    if doc.doctype != CONVERSATION_DOCTYPE:
+        if not _field_exists(NOTIFICATION_DOCTYPE, "custom_archived"):
+            frappe.throw(_("Archiving isn't set up on this site yet."))
+
+        frappe.db.set_value(NOTIFICATION_DOCTYPE, doc.name, "custom_archived", 0)
+        frappe.db.commit()
+
+        return {
+            "ok": True,
+            "notification": _format_notification_log(
+                frappe.db.get_value(NOTIFICATION_DOCTYPE, doc.name, _notification_log_fields(), as_dict=True)
+            ),
+        }
+
+    if doc.get("created_by_user") != frappe.session.user and not _is_franchisor_user():
+        frappe.throw(_("Only the conversation author can restore this conversation."), frappe.PermissionError)
+
+    doc.status = "Open"
+    doc.save(ignore_permissions=True)
+
+    _create_conversation_message(
+        conversation=doc.name,
+        message="Conversation restored from archive.",
         message_type="Status Update",
         sent_by=frappe.session.user,
         role_type=_get_current_role(),
@@ -1511,6 +1598,7 @@ def send_dashboard_notification(
             message=message,
             priority=priority,
             subject=subject,
+            due_date=_coalesce_str("due_date", due_date),
         )
 
     recipient_users = _normalise_recipient_users(_coalesce_raw("recipient_users", recipient_users))
@@ -1636,6 +1724,7 @@ def _send_legacy_notification(
     message=None,
     priority="Normal",
     subject=None,
+    due_date=None,
 ):
     recipient_users = _normalise_recipient_users(recipient_users)
 
@@ -1688,6 +1777,13 @@ def _send_legacy_notification(
 
         if _field_exists(NOTIFICATION_DOCTYPE, "document_name"):
             doc_data["document_name"] = recipient_user
+
+        # Drives the Notifications Kanban board (New / In Progress / Past
+        # Due / Archived) - see _format_notification_log(). custom_due_date
+        # is a Custom Field added by
+        # patches/add_notification_log_kanban_fields.py.
+        if due_date and _field_exists(NOTIFICATION_DOCTYPE, "custom_due_date"):
+            doc_data["custom_due_date"] = due_date
 
         doc = frappe.get_doc(doc_data)
         doc.insert(ignore_permissions=True)
