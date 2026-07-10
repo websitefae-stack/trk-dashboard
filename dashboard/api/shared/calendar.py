@@ -8,6 +8,7 @@ from dashboard.api.shared.session_worker_view_mode import get_session_worker_vie
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 from dashboard.api.shared.utils import get_label as _get_label, get_request_payload as _get_request_payload, coalesce_raw as _coalesce_raw, coalesce_str as _coalesce_str, find_session_worker_for_user as _find_session_worker_for_user
 from dashboard.api.shared.clients import build_display_name as _build_client_display_name
+from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, parse_email_list, BOOKING_CONFIRMATION_TEMPLATE
 
 
 DASHBOARD_ADMIN_USERS = [
@@ -1790,6 +1791,120 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
         "booking_warning": event_doc.get("custom_booking_warning") or "",
         "google_meet_link": event_doc.get("google_meet_link") or "",
     }
+
+
+def _booking_confirmation_context(event_doc, client):
+    coach = event_doc.get("custom_coach") or ""
+    coach_display_name = (frappe.db.get_value("Coach", coach, "coach_name") or coach) if coach else "Coach"
+
+    starts_on = event_doc.get("starts_on")
+    start_dt = get_datetime(starts_on) if starts_on else None
+
+    return {
+        "contact_name": _get_client_display_name(client),
+        "appointment_type": event_doc.get("custom_appointment_type") or "",
+        "coach_name": coach_display_name,
+        "date": start_dt.strftime("%A %d %B %Y") if start_dt else "",
+        "time": start_dt.strftime("%H:%M") if start_dt else "",
+        "location_address": event_doc.get("location") or "",
+    }
+
+
+_BOOKING_CONFIRMATION_FALLBACK = (
+    "Hi {{ contact_name }},\n"
+    "\n"
+    "Your {{ appointment_type }} with {{ coach_name }} is confirmed:\n"
+    "\n"
+    "{{ date }} at {{ time }}"
+    "{% if location_address %}\n"
+    "Location: {{ location_address }}{% endif %}\n"
+    "\n"
+    "We'll be in touch if anything changes. See you then!"
+)
+
+
+@frappe.whitelist()
+def get_booking_confirmation_email_defaults(event=None):
+    """
+    Manual "send booking confirmation" flow for appointments a coach books
+    directly (the automatic email only fires for guest public bookings) -
+    the event is passed in explicitly by whichever specific appointment's
+    Email button was clicked, so there's never any ambiguity about which
+    booking it's for.
+    """
+    _require_logged_in_user()
+
+    event = _coalesce_str("event", event)
+    if not event:
+        frappe.throw(_("Event is required."))
+
+    event_doc = _get_event_doc(event)
+    client = (event_doc.get("custom_client") or "").strip()
+
+    if not client:
+        frappe.throw(_("This appointment has no client linked, so there's no one to email."))
+
+    context = _booking_confirmation_context(event_doc, client)
+
+    subject, message = render_email(
+        BOOKING_CONFIRMATION_TEMPLATE,
+        context,
+        fallback_subject="Your {{ appointment_type }} is confirmed",
+        fallback_message=_BOOKING_CONFIRMATION_FALLBACK,
+    )
+
+    from dashboard.api.shared.invoices import get_client_email_options
+    email_options = get_client_email_options(client_name=client)
+
+    return {
+        "subject": subject,
+        "message": message,
+        "recipient": email_options[0]["value"] if email_options else "",
+        "email_options": email_options,
+    }
+
+
+@frappe.whitelist()
+def send_booking_confirmation_email(event=None, recipient=None, subject=None, message=None, cc=None, sender=None):
+    _require_logged_in_user()
+
+    event = _coalesce_str("event", event)
+    if not event:
+        frappe.throw(_("Event is required."))
+
+    recipient = (recipient or "").strip()
+    if not recipient:
+        frappe.throw(_("Recipient email is required."))
+
+    event_doc = _get_event_doc(event)
+    client = (event_doc.get("custom_client") or "").strip()
+
+    if not client:
+        frappe.throw(_("This appointment has no client linked, so there's no one to email."))
+
+    subject = (subject or "Your appointment is confirmed").strip()
+    message = plain_text_to_email_html((message or "").strip())
+
+    kwargs = {
+        "recipients": [recipient],
+        "subject": subject,
+        "message": message,
+        "now": True,
+        "reference_doctype": "Event",
+        "reference_name": event,
+    }
+
+    cc_list = parse_email_list(cc)
+    if cc_list:
+        kwargs["cc"] = cc_list
+
+    sender = (sender or "").strip()
+    if sender:
+        kwargs["sender"] = sender
+
+    frappe.sendmail(**kwargs)
+
+    return {"ok": 1}
 
 
 def share_event_with_admins(doc, method=None):

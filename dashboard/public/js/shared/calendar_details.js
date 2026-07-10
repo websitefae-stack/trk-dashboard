@@ -309,6 +309,9 @@
     setHtml("trkDetailSessionProgress", getSessionProgressHtml(data));
     setHtml("trkDetailBookingWarning", getBookingWarningHtml(data));
 
+    const emailBtn = el("trkDetailEmailBtn");
+    if (emailBtn) emailBtn.style.display = data.client_name ? "" : "none";
+
     setValue("trkClientNoteSessionDate", data.session_date || "");
     setValue("trkClientNoteSessionType", mapAppointmentTypeToClientNoteType(data.appointment_type || ""));
 
@@ -564,12 +567,112 @@
     }
   }
 
+  function fillSelect(select, options) {
+    if (!select) return;
+    select.innerHTML = "";
+    (options || []).forEach(function (opt) {
+      const option = document.createElement("option");
+      option.value = opt.value;
+      option.textContent = opt.label;
+      select.appendChild(option);
+    });
+  }
+
+  function openBookingEmailModal() {
+    const modal = el("trkBookingEmailModal");
+    if (modal) modal.classList.add("show");
+  }
+
+  function closeBookingEmailModal() {
+    const modal = el("trkBookingEmailModal");
+    if (modal) modal.classList.remove("show");
+  }
+
+  async function prepareBookingEmail() {
+    const eventName = state.eventName;
+    if (!eventName) return;
+
+    const btn = el("trkDetailEmailBtn");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Loading...";
+    }
+
+    try {
+      const [defaults, senderOptions] = await Promise.all([
+        apiGet(SHARED_API + ".get_booking_confirmation_email_defaults", { event: eventName }),
+        apiGet("dashboard.api.shared.email_templates.get_email_sender_options", {})
+      ]);
+
+      fillSelect(el("trkBookingEmailRecipient"), defaults.email_options || []);
+      if (defaults.recipient) setValue("trkBookingEmailRecipient", defaults.recipient);
+      fillSelect(el("trkBookingEmailSender"), senderOptions || []);
+
+      setValue("trkBookingEmailCc", "");
+      setValue("trkBookingEmailSubject", defaults.subject || "");
+      setValue("trkBookingEmailMessage", defaults.message || "");
+
+      const statusEl = el("trkBookingEmailStatus");
+      if (statusEl) statusEl.textContent = "";
+
+      openBookingEmailModal();
+    } catch (error) {
+      console.error("Could not load booking confirmation email", error);
+      alert(error.message || "Could not load the booking confirmation email.");
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Email Booking Confirmation";
+      }
+    }
+  }
+
+  async function confirmSendBookingEmail() {
+    const eventName = state.eventName;
+    const statusEl = el("trkBookingEmailStatus");
+    const submitBtn = el("trkBookingEmailSubmit");
+
+    const recipient = getValue("trkBookingEmailRecipient");
+    if (!recipient) {
+      if (statusEl) statusEl.textContent = "Select an email address to send to.";
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Sending...";
+    }
+
+    if (statusEl) statusEl.textContent = "";
+
+    try {
+      await apiPost(SHARED_API + ".send_booking_confirmation_email", {
+        event: eventName,
+        recipient: recipient,
+        subject: getValue("trkBookingEmailSubject"),
+        message: getValue("trkBookingEmailMessage"),
+        sender: getValue("trkBookingEmailSender"),
+        cc: getValue("trkBookingEmailCc")
+      });
+
+      closeBookingEmailModal();
+    } catch (error) {
+      if (statusEl) statusEl.textContent = error.message || "Could not send the booking confirmation.";
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Send";
+      }
+    }
+  }
+
   function bindEvents() {
     const viewMode = getViewModeParams();
 
     if (viewMode.isViewMode) {
       if (el("trkDetailEditBtn")) el("trkDetailEditBtn").style.display = "none";
       if (el("trkDetailDeleteBtn")) el("trkDetailDeleteBtn").style.display = "none";
+      if (el("trkDetailEmailBtn")) el("trkDetailEmailBtn").style.display = "none";
       if (el("trkSaveClientNoteBtn")) el("trkSaveClientNoteBtn").style.display = "none";
       if (el("trkClientNoteText")) el("trkClientNoteText").setAttribute("readonly", "readonly");
       if (el("trkClientNoteFile")) el("trkClientNoteFile").setAttribute("disabled", "disabled");
@@ -582,6 +685,11 @@
     if (el("trkDetailEditSaveBtn")) el("trkDetailEditSaveBtn").addEventListener("click", saveEdit);
     if (el("trkSaveClientNoteBtn")) el("trkSaveClientNoteBtn").addEventListener("click", saveClientNote);
     if (el("trkDetailEditType")) el("trkDetailEditType").addEventListener("change", syncEditFields);
+
+    if (el("trkDetailEmailBtn")) el("trkDetailEmailBtn").addEventListener("click", prepareBookingEmail);
+    if (el("trkBookingEmailModalClose")) el("trkBookingEmailModalClose").addEventListener("click", closeBookingEmailModal);
+    if (el("trkBookingEmailCancel")) el("trkBookingEmailCancel").addEventListener("click", closeBookingEmailModal);
+    if (el("trkBookingEmailSubmit")) el("trkBookingEmailSubmit").addEventListener("click", confirmSendBookingEmail);
 
     const modal = el("trkDetailEditModal");
     if (modal) {
