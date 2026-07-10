@@ -312,6 +312,7 @@
                     <div class="dashboard-detail-field">
                       <label for="newClientNoteDate">Date</label>
                       <input type="date" id="newClientNoteDate" class="dashboard-input">
+                      <div class="dashboard-field-hint" id="newClientNoteDateDisplay"></div>
                     </div>
 
                     <div class="dashboard-detail-field">
@@ -799,6 +800,9 @@
                                 data-meta-readonly="{{ item.read_only }}"
                                 readonly
                               >
+                              {% if item.fieldtype == 'Date' %}
+                                <div class="dashboard-field-value" id="field_{{ item.fieldname }}_display" style="display:none;"></div>
+                              {% endif %}
                             {% endif %}
                           </div>
                         {% endfor %}

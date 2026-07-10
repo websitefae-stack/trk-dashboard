@@ -122,9 +122,37 @@
     });
   }
 
+  function syncProfileDateDisplay(field, showAsText) {
+    if (field.type !== "date") return;
+
+    const display = el(`${field.id}_display`);
+    if (!display) return;
+
+    if (showAsText) {
+      // <input type="date"> renders its own text using the visitor's
+      // browser/OS locale, not anything this code controls - this label
+      // guarantees day/month/year regardless of what the native picker
+      // would otherwise show.
+      if (field.value) {
+        const date = new Date(`${field.value}T00:00:00`);
+        display.textContent = isNaN(date.getTime())
+          ? ""
+          : date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+      } else {
+        display.textContent = "—";
+      }
+      display.style.display = "";
+      field.style.display = "none";
+    } else {
+      display.style.display = "none";
+      field.style.display = "";
+    }
+  }
+
   function setProfileEditMode(isEditing) {
     document.querySelectorAll(".js-profile-editable").forEach(function (field) {
       field.readOnly = !isEditing;
+      syncProfileDateDisplay(field, !isEditing);
     });
 
     document.querySelectorAll(".js-profile-editable-file").forEach(function (field) {
@@ -206,6 +234,8 @@
   }
 
   function initProfileEdit() {
+    setProfileEditMode(false);
+
     const editBtn = el("editProfileBtn");
     const cancelBtn = el("cancelProfileEditBtn");
 

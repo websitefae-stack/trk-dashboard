@@ -99,6 +99,25 @@
     }).join("");
   }
 
+  function renderIntakeAnswers(answers) {
+    const section = el("leadIntakeAnswersSection");
+    const list = el("leadIntakeAnswersList");
+    if (!section || !list) return;
+
+    if (!answers || !answers.length) {
+      section.style.display = "none";
+      return;
+    }
+
+    section.style.display = "";
+    list.innerHTML = answers.map((row) => `
+      <div class="dashboard-field-value-row">
+        <div class="dashboard-field-value-label">${escapeHtml(row.label)}</div>
+        <div class="dashboard-field-value-text">${escapeHtml(row.value)}</div>
+      </div>
+    `).join("");
+  }
+
   function populateForm(lead) {
     setValue("lead_contact_name", lead.contact_name);
     setValue("lead_contact_email", lead.contact_email);
@@ -133,7 +152,11 @@
     const intakeInfo = el("leadIntakeInfo");
     if (intakeInfo) {
       if (lead.intake_completed_on) {
-        intakeInfo.textContent = `Intake form completed ${new Date(lead.intake_completed_on).toLocaleString("en-GB")}`;
+        let text = `Intake form completed ${new Date(lead.intake_completed_on).toLocaleString("en-GB")}`;
+        if (!lead.is_client_conversion) {
+          text += " - this appointment type doesn't create a Client on conversion, so no Convert/Link button shows here.";
+        }
+        intakeInfo.textContent = text;
       } else if (lead.intake_sent_on) {
         intakeInfo.textContent = `Intake form sent ${new Date(lead.intake_sent_on).toLocaleString("en-GB")} - not yet completed`;
       } else {
@@ -141,6 +164,7 @@
       }
     }
 
+    renderIntakeAnswers(lead.intake_answers || []);
     renderNotes(lead.notes || []);
 
     const callSection = el("leadCallSection");
@@ -645,6 +669,7 @@
       renderNotes(result.notes || []);
       if (noteField) noteField.value = "";
       setValue("leadNewNoteDate", todayIso());
+      updateNoteDateDisplay();
     } catch (error) {
       showMessage(error.message || "Could not add note.", true);
     } finally {
@@ -656,6 +681,25 @@
     const now = new Date();
     const offset = now.getTimezoneOffset();
     return new Date(now.getTime() - offset * 60000).toISOString().slice(0, 10);
+  }
+
+  function updateNoteDateDisplay() {
+    const field = el("leadNewNoteDate");
+    const display = el("leadNewNoteDateDisplay");
+    if (!field || !display) return;
+
+    if (!field.value) {
+      display.textContent = "";
+      return;
+    }
+
+    // <input type="date"> renders its own text using the visitor's browser/
+    // OS locale, not anything this code controls - this label guarantees
+    // day/month/year regardless of what the native picker shows.
+    const date = new Date(`${field.value}T00:00:00`);
+    display.textContent = isNaN(date.getTime())
+      ? ""
+      : date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   }
 
   function init() {
@@ -689,6 +733,8 @@
 
     const noteDateField = el("leadNewNoteDate");
     if (noteDateField && !noteDateField.value) noteDateField.value = todayIso();
+    updateNoteDateDisplay();
+    if (noteDateField) noteDateField.addEventListener("change", updateNoteDateDisplay);
 
     if (getValue("leadIsNew") !== "1") {
       loadLead();

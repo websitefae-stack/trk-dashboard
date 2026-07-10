@@ -349,6 +349,22 @@
     box.hidden = false;
   }
 
+  function syncDateDisplay(field, showAsText) {
+    if (field.type !== "date") return;
+
+    const display = el(`${field.id}_display`);
+    if (!display) return;
+
+    if (showAsText) {
+      display.textContent = formatDisplayDate(field.value) || "—";
+      display.style.display = "";
+      field.style.display = "none";
+    } else {
+      display.style.display = "none";
+      field.style.display = "";
+    }
+  }
+
   function setFieldState(field) {
     const metaReadonly = String(field.dataset.metaReadonly || "0") === "1";
     const tag = (field.tagName || "").toUpperCase();
@@ -356,11 +372,13 @@
     if (metaReadonly || !isEditable()) {
       if (tag === "SELECT") field.disabled = true;
       else field.readOnly = true;
+      syncDateDisplay(field, true);
       return;
     }
 
     if (tag === "SELECT") field.disabled = false;
     else field.readOnly = false;
+    syncDateDisplay(field, false);
   }
 
   function updateStatusBadge(statusText) {

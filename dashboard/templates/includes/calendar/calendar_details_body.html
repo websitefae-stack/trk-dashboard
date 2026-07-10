@@ -26,6 +26,7 @@
 
       <div class="dashboard-detail-actions" style="margin-top:18px;">
         <button type="button" class="dashboard-btn dashboard-btn-primary" id="trkDetailEditBtn">Edit Session</button>
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="trkDetailEmailBtn">Email Booking Confirmation</button>
         <button type="button" class="dashboard-btn dashboard-btn-danger" id="trkDetailDeleteBtn">Delete Appointment</button>
       </div>
     </div>
@@ -39,6 +40,7 @@
         <div class="dashboard-detail-field">
           <label for="trkClientNoteSessionDate">Session Date</label>
           <input type="date" id="trkClientNoteSessionDate" class="dashboard-input">
+          <div class="dashboard-field-hint" id="trkClientNoteSessionDateDisplay"></div>
         </div>
 
         <div class="dashboard-detail-field">
@@ -93,6 +95,7 @@
         <div class="trk-calendar-field">
           <label for="trkDetailEditDate">Date *</label>
           <input type="date" id="trkDetailEditDate" class="dashboard-input">
+          <div class="dashboard-field-hint" id="trkDetailEditDateDisplay"></div>
         </div>
         <div class="trk-calendar-field">
           <label for="trkDetailEditTime">Time *</label>
@@ -167,6 +170,57 @@
     <div class="trk-calendar-modal-foot">
       <button type="button" class="dashboard-btn dashboard-btn-light" id="trkDetailEditModalCancel">Cancel</button>
       <button type="button" class="dashboard-btn dashboard-btn-primary" id="trkDetailEditSaveBtn">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="trk-calendar-modal-backdrop" id="trkBookingEmailModal">
+  <div class="trk-calendar-modal">
+    <div class="trk-calendar-modal-head">
+      <h3>Send Booking Confirmation</h3>
+
+      <button type="button" class="trk-calendar-icon-btn" id="trkBookingEmailModalClose">
+        ✕
+      </button>
+    </div>
+
+    <div class="trk-calendar-modal-body">
+      <div class="trk-calendar-field">
+        <label for="trkBookingEmailRecipient">Send To</label>
+        <select id="trkBookingEmailRecipient" class="dashboard-select"></select>
+      </div>
+
+      <div class="trk-calendar-field">
+        <label for="trkBookingEmailSender">From</label>
+        <select id="trkBookingEmailSender" class="dashboard-select"></select>
+      </div>
+
+      <div class="trk-calendar-field">
+        <label for="trkBookingEmailCc">Cc</label>
+        <input type="text" id="trkBookingEmailCc" class="dashboard-input" placeholder="Optional, comma separated">
+      </div>
+
+      <div class="trk-calendar-field">
+        <label for="trkBookingEmailSubject">Subject</label>
+        <input type="text" id="trkBookingEmailSubject" class="dashboard-input">
+      </div>
+
+      <div class="trk-calendar-field">
+        <label for="trkBookingEmailMessage">Message</label>
+        <textarea id="trkBookingEmailMessage" class="dashboard-textarea" rows="10"></textarea>
+      </div>
+
+      <div class="dashboard-help" id="trkBookingEmailStatus"></div>
+    </div>
+
+    <div class="trk-calendar-modal-foot">
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="trkBookingEmailCancel">
+        Cancel
+      </button>
+
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="trkBookingEmailSubmit">
+        Send
+      </button>
     </div>
   </div>
 </div>

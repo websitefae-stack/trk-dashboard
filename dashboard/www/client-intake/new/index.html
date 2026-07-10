@@ -49,6 +49,11 @@
     display: flex;
     gap: 12px;
   }
+  .trk-intake-date-display {
+    margin-top: 4px;
+    color: #839898;
+    font-size: 12px;
+  }
   .trk-intake-row .trk-intake-field {
     flex: 1;
   }
@@ -132,7 +137,7 @@
         </div>
         <div class="trk-intake-row">
           <div class="trk-intake-field"><label for="young_person_preferred_name">Preferred Name</label><input id="young_person_preferred_name" type="text" class="dashboard-input"></div>
-          <div class="trk-intake-field"><label for="young_person_date_of_birth">Date of Birth</label><input id="young_person_date_of_birth" type="date" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="young_person_date_of_birth">Date of Birth</label><input id="young_person_date_of_birth" type="date" class="dashboard-input"><div class="trk-intake-date-display" id="young_person_date_of_birth_display"></div></div>
         </div>
         <div class="trk-intake-row">
           <div class="trk-intake-field"><label for="young_person_mobile">Mobile Number if 16+</label><input id="young_person_mobile" type="text" class="dashboard-input"></div>
@@ -197,7 +202,7 @@
         </div>
         <div class="trk-intake-row">
           <div class="trk-intake-field"><label for="adult_preferred_name">Preferred Name</label><input id="adult_preferred_name" type="text" class="dashboard-input"></div>
-          <div class="trk-intake-field"><label for="adult_date_of_birth">Date of Birth</label><input id="adult_date_of_birth" type="date" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="adult_date_of_birth">Date of Birth</label><input id="adult_date_of_birth" type="date" class="dashboard-input"><div class="trk-intake-date-display" id="adult_date_of_birth_display"></div></div>
         </div>
         <div class="trk-intake-field"><label for="adult_address_1">Address Line 1</label><input id="adult_address_1" type="text" class="dashboard-input"></div>
         <div class="trk-intake-field"><label for="adult_address_2">Address Line 2</label><input id="adult_address_2" type="text" class="dashboard-input"></div>
@@ -371,7 +376,7 @@
         </div>
         <div class="trk-intake-row">
           <div class="trk-intake-field"><label for="signature_name">Signature Name</label><input id="signature_name" type="text" class="dashboard-input"></div>
-          <div class="trk-intake-field"><label for="date_signed">Date</label><input id="date_signed" type="date" class="dashboard-input"></div>
+          <div class="trk-intake-field"><label for="date_signed">Date</label><input id="date_signed" type="date" class="dashboard-input"><div class="trk-intake-date-display" id="date_signed_display"></div></div>
         </div>
       </div>
 

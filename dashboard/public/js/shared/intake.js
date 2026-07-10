@@ -85,6 +85,25 @@
     field.value = value ?? "";
   }
 
+  function updateDateDisplay(id) {
+    const field = el(id);
+    const display = el(`${id}_display`);
+    if (!field || !display) return;
+
+    if (!field.value) {
+      display.textContent = "";
+      return;
+    }
+
+    // <input type="date"> renders its own text using the visitor's browser/
+    // OS locale, not anything this code controls - this label guarantees
+    // day/month/year regardless of what the native picker shows.
+    const date = new Date(`${field.value}T00:00:00`);
+    display.textContent = isNaN(date.getTime())
+      ? ""
+      : date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  }
+
   function showMessage(message, isError) {
     const banner = el("intakeFormMessage");
     if (!banner) return;
@@ -177,6 +196,8 @@
         setValue("date_signed", today);
       }
 
+      DATE_FIELDS.forEach(updateDateDisplay);
+
       updateSectionVisibility();
       const newLocationField = el("new_therapy_location_details_field");
       if (newLocationField) newLocationField.style.display = getValue("therapy_location_not_listed") ? "" : "none";
@@ -261,6 +282,11 @@
         if (newLocationField) newLocationField.style.display = notListedField.checked ? "" : "none";
       });
     }
+
+    DATE_FIELDS.forEach((fieldname) => {
+      const field = el(fieldname);
+      if (field) field.addEventListener("change", () => updateDateDisplay(fieldname));
+    });
 
     const submitBtn = el("submitIntakeBtn");
     if (submitBtn) submitBtn.addEventListener("click", submitForm);
