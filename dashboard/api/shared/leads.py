@@ -328,6 +328,7 @@ def update_lead(
     how_heard=None,
     consent_given=None,
     location_address=None,
+    coach=None,
 ):
     name = coalesce_str("name", name)
     doc = ensure_lead_access(name)
@@ -345,6 +346,17 @@ def update_lead(
     doc.contact_email = coalesce_str("contact_email", contact_email)
     doc.contact_mobile = coalesce_str("contact_mobile", contact_mobile)
     doc.client_name = client_name
+
+    # Reassigning which coach a lead belongs to is a franchisor-only
+    # action (a coach's own Lead Details page never shows this field, but
+    # the backend shouldn't just trust that) - only the franchisor
+    # dashboard's "Coach" select on an existing lead ever sends this.
+    coach = coalesce_str("coach", coach)
+    if coach and is_franchisor_user() and coach != doc.coach:
+        if not frappe.db.exists("Coach", coach):
+            frappe.throw(_("Coach not found."))
+
+        doc.coach = coach
 
     client_age = coalesce_raw("client_age", client_age)
     if client_age not in (None, ""):

@@ -117,6 +117,7 @@
       setValue("lead_status", lead.status || "New");
       setValue("lead_decline_reason", lead.decline_reason || "");
       toggleDeclineField();
+      setValue("lead_coach", lead.coach || "");
     }
 
     const typeBadge = el("leadAppointmentTypeBadge");
@@ -348,6 +349,10 @@
       }
 
       payload.name = getValue("leadDocname");
+
+      const coachField = el("lead_coach");
+      if (coachField) payload.coach = coachField.value;
+
       await apiPost(`${SHARED_API}.update_lead`, payload);
 
       const statusField = el("lead_status");
