@@ -118,13 +118,13 @@
     }
   }
 
-  function openEmailModal() {
+  async function openEmailModal() {
     if (getDocstatus() !== 1) {
       showError("Only submitted invoices can be emailed.");
       return;
     }
 
-    forceEmailTemplate();
+    await forceEmailTemplate();
 
     const modal = el("invoiceEmailModal");
     if (modal) {
@@ -809,7 +809,7 @@
     return (option && option.textContent ? option.textContent : "").trim();
   }
 
-  function forceEmailTemplate() {
+  function localDefaultEmailTemplate() {
     const customerName = selectedCustomerText() || el("invoice_customer")?.value || "Billing Contact";
     const invoiceNumber = el("invoice_name")?.value || "";
     const amountDue = el("invoice_outstanding_amount")?.value || "0.00";
@@ -819,9 +819,6 @@
     const companyLabel = el("invoice_company")?.value || "The Resilient Kid";
     const coachEmail = el("emailReplyTo")?.value || "";
     const coachPhone = el("coachPhoneValue")?.value || "";
-
-    const subjectField = el("emailSubject");
-    if (subjectField) subjectField.value = `Invoice ${invoiceNumber}`;
 
     const messageLines = [
       `Hi ${customerName},`,
@@ -845,8 +842,35 @@
     if (coachEmail) messageLines.push("", coachEmail);
     if (coachPhone) messageLines.push(coachPhone);
 
+    return { subject: `Invoice ${invoiceNumber}`, message: messageLines.join("\n") };
+  }
+
+  // Pulls the default subject/message from the "Invoice Email" Email
+  // Template (desk -> Email Template) when the invoice is already saved,
+  // so editing that template changes what pre-fills here. Falls back to
+  // the local, DOM-only defaults for a new/unsaved invoice or if that
+  // call fails, so the compose modal always has something sensible in it.
+  async function forceEmailTemplate() {
+    const subjectField = el("emailSubject");
     const messageField = el("emailMessage");
-    if (messageField) messageField.value = messageLines.join("\n");
+    const docname = el("invoiceDocname")?.value || "";
+
+    const local = localDefaultEmailTemplate();
+    if (subjectField) subjectField.value = local.subject;
+    if (messageField) messageField.value = local.message;
+
+    if (!docname) return;
+
+    try {
+      const result = await apiPost(SHARED_API + ".get_invoice_email_defaults", { docname: docname });
+      const defaults = result.message || result;
+
+      if (defaults && defaults.subject && subjectField) subjectField.value = defaults.subject;
+      if (defaults && defaults.message && messageField) messageField.value = defaults.message;
+    } catch (error) {
+      // Local defaults above already stand - a broken template render
+      // must never leave the compose modal empty.
+    }
   }
 
   function closePaymentModal() {

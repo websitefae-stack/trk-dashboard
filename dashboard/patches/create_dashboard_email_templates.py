@@ -10,6 +10,7 @@ import frappe
 from dashboard.api.shared.email_templates import (
     BOOKING_CONFIRMATION_TEMPLATE,
     INTAKE_INVITE_TEMPLATE,
+    INVOICE_EMAIL_TEMPLATE,
 )
 
 TEMPLATES = [
@@ -32,6 +33,35 @@ TEMPLATES = [
             "<p>Thanks for speaking with us. Please complete the short form below "
             "so we can get {{ client_name }} set up:</p>"
             "<p><a href=\"{{ intake_url }}\">{{ intake_url }}</a></p>"
+        ),
+    },
+    {
+        # Plain text (not HTML) - this one populates a plain <textarea> the
+        # coach can freely edit before sending, and gets wrapped into <p>
+        # tags per line by send_invoice_email() at send time. Keep this as
+        # plain lines rather than <p>/<br> markup so that round-trip still
+        # works cleanly if it's ever edited back in the desk.
+        "name": INVOICE_EMAIL_TEMPLATE,
+        "subject": "Invoice {{ invoice_number }}",
+        "response": (
+            "Hi {{ customer_name }},\n"
+            "\n"
+            "I hope you're doing well.\n"
+            "\n"
+            "Please find attached your invoice.\n"
+            "\n"
+            "Invoice number: {{ invoice_number }}\n"
+            "Amount due: £{{ amount_due }}\n"
+            "Payment due by: {{ due_date }}\n"
+            "\n"
+            "Payment details:\n"
+            "{{ bank_details }}\n"
+            "\n"
+            "Warm regards,\n"
+            "{{ coach_name }}\n"
+            "{{ company_label }}"
+            "{% if coach_email %}\n\n{{ coach_email }}{% endif %}"
+            "{% if coach_phone %}\n{{ coach_phone }}{% endif %}"
         ),
     },
 ]

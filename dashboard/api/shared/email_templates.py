@@ -10,6 +10,7 @@ import frappe
 
 BOOKING_CONFIRMATION_TEMPLATE = "Booking Confirmation - Resilient Kid"
 INTAKE_INVITE_TEMPLATE = "Client Intake Form Invite - Resilient Kid"
+INVOICE_EMAIL_TEMPLATE = "Invoice Email - Resilient Kid"
 
 
 def render_email(template_name, context, fallback_subject, fallback_message):
