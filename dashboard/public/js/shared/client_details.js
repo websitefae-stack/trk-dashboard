@@ -1501,6 +1501,36 @@
       }
     }
 
+    function initBillingContactButtons() {
+      qsa(".dashboard-set-billing-contact-btn").forEach(function (button) {
+        button.addEventListener("click", async function (event) {
+          event.preventDefault();
+
+          const contactName = button.dataset.contact || "";
+          if (!contactName) return;
+
+          try {
+            button.disabled = true;
+            button.textContent = "Setting...";
+
+            await apiPost("link_existing_contact_to_client", {
+              client_name: getClientName(),
+              contact_name: contactName,
+              relationship_type: button.dataset.relationship || "",
+              is_billing_contact: 1
+            });
+
+            showSuccess("Billing contact set");
+            window.location.reload();
+          } catch (error) {
+            showError(error.message || "Could not set this contact as billing.");
+            button.disabled = false;
+            button.textContent = "Set as Billing";
+          }
+        });
+      });
+    }
+
   function initFileUpload() {
     const input = el("clientFileUploadInput");
     if (!input) return;
@@ -1556,6 +1586,7 @@
     initTravelChargeToggle();
     initChangeRequest();
     initExistingContactModal();
+    initBillingContactButtons();
     initTherapyLocationModal();
     initSendEmailModal();
     initDiagnosisRows();
