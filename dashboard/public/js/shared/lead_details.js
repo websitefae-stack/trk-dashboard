@@ -370,10 +370,28 @@
 
   async function sendIntakeForm() {
     const name = getValue("leadDocname");
+    const emailField = el("lead_contact_email");
+    const email = emailField ? emailField.value.trim() : "";
+
+    if (!email) {
+      showMessage("Add a contact email above before sending the intake form.", true);
+      if (emailField) emailField.focus();
+      return;
+    }
+
     const sendBtn = el("sendIntakeFormBtn");
     if (sendBtn) sendBtn.disabled = true;
 
     try {
+      // send_intake_form reads the saved record, not the live form - if a
+      // coach types an email and clicks Send without a separate Save
+      // first, the backend would otherwise still see it as blank and
+      // reject the send. Persist the current form first, same as the
+      // Save button does, so Send just works.
+      const payload = collectFormPayload();
+      payload.name = name;
+      await apiPost(`${SHARED_API}.update_lead`, payload);
+
       const result = await apiPost(`${SHARED_API}.send_intake_form`, { name });
       showMessage(
         result.email_sent
