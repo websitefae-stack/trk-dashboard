@@ -11,6 +11,8 @@ from dashboard.api.shared.permissions import (
 from dashboard.api.shared.clients import get_coach_label
 from dashboard.api.shared.utils import coalesce_str, coalesce_raw
 from dashboard.api.shared.notifications import create_trk_notification
+from dashboard.api.shared.appointment_types import creates_client_on_conversion
+from dashboard.api.shared.email_templates import render_email, INTAKE_INVITE_TEMPLATE
 
 
 INTAKE_ROUTE = "client-intake/new"
@@ -21,12 +23,6 @@ LEAD_DOCTYPE = "Client Lead"
 LEAD_STATUSES = ["New", "Intake Sent", "Converted", "Declined"]
 
 DECLINE_STATUSES = {"Declined"}
-
-# Franchisee Call leads turn into a Franchisee, not a Client - that
-# conversion flow doesn't exist yet, so "Convert to Client" / "Link to
-# Existing Client" are hidden for these on the frontend rather than
-# creating a wrong-shaped Client record.
-NON_CLIENT_APPOINTMENT_TYPES = {"franchisee call"}
 
 LEAD_LIST_FIELDS = [
     "name", "status", "source", "appointment_type", "coach",
@@ -190,7 +186,7 @@ def get_lead(name=None):
     row["intake_url"] = _intake_url(doc.name) if doc.get("intake_sent_on") else ""
     row["call"] = _get_lead_call_info(doc.event)
     row["location_address"] = doc.get("location_address") or ""
-    row["is_client_conversion"] = 0 if (doc.get("appointment_type") or "").strip().lower() in NON_CLIENT_APPOINTMENT_TYPES else 1
+    row["is_client_conversion"] = 1 if creates_client_on_conversion(doc.get("appointment_type")) else 0
 
     return row
 
@@ -432,15 +428,30 @@ def send_intake_form(name=None):
     intake_url = _intake_url(doc.name)
 
     try:
+        context = {
+            "contact_name": frappe.utils.escape_html(doc.contact_name or ""),
+            "client_name": frappe.utils.escape_html(doc.client_name or "your young person"),
+            "intake_url": intake_url,
+        }
+
+        fallback_message = (
+            "<p>Hi {{ contact_name }},</p>"
+            "<p>Thanks for speaking with us. Please complete the short form below "
+            "so we can get {{ client_name }} set up:</p>"
+            "<p><a href=\"{{ intake_url }}\">{{ intake_url }}</a></p>"
+        )
+
+        subject, message = render_email(
+            INTAKE_INVITE_TEMPLATE,
+            context,
+            fallback_subject="Your Resilient Kid intake form",
+            fallback_message=fallback_message,
+        )
+
         frappe.sendmail(
             recipients=[doc.contact_email],
-            subject="Your Resilient Kid intake form",
-            message=(
-                f"<p>Hi {frappe.utils.escape_html(doc.contact_name or '')},</p>"
-                f"<p>Thanks for speaking with us. Please complete the short form below "
-                f"so we can get {frappe.utils.escape_html(doc.client_name or 'your young person')} set up:</p>"
-                f"<p><a href=\"{intake_url}\">{intake_url}</a></p>"
-            ),
+            subject=subject,
+            message=message,
             now=True,
         )
         email_sent = True

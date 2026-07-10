@@ -10,16 +10,12 @@ from frappe import _
 
 from dashboard.api.shared.permissions import ensure_logged_in, get_current_coach_name
 from dashboard.api.shared.utils import coalesce_str, coalesce_raw
+from dashboard.api.shared.appointment_types import is_publicly_bookable
 
 DAY_NAMES = [
     "Monday", "Tuesday", "Wednesday", "Thursday",
     "Friday", "Saturday", "Sunday",
 ]
-
-# Supervision and Parent Check-In are staff/client-portal only, never
-# publicly bookable - excluded from the picker so a coach can't
-# accidentally set up public availability windows for them.
-EXCLUDED_LABEL_FRAGMENTS = ["supervision", "parent check"]
 
 
 def _format_time_value(value):
@@ -87,9 +83,8 @@ def get_appointment_template_options():
     options = []
     for row in rows:
         label = (row.get(label_field) if label_field else None) or row.get("name")
-        label_lower = (label or "").lower()
 
-        if any(fragment in label_lower for fragment in EXCLUDED_LABEL_FRAGMENTS):
+        if not is_publicly_bookable(label):
             continue
 
         options.append({"value": row.get("name"), "label": label})
