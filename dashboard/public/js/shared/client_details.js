@@ -1175,6 +1175,219 @@
       }
     }
 
+    async function apiPostRaw(fullMethod, args) {
+      const response = await fetch("/api/method/" + fullMethod, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Frappe-CSRF-Token": getCsrfToken()
+        },
+        body: JSON.stringify(args || {})
+      });
+
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (error) {
+        throw new Error("Could not read server response.");
+      }
+
+      if (!response.ok || data.exc) {
+        throw new Error(data.message || "Request failed.");
+      }
+
+      return data.message;
+    }
+
+    const sendInvoiceState = {
+      invoiceOptions: [],
+      emailOptions: [],
+      templateOptions: []
+    };
+
+    function fillSelect(select, options, placeholder) {
+      if (!select) return;
+
+      const previous = select.value;
+      let html = placeholder ? `<option value="">${escapeHtml(placeholder)}</option>` : "";
+
+      html += options.map(function (opt) {
+        return `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`;
+      }).join("");
+
+      select.innerHTML = html;
+
+      if (previous && options.some(function (opt) { return opt.value === previous; })) {
+        select.value = previous;
+      }
+    }
+
+    function defaultInvoiceValue(options) {
+      const outstanding = options.find(function (opt) { return Number(opt.outstanding_amount || 0) > 0; });
+      return (outstanding || options[0] || {}).value || "";
+    }
+
+    function defaultTemplateValue(options) {
+      const preferred = options.find(function (opt) { return opt.value === "Invoice Email - Resilient Kid"; });
+      return (preferred || options[0] || {}).value || "";
+    }
+
+    async function refreshSendInvoiceMessage() {
+      const invoiceSelect = el("sendInvoiceInvoice");
+      const templateSelect = el("sendInvoiceTemplate");
+      const subjectField = el("sendInvoiceSubject");
+      const messageField = el("sendInvoiceMessage");
+
+      const docname = invoiceSelect ? invoiceSelect.value : "";
+      if (!docname) return;
+
+      try {
+        const defaults = await apiPostRaw("dashboard.api.shared.invoices.get_invoice_email_defaults", {
+          docname: docname,
+          template_name: templateSelect ? templateSelect.value : ""
+        });
+
+        if (subjectField && defaults && defaults.subject) subjectField.value = defaults.subject;
+        if (messageField && defaults && defaults.message) messageField.value = defaults.message;
+      } catch (error) {
+        showError(error.message || "Could not load the email template.");
+      }
+    }
+
+    async function openSendInvoiceModal() {
+      const modal = el("sendInvoiceModal");
+      const client = getClientName();
+
+      if (!modal || !client) return;
+
+      modal.classList.add("show");
+
+      const statusEl = el("sendInvoiceStatus");
+      if (statusEl) statusEl.textContent = "";
+
+      const invoiceSelect = el("sendInvoiceInvoice");
+      const emailSelect = el("sendInvoiceEmail");
+      const templateSelect = el("sendInvoiceTemplate");
+
+      if (invoiceSelect) invoiceSelect.innerHTML = '<option value="">Loading...</option>';
+      if (emailSelect) emailSelect.innerHTML = '<option value="">Loading...</option>';
+      if (templateSelect) templateSelect.innerHTML = '<option value="">Loading...</option>';
+
+      try {
+        const [invoiceOptions, emailOptions, templateOptions] = await Promise.all([
+          apiPostRaw("dashboard.api.shared.invoices.get_client_invoice_options", { client_name: client }),
+          apiPostRaw("dashboard.api.shared.invoices.get_client_email_options", { client_name: client }),
+          apiPostRaw("dashboard.api.shared.email_templates.get_email_template_options", {})
+        ]);
+
+        sendInvoiceState.invoiceOptions = invoiceOptions || [];
+        sendInvoiceState.emailOptions = emailOptions || [];
+        sendInvoiceState.templateOptions = templateOptions || [];
+
+        if (!sendInvoiceState.invoiceOptions.length) {
+          if (statusEl) statusEl.textContent = "This client has no submitted invoices to send.";
+        }
+
+        fillSelect(invoiceSelect, sendInvoiceState.invoiceOptions, sendInvoiceState.invoiceOptions.length ? "" : "No invoices");
+        fillSelect(emailSelect, sendInvoiceState.emailOptions, sendInvoiceState.emailOptions.length ? "" : "No email on file");
+        fillSelect(templateSelect, sendInvoiceState.templateOptions, sendInvoiceState.templateOptions.length ? "" : "No templates");
+
+        if (invoiceSelect) invoiceSelect.value = defaultInvoiceValue(sendInvoiceState.invoiceOptions);
+        if (templateSelect) templateSelect.value = defaultTemplateValue(sendInvoiceState.templateOptions);
+
+        await refreshSendInvoiceMessage();
+      } catch (error) {
+        showError(error.message || "Could not load invoice details.");
+      }
+    }
+
+    function closeSendInvoiceModal() {
+      const modal = el("sendInvoiceModal");
+      if (modal) modal.classList.remove("show");
+    }
+
+    async function sendClientInvoiceEmail() {
+      const invoiceSelect = el("sendInvoiceInvoice");
+      const emailSelect = el("sendInvoiceEmail");
+      const subjectField = el("sendInvoiceSubject");
+      const messageField = el("sendInvoiceMessage");
+      const statusEl = el("sendInvoiceStatus");
+      const sendBtn = el("sendInvoiceSubmit");
+
+      const docname = invoiceSelect ? invoiceSelect.value : "";
+      const recipient = emailSelect ? emailSelect.value : "";
+      const subject = subjectField ? subjectField.value.trim() : "";
+      const message = messageField ? messageField.value.trim() : "";
+
+      if (!docname) {
+        showError("Select an invoice to send.");
+        return;
+      }
+
+      if (!recipient) {
+        showError("Select an email address to send to.");
+        return;
+      }
+
+      if (sendBtn) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = "Sending...";
+      }
+
+      if (statusEl) statusEl.textContent = "";
+
+      try {
+        await apiPostRaw("dashboard.api.shared.invoices.send_invoice_email", {
+          docname: docname,
+          recipient: recipient,
+          subject: subject,
+          message: message
+        });
+
+        showSuccess("Invoice email sent");
+        closeSendInvoiceModal();
+      } catch (error) {
+        showError(error.message || "Could not send the invoice email.");
+      } finally {
+        if (sendBtn) {
+          sendBtn.disabled = false;
+          sendBtn.textContent = "Send";
+        }
+      }
+    }
+
+    function initSendInvoiceModal() {
+      const openBtn = el("sendClientInvoiceBtn");
+
+      if (!roleConfig.canInvoice) {
+        if (openBtn) openBtn.style.display = "none";
+        return;
+      }
+
+      if (openBtn) {
+        openBtn.addEventListener("click", function (event) {
+          event.preventDefault();
+          openSendInvoiceModal();
+        });
+      }
+
+      const closeBtn = el("sendInvoiceModalClose");
+      if (closeBtn) closeBtn.addEventListener("click", closeSendInvoiceModal);
+
+      const cancelBtn = el("sendInvoiceCancel");
+      if (cancelBtn) cancelBtn.addEventListener("click", closeSendInvoiceModal);
+
+      const invoiceSelect = el("sendInvoiceInvoice");
+      if (invoiceSelect) invoiceSelect.addEventListener("change", refreshSendInvoiceMessage);
+
+      const templateSelect = el("sendInvoiceTemplate");
+      if (templateSelect) templateSelect.addEventListener("change", refreshSendInvoiceMessage);
+
+      const submitBtn = el("sendInvoiceSubmit");
+      if (submitBtn) submitBtn.addEventListener("click", sendClientInvoiceEmail);
+    }
+
     function initTherapyLocationModal() {
       const addBtn = el("addTherapyLocationBtn");
       if (addBtn) {
@@ -1359,6 +1572,7 @@
     initChangeRequest();
     initExistingContactModal();
     initTherapyLocationModal();
+    initSendInvoiceModal();
     initDiagnosisRows();
     initSaveBeforeNewContactLinks();
 

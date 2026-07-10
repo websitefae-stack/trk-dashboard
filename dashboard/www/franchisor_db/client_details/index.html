@@ -34,6 +34,10 @@
             Back
           </a>
 
+          <button type="button" class="dashboard-btn dashboard-btn-invoice-send" id="sendClientInvoiceBtn">
+            Send Invoice
+          </button>
+
           <a
             href="/franchisor_db/calendar?book_client={{ client_docname | urlencode }}"
             class="dashboard-btn dashboard-btn-light"
@@ -855,6 +859,57 @@
   
         <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveTherapyLocationBtn">
           Save Location
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-calendar-modal-backdrop" id="sendInvoiceModal">
+    <div class="trk-calendar-modal">
+      <div class="trk-calendar-modal-head">
+        <h3>Send Invoice</h3>
+
+        <button type="button" class="trk-calendar-icon-btn" id="sendInvoiceModalClose">
+          ✕
+        </button>
+      </div>
+
+      <div class="trk-calendar-modal-body">
+        <div class="trk-calendar-field">
+          <label for="sendInvoiceInvoice">Invoice</label>
+          <select id="sendInvoiceInvoice" class="dashboard-select"></select>
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="sendInvoiceEmail">Send To</label>
+          <select id="sendInvoiceEmail" class="dashboard-select"></select>
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="sendInvoiceTemplate">Template</label>
+          <select id="sendInvoiceTemplate" class="dashboard-select"></select>
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="sendInvoiceSubject">Subject</label>
+          <input type="text" id="sendInvoiceSubject" class="dashboard-input">
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="sendInvoiceMessage">Message</label>
+          <textarea id="sendInvoiceMessage" class="dashboard-textarea" rows="10"></textarea>
+        </div>
+
+        <div class="dashboard-help" id="sendInvoiceStatus"></div>
+      </div>
+
+      <div class="trk-calendar-modal-foot">
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="sendInvoiceCancel">
+          Cancel
+        </button>
+
+        <button type="button" class="dashboard-btn dashboard-btn-invoice-send" id="sendInvoiceSubmit">
+          Send
         </button>
       </div>
     </div>

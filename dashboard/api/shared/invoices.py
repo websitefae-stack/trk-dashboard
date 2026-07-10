@@ -1644,12 +1644,16 @@ def _current_user_phone():
 
 
 @frappe.whitelist()
-def get_invoice_email_defaults(docname=None):
+def get_invoice_email_defaults(docname=None, template_name=None):
     """
     Subject/message the compose modal pre-fills before a coach edits and
-    sends - rendered from the "Invoice Email" Email Template (desk ->
-    Email Template) when one exists, so wording can be changed there
-    without a code deploy. Falls back to a hardcoded default otherwise.
+    sends - rendered from an Email Template (desk -> Email Template) when
+    one exists, so wording can be changed there without a code deploy.
+    Falls back to a hardcoded default otherwise. template_name lets a
+    caller pick any Email Template on the site (see the Client Details
+    "Send Invoice" button, which offers a full list via
+    email_templates.get_email_template_options) rather than always using
+    the one this app seeds.
     """
     _require_logged_in_user()
 
@@ -1698,13 +1702,91 @@ def get_invoice_email_defaults(docname=None):
     )
 
     subject, message = render_email(
-        INVOICE_EMAIL_TEMPLATE,
+        (template_name or "").strip() or INVOICE_EMAIL_TEMPLATE,
         context,
         fallback_subject="Invoice {{ invoice_number }}",
         fallback_message=fallback_message,
     )
 
     return {"subject": subject, "message": message}
+
+
+@frappe.whitelist()
+def get_client_invoice_options(client_name=None):
+    """
+    Submitted invoices for a client, for the "Send Invoice" picker on the
+    Client Details page - newest first, with each row's outstanding
+    amount so the frontend can default to the most recent unpaid one.
+    """
+    _require_logged_in_user()
+
+    client_name = (client_name or "").strip()
+
+    if not client_name:
+        frappe.throw(_("Client is required."))
+
+    if not _current_user_can_access_client(client_name):
+        frappe.throw(_("You do not have permission to access this client."), frappe.PermissionError)
+
+    rows = frappe.get_all(
+        "Sales Invoice",
+        filters={"custom_client": client_name, "docstatus": 1},
+        fields=["name", "posting_date", "grand_total", "outstanding_amount", "status"],
+        order_by="posting_date desc, creation desc",
+        limit_page_length=100,
+        ignore_permissions=True,
+    )
+
+    options = []
+
+    for row in rows:
+        amount = _to_float(row.get("outstanding_amount")) or _to_float(row.get("grand_total"))
+        posting_date = frappe.utils.formatdate(row.get("posting_date")) if row.get("posting_date") else ""
+
+        options.append({
+            "value": row.get("name"),
+            "label": f"{row.get('name')} - {posting_date} - £{amount:.2f} ({row.get('status')})",
+            "outstanding_amount": _to_float(row.get("outstanding_amount")),
+            "status": row.get("status") or "",
+        })
+
+    return options
+
+
+@frappe.whitelist()
+def get_client_email_options(client_name=None):
+    """
+    The two email addresses "Send Invoice" can offer: the client's own
+    email (if they have one on file) and their billing contact's email -
+    Ashley's own wording for these is "client email" vs "contact email".
+    """
+    _require_logged_in_user()
+
+    client_name = (client_name or "").strip()
+
+    if not client_name:
+        frappe.throw(_("Client is required."))
+
+    if not _current_user_can_access_client(client_name):
+        frappe.throw(_("You do not have permission to access this client."), frappe.PermissionError)
+
+    if not frappe.db.exists("Client", client_name):
+        return []
+
+    client = frappe.get_doc("Client", client_name)
+    options = []
+
+    client_email = (client.get("email") or "").strip() if client.meta.has_field("email") else ""
+    if client_email:
+        options.append({"value": client_email, "label": f"Client email ({client_email})"})
+
+    billing_contact = client.get("billing_contact") or ""
+    contact_email = _customer_email(billing_contact) if billing_contact else ""
+
+    if contact_email and contact_email != client_email:
+        options.append({"value": contact_email, "label": f"Contact email ({contact_email})"})
+
+    return options
 
 
 @frappe.whitelist()

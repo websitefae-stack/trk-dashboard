@@ -55,6 +55,24 @@ def render_email(template_name, context, fallback_subject, fallback_message):
     )
 
 
+@frappe.whitelist()
+def get_email_template_options():
+    """
+    Every Email Template on the site, not just the three this app seeds -
+    Ashley may have others already set up for different purposes, and
+    should be able to pick any of them when composing an email by hand
+    (see the "Send Invoice" button on the Client Details page).
+    """
+    if frappe.session.user == "Guest":
+        frappe.throw(frappe._("Login required"), frappe.PermissionError)
+
+    if not frappe.db.exists("DocType", "Email Template"):
+        return []
+
+    rows = frappe.get_all("Email Template", fields=["name"], order_by="name asc", limit_page_length=200)
+    return [{"value": row.get("name"), "label": row.get("name")} for row in rows]
+
+
 def plain_text_to_email_html(message):
     """
     Wraps plain-text lines (real newlines, no markup) into <p> tags for
