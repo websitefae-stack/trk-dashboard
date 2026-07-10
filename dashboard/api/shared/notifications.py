@@ -1093,6 +1093,22 @@ def get_notifications(status="All", limit=20):
                 continue
 
             result.append(_format_conversation(doc))
+    else:
+        # No "Dashboard Conversation" doctype on this site - sending falls
+        # back to plain Notification Log records (_send_legacy_notification
+        # / create_trk_notification), so reading has to fall back the same
+        # way, or every sent notification would be invisible here even
+        # though it was created successfully.
+        log_rows = frappe.get_all(
+            NOTIFICATION_DOCTYPE,
+            fields=_notification_log_fields(),
+            filters=_get_notification_log_filters(status),
+            order_by="creation desc",
+            limit_page_length=500,
+            ignore_permissions=True,
+        )
+
+        result = [_format_notification_log(row) for row in log_rows]
 
     response_needed = [
         row for row in result
