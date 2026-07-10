@@ -232,4 +232,45 @@
       </div>
     </div>
   </div>
+
+  <div class="trk-calendar-modal-backdrop" id="intakeEmailModal">
+    <div class="trk-calendar-modal">
+      <div class="trk-calendar-modal-head">
+        <h3>Send Intake Form</h3>
+
+        <button type="button" class="trk-calendar-icon-btn" id="intakeEmailModalClose">
+          ✕
+        </button>
+      </div>
+
+      <div class="trk-calendar-modal-body">
+        <div class="trk-calendar-field">
+          <label for="intakeEmailRecipient">To</label>
+          <input type="text" id="intakeEmailRecipient" class="dashboard-input" readonly>
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="intakeEmailSubject">Subject</label>
+          <input type="text" id="intakeEmailSubject" class="dashboard-input">
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="intakeEmailMessage">Message</label>
+          <textarea id="intakeEmailMessage" class="dashboard-textarea" rows="10"></textarea>
+        </div>
+
+        <div class="dashboard-help" id="intakeEmailStatus"></div>
+      </div>
+
+      <div class="trk-calendar-modal-foot">
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="intakeEmailCancel">
+          Cancel
+        </button>
+
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="intakeEmailSubmit">
+          Send
+        </button>
+      </div>
+    </div>
+  </div>
 </div>

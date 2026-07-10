@@ -418,37 +418,71 @@ def _intake_url(name):
     return get_url(f"/{INTAKE_ROUTE}?lead={name}")
 
 
+def _intake_email_context(doc):
+    return {
+        "contact_name": frappe.utils.escape_html(doc.contact_name or ""),
+        "client_name": frappe.utils.escape_html(doc.client_name or "your young person"),
+        "intake_url": _intake_url(doc.name),
+    }
+
+
+_INTAKE_FALLBACK_MESSAGE = (
+    "Hi {{ contact_name }},\n"
+    "\n"
+    "Thanks for speaking with us. Please complete the short form below "
+    "so we can get {{ client_name }} set up:\n"
+    "\n"
+    "{{ intake_url }}"
+)
+
+
+def _render_intake_email(doc):
+    return render_email(
+        INTAKE_INVITE_TEMPLATE,
+        _intake_email_context(doc),
+        fallback_subject="Your Resilient Kid intake form",
+        fallback_message=_INTAKE_FALLBACK_MESSAGE,
+    )
+
+
 @frappe.whitelist()
-def send_intake_form(name=None):
+def get_intake_email_defaults(name=None):
+    """
+    Subject/message the compose modal pre-fills so a coach can see and edit
+    the intake invite before it's actually sent, instead of
+    send_intake_form firing it straight away.
+    """
+    doc = ensure_lead_access(coalesce_str("name", name))
+
+    if not doc.contact_email:
+        frappe.throw(_("This lead has no contact email address to send the intake form to."))
+
+    subject, message = _render_intake_email(doc)
+
+    return {
+        "subject": subject,
+        "message": message,
+        "recipient": doc.contact_email,
+        "intake_url": _intake_url(doc.name),
+    }
+
+
+@frappe.whitelist()
+def send_intake_form(name=None, subject=None, message=None):
     doc = ensure_lead_access(coalesce_str("name", name))
 
     if not doc.contact_email:
         frappe.throw(_("This lead has no contact email address to send the intake form to."))
 
     intake_url = _intake_url(doc.name)
+    subject = (subject or "").strip()
+    message = (message or "").strip()
 
     try:
-        context = {
-            "contact_name": frappe.utils.escape_html(doc.contact_name or ""),
-            "client_name": frappe.utils.escape_html(doc.client_name or "your young person"),
-            "intake_url": intake_url,
-        }
-
-        fallback_message = (
-            "Hi {{ contact_name }},\n"
-            "\n"
-            "Thanks for speaking with us. Please complete the short form below "
-            "so we can get {{ client_name }} set up:\n"
-            "\n"
-            "{{ intake_url }}"
-        )
-
-        subject, message = render_email(
-            INTAKE_INVITE_TEMPLATE,
-            context,
-            fallback_subject="Your Resilient Kid intake form",
-            fallback_message=fallback_message,
-        )
+        if not subject or not message:
+            rendered_subject, rendered_message = _render_intake_email(doc)
+            subject = subject or rendered_subject
+            message = message or rendered_message
 
         frappe.sendmail(
             recipients=[doc.contact_email],
