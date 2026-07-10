@@ -419,11 +419,29 @@
       const subjectField = el("intakeEmailSubject");
       const messageField = el("intakeEmailMessage");
       const statusField = el("intakeEmailStatus");
+      const senderField = el("intakeEmailSender");
+      const ccField = el("intakeEmailCc");
 
       if (recipientField) recipientField.value = defaults.recipient || "";
       if (subjectField) subjectField.value = defaults.subject || "";
       if (messageField) messageField.value = defaults.message || "";
       if (statusField) statusField.textContent = "";
+      if (ccField) ccField.value = "";
+
+      if (senderField) {
+        try {
+          const senderOptions = await apiPost("dashboard.api.shared.email_templates.get_email_sender_options", {});
+          senderField.innerHTML = "";
+          (senderOptions || []).forEach((opt) => {
+            const option = document.createElement("option");
+            option.value = opt.value;
+            option.textContent = opt.label;
+            senderField.appendChild(option);
+          });
+        } catch (error) {
+          console.error("Could not load sender options", error);
+        }
+      }
 
       openIntakeEmailModal();
     } catch (error) {
@@ -448,10 +466,15 @@
     if (statusField) statusField.textContent = "";
 
     try {
+      const senderField = el("intakeEmailSender");
+      const ccField = el("intakeEmailCc");
+
       const result = await apiPost(`${SHARED_API}.send_intake_form`, {
         name,
         subject: subjectField ? subjectField.value.trim() : "",
         message: messageField ? messageField.value.trim() : "",
+        sender: senderField ? senderField.value : "",
+        cc: ccField ? ccField.value.trim() : "",
       });
 
       showMessage(

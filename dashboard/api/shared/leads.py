@@ -12,7 +12,7 @@ from dashboard.api.shared.clients import get_coach_label
 from dashboard.api.shared.utils import coalesce_str, coalesce_raw
 from dashboard.api.shared.notifications import create_trk_notification, FRANCHISOR_USERS
 from dashboard.api.shared.appointment_types import creates_client_on_conversion
-from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, INTAKE_INVITE_TEMPLATE
+from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, parse_email_list, INTAKE_INVITE_TEMPLATE
 
 
 INTAKE_ROUTE = "client-intake/new"
@@ -484,7 +484,7 @@ def get_intake_email_defaults(name=None):
 
 
 @frappe.whitelist()
-def send_intake_form(name=None, subject=None, message=None):
+def send_intake_form(name=None, subject=None, message=None, cc=None, sender=None):
     doc = ensure_lead_access(coalesce_str("name", name))
 
     if not doc.contact_email:
@@ -500,12 +500,22 @@ def send_intake_form(name=None, subject=None, message=None):
             subject = subject or rendered_subject
             message = message or rendered_message
 
-        frappe.sendmail(
-            recipients=[doc.contact_email],
-            subject=subject,
-            message=plain_text_to_email_html(message),
-            now=True,
-        )
+        kwargs = {
+            "recipients": [doc.contact_email],
+            "subject": subject,
+            "message": plain_text_to_email_html(message),
+            "now": True,
+        }
+
+        cc_list = parse_email_list(cc)
+        if cc_list:
+            kwargs["cc"] = cc_list
+
+        sender = (sender or "").strip()
+        if sender:
+            kwargs["sender"] = sender
+
+        frappe.sendmail(**kwargs)
         email_sent = True
     except Exception:
         frappe.log_error(frappe.get_traceback(), "Send Intake Form Email Failed")

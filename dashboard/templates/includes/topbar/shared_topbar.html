@@ -2,11 +2,23 @@
     <div class="dashboard-topbar-main">
 
         <div class="dashboard-topbar-welcome">
-            Welcome{% if dashboard_user_name %}, 
+            Welcome{% if dashboard_user_name %},
             <span class="dashboard-topbar-name">{{ dashboard_user_name }}</span>
             {% else %}
             <span class="dashboard-topbar-name">{{ frappe.session.user }}</span>
             {% endif %}
+        </div>
+
+        <div class="dashboard-topbar-search" id="dashboardGlobalSearch">
+            <span class="dashboard-topbar-search-icon">🔍</span>
+            <input
+                type="text"
+                id="dashboardGlobalSearchInput"
+                class="dashboard-topbar-search-input"
+                placeholder="Search clients, invoice amounts..."
+                autocomplete="off"
+            >
+            <div class="dashboard-topbar-search-results" id="dashboardGlobalSearchResults" style="display:none;"></div>
         </div>
 
         <div class="dashboard-topbar-actions">

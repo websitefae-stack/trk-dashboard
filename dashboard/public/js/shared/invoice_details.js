@@ -118,6 +118,26 @@
     }
   }
 
+  async function loadEmailSenderOptions() {
+    const select = el("emailSender");
+    if (!select) return;
+
+    try {
+      const result = await apiPost("dashboard.api.shared.email_templates.get_email_sender_options", {});
+      const options = (result.message || result) || [];
+
+      select.innerHTML = "";
+      options.forEach((opt) => {
+        const option = document.createElement("option");
+        option.value = opt.value;
+        option.textContent = opt.label;
+        select.appendChild(option);
+      });
+    } catch (error) {
+      console.error("Could not load sender options", error);
+    }
+  }
+
   async function openEmailModal() {
     if (getDocstatus() !== 1) {
       showError("Only submitted invoices can be emailed.");
@@ -125,6 +145,10 @@
     }
 
     await forceEmailTemplate();
+    await loadEmailSenderOptions();
+
+    const ccField = el("emailCc");
+    if (ccField) ccField.value = "";
 
     const modal = el("invoiceEmailModal");
     if (modal) {
@@ -1087,7 +1111,9 @@
         recipient: el("emailRecipient")?.value || "",
         reply_to: el("emailReplyTo")?.value || "",
         subject: el("emailSubject")?.value || "",
-        message: el("emailMessage")?.value || ""
+        message: el("emailMessage")?.value || "",
+        sender: el("emailSender")?.value || "",
+        cc: el("emailCc")?.value || ""
       });
 
       closeEmailModal();

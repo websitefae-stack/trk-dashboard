@@ -1260,10 +1260,15 @@
       if (emailSelect) emailSelect.innerHTML = '<option value="">Loading...</option>';
       if (templateSelect) templateSelect.innerHTML = '<option value="">Loading...</option>';
 
+      const senderSelect = el("sendEmailSender");
+      const ccField = el("sendEmailCc");
+      if (ccField) ccField.value = "";
+
       try {
-        const [emailOptions, templateOptions] = await Promise.all([
+        const [emailOptions, templateOptions, senderOptions] = await Promise.all([
           apiPostRaw("dashboard.api.shared.invoices.get_client_email_options", { client_name: client }),
-          apiPostRaw("dashboard.api.shared.email_templates.get_email_template_options", {})
+          apiPostRaw("dashboard.api.shared.email_templates.get_email_template_options", {}),
+          apiPostRaw("dashboard.api.shared.email_templates.get_email_sender_options", {})
         ]);
 
         sendEmailState.emailOptions = emailOptions || [];
@@ -1275,6 +1280,7 @@
 
         fillSelect(emailSelect, sendEmailState.emailOptions, sendEmailState.emailOptions.length ? "" : "No email on file");
         fillSelect(templateSelect, sendEmailState.templateOptions, sendEmailState.templateOptions.length ? "" : "No templates");
+        fillSelect(senderSelect, senderOptions || [], "");
 
         if (templateSelect && sendEmailState.templateOptions.length) {
           templateSelect.value = sendEmailState.templateOptions[0].value;
@@ -1295,6 +1301,8 @@
       const emailSelect = el("sendEmailEmail");
       const subjectField = el("sendEmailSubject");
       const messageField = el("sendEmailMessage");
+      const senderSelect = el("sendEmailSender");
+      const ccField = el("sendEmailCc");
       const statusEl = el("sendEmailStatus");
       const sendBtn = el("sendEmailSubmit");
       const client = getClientName();
@@ -1320,7 +1328,9 @@
           client_name: client,
           recipient: recipient,
           subject: subject,
-          message: message
+          message: message,
+          sender: senderSelect ? senderSelect.value : "",
+          cc: ccField ? ccField.value.trim() : ""
         });
 
         showSuccess("Email sent");

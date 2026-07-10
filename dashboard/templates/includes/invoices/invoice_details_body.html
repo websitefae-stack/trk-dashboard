@@ -376,6 +376,16 @@
       </div>
 
       <div class="dashboard-detail-field">
+        <label for="emailSender">From</label>
+        <select id="emailSender" class="dashboard-input"></select>
+      </div>
+
+      <div class="dashboard-detail-field">
+        <label for="emailCc">Cc</label>
+        <input type="text" id="emailCc" class="dashboard-input" placeholder="Optional, comma separated">
+      </div>
+
+      <div class="dashboard-detail-field">
         <label for="emailSubject">Subject</label>
         <input type="text" id="emailSubject" class="dashboard-input" value="Invoice {{ doc.name or '' }}">
       </div>
