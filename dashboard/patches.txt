@@ -1,3 +1,5 @@
 dashboard.patches.fix_public_events
 dashboard.patches.share_all_events_with_admins
 dashboard.patches.add_client_lead_link_to_event
+dashboard.patches.add_appointment_template_booking_fields
+dashboard.patches.create_dashboard_email_templates

@@ -22,22 +22,12 @@ from frappe import _
 from frappe.utils import get_datetime, add_to_date, getdate, now_datetime
 
 from dashboard.api.shared.utils import coalesce_str
-
-# Case-insensitive "contains" match against these means an appointment
-# type is never publicly bookable, regardless of what else it's named.
-EXCLUDED_LABEL_FRAGMENTS = ["supervision", "parent check"]
-
-# Minutes per appointment type, matched case-insensitively by substring
-# against whichever label was picked. Franchisee Call has no confirmed
-# duration yet - 30 min is a placeholder, change DEFAULT_DURATION_MINUTES
-# or add a specific entry here once that's confirmed.
-DURATION_MINUTES_BY_LABEL_FRAGMENT = {
-    "franchisee call": 30,
-    "initial consultation": 60,
-    "podcast recording": 60,
-    "school meeting": 60,
-}
-DEFAULT_DURATION_MINUTES = 60
+from dashboard.api.shared.appointment_types import (
+    is_publicly_bookable,
+    get_duration_minutes,
+    get_matching_templates,
+)
+from dashboard.api.shared.email_templates import render_email, BOOKING_CONFIRMATION_TEMPLATE
 
 SLOT_GRID_MINUTES = 30
 MAX_DAYS_AHEAD = 60
@@ -46,21 +36,6 @@ DAY_NAMES = [
     "Monday", "Tuesday", "Wednesday", "Thursday",
     "Friday", "Saturday", "Sunday",
 ]
-
-
-def _is_publicly_bookable_label(label):
-    label_lower = (label or "").lower()
-    return not any(fragment in label_lower for fragment in EXCLUDED_LABEL_FRAGMENTS)
-
-
-def _get_duration_minutes(appointment_type_label):
-    label_lower = (appointment_type_label or "").lower()
-
-    for fragment, minutes in DURATION_MINUTES_BY_LABEL_FRAGMENT.items():
-        if fragment in label_lower:
-            return minutes
-
-    return DEFAULT_DURATION_MINUTES
 
 
 def _format_time_value(value):
@@ -80,38 +55,16 @@ def _format_time_value(value):
 
 def _get_template_names_for_type(appointment_type_label):
     """
-    Case-insensitive "contains" match rather than an exact-name match -
-    matches the same relaxed check used on the coach profile page
-    template, so a template named e.g. "Initial Consultation (Online)" or
-    lowercase "initial consultation" still gets picked up on both sides
-    instead of the button silently doing nothing. Never returns a
-    Supervision/Parent Check-In style template even if asked for one.
+    Case-insensitive "contains" match rather than an exact-name match - a
+    template named e.g. "Initial Consultation (Online)" or lowercase
+    "initial consultation" still gets picked up on both sides instead of
+    the button silently doing nothing. Never returns a template that isn't
+    flagged for public booking (see appointment_types.is_publicly_bookable).
     """
-    if not appointment_type_label or not _is_publicly_bookable_label(appointment_type_label):
+    if not appointment_type_label or not is_publicly_bookable(appointment_type_label):
         return set()
 
-    if not frappe.db.exists("DocType", "Appointment Template"):
-        return set()
-
-    label = appointment_type_label.lower()
-    meta = frappe.get_meta("Appointment Template")
-
-    candidate_fields = ["name"]
-    for fieldname in ["appointment_type", "title", "template_name"]:
-        if meta.has_field(fieldname):
-            candidate_fields.append(fieldname)
-
-    rows = frappe.get_all("Appointment Template", fields=candidate_fields, limit_page_length=1000)
-
-    names = set()
-    for row in rows:
-        for fieldname in candidate_fields:
-            value = (row.get(fieldname) or "")
-            if label in value.lower():
-                names.add(row.get("name"))
-                break
-
-    return names
+    return {row.get("name") for row in get_matching_templates(appointment_type_label)}
 
 
 def _get_coach_windows_for_date(coach, date_str, appointment_type):
@@ -182,7 +135,7 @@ def _compute_available_slots(coach, date_str, appointment_type):
     if not windows:
         return []
 
-    duration_minutes = _get_duration_minutes(appointment_type)
+    duration_minutes = get_duration_minutes(appointment_type)
     coach_user = _get_coach_user(coach)
     booked = _get_coach_booked_windows(coach_user, date_str)
     now = now_datetime()
@@ -296,7 +249,7 @@ def get_available_dates(coach=None, year=None, month=None, appointment_type=None
     if not any(windows_by_weekday.values()):
         return []
 
-    duration_minutes = _get_duration_minutes(appointment_type)
+    duration_minutes = get_duration_minutes(appointment_type)
 
     coach_user = _get_coach_user(coach)
     if not coach_user:
@@ -396,7 +349,7 @@ def submit_public_booking(
     if not coach or not frappe.db.exists("Coach", coach):
         frappe.throw(_("This coach was not found."))
 
-    if not appointment_type or not _is_publicly_bookable_label(appointment_type):
+    if not appointment_type or not is_publicly_bookable(appointment_type):
         frappe.throw(_("This appointment type is not available for online booking."))
 
     if not date or not time:
@@ -411,7 +364,7 @@ def submit_public_booking(
     if not contact_mobile and not contact_email:
         frappe.throw(_("Please enter a mobile number or email address so we can reach you."))
 
-    duration_minutes = _get_duration_minutes(appointment_type)
+    duration_minutes = get_duration_minutes(appointment_type)
 
     # Re-check against live availability right before writing anything -
     # closes most of the gap between the visitor loading the slot list and
@@ -501,13 +454,72 @@ def submit_public_booking(
     lead.save(ignore_permissions=True)
     frappe.db.commit()
 
-    create_trk_notification(
-        recipient_user=coach_user,
-        notification_type="New Public Booking",
-        message=f"{contact_name} booked {appointment_type} for {date} at {time} via your public profile.",
-        priority="High",
-        reference_doctype=LEAD_DOCTYPE,
-        reference_name=lead.name,
-    )
+    # Both of these are best-effort side effects, not part of the booking
+    # itself (already committed above) - a broken email/notification
+    # config must never make the booking appear to have failed.
+    try:
+        create_trk_notification(
+            recipient_user=coach_user,
+            notification_type="New Public Booking",
+            message=f"{contact_name} booked {appointment_type} for {date} at {time} via your public profile.",
+            priority="High",
+            reference_doctype=LEAD_DOCTYPE,
+            reference_name=lead.name,
+        )
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Public Booking - Coach Notification Failed")
+
+    if contact_email:
+        try:
+            _send_booking_confirmation_email(
+                contact_email=contact_email,
+                contact_name=contact_name,
+                coach=coach,
+                appointment_type=appointment_type,
+                date=date,
+                time=time,
+                location_address=location_address,
+            )
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "Public Booking - Confirmation Email Failed")
 
     return {"ok": True}
+
+
+def _send_booking_confirmation_email(contact_email, contact_name, coach, appointment_type, date, time, location_address):
+    coach_display_name = frappe.db.get_value("Coach", coach, "coach_name") or coach
+    date_text = get_datetime(f"{date} 00:00:00").strftime("%A %d %B %Y")
+
+    # Values are escaped before going into the Jinja context (rather than
+    # relying on template autoescaping) since these strings include
+    # visitor-entered free text (contact_name, location_address).
+    context = {
+        "contact_name": frappe.utils.escape_html(contact_name or ""),
+        "appointment_type": frappe.utils.escape_html(appointment_type or ""),
+        "coach_name": frappe.utils.escape_html(coach_display_name or ""),
+        "date": frappe.utils.escape_html(date_text),
+        "time": frappe.utils.escape_html(time or ""),
+        "location_address": frappe.utils.escape_html(location_address or ""),
+    }
+
+    fallback_message = (
+        "<p>Hi {{ contact_name }},</p>"
+        "<p>Your {{ appointment_type }} with {{ coach_name }} is confirmed:</p>"
+        "<p><strong>{{ date }} at {{ time }}</strong></p>"
+        "{% if location_address %}<p>Location: {{ location_address }}</p>{% endif %}"
+        "<p>We'll be in touch if anything changes. See you then!</p>"
+    )
+
+    subject, message = render_email(
+        BOOKING_CONFIRMATION_TEMPLATE,
+        context,
+        fallback_subject="Your {{ appointment_type }} is confirmed",
+        fallback_message=fallback_message,
+    )
+
+    frappe.sendmail(
+        recipients=[contact_email],
+        subject=subject,
+        message=message,
+        now=True,
+    )

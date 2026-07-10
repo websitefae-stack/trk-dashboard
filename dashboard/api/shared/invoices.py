@@ -4,6 +4,7 @@ from frappe import _
 from frappe.utils import nowdate, flt
 
 from dashboard.api.shared.pagination import get_page_args, make_pagination
+from dashboard.api.shared.email_templates import render_email, INVOICE_EMAIL_TEMPLATE
 from dashboard.api.shared import payment_utils
 
 
@@ -1625,6 +1626,87 @@ def submit_invoice(docname=None, data=None):
     return _serialize_invoice(doc)
 
 
+def _current_user_phone():
+    user = frappe.session.user
+
+    if not user or user == "Guest":
+        return ""
+
+    meta = frappe.get_meta("User")
+
+    for fieldname in ("mobile_no", "phone", "phone_no"):
+        if meta.has_field(fieldname):
+            value = frappe.db.get_value("User", user, fieldname)
+            if value:
+                return value
+
+    return ""
+
+
+@frappe.whitelist()
+def get_invoice_email_defaults(docname=None):
+    """
+    Subject/message the compose modal pre-fills before a coach edits and
+    sends - rendered from the "Invoice Email" Email Template (desk ->
+    Email Template) when one exists, so wording can be changed there
+    without a code deploy. Falls back to a hardcoded default otherwise.
+    """
+    _require_logged_in_user()
+
+    if not docname:
+        frappe.throw(_("Invoice is required."))
+
+    if not _current_user_can_access_invoice(docname):
+        frappe.throw(_("You do not have permission to access this invoice."), frappe.PermissionError)
+
+    doc = frappe.get_doc("Sales Invoice", docname)
+    serialized = _serialize_invoice(doc)
+
+    current_user_email = frappe.session.user if "@" in (frappe.session.user or "") else ""
+
+    context = {
+        "customer_name": serialized.get("customer_label") or "Billing Contact",
+        "invoice_number": doc.name,
+        "amount_due": f"{_to_float(doc.outstanding_amount):.2f}",
+        "due_date": str(doc.due_date or ""),
+        "bank_details": serialized.get("bank_display_text") or "Bank details available on request.",
+        "coach_name": serialized.get("coach_label") or "Coach",
+        "company_label": serialized.get("company") or "The Resilient Kid",
+        "coach_email": current_user_email,
+        "coach_phone": _current_user_phone(),
+    }
+
+    fallback_message = (
+        "Hi {{ customer_name }},\n"
+        "\n"
+        "I hope you're doing well.\n"
+        "\n"
+        "Please find attached your invoice.\n"
+        "\n"
+        "Invoice number: {{ invoice_number }}\n"
+        "Amount due: £{{ amount_due }}\n"
+        "Payment due by: {{ due_date }}\n"
+        "\n"
+        "Payment details:\n"
+        "{{ bank_details }}\n"
+        "\n"
+        "Warm regards,\n"
+        "{{ coach_name }}\n"
+        "{{ company_label }}"
+        "{% if coach_email %}\n\n{{ coach_email }}{% endif %}"
+        "{% if coach_phone %}\n{{ coach_phone }}{% endif %}"
+    )
+
+    subject, message = render_email(
+        INVOICE_EMAIL_TEMPLATE,
+        context,
+        fallback_subject="Invoice {{ invoice_number }}",
+        fallback_message=fallback_message,
+    )
+
+    return {"subject": subject, "message": message}
+
+
 @frappe.whitelist()
 def send_invoice_email(docname, recipient=None, reply_to=None, subject=None, message=None):
     _require_logged_in_user()
@@ -1647,9 +1729,16 @@ def send_invoice_email(docname, recipient=None, reply_to=None, subject=None, mes
 
     subject = (subject or f"Invoice {doc.name}").strip()
     message = (message or f"Please find attached invoice {doc.name}.").strip()
-    message = "<p>" + "</p><p>".join(
-        line.strip() for line in message.splitlines() if line.strip()
-    ) + "</p>"
+
+    # Plain-text lines (the normal case, typed/edited in the compose
+    # textarea) get wrapped into <p> per line. A message that's already
+    # block-level HTML (e.g. an Email Template edited with <p>/<div> markup
+    # in the desk) is sent as-is instead, so it isn't double-wrapped.
+    if not message[:10].lstrip().lower().startswith(("<p", "<div")):
+        message = "<p>" + "</p><p>".join(
+            line.strip() for line in message.splitlines() if line.strip()
+        ) + "</p>"
+
     reply_to = (reply_to or "").strip()
 
     attachments = [
