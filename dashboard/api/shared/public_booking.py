@@ -28,11 +28,9 @@ from dashboard.api.shared.utils import coalesce_str
 EXCLUDED_LABEL_FRAGMENTS = ["supervision", "parent check"]
 
 # Minutes per appointment type, matched case-insensitively by substring
-# against whichever label was picked. Franchisee Call has no confirmed
-# duration yet - 30 min is a placeholder, change DEFAULT_DURATION_MINUTES
-# or add a specific entry here once that's confirmed.
+# against whichever label was picked.
 DURATION_MINUTES_BY_LABEL_FRAGMENT = {
-    "franchisee call": 30,
+    "franchisee call": 60,
     "initial consultation": 60,
     "podcast recording": 60,
     "school meeting": 60,
