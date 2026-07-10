@@ -254,6 +254,17 @@ def get_lead(name=None):
     row["location_address"] = doc.get("location_address") or ""
     row["is_client_conversion"] = 1 if creates_client_on_conversion(doc.get("appointment_type")) else 0
 
+    for fieldname in INTAKE_TEXT_FIELDS + INTAKE_DATE_FIELDS:
+        row[fieldname] = doc.get(fieldname) or ""
+
+    for fieldname in INTAKE_CHECK_FIELDS:
+        row[fieldname] = int(doc.get(fieldname) or 0)
+
+    row["intake_answers"] = [
+        {"label": label, "value": str(value)} for label, value in _intake_pdf_rows(doc)
+        if label != "Intake Completed On"
+    ]
+
     return row
 
 
@@ -984,6 +995,46 @@ def _proposed_client_field_values(doc):
     return {k: v for k, v in field_values.items() if v}
 
 
+_INTAKE_PDF_SKIP_FIELDTYPES = {"Section Break", "Column Break", "Table", "HTML"}
+_INTAKE_PDF_SKIP_FIELDS = {
+    "status", "source", "coach", "event", "converted_client", "converted_contact",
+    "intake_sent_on", "decline_reason",
+}
+
+
+def _intake_pdf_rows(doc):
+    """
+    Every filled-in answer on the Lead, in the same order as the doctype's
+    own field layout - so the PDF stays a complete record of the intake as
+    the form grows, rather than a hardcoded handful of fields going stale.
+    """
+    meta = frappe.get_meta(LEAD_DOCTYPE)
+    rows = [("Client Name", doc.client_name), ("Contact Name", doc.contact_name)]
+    seen = {"client_name", "contact_name"}
+
+    for df in meta.fields:
+        if df.fieldname in seen or df.fieldname in _INTAKE_PDF_SKIP_FIELDS:
+            continue
+        if df.fieldtype in _INTAKE_PDF_SKIP_FIELDTYPES:
+            continue
+
+        value = doc.get(df.fieldname)
+
+        if df.fieldtype == "Check":
+            value = "Yes" if value else None
+        elif not value:
+            value = None
+
+        if value is None:
+            continue
+
+        rows.append((df.label or df.fieldname, value))
+        seen.add(df.fieldname)
+
+    rows.append(("Intake Completed On", doc.intake_completed_on))
+    return rows
+
+
 def _attach_intake_pdf_to_client(doc, client_name):
     """
     Best-effort - a completed intake is data on the Lead, not a file, so
@@ -1001,18 +1052,7 @@ def _attach_intake_pdf_to_client(doc, client_name):
         rows = "".join(
             f"<tr><td style='padding:4px 8px;color:#839898;'>{label}</td>"
             f"<td style='padding:4px 8px;'>{frappe.utils.escape_html(str(value or '-'))}</td></tr>"
-            for label, value in [
-                ("Contact Name", doc.contact_name),
-                ("Contact Email", doc.contact_email),
-                ("Contact Mobile", doc.contact_mobile),
-                ("Client Name", doc.client_name),
-                ("Client Age", doc.client_age),
-                ("Postal Code", doc.postal_code),
-                ("Why They're Contacting Us", doc.enquiry_reason),
-                ("How They Heard About Us", doc.how_heard),
-                ("Consent To Be Contacted", "Yes" if doc.consent_given else "No"),
-                ("Intake Completed On", doc.intake_completed_on),
-            ]
+            for label, value in _intake_pdf_rows(doc)
         )
 
         html = f"<h2>Intake Form - {frappe.utils.escape_html(doc.client_name)}</h2><table>{rows}</table>"
