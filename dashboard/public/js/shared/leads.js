@@ -56,7 +56,8 @@
     if (showCoach && lead.coach_label) metaBits.push(escapeHtml(lead.coach_label));
 
     return `
-      <a class="dashboard-lead-card" href="${detailUrl}">
+      <a class="dashboard-lead-card${lead.needs_conversion_review ? " dashboard-lead-card-needs-review" : ""}" href="${detailUrl}">
+        ${lead.needs_conversion_review ? `<span class="dashboard-badge dashboard-lead-card-review-badge">Form completed - ready to convert</span>` : ""}
         ${lead.appointment_type ? `<span class="dashboard-badge dashboard-status-active dashboard-lead-card-type">${escapeHtml(lead.appointment_type)}</span>` : ""}
         <div class="dashboard-lead-card-client">${escapeHtml(lead.client_name || "—")}</div>
         <div class="dashboard-lead-card-contact">${escapeHtml(lead.contact_name || "—")}</div>
