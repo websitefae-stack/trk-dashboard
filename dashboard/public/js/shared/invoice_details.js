@@ -504,9 +504,11 @@
       if (allowOverride) {
         populateBankAccountOptions(select, data.bank_account_options || [], data.bank_account || "");
         select.dataset.clientDefault = data.client_bank_account || data.bank_account || "";
+        select.dataset.alwaysConfirm = data.always_confirm_bank_account ? "1" : "";
       } else {
         select.innerHTML = "";
         select.dataset.clientDefault = "";
+        select.dataset.alwaysConfirm = "";
       }
     }
 
@@ -521,11 +523,25 @@
 
     const selectedValue = select.value || "";
     const defaultValue = select.dataset.clientDefault || "";
+    const alwaysConfirm = select.dataset.alwaysConfirm === "1";
 
-    if (!selectedValue || selectedValue === defaultValue) return true;
+    if (!selectedValue) return true;
 
     const option = select.options[select.selectedIndex];
     const label = (option && option.textContent ? option.textContent.trim() : "") || selectedValue;
+
+    // Interbusiness invoices (coach-to-coach, or to HQ) always get a
+    // confirmation on which bank account receives the payment - even when
+    // it's the account already selected by default (e.g. HQ's own
+    // account), since this is still money moving between businesses.
+    if (alwaysConfirm) {
+      return window.confirm(
+        `This invoice will pay into ${label}'s bank account. ` +
+        `Any payment received against it will be recorded against ${label}'s account. Continue?`
+      );
+    }
+
+    if (selectedValue === defaultValue) return true;
 
     return window.confirm(
       `You have selected ${label}'s bank account for this invoice instead of the client's usual account. ` +
@@ -1049,7 +1065,8 @@
       client_bank_account: payload.client_bank_account,
       bank_display_text: payload.bank_display_text,
       allow_bank_override: payload.allow_bank_override,
-      bank_account_options: payload.bank_account_options
+      bank_account_options: payload.bank_account_options,
+      always_confirm_bank_account: payload.always_confirm_bank_account
     });
 
     forceEmailTemplate();

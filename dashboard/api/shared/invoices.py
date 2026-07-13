@@ -1006,6 +1006,7 @@ def _resolve_invoice_context(client_name=None, customer_name=None):
         "allow_bank_override": False,
         "bank_account_options": [],
         "contact_email": _customer_email(customer_name),
+        "always_confirm_bank_account": False,
     }
 
     if client_name and frappe.db.exists("Client", client_name):
@@ -1024,6 +1025,13 @@ def _resolve_invoice_context(client_name=None, customer_name=None):
             _ensure_default_bank_account_option(_get_bank_account_options(), context["bank_account"])
             if allow_bank_override else []
         )
+        # Franchise-type clients represent another coach or HQ - an
+        # interbusiness/cross-coach invoice, where the receiving bank
+        # account deserves a confirmation every time, not only when it's
+        # been changed from whatever the client's own default happens to be
+        # (even that default - e.g. HQ's account - is still money moving
+        # between businesses).
+        context["always_confirm_bank_account"] = client.get("client_type") == "Franchise"
 
         if not customer_name and client.get("billing_contact"):
             context["customer_name"] = client.get("billing_contact")
@@ -1208,6 +1216,7 @@ def get_client_invoice_defaults(client_name=None):
             _ensure_default_bank_account_option(_get_bank_account_options(), client.get("banking") or "")
             if allow_bank_override else []
         ),
+        "always_confirm_bank_account": client_type == "Franchise",
         "travel_charged": int(client.get("travel_charged") or 0),
         "travel_miles_one_way": float(client.get("travel_miles_one_way") or 0),
         "travel_charge_per_session": float(client.get("travel_charge_per_session") or 0),
@@ -1556,6 +1565,7 @@ def _serialize_invoice(doc):
         "bank_display_text": context.get("bank_display_text") or "",
         "allow_bank_override": context.get("allow_bank_override") or False,
         "bank_account_options": context.get("bank_account_options") or [],
+        "always_confirm_bank_account": context.get("always_confirm_bank_account") or False,
         "items": [
             {
                 "item_code": row.item_code or "",
