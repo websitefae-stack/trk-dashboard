@@ -1706,6 +1706,7 @@ def _kanban_bucket_for(row):
     return "Past Due" if str(due_date) < nowdate() else "In Progress"
 
 
+@frappe.whitelist()
 def get_dashboard_notification_summary():
     ensure_logged_in()
 
