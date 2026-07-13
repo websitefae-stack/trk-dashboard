@@ -686,23 +686,27 @@ def _intake_doctype_display_names(doc):
     """
     names = []
 
-    young_person = " ".join(part for part in [
-        (doc.get("young_person_first_name") or "").strip(),
-        (doc.get("young_person_last_name") or "").strip(),
-    ] if part)
-    if young_person:
-        names.append(young_person)
+    young_person_last = (doc.get("young_person_last_name") or "").strip()
+    for first_fieldname in ("young_person_preferred_name", "young_person_first_name"):
+        # Preferred name first - Client Lead's own client_name is commonly
+        # the nickname a family actually goes by (e.g. "Zac"), not the
+        # formal first name on the intake form (e.g. "Zackary").
+        first = (doc.get(first_fieldname) or "").strip()
+        full = " ".join(part for part in [first, young_person_last] if part)
+        if full:
+            names.append(full)
 
-    adult = " ".join(part for part in [
-        (doc.get("adult_first_name") or "").strip(),
-        (doc.get("adult_last_name") or "").strip(),
-    ] if part)
-    if adult:
-        names.append(adult)
+    adult_last = (doc.get("adult_last_name") or "").strip()
+    for first_fieldname in ("adult_preferred_name", "adult_first_name"):
+        first = (doc.get(first_fieldname) or "").strip()
+        full = " ".join(part for part in [first, adult_last] if part)
+        if full:
+            names.append(full)
 
-    signature_name = (doc.get("signature_name") or "").strip()
-    if signature_name:
-        names.append(signature_name)
+    for fieldname in ("signature_name", "primary_caregiver_full_name"):
+        value = (doc.get(fieldname) or "").strip()
+        if value:
+            names.append(value)
 
     return names
 
