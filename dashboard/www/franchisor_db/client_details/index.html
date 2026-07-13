@@ -321,40 +321,23 @@
                     <h2 class="dashboard-detail-section-title">Session Notes</h2>
                   </div>
 
-                  <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
-                    <table class="dashboard-table dashboard-client-notes-table">
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th class="dashboard-note-user-cell">User</th>
-                          <th>Notes</th>
-                          <th>Attachment</th>
-                        </tr>
-                      </thead>
-
-                      <tbody id="clientNotesTableBody">
-                        {% if session_notes %}
-                          {% for note in session_notes %}
-                            <tr>
-                              <td>{{ frappe.utils.formatdate(note.session_date, "dd-MM-yyyy") if note.session_date else "—" }}</td>
-                              <td class="dashboard-note-user-cell">{{ note.user_full_name or note.user or "—" }}</td>
-                              <td>{{ note.notes or "—" }}</td>
-                              <td>
-                                {% if note.attachement %}
-                                  <a href="{{ note.attachement }}" target="_blank" rel="noopener noreferrer">View</a>
-                                {% else %}
-                                  —
-                                {% endif %}
-                              </td>
-                            </tr>
-                          {% endfor %}
-                        {% else %}
-                          <tr>
-                            <td colspan="4" class="dashboard-empty">No notes found.</td>
-                          </tr>
-                        {% endif %}
-                      </tbody>
-                    </table>
+                  <div class="dashboard-notes-list" id="clientNotesTableBody">
+                    {% if session_notes %}
+                      {% for note in session_notes %}
+                        <div class="dashboard-note-card">
+                          <div class="dashboard-note-card-head">
+                            <span class="dashboard-note-card-date">{{ frappe.utils.formatdate(note.session_date, "dd-MM-yyyy") if note.session_date else "—" }}</span>
+                            <span class="dashboard-note-card-user">{{ note.user_full_name or note.user or "—" }}</span>
+                            {% if note.attachement %}
+                              <a class="dashboard-note-card-attachment" href="{{ note.attachement }}" target="_blank" rel="noopener noreferrer" title="View attachment">📎</a>
+                            {% endif %}
+                          </div>
+                          <div class="dashboard-note-card-body">{{ note.notes or "—" }}</div>
+                        </div>
+                      {% endfor %}
+                    {% else %}
+                      <div class="dashboard-empty">No notes found.</div>
+                    {% endif %}
                   </div>
                 </div>
 

@@ -384,3 +384,61 @@ body.client-edit-mode .dashboard-detail-field:has([data-fieldname="middle_name"]
 body.client-edit-mode .dashboard-detail-field:has([data-fieldname="last_name"]) {
   display: flex;
 }
+
+/* Session Notes - a card per note (date/user heading, full-width note text,
+   small paperclip link for the attachment) instead of a Date/User/Notes/
+   Attachment table, which squeezed the note text into a narrow column. */
+.dashboard-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dashboard-note-card {
+  border: 1px solid #D9E6E6;
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: #FFFFFF;
+}
+
+.dashboard-note-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.dashboard-note-card-date {
+  font-weight: 700;
+  color: #434B49;
+}
+
+.dashboard-note-card-user {
+  font-size: 12px;
+  color: #667;
+}
+
+.dashboard-note-card-attachment {
+  margin-left: auto;
+  font-size: 16px;
+  line-height: 1;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.dashboard-note-card-body {
+  white-space: pre-wrap;
+  line-height: 1.5;
+  color: #434B49;
+}
+
+@media (max-width: 860px) {
+  .dashboard-note-card {
+    padding: 12px;
+  }
+
+  .dashboard-note-card-body {
+    font-size: 13px;
+  }
+}
