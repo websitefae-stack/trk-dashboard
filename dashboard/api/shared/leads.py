@@ -18,14 +18,13 @@ from dashboard.api.shared.email_templates import render_email, plain_text_to_ema
 INTAKE_ROUTE = "client-intake"
 
 # The actual intake form is the "Intake Doctype" Web Form (built and owned
-# directly in Frappe Desk, not by this app) - INTAKE_LEAD_LINK_FIELD is an
-# existing field on Intake Doctype, already wired into the Web Form, that
-# links a submission to a record on the separate, standalone Frappe CRM
-# "Lead" doctype (CRM_LEAD_DOCTYPE below) - not this app's own Client Lead.
-# sync_intake_doctype_submission() bridges the two by matching that CRM
-# Lead's name against Client Lead's own contact_name/client_name.
+# directly in Frappe Desk, not by this app). There's no reliable link field
+# back to a Client Lead - Intake Doctype's own "created_lead" field turned
+# out to point at a separate, unrelated Frappe CRM "Lead" doctype, and isn't
+# something a public guest filling in the form could ever sensibly populate
+# anyway - so sync_intake_doctype_submission() matches submissions back to a
+# Client Lead by the name the guest actually typed in.
 INTAKE_DOCTYPE = "Intake Doctype"
-INTAKE_LEAD_LINK_FIELD = "created_lead"
 
 # The detailed intake questions, beyond the always-present "headline" fields
 # (contact_name/contact_email/contact_mobile/client_name/client_age/
@@ -514,12 +513,10 @@ def add_lead_note(name=None, note=None, note_date=None):
 
 
 def _intake_url(name):
-    # No query param to pre-fill here: INTAKE_LEAD_LINK_FIELD (created_lead)
-    # is a Link to the separate Frappe CRM "Lead" doctype, not this Client
-    # Lead's own name - pre-filling it with a Client Lead name would just
-    # fail the Web Form's own Link validation on submit. The two are
-    # reconciled by name-matching after the fact instead - see
-    # sync_intake_doctype_submission().
+    # No query param to pre-fill - the submission is matched back to this
+    # Client Lead by name afterwards instead (see
+    # sync_intake_doctype_submission()), since there's no field on the Web
+    # Form a guest could sensibly be asked to fill in to link the two up.
     return get_url(f"/{INTAKE_ROUTE}/new")
 
 
@@ -680,62 +677,65 @@ def _notify_intake_completed(doc):
             frappe.log_error(frappe.get_traceback(), "Intake Submission - Admin Notification Failed")
 
 
-CRM_LEAD_DOCTYPE = "Lead"
-
-# Candidate fields on the standalone Frappe CRM "Lead" doctype (not this
-# app's own Client Lead) that might hold the person's name, tried in order -
-# not something this app owns, so its exact schema isn't known up front.
-CRM_LEAD_NAME_FIELDS = ["lead_name", "title", "organization_lead_name", "name1"]
-
-
-def _crm_lead_display_name(crm_lead_doc):
-    meta = frappe.get_meta(CRM_LEAD_DOCTYPE)
-
-    for fieldname in CRM_LEAD_NAME_FIELDS:
-        if meta.has_field(fieldname):
-            value = (crm_lead_doc.get(fieldname) or "").strip()
-            if value:
-                return value
-
-    if meta.has_field("first_name"):
-        first = (crm_lead_doc.get("first_name") or "").strip()
-        last = (crm_lead_doc.get("last_name") or "").strip() if meta.has_field("last_name") else ""
-        combined = " ".join(part for part in [first, last] if part)
-        if combined:
-            return combined
-
-    return ""
-
-
-def _find_client_lead_by_name(display_name):
+def _intake_doctype_display_names(doc):
     """
-    INTAKE_LEAD_LINK_FIELD (created_lead) points at the separate, standalone
-    Frappe CRM "Lead" doctype, not this app's own Client Lead - there's no
-    direct link between the two, so the match is by name instead: whichever
-    not-yet-converted Client Lead has a matching contact_name or client_name.
-    Returns None (and lets the caller log why) unless exactly one match is
-    found, rather than risk silently syncing onto the wrong person's record.
+    Candidate person-names straight from the guest's own intake submission -
+    no separate field for anyone (guest or coach) to fill in, since a guest
+    filling out a public form has no way to know which internal record is
+    "theirs". Tried against Client Lead's own contact_name/client_name.
     """
-    display_name = (display_name or "").strip()
-    if not display_name:
-        return None, "the linked CRM Lead has no usable name to match on"
+    names = []
+
+    young_person = " ".join(part for part in [
+        (doc.get("young_person_first_name") or "").strip(),
+        (doc.get("young_person_last_name") or "").strip(),
+    ] if part)
+    if young_person:
+        names.append(young_person)
+
+    adult = " ".join(part for part in [
+        (doc.get("adult_first_name") or "").strip(),
+        (doc.get("adult_last_name") or "").strip(),
+    ] if part)
+    if adult:
+        names.append(adult)
+
+    signature_name = (doc.get("signature_name") or "").strip()
+    if signature_name:
+        names.append(signature_name)
+
+    return names
+
+
+def _find_client_lead_by_names(display_names):
+    """
+    Whichever not-yet-converted Client Lead has a contact_name or
+    client_name matching any of display_names. Returns None (and lets the
+    caller log why) unless exactly one match is found, rather than risk
+    silently syncing onto the wrong person's record.
+    """
+    display_names = [name for name in (display_names or []) if name]
+
+    if not display_names:
+        return None, "the intake submission has no usable name to match on"
 
     candidates = {}
-    for fieldname in ("contact_name", "client_name"):
-        for row in frappe.get_all(
-            LEAD_DOCTYPE,
-            filters={fieldname: display_name, "status": ["!=", "Converted"]},
-            fields=["name"],
-            limit_page_length=5,
-            ignore_permissions=True,
-        ):
-            candidates[row.name] = True
+    for display_name in display_names:
+        for fieldname in ("contact_name", "client_name"):
+            for row in frappe.get_all(
+                LEAD_DOCTYPE,
+                filters={fieldname: display_name, "status": ["!=", "Converted"]},
+                fields=["name"],
+                limit_page_length=5,
+                ignore_permissions=True,
+            ):
+                candidates[row.name] = True
 
     if not candidates:
-        return None, f"no not-yet-converted {LEAD_DOCTYPE} matches the name {display_name!r}"
+        return None, f"no not-yet-converted {LEAD_DOCTYPE} matches any of {display_names!r}"
 
     if len(candidates) > 1:
-        return None, f"{len(candidates)} different {LEAD_DOCTYPE} records match the name {display_name!r} - can't tell which one"
+        return None, f"{len(candidates)} different {LEAD_DOCTYPE} records match {display_names!r} - can't tell which one"
 
     return next(iter(candidates)), None
 
@@ -745,10 +745,12 @@ def sync_intake_doctype_submission(doc, method=None):
     Hook target (see hooks.py doc_events["Intake Doctype"]) - fires whenever
     someone submits or edits the real "Intake Doctype" Web Form (owned and
     built directly in Frappe Desk, not by this app). doc is the Intake
-    Doctype record itself; INTAKE_LEAD_LINK_FIELD (created_lead) links it to
-    a record on the separate, standalone Frappe CRM "Lead" doctype - not
-    this app's own Client Lead - so the actual Client Lead to sync onto is
-    found by matching that CRM Lead's name (see _find_client_lead_by_name).
+    Doctype record itself - there's no link field to a Client Lead (the
+    "created_lead" field turned out to point at a separate, unrelated Frappe
+    CRM "Lead" doctype, and isn't something a public guest form-filler could
+    ever sensibly populate anyway), so the Client Lead to sync onto is found
+    by matching the name the guest actually typed in (see
+    _find_client_lead_by_names).
 
     Copies over every field name Intake Doctype and Client Lead have in
     common (INTAKE_DETAIL_FIELDS - same names on both, by design) so the
@@ -757,30 +759,12 @@ def sync_intake_doctype_submission(doc, method=None):
     does off the Client Lead's own fields, without needing to know anything
     about Intake Doctype specifically.
     """
-    crm_lead_name = (doc.get(INTAKE_LEAD_LINK_FIELD) or "").strip()
-
-    if not crm_lead_name:
-        # An orphaned submission (no CRM Lead link) - nothing to match
-        # against, but not an error either, e.g. someone filling in the
-        # form without ever having been sent a link.
-        return
-
-    if not frappe.db.exists(CRM_LEAD_DOCTYPE, crm_lead_name):
-        frappe.log_error(
-            f"Intake Doctype {doc.name}: linked {INTAKE_LEAD_LINK_FIELD}={crm_lead_name!r} "
-            f"is not a real {CRM_LEAD_DOCTYPE} record.",
-            "Intake Submission - CRM Lead Not Found",
-        )
-        return
-
-    crm_lead_doc = frappe.get_doc(CRM_LEAD_DOCTYPE, crm_lead_name)
-    display_name = _crm_lead_display_name(crm_lead_doc)
-
-    lead_name, reason = _find_client_lead_by_name(display_name)
+    display_names = _intake_doctype_display_names(doc)
+    lead_name, reason = _find_client_lead_by_names(display_names)
 
     if not lead_name:
         frappe.log_error(
-            f"Intake Doctype {doc.name} (linked CRM Lead {crm_lead_name}): {reason}.",
+            f"Intake Doctype {doc.name}: {reason}.",
             "Intake Submission - Client Lead Match Failed",
         )
         return
