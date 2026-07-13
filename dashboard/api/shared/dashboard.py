@@ -247,7 +247,11 @@ def _get_context_for_dashboard(dashboard_type):
             context["session_worker_name"] = found_worker.get("name")
             context["session_worker_label"] = found_worker.get("label")
 
-    if dashboard_type == COACH_DASHBOARD:
+    if dashboard_type in (COACH_DASHBOARD, FRANCHISOR_DASHBOARD):
+        # A franchisor-level login (e.g. Ashley, Emily) is very often also a
+        # Coach in their own right - the dashboard home page's own summary
+        # widgets need that identity to scope "their own" data, even though
+        # franchisor admins otherwise see everything everywhere else.
         found_coach = _find_coach_for_user(user)
         if found_coach:
             context["coach_name"] = found_coach.get("name")
@@ -350,22 +354,8 @@ def _get_client_names_for_session_worker(context):
     return [row.name for row in rows]
 
 
-def _get_client_rows_for_coach(context, primary_only=False):
-    if not _has_doctype("Client"):
-        return []
-
-    if context.get("is_dashboard_admin"):
-        return frappe.get_all(
-            "Client",
-            fields=_get_client_fields(),
-            order_by="date_added desc",
-            limit_page_length=10000,
-            ignore_permissions=True,
-        )
-
-    coach_name = context.get("coach_name")
-
-    if not coach_name:
+def _get_client_rows_for_coach_name(coach_name, primary_only=False):
+    if not coach_name or not _has_doctype("Client"):
         return []
 
     rows_by_name = {}
@@ -390,6 +380,22 @@ def _get_client_rows_for_coach(context, primary_only=False):
             rows_by_name[row.name] = row
 
     return list(rows_by_name.values())
+
+
+def _get_client_rows_for_coach(context, primary_only=False):
+    if not _has_doctype("Client"):
+        return []
+
+    if context.get("is_dashboard_admin"):
+        return frappe.get_all(
+            "Client",
+            fields=_get_client_fields(),
+            order_by="date_added desc",
+            limit_page_length=10000,
+            ignore_permissions=True,
+        )
+
+    return _get_client_rows_for_coach_name(context.get("coach_name"), primary_only=primary_only)
 
 
 def _get_client_rows_for_franchisor():
@@ -699,8 +705,23 @@ def _get_upcoming_appointments(dashboard_type, context, limit=8):
             filters["custom_session_worker"] = ["in", ["", None]]
 
     elif dashboard_type == FRANCHISOR_DASHBOARD:
-        # Dashboard appointments must only be this franchisor user's own appointments.
-        filters["owner"] = context.get("view_as_user") or frappe.session.user
+        coach_name = context.get("coach_name")
+
+        if coach_name and _event_has_field("custom_coach"):
+            # Scope the franchisor dashboard home page's Appointments widget
+            # to the logged-in person's own coach identity (e.g. Ashley only
+            # sees Ashley's own appointments, Emily only Emily's) rather than
+            # every coach's - custom_coach is kept populated on every Event
+            # (set directly on booking, or backfilled from owner by the
+            # calendar sync app) so it's a more reliable "whose appointment
+            # is this" signal than owner, which is just whoever happened to
+            # be logged in when the booking was made.
+            filters["custom_coach"] = coach_name
+        else:
+            # No specific coach identity for this login (e.g. a pure office
+            # account) - fall back to their own bookings.
+            filters["owner"] = context.get("view_as_user") or frappe.session.user
+
         filters["starts_on"] = [">=", f"{today()} 00:00:00"]
 
         if _event_has_field("custom_session_worker"):
@@ -788,8 +809,17 @@ def _get_invoice_client_names_for_dashboard(dashboard_type, context):
     return []
 
 
-def _get_invoice_filters(dashboard_type, context, start_date=None, end_date=None, outstanding_only=False):
-    client_names = _get_invoice_client_names_for_dashboard(dashboard_type, context)
+def _get_invoice_filters(dashboard_type, context, start_date=None, end_date=None, outstanding_only=False, own_coach_only=False):
+    if own_coach_only and dashboard_type == FRANCHISOR_DASHBOARD and context.get("coach_name"):
+        # Only the dashboard home page's Outstanding Invoices widget passes
+        # this - scoped to whichever coach the logged-in person actually is
+        # (e.g. Ashley only sees her own outstanding invoices), unlike
+        # revenue/fees/YTD income (and the full Invoices list page) which
+        # stay franchise-wide by design.
+        rows = _get_client_rows_for_coach_name(context.get("coach_name"), primary_only=True)
+        client_names = [row.name for row in rows if row.name]
+    else:
+        client_names = _get_invoice_client_names_for_dashboard(dashboard_type, context)
 
     or_conditions = []
     if client_names:
@@ -1007,6 +1037,7 @@ def _get_outstanding_invoices(dashboard_type, context, limit=8):
         dashboard_type=dashboard_type,
         context=context,
         outstanding_only=True,
+        own_coach_only=True,
     )
 
     rows = frappe.get_all(
@@ -1054,7 +1085,11 @@ def _get_outstanding_internal_invoices(dashboard_type, context, limit=8):
     """
     Invoices raised against a Coach's own linked Client record (e.g. HQ
     invoicing a coach for fees) that are still outstanding. On the coach
-    dashboard this is just their own; on franchisor it's every coach's.
+    dashboard this is just their own. On franchisor it's scoped to whichever
+    coach the logged-in person actually is (e.g. Ashley only sees what
+    Ashley owes, Emily only what Emily owes) - falling back to every coach's
+    only for a login with no coach identity of its own (e.g. a pure office
+    account).
     """
     if not _has_doctype("Coach") or not frappe.get_meta("Coach").has_field("linked_client"):
         return []
@@ -1068,14 +1103,20 @@ def _get_outstanding_internal_invoices(dashboard_type, context, limit=8):
         client_to_coach = {linked_client: coach_name} if linked_client else {}
 
     elif dashboard_type == FRANCHISOR_DASHBOARD:
-        coach_rows = frappe.get_all(
-            "Coach",
-            filters={"linked_client": ["is", "set"]},
-            fields=["name", "linked_client"],
-            limit_page_length=1000,
-            ignore_permissions=True,
-        )
-        client_to_coach = {row.linked_client: row.name for row in coach_rows if row.linked_client}
+        coach_name = context.get("coach_name")
+
+        if coach_name:
+            linked_client = frappe.db.get_value("Coach", coach_name, "linked_client")
+            client_to_coach = {linked_client: coach_name} if linked_client else {}
+        else:
+            coach_rows = frappe.get_all(
+                "Coach",
+                filters={"linked_client": ["is", "set"]},
+                fields=["name", "linked_client"],
+                limit_page_length=1000,
+                ignore_permissions=True,
+            )
+            client_to_coach = {row.linked_client: row.name for row in coach_rows if row.linked_client}
 
     else:
         return []

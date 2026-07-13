@@ -746,7 +746,16 @@ def ensure_notification_access(notification_name):
     if frappe.db.exists(NOTIFICATION_DOCTYPE, notification_name):
         doc = frappe.get_doc(NOTIFICATION_DOCTYPE, notification_name)
 
-        if _field_exists(NOTIFICATION_DOCTYPE, "for_user") and doc.get("for_user") and doc.get("for_user") != frappe.session.user:
+        is_recipient = doc.get("for_user") == frappe.session.user
+        is_sender = doc.get("from_user") and doc.get("from_user") == frappe.session.user
+
+        if (
+            _field_exists(NOTIFICATION_DOCTYPE, "for_user")
+            and doc.get("for_user")
+            and not is_recipient
+            and not is_sender
+            and not _is_franchisor_user()
+        ):
             frappe.throw(_("You do not have permission to access this notification."), frappe.PermissionError)
 
         return doc
@@ -781,7 +790,16 @@ def ensure_notification_access_for_user(notification_name, user):
     if frappe.db.exists(NOTIFICATION_DOCTYPE, notification_name):
         doc = frappe.get_doc(NOTIFICATION_DOCTYPE, notification_name)
 
-        if _field_exists(NOTIFICATION_DOCTYPE, "for_user") and doc.get("for_user") and doc.get("for_user") != user:
+        is_recipient = doc.get("for_user") == user
+        is_sender = doc.get("from_user") and doc.get("from_user") == user
+
+        if (
+            _field_exists(NOTIFICATION_DOCTYPE, "for_user")
+            and doc.get("for_user")
+            and not is_recipient
+            and not is_sender
+            and not _is_franchisor_user(user)
+        ):
             frappe.throw(_("You do not have permission to access this notification."), frappe.PermissionError)
 
         return doc
@@ -889,10 +907,49 @@ def _format_conversation(doc):
     }
 
 
+def _format_notification_log_replies(row):
+    replies = row.get("custom_replies") or []
+
+    messages = [{
+        "name": row.get("name") + "-original",
+        "message_type": "Message",
+        "message": row.get("email_content") or row.get("subject") or "",
+        "sent_by": row.get("from_user") or "",
+        "sent_by_label": _get_user_full_name(row.get("from_user")) if row.get("from_user") else "System",
+        "sent_by_name": _get_user_full_name(row.get("from_user")) if row.get("from_user") else "System",
+        "role_type": "",
+        "created_on": row.get("creation"),
+        "is_internal": 0,
+        "attachment": "",
+        "idx": 0,
+    }]
+
+    for reply in replies:
+        reply = reply if isinstance(reply, dict) else reply.as_dict()
+        messages.append({
+            "name": reply.get("name"),
+            "message_type": "Message",
+            "message": reply.get("message") or "",
+            "sent_by": reply.get("sent_by") or "",
+            "sent_by_label": reply.get("sent_by_label") or _get_user_full_name(reply.get("sent_by")),
+            "sent_by_name": reply.get("sent_by_label") or _get_user_full_name(reply.get("sent_by")),
+            "role_type": "",
+            "created_on": reply.get("sent_on"),
+            "is_internal": 0,
+            "attachment": reply.get("attachment") or "",
+            "idx": reply.get("idx") or 0,
+        })
+
+    messages.sort(key=lambda item: str(item.get("created_on") or ""))
+
+    return messages
+
+
 def _format_notification_log(row):
     read_value = row.get("read")
     archived = int(row.get("custom_archived") or 0)
     due_date = row.get("custom_due_date")
+    messages = _format_notification_log_replies(row)
 
     return {
         "name": row.get("name"),
@@ -908,6 +965,7 @@ def _format_notification_log(row):
         "read_status": "Unread" if not read_value else "Read",
         "priority": row.get("priority") or "Normal",
         "notification_date": row.get("creation"),
+        "modified": row.get("modified") or row.get("creation"),
         "due_date": str(due_date) if due_date else "",
         "is_archived": archived,
         "can_archive": 1,
@@ -920,11 +978,11 @@ def _format_notification_log(row):
         "reference_doctype": row.get("document_type") or "",
         "reference_name": row.get("document_name") or "",
         "sent_from": row.get("from_user") or "",
-        "reply_count": 0,
-        "message_count": 1,
-        "messages": [],
+        "reply_count": max(len(messages) - 1, 0),
+        "message_count": len(messages),
+        "messages": messages,
         "recipients": [],
-        "replies": [],
+        "replies": messages,
     }
 
 
@@ -958,9 +1016,6 @@ def _notification_log_fields():
 def _get_notification_log_filters(status=None):
     filters = {}
 
-    if _field_exists(NOTIFICATION_DOCTYPE, "for_user"):
-        filters["for_user"] = frappe.session.user
-
     if status and status != "All":
         if status == "Unread" and _field_exists(NOTIFICATION_DOCTYPE, "read"):
             filters["read"] = 0
@@ -968,6 +1023,22 @@ def _get_notification_log_filters(status=None):
             filters["read"] = 1
 
     return filters
+
+
+def _get_notification_log_or_filters():
+    # Visible to whichever side of the exchange the current user is on -
+    # the person a notification was sent to, and (since replies are now
+    # possible) the person who sent it too, so they can see it in their own
+    # list rather than only being able to reach it by a direct link.
+    or_filters = []
+
+    if _field_exists(NOTIFICATION_DOCTYPE, "for_user"):
+        or_filters.append(["for_user", "=", frappe.session.user])
+
+    if _field_exists(NOTIFICATION_DOCTYPE, "from_user"):
+        or_filters.append(["from_user", "=", frappe.session.user])
+
+    return or_filters
 
 
 def _current_user_can_see_conversation(doc):
@@ -1104,22 +1175,27 @@ def get_notifications(status="All", limit=20):
                 continue
 
             result.append(_format_conversation(doc))
-    else:
-        # No "Dashboard Conversation" doctype on this site - sending falls
-        # back to plain Notification Log records (_send_legacy_notification
-        # / create_trk_notification), so reading has to fall back the same
-        # way, or every sent notification would be invisible here even
-        # though it was created successfully.
+
+    # Notification Log rows are read regardless of whether "Dashboard
+    # Conversation" is installed - some notifications (e.g. the calendar
+    # sync app's own alerts) are written straight to Notification Log and
+    # never go through the conversation system at all, so relying on
+    # _conversation_enabled() alone would make those permanently invisible
+    # here even though they exist and are perfectly reachable by name.
+    or_filters = _get_notification_log_or_filters()
+
+    if or_filters:
         log_rows = frappe.get_all(
             NOTIFICATION_DOCTYPE,
             fields=_notification_log_fields(),
             filters=_get_notification_log_filters(status),
+            or_filters=or_filters,
             order_by="creation desc",
             limit_page_length=500,
             ignore_permissions=True,
         )
 
-        result = [_format_notification_log(row) for row in log_rows]
+        result.extend(_format_notification_log(row) for row in log_rows)
 
     response_needed = [
         row for row in result
@@ -1235,6 +1311,10 @@ def get_notification_detail(name=None, view_as=None, viewer=None):
         mark_notification_read(name)
         doc.reload()
         return _format_conversation(doc)
+
+    if not doc.get("for_user") or doc.get("for_user") == frappe.session.user:
+        mark_notification_read(name)
+        doc.reload()
 
     return _format_notification_log(doc.as_dict())
 
@@ -1467,6 +1547,70 @@ def set_notification_due_date(name=None, due_date=None):
     }
 
 
+def _reply_to_notification_log(doc, message, attachment):
+    """
+    Notification Log has no built-in thread/recipients structure - it's one
+    row per (from_user, for_user) pair. A reply is appended to custom_replies
+    (a Table Custom Field added by add_notification_log_reply_field.py) so
+    it's kept with the original notification for either party to read back,
+    and - since for_user/from_user is the only way Notification Log ties a
+    row to a person - a fresh "Re:" notification is sent to whichever side
+    of the exchange didn't just reply, so they actually get told about it.
+    """
+    doc.append("custom_replies", {
+        "message": message,
+        "attachment": attachment or "",
+        "sent_by": frappe.session.user,
+        "sent_by_label": _get_user_full_name(frappe.session.user),
+        "sent_on": now_datetime(),
+    })
+    doc.save(ignore_permissions=True)
+
+    if _field_exists(NOTIFICATION_DOCTYPE, "read") and doc.get("for_user") in (None, "", frappe.session.user):
+        frappe.db.set_value(NOTIFICATION_DOCTYPE, doc.name, "read", 1, update_modified=False)
+
+    counterpart = doc.get("from_user") if doc.get("for_user") == frappe.session.user else doc.get("for_user")
+    counterpart = (counterpart or "").strip()
+
+    if (
+        counterpart
+        and counterpart not in ("Administrator", "Guest", frappe.session.user)
+        and frappe.db.exists("User", counterpart)
+    ):
+        reply_doc = {
+            "doctype": NOTIFICATION_DOCTYPE,
+            "subject": f"Re: {doc.get('subject') or 'Notification'}",
+            "email_content": message,
+            "read": 0,
+        }
+
+        if _field_exists(NOTIFICATION_DOCTYPE, "for_user"):
+            reply_doc["for_user"] = counterpart
+
+        if _field_exists(NOTIFICATION_DOCTYPE, "from_user"):
+            reply_doc["from_user"] = frappe.session.user
+
+        # Same crash guard as _send_legacy_notification() - Frappe's own
+        # after_insert hook needs document_type/document_name to both
+        # resolve to something real.
+        if _field_exists(NOTIFICATION_DOCTYPE, "document_type"):
+            reply_doc["document_type"] = doc.get("document_type") or "User"
+
+        if _field_exists(NOTIFICATION_DOCTYPE, "document_name"):
+            reply_doc["document_name"] = doc.get("document_name") or counterpart
+
+        frappe.get_doc(reply_doc).insert(ignore_permissions=True)
+
+    frappe.db.commit()
+
+    fresh_doc = frappe.get_doc(NOTIFICATION_DOCTYPE, doc.name)
+
+    return {
+        "ok": True,
+        "notification": _format_notification_log(fresh_doc.as_dict()),
+    }
+
+
 @frappe.whitelist()
 def reply_to_notification(name=None, message=None, attachment=None):
     ensure_logged_in()
@@ -1484,7 +1628,7 @@ def reply_to_notification(name=None, message=None, attachment=None):
     doc = ensure_notification_access(name)
 
     if doc.doctype != CONVERSATION_DOCTYPE:
-        frappe.throw(_("Replies are only available on dashboard conversations."))
+        return _reply_to_notification_log(doc, message, attachment)
 
     # Mark other recipients as unread using direct DB updates.
     # This avoids the "document has been modified" save conflict.

@@ -5,3 +5,4 @@ dashboard.patches.add_appointment_template_booking_fields
 dashboard.patches.create_dashboard_email_templates
 dashboard.patches.add_notification_log_kanban_fields
 dashboard.patches.fix_public_synced_events
+dashboard.patches.add_notification_log_reply_field
