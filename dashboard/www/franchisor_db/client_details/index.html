@@ -60,35 +60,18 @@
         <input type="hidden" id="csrfToken" value="{{ frappe.session.csrf_token or '' }}">
 
         <div class="dashboard-tabs dashboard-client-detail-tabs">
-          <button type="button" class="dashboard-tab-btn dashboard-client-detail-tab-btn is-active" data-tab-target="tab-1">
-            <span class="dashboard-tab-label-full">Details</span>
-            <span class="dashboard-tab-label-short">Details</span>
-          </button>
-        
-          <button type="button" class="dashboard-tab-btn dashboard-client-detail-tab-btn" data-tab-target="tab-2">
-            <span class="dashboard-tab-label-full">Administration</span>
-            <span class="dashboard-tab-label-short">Admin</span>
-          </button>
-        
-          <button type="button" class="dashboard-tab-btn dashboard-client-detail-tab-btn" data-tab-target="tab-3">
-            <span class="dashboard-tab-label-full">Contacts</span>
-            <span class="dashboard-tab-label-short">Contacts</span>
-          </button>
-        
-          <button type="button" class="dashboard-tab-btn dashboard-client-detail-tab-btn" data-tab-target="tab-4">
-            <span class="dashboard-tab-label-full">Notes</span>
-            <span class="dashboard-tab-label-short">Notes</span>
-          </button>
-        
-          <button type="button" class="dashboard-tab-btn dashboard-client-detail-tab-btn" data-tab-target="tab-5">
-            <span class="dashboard-tab-label-full">Appointments</span>
-            <span class="dashboard-tab-label-short">Appts</span>
-          </button>
-        
-          <button type="button" class="dashboard-tab-btn dashboard-client-detail-tab-btn" data-tab-target="tab-6">
-            <span class="dashboard-tab-label-full">Billing</span>
-            <span class="dashboard-tab-label-short">Billing</span>
-          </button>
+          {% for tab in tabs %}
+            <button
+              type="button"
+              class="dashboard-tab-btn dashboard-client-detail-tab-btn {% if loop.first %}is-active{% endif %}"
+              data-tab-target="tab-{{ loop.index }}"
+            >
+              <span class="dashboard-tab-label-full">{{ tab.label }}</span>
+              <span class="dashboard-tab-label-short">
+                {% if tab.label == "Administration" %}Admin{% else %}{{ tab.label }}{% endif %}
+              </span>
+            </button>
+          {% endfor %}
         </div>
 
         <form id="clientDetailsForm" class="dashboard-detail-form" onsubmit="return false;">
@@ -338,40 +321,23 @@
                     <h2 class="dashboard-detail-section-title">Session Notes</h2>
                   </div>
 
-                  <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
-                    <table class="dashboard-table dashboard-client-notes-table">
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th class="dashboard-note-user-cell">User</th>
-                          <th>Notes</th>
-                          <th>Attachment</th>
-                        </tr>
-                      </thead>
-
-                      <tbody id="clientNotesTableBody">
-                        {% if session_notes %}
-                          {% for note in session_notes %}
-                            <tr>
-                              <td>{{ frappe.utils.formatdate(note.session_date, "dd-MM-yyyy") if note.session_date else "—" }}</td>
-                              <td class="dashboard-note-user-cell">{{ note.user_full_name or note.user or "—" }}</td>
-                              <td>{{ note.notes or "—" }}</td>
-                              <td>
-                                {% if note.attachement %}
-                                  <a href="{{ note.attachement }}" target="_blank" rel="noopener noreferrer">View</a>
-                                {% else %}
-                                  —
-                                {% endif %}
-                              </td>
-                            </tr>
-                          {% endfor %}
-                        {% else %}
-                          <tr>
-                            <td colspan="4" class="dashboard-empty">No notes found.</td>
-                          </tr>
-                        {% endif %}
-                      </tbody>
-                    </table>
+                  <div class="dashboard-notes-list" id="clientNotesTableBody">
+                    {% if session_notes %}
+                      {% for note in session_notes %}
+                        <div class="dashboard-note-card">
+                          <div class="dashboard-note-card-head">
+                            <span class="dashboard-note-card-date">{{ frappe.utils.formatdate(note.session_date, "dd-MM-yyyy") if note.session_date else "—" }}</span>
+                            <span class="dashboard-note-card-user">{{ note.user_full_name or note.user or "—" }}</span>
+                            {% if note.attachement %}
+                              <a class="dashboard-note-card-attachment" href="{{ note.attachement }}" target="_blank" rel="noopener noreferrer" title="View attachment">📎</a>
+                            {% endif %}
+                          </div>
+                          <div class="dashboard-note-card-body">{{ note.notes or "—" }}</div>
+                        </div>
+                      {% endfor %}
+                    {% else %}
+                      <div class="dashboard-empty">No notes found.</div>
+                    {% endif %}
                   </div>
                 </div>
 

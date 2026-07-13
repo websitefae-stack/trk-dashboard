@@ -866,31 +866,38 @@
 
   async function loadSessionWorkerNotes() {
     if (roleConfig.role !== "session_worker") return;
-    if (!el("clientNotesTableBody")) return;
+
+    const container = el("clientNotesTableBody");
+    if (!container) return;
 
     try {
       const notes = await apiPost("get_client_notes", {
         client_name: getClientName()
       });
 
-      const rows = (notes || []).map(function (row) {
+      if (!notes || !notes.length) {
+        container.innerHTML = "<div class=\"dashboard-empty\">No notes found.</div>";
+        return;
+      }
+
+      container.innerHTML = notes.map(function (row) {
         const attachment = row.attachement
-          ? "<a href=\"" + escapeHtml(row.attachement) + "\" target=\"_blank\" rel=\"noopener noreferrer\">View</a>"
-          : "—";
+          ? "<a class=\"dashboard-note-card-attachment\" href=\"" + escapeHtml(row.attachement) + "\" target=\"_blank\" rel=\"noopener noreferrer\" title=\"View attachment\">📎</a>"
+          : "";
 
         return (
-          "<tr>" +
-            "<td>" + formatDate(row.note_date || row.session_date) + "</td>" +
-            "<td class=\"dashboard-note-user-cell\">" + escapeHtml(row.note_user_name || row.user_full_name || row.note_user || row.user || "—") + "</td>" +
-            "<td>" + escapeHtml(row.note_text || row.notes || "—") + "</td>" +
-            "<td>" + attachment + "</td>" +
-          "</tr>"
+          "<div class=\"dashboard-note-card\">" +
+            "<div class=\"dashboard-note-card-head\">" +
+              "<span class=\"dashboard-note-card-date\">" + formatDate(row.note_date || row.session_date) + "</span>" +
+              "<span class=\"dashboard-note-card-user\">" + escapeHtml(row.note_user_name || row.user_full_name || row.note_user || row.user || "—") + "</span>" +
+              attachment +
+            "</div>" +
+            "<div class=\"dashboard-note-card-body\">" + escapeHtml(row.note_text || row.notes || "—") + "</div>" +
+          "</div>"
         );
-      });
-
-      renderSimpleTable("clientNotesTableBody", rows, "No notes found.", 4);
+      }).join("");
     } catch (error) {
-      renderSimpleTable("clientNotesTableBody", [], error.message || "Could not load notes.", 3);
+      container.innerHTML = "<div class=\"dashboard-empty\">" + escapeHtml(error.message || "Could not load notes.") + "</div>";
     }
   }
 
