@@ -269,8 +269,14 @@
       return;
     }
 
-    loadLead(lead);
-    loadTherapyLocationOptions();
+    // Loaded in this order (not concurrently) so the Main Therapy Location
+    // <select>'s <option> elements already exist by the time loadLead()
+    // tries to set its value - setting a select's value before its
+    // matching option exists is a silent no-op, which would otherwise make
+    // a returning visitor's previously-saved location look blank.
+    loadTherapyLocationOptions().then(function () {
+      loadLead(lead);
+    });
 
     const clientTypeField = el("intake_client_type");
     if (clientTypeField) clientTypeField.addEventListener("change", updateSectionVisibility);

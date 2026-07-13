@@ -2,6 +2,49 @@
    FORMS / FILTERS / INPUTS
 ========================================================= */
 
+/* dd/mm/yyyy date input (see dd_date_input.js) - wraps every native
+   <input type="date"> site-wide so dates are always typed day-first. */
+.dd-date-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.dd-date-wrap input[type="text"] {
+  padding-right: 40px;
+}
+
+.dd-date-trigger {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.dd-date-trigger:hover {
+  background: #F2F8F8;
+}
+
+.dd-date-native {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  padding: 0;
+  border: none;
+}
+
 .dashboard-filter-bar {
   display: grid;
   grid-template-columns: minmax(260px, 1.5fr) repeat(3, minmax(160px, 1fr));

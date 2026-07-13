@@ -244,6 +244,12 @@
   function syncDiagnosisDateDisplay(field, showAsText) {
     if (field.type !== "date") return;
 
+    // Superseded by the global dd/mm/yyyy date input converter (see
+    // dd_date_input.js), which already gives every date field - including
+    // these - a always-visible, always-editable day/month/year text field.
+    // Nothing left for this to do once that's converted the field.
+    if (field.dataset.ddConverted === "1") return;
+
     // Diagnosis rows repeat, so there's no unique id to pair a display
     // label with by id - the label is created on demand as the date
     // field's next sibling instead. Same reasoning as syncClientDateDisplay:

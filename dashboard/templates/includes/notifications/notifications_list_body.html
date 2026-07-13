@@ -129,3 +129,32 @@
 
   <div class="dashboard-notif-board" id="notificationsKanbanBoard" data-base-url="{{ base_url }}" data-view-query="{{ session_worker_view_query or '' }}"></div>
 </div>
+
+<div class="trk-calendar-modal-backdrop" id="notifDueDateModal">
+  <div class="trk-calendar-modal">
+    <div class="trk-calendar-modal-head">
+      <h3>Set a Due Date</h3>
+
+      <button type="button" class="trk-calendar-icon-btn" id="notifDueDateModalClose">
+        ✕
+      </button>
+    </div>
+
+    <div class="trk-calendar-modal-body">
+      <div class="trk-calendar-field">
+        <label for="notifDueDateInput">Due Date</label>
+        <input type="date" id="notifDueDateInput" class="dashboard-input">
+      </div>
+    </div>
+
+    <div class="trk-calendar-modal-foot">
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="notifDueDateCancel">
+        Cancel
+      </button>
+
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="notifDueDateConfirm">
+        Save
+      </button>
+    </div>
+  </div>
+</div>

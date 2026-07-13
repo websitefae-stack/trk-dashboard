@@ -179,12 +179,47 @@
     return tomorrow.getFullYear() + "-" + String(tomorrow.getMonth() + 1).padStart(2, "0") + "-" + String(tomorrow.getDate()).padStart(2, "0");
   }
 
+  let pendingDueDateName = null;
+
+  function openDueDateModal(name) {
+    pendingDueDateName = name;
+
+    const input = el("notifDueDateInput");
+    if (input) input.value = suggestedDueDate();
+
+    const modal = el("notifDueDateModal");
+    if (modal) modal.classList.add("show");
+  }
+
+  function closeDueDateModal() {
+    pendingDueDateName = null;
+
+    const modal = el("notifDueDateModal");
+    if (modal) modal.classList.remove("show");
+  }
+
+  async function confirmDueDateModal() {
+    if (!pendingDueDateName) return;
+
+    const input = el("notifDueDateInput");
+    const value = input ? input.value : "";
+
+    if (!value) {
+      window.alert("Please choose a due date.");
+      return;
+    }
+
+    await setDueDate(pendingDueDateName, value);
+    closeDueDateModal();
+  }
+
   // New/In Progress/Past Due aren't independent states a card can just be
   // set to - they're derived from due_date (see bucketFor). So dropping on
   // New clears the due date, and dropping on In Progress/Past Due asks for
-  // one (there's no other way to know what date the coach means), then
-  // lets bucketFor() sort out which of those two columns it actually lands
-  // in once that date is saved.
+  // one (there's no other way to know what date the coach means) via a
+  // small modal (a real date field, not a browser prompt asking for
+  // YYYY-MM-DD), then lets bucketFor() sort out which of those two columns
+  // it actually lands in once that date is saved.
   function handleColumnDrop(name, bucket) {
     if (bucket === "Archived") {
       toggleArchive(name, "archive");
@@ -196,16 +231,7 @@
       return;
     }
 
-    const entered = window.prompt("Due date (YYYY-MM-DD):", suggestedDueDate());
-    if (entered === null) return;
-
-    const trimmed = entered.trim();
-    if (trimmed && !/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-      window.alert("Please enter a date as YYYY-MM-DD.");
-      return;
-    }
-
-    setDueDate(name, trimmed);
+    openDueDateModal(name);
   }
 
   function renderBoard(rows) {
@@ -663,6 +689,14 @@
       form.dataset.notificationsBound = "1";
       form.addEventListener("submit", sendNotification);
     }
+
+    const dueDateClose = el("notifDueDateModalClose");
+    const dueDateCancel = el("notifDueDateCancel");
+    const dueDateConfirm = el("notifDueDateConfirm");
+
+    if (dueDateClose) dueDateClose.addEventListener("click", closeDueDateModal);
+    if (dueDateCancel) dueDateCancel.addEventListener("click", closeDueDateModal);
+    if (dueDateConfirm) dueDateConfirm.addEventListener("click", confirmDueDateModal);
 
     bindLinkedClientChange();
     loadNotifications();

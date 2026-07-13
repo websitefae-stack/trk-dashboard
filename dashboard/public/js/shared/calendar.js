@@ -308,6 +308,11 @@
       editTypeSelect.addEventListener("change", syncEditFields);
     }
 
+    const editLocationTypeSelect = document.getElementById("trkEditLocationType");
+    if (editLocationTypeSelect) {
+      editLocationTypeSelect.addEventListener("change", syncEditLocationFields);
+    }
+
     const editDateField = document.getElementById("trkEditDate");
     if (editDateField) {
       editDateField.addEventListener("change", function () {
@@ -1239,7 +1244,7 @@
       ? (getValue("trkEditTravelCharged") || "0")
       : (getValue("trkEditTravelChargedSingle") || "0");
 
-    const location = getValue("trkEditLocation");
+    const location = resolveEditLocation();
 
     if (!eventName) {
       showToast("No session selected");
@@ -1419,7 +1424,7 @@
     setValue("trkEditBillingType", event.billing_type || "");
     setValue("trkEditTravelCharged", String(Number(event.travel_charged || 0)));
     setValue("trkEditTravelChargedSingle", String(Number(event.travel_charged || 0)));
-    setValue("trkEditLocation", event.location || "");
+    applyLocationToEditForm(event.location || "");
 
     var linkingRow = document.getElementById("trkEditLinkingRow");
     var linkClientSelect = document.getElementById("trkEditClient");
@@ -1665,7 +1670,7 @@
         setValue("trkCalendarLocationType", "manual");
       }
 
-      if (isInitialConsultation && getValue("trkCalendarLocationType") === "client_default") {
+      if ((isInitialConsultation || isParentCheckIn) && getValue("trkCalendarLocationType") === "client_default") {
         setValue("trkCalendarLocationType", "online");
       }
     }
@@ -1715,6 +1720,48 @@
     if (!isGeneral) {
       setValue("trkEditBillingType", "");
     }
+  }
+
+  // Reuses the exact same location-type -> text convention the booking
+  // modal already saves with ("Online", "Telephone: X"/"Telephone", "Home",
+  // otherwise a manual location) so editing round-trips correctly, and lets
+  // a coach pick a different type for an appointment already booked rather
+  // than only being able to retype the free-text location.
+  function deriveLocationType(locationText) {
+    const text = (locationText || "").trim();
+
+    if (text === "Online") return { type: "online", manual: "", phone: "" };
+    if (/^Telephone/.test(text)) {
+      const match = /^Telephone:\s*(.*)$/.exec(text);
+      return { type: "telephone", manual: "", phone: match ? match[1] : "" };
+    }
+    if (text === "Home") return { type: "home", manual: "", phone: "" };
+
+    return { type: "manual", manual: text, phone: "" };
+  }
+
+  function applyLocationToEditForm(locationText) {
+    const derived = deriveLocationType(locationText);
+    setValue("trkEditLocationType", derived.type);
+    setValue("trkEditLocation", derived.manual);
+    setValue("trkEditPhone", derived.phone);
+    syncEditLocationFields();
+  }
+
+  function syncEditLocationFields() {
+    const locationType = getValue("trkEditLocationType") || "manual";
+    toggleDisplay("trkEditPhoneRow", locationType === "telephone");
+    toggleDisplay("trkEditLocationManualRow", locationType === "manual");
+  }
+
+  function resolveEditLocation() {
+    const locationType = getValue("trkEditLocationType") || "manual";
+    const phone = getValue("trkEditPhone");
+
+    if (locationType === "online") return "Online";
+    if (locationType === "telephone") return phone ? "Telephone: " + phone : "Telephone";
+    if (locationType === "home") return "Home";
+    return getValue("trkEditLocation");
   }
 
   function toggleDisplay(id, show) {
