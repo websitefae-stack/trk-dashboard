@@ -15,7 +15,16 @@ from dashboard.api.shared.appointment_types import creates_client_on_conversion
 from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, parse_email_list, INTAKE_INVITE_TEMPLATE
 
 
-INTAKE_ROUTE = "client-intake/new"
+INTAKE_ROUTE = "client-intake"
+
+# The actual intake form is the "Intake Doctype" Web Form (built and owned
+# directly in Frappe Desk, not by this app) - it links back to the Client
+# Lead it was sent for via INTAKE_LEAD_LINK_FIELD, a Custom Field added by
+# patches/add_intake_doctype_client_lead_field.py. See
+# sync_intake_doctype_submission() below, wired up as an Intake Doctype
+# after_insert/on_update hook in hooks.py.
+INTAKE_DOCTYPE = "Intake Doctype"
+INTAKE_LEAD_LINK_FIELD = "client_lead"
 
 # The detailed intake questions, beyond the always-present "headline" fields
 # (contact_name/contact_email/contact_mobile/client_name/client_age/
@@ -504,7 +513,7 @@ def add_lead_note(name=None, note=None, note_date=None):
 
 
 def _intake_url(name):
-    return get_url(f"/{INTAKE_ROUTE}?lead={name}")
+    return get_url(f"/{INTAKE_ROUTE}/new?{INTAKE_LEAD_LINK_FIELD}={name}")
 
 
 def _intake_email_context(doc):
@@ -602,164 +611,13 @@ def send_intake_form(name=None, subject=None, message=None, cc=None, sender=None
     return {"ok": True, "intake_url": intake_url, "email_sent": email_sent, "status": doc.status}
 
 
-@frappe.whitelist(allow_guest=True)
-def get_intake_form_options():
-    """Guest-safe lookups the public intake form needs, e.g. Therapy Location choices."""
-    therapy_locations = []
-
-    if frappe.db.exists("DocType", "Therapy Location"):
-        rows = frappe.get_all(
-            "Therapy Location",
-            fields=["name"],
-            order_by="name asc",
-            limit_page_length=200,
-            ignore_permissions=True,
-        )
-        therapy_locations = [{"value": row["name"], "label": row["name"]} for row in rows]
-
-    return {"therapy_locations": therapy_locations}
-
-
-@frappe.whitelist(allow_guest=True)
-def get_intake_lead(lead=None):
+def _notify_intake_completed(doc):
     """
-    Public lookup for the intake form page - the Lead's own hash name is the
-    unguessable token (no separate secret needed), so this only ever exposes
-    the one record the link was generated for.
+    doc is the Client Lead. Fires the "intake form completed" notification
+    to its coach (if resolvable) and, always, to the franchisor admins as a
+    belt-and-suspenders backstop - shared by anything that marks a Lead's
+    intake complete (currently just sync_intake_doctype_submission below).
     """
-    lead = coalesce_str("lead", lead)
-
-    if not lead or not frappe.db.exists(LEAD_DOCTYPE, lead):
-        frappe.throw(_("This intake link is invalid or has expired."))
-
-    doc = frappe.get_doc(LEAD_DOCTYPE, lead)
-
-    if doc.status in ("Converted",):
-        return {"already_done": True, "status": doc.status}
-
-    result = {
-        "already_done": False,
-        "status": doc.status,
-        "contact_name": doc.contact_name or "",
-        "contact_email": doc.contact_email or "",
-        "contact_mobile": doc.contact_mobile or "",
-        "client_name": doc.client_name or "",
-        "client_age": doc.client_age or "",
-        "postal_code": doc.postal_code or "",
-        "enquiry_reason": doc.enquiry_reason or "",
-        "how_heard": doc.how_heard or "",
-        "consent_given": int(doc.consent_given or 0),
-    }
-
-    for fieldname in INTAKE_TEXT_FIELDS + INTAKE_DATE_FIELDS:
-        result[fieldname] = doc.get(fieldname) or ""
-
-    for fieldname in INTAKE_CHECK_FIELDS:
-        result[fieldname] = int(doc.get(fieldname) or 0)
-
-    return result
-
-
-@frappe.whitelist(allow_guest=True)
-def submit_intake(
-    lead=None,
-    contact_name=None,
-    contact_email=None,
-    contact_mobile=None,
-    client_name=None,
-    client_age=None,
-    postal_code=None,
-    enquiry_reason=None,
-    how_heard=None,
-    consent_given=None,
-    **kwargs,
-):
-    # kwargs absorbs the ~70 detailed intake fields (young person/caregiver/
-    # adult/school/company/billing/support/education/signature) - read back
-    # out of the request below via INTAKE_DETAIL_FIELDS rather than declared
-    # one by one here.
-    lead = coalesce_str("lead", lead)
-
-    if not lead or not frappe.db.exists(LEAD_DOCTYPE, lead):
-        frappe.throw(_("This intake link is invalid or has expired."))
-
-    doc = frappe.get_doc(LEAD_DOCTYPE, lead)
-
-    if doc.status == "Converted":
-        return {"ok": True, "already_done": True}
-
-    contact_name = coalesce_str("contact_name", contact_name)
-    client_name = coalesce_str("client_name", client_name)
-
-    if not contact_name:
-        frappe.throw(_("Please enter the contact's name."))
-
-    if not client_name:
-        frappe.throw(_("Please enter the client's (young person's) name."))
-
-    doc.contact_name = contact_name
-    doc.contact_email = coalesce_str("contact_email", contact_email)
-    doc.contact_mobile = coalesce_str("contact_mobile", contact_mobile)
-    doc.client_name = client_name
-
-    client_age = coalesce_raw("client_age", client_age)
-    if client_age not in (None, ""):
-        try:
-            doc.client_age = int(client_age)
-        except Exception:
-            pass
-
-    doc.postal_code = coalesce_str("postal_code", postal_code)
-    doc.enquiry_reason = coalesce_str("enquiry_reason", enquiry_reason)
-    doc.how_heard = coalesce_str("how_heard", how_heard)
-
-    consent_given = coalesce_raw("consent_given", consent_given)
-    doc.consent_given = 1 if str(consent_given).lower() in ["1", "true", "yes", "on"] else 0
-
-    for fieldname in INTAKE_TEXT_FIELDS:
-        value = coalesce_str(fieldname)
-        if not value:
-            continue
-
-        if fieldname == "main_therapy_location":
-            # The one Link-typed field among the intake questions (every
-            # other one here is Data/Small Text/Select) - Frappe validates
-            # Link fields against a real existing record on save regardless
-            # of ignore_permissions, so a stale/renamed/mismatched value
-            # would raise LinkValidationError and abort the whole save,
-            # silently from the guest's point of view (no intake_completed_on,
-            # no notification, no Convert button - looks like the form was
-            # never submitted even though they filled it in). Same class of
-            # bug already guarded against for Link fields in calendar.py.
-            if frappe.db.exists("DocType", "Therapy Location") and frappe.db.exists("Therapy Location", value):
-                doc.set(fieldname, value)
-            else:
-                frappe.log_error(
-                    f"Lead {doc.name}: intake submitted main_therapy_location={value!r}, "
-                    "which isn't a real Therapy Location - left unset rather than blocking the save.",
-                    "Intake Submission - Invalid Therapy Location",
-                )
-            continue
-
-        doc.set(fieldname, value)
-
-    for fieldname in INTAKE_DATE_FIELDS:
-        value = coalesce_str(fieldname)
-        if value:
-            doc.set(fieldname, value)
-
-    for fieldname in INTAKE_CHECK_FIELDS:
-        value = coalesce_raw(fieldname)
-        doc.set(fieldname, 1 if str(value).lower() in ["1", "true", "yes", "on"] else 0)
-
-    # Status stays "Intake Sent" - the simplified pipeline (New / Intake
-    # Sent / Converted / Declined) has no separate "completed" status, so
-    # this timestamp is what tells the coach's "Convert to Client" button
-    # to appear instead.
-    doc.intake_completed_on = now_datetime()
-    doc.save(ignore_permissions=True)
-    frappe.db.commit()
-
     notification_message = f"{doc.client_name} - intake form has been completed. Review and convert to a client."
     coach_user = ""
 
@@ -769,9 +627,9 @@ def submit_intake(
         )
 
     if coach_user:
-        # Best-effort - the intake submission itself is already saved
-        # above, a broken notification config must not make it look
-        # like the submission failed.
+        # Best-effort - the intake submission itself is already saved,
+        # a broken notification config must not make it look like the
+        # submission failed.
         try:
             create_trk_notification(
                 recipient_user=coach_user,
@@ -793,11 +651,11 @@ def submit_intake(
             "Intake Submission - No Coach Recipient",
         )
 
-    # Belt and suspenders: notified separately from the coach (not as a
-    # substitute) so this is never missed just because a specific Coach
-    # record's user/coach_email is misconfigured, or the coach simply
-    # hasn't checked their own notifications yet - the franchisor can
-    # always see it and act (reassign, remind, or convert directly).
+    # Notified separately from the coach (not as a substitute) so this is
+    # never missed just because a specific Coach record's user/coach_email
+    # is misconfigured, or the coach simply hasn't checked their own
+    # notifications yet - the franchisor can always see it and act
+    # (reassign, remind, or convert directly).
     for admin_user in FRANCHISOR_USERS:
         if not frappe.db.exists("User", admin_user):
             continue
@@ -814,7 +672,88 @@ def submit_intake(
         except Exception:
             frappe.log_error(frappe.get_traceback(), "Intake Submission - Admin Notification Failed")
 
-    return {"ok": True, "already_done": False}
+
+def sync_intake_doctype_submission(doc, method=None):
+    """
+    Hook target (see hooks.py doc_events["Intake Doctype"]) - fires whenever
+    someone submits or edits the real "Intake Doctype" Web Form (owned and
+    built directly in Frappe Desk, not by this app). doc is the Intake
+    Doctype record itself; INTAKE_LEAD_LINK_FIELD (a Custom Field added by
+    patches/add_intake_doctype_client_lead_field.py) is how it's tied back
+    to the Client Lead the link was generated for - populated by the hidden,
+    pre-filled field on the Web Form itself (see _intake_url()).
+
+    Copies over every field name Intake Doctype and Client Lead have in
+    common (INTAKE_DETAIL_FIELDS - same names on both, by design) so the
+    rest of this app (PDF generation, the Files tab, the "Submitted Intake
+    Form" section, Convert to Client) keeps working exactly as it already
+    does off the Client Lead's own fields, without needing to know anything
+    about Intake Doctype specifically.
+    """
+    lead_name = (doc.get(INTAKE_LEAD_LINK_FIELD) or "").strip()
+
+    if not lead_name or not frappe.db.exists(LEAD_DOCTYPE, lead_name):
+        # An orphaned submission (no lead link, or a stale/deleted one) -
+        # nothing to sync onto, but not an error either, e.g. someone
+        # filling in the form without ever having been sent a link.
+        return
+
+    lead_doc = frappe.get_doc(LEAD_DOCTYPE, lead_name)
+
+    if lead_doc.status == "Converted":
+        return
+
+    lead_meta = frappe.get_meta(LEAD_DOCTYPE)
+    intake_meta = frappe.get_meta(INTAKE_DOCTYPE)
+    changed = False
+
+    # The "headline" fields (contact_name/contact_email/contact_mobile/
+    # client_name/client_age/postal_code/enquiry_reason/how_heard/
+    # consent_given) aren't part of INTAKE_DETAIL_FIELDS, but if Intake
+    # Doctype happens to carry its own same-named versions (it's the
+    # guest's own submission, so it may be the more accurate/complete
+    # source - e.g. the Lead was created with only a name before the intake
+    # link was ever sent), sync those too. Convert to Client reads contact
+    # details straight off these Client Lead fields to build the Contact.
+    LEAD_HEADLINE_FIELDS = [
+        "contact_name", "contact_email", "contact_mobile", "client_name",
+        "client_age", "postal_code", "enquiry_reason", "how_heard", "consent_given",
+    ]
+
+    for fieldname in INTAKE_DETAIL_FIELDS + LEAD_HEADLINE_FIELDS:
+        if not intake_meta.has_field(fieldname) or not lead_meta.has_field(fieldname):
+            continue
+
+        value = doc.get(fieldname)
+        if value in (None, ""):
+            continue
+
+        if fieldname == "main_therapy_location":
+            # Frappe validates Link fields against a real existing record on
+            # save regardless of ignore_permissions - a stale/renamed value
+            # would raise LinkValidationError and abort the whole save. Same
+            # class of bug already guarded against for Link fields
+            # elsewhere in this app (calendar.py).
+            if not (frappe.db.exists("DocType", "Therapy Location") and frappe.db.exists("Therapy Location", value)):
+                frappe.log_error(
+                    f"Lead {lead_doc.name}: intake submitted main_therapy_location={value!r}, "
+                    "which isn't a real Therapy Location - left unset rather than blocking the save.",
+                    "Intake Submission - Invalid Therapy Location",
+                )
+                continue
+
+        lead_doc.set(fieldname, value)
+        changed = True
+
+    was_already_complete = bool(lead_doc.intake_completed_on)
+
+    if changed or not was_already_complete:
+        lead_doc.intake_completed_on = lead_doc.intake_completed_on or now_datetime()
+        lead_doc.save(ignore_permissions=True)
+        frappe.db.commit()
+
+    if not was_already_complete:
+        _notify_intake_completed(lead_doc)
 
 
 def _split_name(full_name):
