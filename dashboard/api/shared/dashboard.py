@@ -386,6 +386,18 @@ def _get_client_rows_for_coach(context, primary_only=False):
     if not _has_doctype("Client"):
         return []
 
+    # A franchisor-level login who is ALSO a Coach (e.g. Ashley, Emily)
+    # must always see their own coach dashboard scoped to their own
+    # business, never every coach's - being a dashboard admin only matters
+    # for logins with no coach identity of their own (e.g. a pure office
+    # account), where there's nothing "own" to scope to and falling back to
+    # everything is the only sensible default. The full, unscoped view
+    # belongs on the other tabs (Clients, Invoices, etc.), not this summary.
+    coach_name = context.get("coach_name")
+
+    if coach_name:
+        return _get_client_rows_for_coach_name(coach_name, primary_only=primary_only)
+
     if context.get("is_dashboard_admin"):
         return frappe.get_all(
             "Client",
@@ -395,7 +407,7 @@ def _get_client_rows_for_coach(context, primary_only=False):
             ignore_permissions=True,
         )
 
-    return _get_client_rows_for_coach_name(context.get("coach_name"), primary_only=primary_only)
+    return []
 
 
 def _get_client_rows_for_franchisor():

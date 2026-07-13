@@ -752,6 +752,14 @@ def _get_event_fields():
     if _event_has_field("custom_google_event_id"):
         fields.append("custom_google_event_id")
 
+    if _event_has_field("custom_google_meet_url"):
+        # Populated by the calendar sync app's real Google Calendar push
+        # (see coach_calendar_sync/utils/google_calendar.py push_event()) -
+        # the actual live Meet link, as opposed to google_meet_link above
+        # which is this app's own, separate field and isn't kept in sync
+        # with it.
+        fields.append("custom_google_meet_url")
+
     return fields
 
 
@@ -1523,7 +1531,7 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
         "total_sessions": int(row.get("custom_total_sessions") or 0),
         "progress_text": row.get("custom_progress_text") or "",
         "booking_warning": row.get("custom_booking_warning") or "",
-        "google_meet_link": row.get("google_meet_link") or "",
+        "google_meet_link": row.get("custom_google_meet_url") or row.get("google_meet_link") or "",
         "needs_linking": bool(row.get("google_calendar_event_id") and not custom_client),
         "is_private": 0,
     }
@@ -1789,7 +1797,7 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
         "total_sessions": int(event_doc.get("custom_total_sessions") or 0),
         "progress_text": event_doc.get("custom_progress_text") or "",
         "booking_warning": event_doc.get("custom_booking_warning") or "",
-        "google_meet_link": event_doc.get("google_meet_link") or "",
+        "google_meet_link": event_doc.get("custom_google_meet_url") or event_doc.get("google_meet_link") or "",
     }
 
 
