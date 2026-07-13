@@ -56,7 +56,15 @@ doc_events = {
             "dashboard.api.shared.calendar.share_event_with_admins",
             "dashboard.api.shared.packages.recalculate_client_package_balance",
         ],
-    }
+    },
+    # Intake Doctype is the real "client intake" Web Form, built and owned
+    # directly in Frappe Desk (not part of this app) - these fire on every
+    # submission/edit to sync the answers onto the linked Client Lead. See
+    # dashboard.api.shared.leads.sync_intake_doctype_submission.
+    "Intake Doctype": {
+        "after_insert": "dashboard.api.shared.leads.sync_intake_doctype_submission",
+        "on_update": "dashboard.api.shared.leads.sync_intake_doctype_submission",
+    },
 }
 
 # Safety net for the pending-booking queue (see pending_bookings.py) - picks
