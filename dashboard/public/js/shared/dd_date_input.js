@@ -89,6 +89,14 @@
 
   function convertDateInput(nativeInput) {
     if (nativeInput.dataset.ddConverted === "1") return;
+
+    // Some pages (e.g. the calendar's own date-picker trigger) deliberately
+    // keep a native <input type="date"> invisible and 1x1px, only ever
+    // opened programmatically via a separate visible button/pill - wrapping
+    // it in the normal dd/mm/yyyy text-input UI would give it real layout
+    // width again and break that page's own layout around it.
+    if (nativeInput.dataset.ddSkip === "1") return;
+
     nativeInput.dataset.ddConverted = "1";
 
     removeSuperseded(nativeInput);
