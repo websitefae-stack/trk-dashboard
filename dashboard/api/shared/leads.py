@@ -1124,6 +1124,12 @@ def convert_lead_to_client(name=None):
     if not doc.contact_name or not doc.client_name:
         frappe.throw(_("This lead is missing contact or client details."))
 
+    from dashboard.api.shared.client_details import (
+        set_full_name_from_parts,
+        apply_age_and_client_type,
+        get_coach_defaults_from_coach,
+    )
+
     client_meta = frappe.get_meta("Client")
     client_first, client_last = _split_name(doc.client_name)
 
@@ -1136,12 +1142,19 @@ def convert_lead_to_client(name=None):
     field_values = _proposed_client_field_values(doc)
 
     client = frappe.new_doc("Client")
-    if client_meta.has_field("full_name"):
-        client.full_name = doc.client_name
-    if client_meta.has_field("name1"):
-        client.name1 = field_values.get("name1") or client_first
-    if client_meta.has_field("last_name"):
-        client.last_name = field_values.get("last_name") or client_last
+
+    # Reuses the same name-combining logic the Client Details page's own
+    # save uses, rather than this flow's own simpler (and, it turned out,
+    # incomplete - full_name ended up missing the last name) version.
+    # Preferred/nickname first, same priority as the Lead-matching logic in
+    # sync_intake_doctype_submission - it's what the client_name shown
+    # everywhere else in this app (the Lead's own title, this contact_name
+    # match) is normally built from.
+    set_full_name_from_parts(client, {
+        "name1": field_values.get("preferred_name") or field_values.get("name1") or client_first,
+        "last_name": field_values.get("last_name") or client_last,
+    })
+
     if client_meta.has_field("primary_coach") and doc.coach:
         client.primary_coach = doc.coach
     if client_meta.has_field("attending_coach") and doc.coach:
@@ -1184,6 +1197,20 @@ def convert_lead_to_client(name=None):
                 except Exception:
                     pass
                 break
+
+    # Derives age + client_type (Kid/Teen/Uni Student/Adult) from whichever
+    # date_of_birth was just set above - previously client_type was never
+    # set at all on conversion.
+    apply_age_and_client_type(client)
+
+    # Coach-level defaults (bank account, price list, company) the client
+    # inherits from their assigned primary coach - previously never applied
+    # on conversion, so every converted client needed these filled in by
+    # hand afterwards.
+    coach_defaults = get_coach_defaults_from_coach(doc.coach)
+    for fieldname in ["coach_banking_details", "banking", "pricelist", "price_list", "company"]:
+        if client_meta.has_field(fieldname) and not client.get(fieldname) and coach_defaults.get(fieldname):
+            client.set(fieldname, coach_defaults.get(fieldname))
 
     client.insert(ignore_permissions=True)
     _attach_intake_pdf_to_client(doc, client.name)
