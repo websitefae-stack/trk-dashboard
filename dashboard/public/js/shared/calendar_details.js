@@ -369,7 +369,7 @@
     setValue("trkDetailEditBillingType", data.billing_type || "");
     setValue("trkDetailEditTravelCharged", String(Number(data.travel_charged || 0)));
     setValue("trkDetailEditTravelChargedSolo", String(Number(data.travel_charged || 0)));
-    setValue("trkDetailEditLocation", data.location || "");
+    applyLocationToEditForm(data.location || "");
 
     syncEditFields();
     toggleModal(true);
@@ -448,6 +448,54 @@
     }
   }
 
+  // Reuses the exact same location-type -> text convention the booking
+  // modal already saves with ("Online", "Telephone: X"/"Telephone", "Home",
+  // otherwise a manual location) so editing round-trips correctly, and lets
+  // a coach pick a different type for an appointment already booked rather
+  // than only being able to retype the free-text location.
+  function deriveLocationType(locationText) {
+    const text = (locationText || "").trim();
+
+    if (text === "Online") return { type: "online", manual: "", phone: "" };
+    if (/^Telephone/.test(text)) {
+      const match = /^Telephone:\s*(.*)$/.exec(text);
+      return { type: "telephone", manual: "", phone: match ? match[1] : "" };
+    }
+    if (text === "Home") return { type: "home", manual: "", phone: "" };
+
+    return { type: "manual", manual: text, phone: "" };
+  }
+
+  function applyLocationToEditForm(locationText) {
+    const derived = deriveLocationType(locationText);
+    setValue("trkDetailEditLocationType", derived.type);
+    setValue("trkDetailEditLocation", derived.manual);
+    setValue("trkDetailEditPhone", derived.phone);
+    syncEditLocationFields();
+  }
+
+  function syncEditLocationFields() {
+    const locationType = getValue("trkDetailEditLocationType") || "manual";
+
+    if (el("trkDetailEditPhoneRow")) {
+      el("trkDetailEditPhoneRow").style.display = locationType === "telephone" ? "" : "none";
+    }
+
+    if (el("trkDetailEditLocationManualRow")) {
+      el("trkDetailEditLocationManualRow").style.display = locationType === "manual" ? "" : "none";
+    }
+  }
+
+  function resolveEditLocation() {
+    const locationType = getValue("trkDetailEditLocationType") || "manual";
+    const phone = getValue("trkDetailEditPhone");
+
+    if (locationType === "online") return "Online";
+    if (locationType === "telephone") return phone ? "Telephone: " + phone : "Telephone";
+    if (locationType === "home") return "Home";
+    return getValue("trkDetailEditLocation");
+  }
+
   async function saveEdit() {
     if (state.savingEdit) return;
 
@@ -465,7 +513,7 @@
       ? getValue("trkDetailEditTravelCharged")
       : getValue("trkDetailEditTravelChargedSolo");
 
-    const location = getValue("trkDetailEditLocation");
+    const location = resolveEditLocation();
 
     if (!eventName || !bookingDate || !bookingTime) {
       alert("Please complete the required fields.");
@@ -706,6 +754,7 @@
     if (el("trkDetailEditSaveBtn")) el("trkDetailEditSaveBtn").addEventListener("click", saveEdit);
     if (el("trkSaveClientNoteBtn")) el("trkSaveClientNoteBtn").addEventListener("click", saveClientNote);
     if (el("trkDetailEditType")) el("trkDetailEditType").addEventListener("change", syncEditFields);
+    if (el("trkDetailEditLocationType")) el("trkDetailEditLocationType").addEventListener("change", syncEditLocationFields);
     if (el("trkClientNoteSessionDate")) el("trkClientNoteSessionDate").addEventListener("change", updateNoteDateDisplay);
     if (el("trkDetailEditDate")) el("trkDetailEditDate").addEventListener("change", updateEditDateDisplay);
 

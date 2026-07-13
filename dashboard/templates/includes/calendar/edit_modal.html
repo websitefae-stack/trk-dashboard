@@ -108,15 +108,33 @@
         </div>
       </div>
 
-      <div class="trk-calendar-field">
-        <label for="trkEditLocation">Location</label>
+      <div class="trk-calendar-form-row">
+        <div class="trk-calendar-field">
+          <label for="trkEditLocationType">Location Type</label>
 
-        <input
-          type="text"
-          id="trkEditLocation"
-          class="dashboard-input"
-          placeholder="Optional"
-        >
+          <select id="trkEditLocationType" class="dashboard-select">
+            <option value="manual">Manual Location</option>
+            <option value="online">Online / Google Meet</option>
+            <option value="telephone">Telephone</option>
+            <option value="home">Home</option>
+          </select>
+        </div>
+
+        <div class="trk-calendar-field" id="trkEditPhoneRow" style="display:none;">
+          <label for="trkEditPhone">Telephone Number</label>
+          <input type="text" id="trkEditPhone" class="dashboard-input" placeholder="Enter phone number">
+        </div>
+
+        <div class="trk-calendar-field" id="trkEditLocationManualRow">
+          <label for="trkEditLocation">Location</label>
+
+          <input
+            type="text"
+            id="trkEditLocation"
+            class="dashboard-input"
+            placeholder="Optional"
+          >
+        </div>
       </div>
     </div>
 
