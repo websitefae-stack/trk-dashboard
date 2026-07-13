@@ -19,12 +19,14 @@ INTAKE_ROUTE = "client-intake"
 
 # The actual intake form is the "Intake Doctype" Web Form (built and owned
 # directly in Frappe Desk, not by this app) - it links back to the Client
-# Lead it was sent for via INTAKE_LEAD_LINK_FIELD, a Custom Field added by
-# patches/add_intake_doctype_client_lead_field.py. See
+# Lead it was sent for via INTAKE_LEAD_LINK_FIELD, an existing field on
+# Intake Doctype that's already wired into the Web Form. See
 # sync_intake_doctype_submission() below, wired up as an Intake Doctype
-# after_insert/on_update hook in hooks.py.
+# after_insert/on_update hook in hooks.py. sync_intake_doctype_submission()
+# defensively checks this field's own configured Link target actually is
+# LEAD_DOCTYPE before using it, rather than assuming.
 INTAKE_DOCTYPE = "Intake Doctype"
-INTAKE_LEAD_LINK_FIELD = "client_lead"
+INTAKE_LEAD_LINK_FIELD = "created_lead"
 
 # The detailed intake questions, beyond the always-present "headline" fields
 # (contact_name/contact_email/contact_mobile/client_name/client_age/
@@ -678,10 +680,9 @@ def sync_intake_doctype_submission(doc, method=None):
     Hook target (see hooks.py doc_events["Intake Doctype"]) - fires whenever
     someone submits or edits the real "Intake Doctype" Web Form (owned and
     built directly in Frappe Desk, not by this app). doc is the Intake
-    Doctype record itself; INTAKE_LEAD_LINK_FIELD (a Custom Field added by
-    patches/add_intake_doctype_client_lead_field.py) is how it's tied back
-    to the Client Lead the link was generated for - populated by the hidden,
-    pre-filled field on the Web Form itself (see _intake_url()).
+    Doctype record itself; INTAKE_LEAD_LINK_FIELD is how it's tied back to
+    the Client Lead the link was generated for - populated by the field on
+    the Web Form itself (see _intake_url()).
 
     Copies over every field name Intake Doctype and Client Lead have in
     common (INTAKE_DETAIL_FIELDS - same names on both, by design) so the
@@ -690,12 +691,37 @@ def sync_intake_doctype_submission(doc, method=None):
     does off the Client Lead's own fields, without needing to know anything
     about Intake Doctype specifically.
     """
+    intake_meta = frappe.get_meta(INTAKE_DOCTYPE)
+    link_field = intake_meta.get_field(INTAKE_LEAD_LINK_FIELD)
+
+    if not link_field or (link_field.options or "").strip() != LEAD_DOCTYPE:
+        # INTAKE_LEAD_LINK_FIELD isn't configured the way this expects (e.g.
+        # it links to a different doctype entirely) - fail loud via the
+        # Error Log rather than silently never syncing anything, so this is
+        # diagnosable instead of looking exactly like the original
+        # "intake completed but nothing happened" bug all over again.
+        frappe.log_error(
+            f"Intake Doctype field {INTAKE_LEAD_LINK_FIELD!r} is not a Link to "
+            f"{LEAD_DOCTYPE!r} (found options={getattr(link_field, 'options', None)!r}) - "
+            "cannot sync this submission onto a Client Lead.",
+            "Intake Submission - Lead Link Field Misconfigured",
+        )
+        return
+
     lead_name = (doc.get(INTAKE_LEAD_LINK_FIELD) or "").strip()
 
-    if not lead_name or not frappe.db.exists(LEAD_DOCTYPE, lead_name):
-        # An orphaned submission (no lead link, or a stale/deleted one) -
-        # nothing to sync onto, but not an error either, e.g. someone
-        # filling in the form without ever having been sent a link.
+    if not lead_name:
+        # An orphaned submission (no lead link) - nothing to sync onto, but
+        # not an error either, e.g. someone filling in the form without
+        # ever having been sent a link.
+        return
+
+    if not frappe.db.exists(LEAD_DOCTYPE, lead_name):
+        frappe.log_error(
+            f"Intake Doctype {doc.name}: linked {INTAKE_LEAD_LINK_FIELD}={lead_name!r} "
+            f"is not a real {LEAD_DOCTYPE} record.",
+            "Intake Submission - Lead Not Found",
+        )
         return
 
     lead_doc = frappe.get_doc(LEAD_DOCTYPE, lead_name)
