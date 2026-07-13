@@ -718,8 +718,30 @@ def submit_intake(
 
     for fieldname in INTAKE_TEXT_FIELDS:
         value = coalesce_str(fieldname)
-        if value:
-            doc.set(fieldname, value)
+        if not value:
+            continue
+
+        if fieldname == "main_therapy_location":
+            # The one Link-typed field among the intake questions (every
+            # other one here is Data/Small Text/Select) - Frappe validates
+            # Link fields against a real existing record on save regardless
+            # of ignore_permissions, so a stale/renamed/mismatched value
+            # would raise LinkValidationError and abort the whole save,
+            # silently from the guest's point of view (no intake_completed_on,
+            # no notification, no Convert button - looks like the form was
+            # never submitted even though they filled it in). Same class of
+            # bug already guarded against for Link fields in calendar.py.
+            if frappe.db.exists("DocType", "Therapy Location") and frappe.db.exists("Therapy Location", value):
+                doc.set(fieldname, value)
+            else:
+                frappe.log_error(
+                    f"Lead {doc.name}: intake submitted main_therapy_location={value!r}, "
+                    "which isn't a real Therapy Location - left unset rather than blocking the save.",
+                    "Intake Submission - Invalid Therapy Location",
+                )
+            continue
+
+        doc.set(fieldname, value)
 
     for fieldname in INTAKE_DATE_FIELDS:
         value = coalesce_str(fieldname)
