@@ -73,9 +73,10 @@
       .replace(/'/g, "&#039;");
   }
 
-  const STATUS_COLUMNS = ["New", "In Progress", "Past Due", "Archived"];
+  const STATUS_COLUMNS = ["New", "In Progress", "Past Due", "Sent", "Archived"];
 
   let allNotifications = [];
+  let showArchived = false;
 
   function todayIso() {
     const now = new Date();
@@ -89,6 +90,11 @@
   // - both already expose status/due_date/read_status in this same shape.
   function bucketFor(row) {
     if ((row.status || "Open") === "Archived") return "Archived";
+
+    // Keep what you've sent to other people out of the lanes meant for
+    // tracking work coming AT you - they belong in their own column so
+    // they never get mixed in with New/In Progress/Past Due.
+    if (Number(row.is_sent_by_me || 0)) return "Sent";
 
     const dueDate = row.due_date || "";
     if (!dueDate) return "New";
@@ -140,13 +146,12 @@
     const bucket = bucketFor(row);
     const canArchive = Number(row.can_archive || 0);
     const isArchived = bucket === "Archived";
-    const isSentByMe = Number(row.is_sent_by_me || 0);
     const isAwaitingResponse = Number(row.awaiting_response || 0);
 
-    const directionLabel = isSentByMe
-      ? (isAwaitingResponse ? "Waiting on Response" : "Sent")
-      : "";
-    const directionClass = isAwaitingResponse ? "is-awaiting-response" : "is-sent";
+    // Which lane the card is in already says "Sent" - only call out the
+    // cards still waiting on a reply.
+    const directionLabel = isAwaitingResponse ? "Waiting on Response" : "";
+    const directionClass = "is-awaiting-response";
 
     return `
       <div class="dashboard-notif-card ${borderClassFor(bucket)}" draggable="true" data-name="${escapeHtml(row.name)}" data-detail-url="${escapeHtml(getDetailUrl(row))}">
@@ -229,6 +234,10 @@
   // YYYY-MM-DD), then lets bucketFor() sort out which of those two columns
   // it actually lands in once that date is saved.
   function handleColumnDrop(name, bucket) {
+    // "Sent" isn't a settable state either - it's purely derived from who
+    // sent the notification, so a drop there is a no-op.
+    if (bucket === "Sent") return;
+
     if (bucket === "Archived") {
       toggleArchive(name, "archive");
       return;
@@ -246,20 +255,28 @@
     const board = el("notificationsKanbanBoard");
     if (!board) return;
 
+    // Archived is a dumping ground that only grows over time - showing it
+    // by default buried everything else behind old, dealt-with items.
+    // Hidden unless explicitly opted into via the "Show archived" checkbox.
+    const columnsToRender = showArchived
+      ? STATUS_COLUMNS
+      : STATUS_COLUMNS.filter(function (bucket) { return bucket !== "Archived"; });
+
     const byBucket = {};
-    STATUS_COLUMNS.forEach(function (bucket) { byBucket[bucket] = []; });
+    columnsToRender.forEach(function (bucket) { byBucket[bucket] = []; });
 
     rows.forEach(function (row) {
-      byBucket[bucketFor(row)].push(row);
+      const bucket = bucketFor(row);
+      if (byBucket[bucket]) byBucket[bucket].push(row);
     });
 
-    STATUS_COLUMNS.forEach(function (bucket) {
+    columnsToRender.forEach(function (bucket) {
       byBucket[bucket].sort(function (a, b) {
         return String(b.notification_date || "").localeCompare(String(a.notification_date || ""));
       });
     });
 
-    board.innerHTML = STATUS_COLUMNS.map(function (bucket) {
+    board.innerHTML = columnsToRender.map(function (bucket) {
       const items = byBucket[bucket];
       const body = items.length
         ? items.map(renderCard).join("")
@@ -325,9 +342,13 @@
       });
     });
 
+    const visibleCount = columnsToRender.reduce(function (sum, bucket) {
+      return sum + byBucket[bucket].length;
+    }, 0);
+
     const countEl = el("notificationCount");
     if (countEl) {
-      countEl.textContent = rows.length + (rows.length === 1 ? " notification" : " notifications");
+      countEl.textContent = visibleCount + (visibleCount === 1 ? " notification" : " notifications");
     }
   }
 
@@ -678,6 +699,7 @@
   function init() {
     const searchInput = el("notificationSearch");
     const typeFilter = el("notificationTypeFilter");
+    const archivedToggle = el("notificationShowArchived");
     const refreshBtn = el("refreshNotifications");
     const openBtn = el("openSendNotification");
     const cancelBtn = el("cancelSendNotification");
@@ -685,6 +707,14 @@
 
     if (searchInput) searchInput.addEventListener("input", applyFilters);
     if (typeFilter) typeFilter.addEventListener("change", applyFilters);
+
+    if (archivedToggle) {
+      archivedToggle.checked = showArchived;
+      archivedToggle.addEventListener("change", function () {
+        showArchived = archivedToggle.checked;
+        applyFilters();
+      });
+    }
 
     if (refreshBtn) {
       refreshBtn.addEventListener("click", loadNotifications);

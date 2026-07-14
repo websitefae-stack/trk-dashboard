@@ -1,8 +1,14 @@
 (function () {
   "use strict";
 
-  const START_HOUR = 7;
-  const END_HOUR = 19;
+  // Wide enough to cover early school-run visits and late evening company
+  // meetings/personal appointments without clipping them off the grid -
+  // an event starting before START_HOUR used to be silently skipped
+  // entirely (see the top < 0 guard in renderEvents()), which is why some
+  // appointment types looked like they were "missing" when really they
+  // were just scheduled outside the old 7am-7pm window.
+  const START_HOUR = 5;
+  const END_HOUR = 23;
   const SLOT_MINUTES = 30;
   const SLOT_HEIGHT = 44;
   const MOBILE_BREAKPOINT = 860;
@@ -799,10 +805,12 @@
       const startMinutes = timeToMinutes(event.start_time);
       const endMinutes = timeToMinutes(event.end_time);
       const duration = Math.max(endMinutes - startMinutes, SLOT_MINUTES);
-      const top = ((startMinutes - START_HOUR * 60) / SLOT_MINUTES) * SLOT_HEIGHT + 2;
+      // Pin anything before START_HOUR to the very top of the grid instead
+      // of silently dropping it - a real appointment should always be
+      // visible somewhere, even if the grid's normal time bounds don't
+      // quite reach it.
+      const top = Math.max(((startMinutes - START_HOUR * 60) / SLOT_MINUTES) * SLOT_HEIGHT + 2, 2);
       const height = Math.max((duration / SLOT_MINUTES) * SLOT_HEIGHT - 6, 36);
-
-      if (top < 0) return;
 
       applyEventTypeStyle(eventNode, event.type, event.ui_status);
 
