@@ -1324,13 +1324,15 @@ def _get_event_rows_for_dashboard(dashboard_type, range_start_date, range_end_da
                 ):
                     by_name[row.get("name")] = row
 
+            # rows here are already scoped to this specific coach (owned by
+            # them, linked to one of their own clients, or tagged with their
+            # own custom_coach) - a client's default session_worker gets
+            # auto-stamped onto every one of that client's bookings
+            # regardless of who actually ran the session (see
+            # _create_booking_impl), so excluding anything with a worker tag
+            # was hiding real appointments (Parent Check-Ins especially)
+            # that the coach genuinely owns.
             rows = sorted(by_name.values(), key=lambda row: row.get("starts_on") or "")
-
-            if has_worker_field:
-                rows = [
-                    row for row in rows
-                    if not (row.get("custom_session_worker") or "").strip()
-                ]
 
         else:
             if not has_worker_field:
@@ -1366,12 +1368,6 @@ def _get_event_rows_for_dashboard(dashboard_type, range_start_date, range_end_da
                 limit_page_length=1000,
                 ignore_permissions=True,
             )
-
-            if has_worker_field:
-                rows = [
-                    row for row in rows
-                    if not (row.get("custom_session_worker") or "").strip()
-                ]
 
         elif selected_calendar_for.startswith(WORKER_PREFIX):
             if not has_worker_field:
@@ -1434,13 +1430,10 @@ def _get_event_rows_for_dashboard(dashboard_type, range_start_date, range_end_da
                 ):
                     by_name[row.get("name")] = row
 
+            # Same reasoning as the coach's own "Me" branch above - don't
+            # exclude rows just because a worker tag got auto-stamped onto
+            # them; they're already scoped to this specific coach.
             rows = sorted(by_name.values(), key=lambda row: row.get("starts_on") or "")
-
-            if has_worker_field:
-                rows = [
-                    row for row in rows
-                    if not (row.get("custom_session_worker") or "").strip()
-                ]
         else:
             return [], {}
 
@@ -2368,6 +2361,18 @@ def _create_booking_impl(
         event = frappe.new_doc("Event")
         calendar_owner = context.get("view_as_user") or frappe.session.user
         event.owner = calendar_owner
+
+        # Types with no client attached (School Visit, Company Meeting,
+        # Personal, etc) have nothing else tying them back to a coach - if
+        # this ever gets saved by someone other than the coach themself
+        # (office booking on their behalf, a background retry, ...), owner
+        # alone won't find it again on that coach's own calendar. Stamp
+        # custom_coach explicitly so every booking is attributable
+        # regardless of who actually saves it.
+        if dashboard_type == COACH_DASHBOARD and _event_has_field("custom_coach"):
+            booking_coach_name = context.get("coach_name")
+            if booking_coach_name:
+                event.custom_coach = booking_coach_name
 
         if appointment_type == "Therapy Session":
             event.subject = f"{client_name} - Therapy Session"

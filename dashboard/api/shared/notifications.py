@@ -859,6 +859,19 @@ def _format_conversation(doc):
         and status != "Archived"
     )
 
+    created_by = doc.get("created_by_user") or ""
+    is_sent_by_me = 1 if created_by and created_by == current_user else 0
+    has_reply_from_other = any(
+        (message.get("sent_by") or "") and (message.get("sent_by") or "") != created_by
+        for message in messages
+    )
+    awaiting_response = 1 if (
+        is_sent_by_me
+        and int(doc.get("requires_response") or 0)
+        and not has_reply_from_other
+        and status != "Archived"
+    ) else 0
+
     return {
         "name": doc.get("name"),
         "notification_type": doc.get("conversation_type") or "Message",
@@ -873,6 +886,8 @@ def _format_conversation(doc):
         "created_by_user": doc.get("created_by_user") or "",
         "created_by_label": _get_user_full_name(doc.get("created_by_user") or ""),
         "created_by_role": doc.get("created_by_role") or "",
+        "is_sent_by_me": is_sent_by_me,
+        "awaiting_response": awaiting_response,
         "client": linked_client,
         "event": linked_event,
         "coach": "",
@@ -951,6 +966,18 @@ def _format_notification_log(row):
     due_date = row.get("custom_due_date")
     messages = _format_notification_log_replies(row)
 
+    from_user = row.get("from_user") or ""
+    is_sent_by_me = 1 if from_user and from_user == frappe.session.user else 0
+    # There's no explicit "requires response" flag on a plain Notification
+    # Log entry the way there is on a Dashboard Conversation - if the
+    # current user sent it and nobody else has replied in the thread yet,
+    # treat it as still awaiting a response.
+    has_reply_from_other = any(
+        (message.get("sent_by") or "") and (message.get("sent_by") or "") != from_user
+        for message in messages
+    )
+    awaiting_response = 1 if (is_sent_by_me and not has_reply_from_other and not archived) else 0
+
     return {
         "name": row.get("name"),
         "notification_type": row.get("subject") or row.get("type") or "Notification",
@@ -978,6 +1005,8 @@ def _format_notification_log(row):
         "reference_doctype": row.get("document_type") or "",
         "reference_name": row.get("document_name") or "",
         "sent_from": row.get("from_user") or "",
+        "is_sent_by_me": is_sent_by_me,
+        "awaiting_response": awaiting_response,
         "reply_count": max(len(messages) - 1, 0),
         "message_count": len(messages),
         "messages": messages,
