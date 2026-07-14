@@ -291,22 +291,22 @@ def _get_current_session_worker_context(user):
 
 def _get_current_coach_context(user):
     fullname = (get_fullname(user) or "").strip()
+    is_admin = _is_dashboard_admin()
 
     context = {
         "user": user,
         "coach_name": None,
         "coach_label": fullname or user,
         "resolution_note": "",
-        "is_dashboard_admin": _is_dashboard_admin(),
+        "is_dashboard_admin": is_admin,
     }
 
-    if context["is_dashboard_admin"]:
-        context["coach_label"] = "Dashboard Admin"
-        context["resolution_note"] = "Dashboard admin access."
-        return context
-
     if not frappe.db.exists("DocType", "Coach"):
-        context["resolution_note"] = "Could not find Coach DocType."
+        if is_admin:
+            context["coach_label"] = "Dashboard Admin"
+            context["resolution_note"] = "Dashboard admin access."
+        else:
+            context["resolution_note"] = "Could not find Coach DocType."
         return context
 
     meta = frappe.get_meta("Coach")
@@ -319,6 +319,12 @@ def _get_current_coach_context(user):
         if meta.has_field(fieldname) and fieldname not in fields:
             fields.append(fieldname)
 
+    # Resolve to the login's own Coach record first, even for a dashboard
+    # admin - an admin who is *also* a working coach (e.g. Ashley) still
+    # needs their own coach_name so their personal/Google-synced calendar
+    # events (matched by custom_coach, not by admin status) show up. Only
+    # fall back to "admin sees everything, no specific coach" once no
+    # match is found.
     for login_field in login_fields:
         if meta.has_field(login_field):
             row = frappe.db.get_value("Coach", {login_field: user}, fields, as_dict=True)
@@ -336,6 +342,11 @@ def _get_current_coach_context(user):
                 context["coach_label"] = _get_label(row, label_fields)
                 context["resolution_note"] = "Resolved logged-in user to Coach / " + row.get("name")
                 return context
+
+    if is_admin:
+        context["coach_label"] = "Dashboard Admin"
+        context["resolution_note"] = "Dashboard admin access."
+        return context
 
     context["resolution_note"] = "Could not resolve the logged-in user to a Coach record."
     return context
