@@ -291,7 +291,9 @@
       }
 
       if (event.target && event.target.id === "trkCalendarType") {
-        setValue("trkCalendarDuration", String(DURATION_BY_TYPE[event.target.value] || 45));
+        const newType = event.target.value;
+        const startTime = getValue("trkCalendarTime") || "09:00";
+        setValue("trkCalendarEndTime", addMinutesToTimeString(startTime, DURATION_BY_TYPE[newType] || 45));
         renderSchoolOptions();
         syncBookingFields();
       }
@@ -1194,7 +1196,7 @@
     const fromDate = getValue("trkCalendarFromDate");
     const toDate = getValue("trkCalendarToDate");
 
-    const duration = getValue("trkCalendarDuration") || String(DURATION_BY_TYPE[type] || 45);
+    const duration = String(getBookingDurationMinutes(type));
     const locationType = getValue("trkCalendarLocationType") || "client_default";
     const googleMeet = isChecked("trkCalendarGoogleMeet") ? "1" : "0";
     const travelCharged = isChecked("trkCalendarTravelChargedSingle") ? "1" : "0";
@@ -1244,6 +1246,16 @@
     } else if (!date || !time) {
       showToast("Please select date and time");
       return;
+    } else {
+      const endTime = getValue("trkCalendarEndTime");
+      if (!endTime) {
+        showToast("Please select an end time");
+        return;
+      }
+      if (timeToMinutes(endTime) <= timeToMinutes(time)) {
+        showToast("End time must be after the start time");
+        return;
+      }
     }
 
     setButtonLoading("trkCalendarSaveBtn", true, "Saving...");
@@ -1494,7 +1506,10 @@
     setValue("trkCalendarToDate", dateStr || "");
 
     setValue("trkCalendarType", options.appointmentType || "Therapy Session");
-    setValue("trkCalendarDuration", String(DURATION_BY_TYPE[options.appointmentType] || 45));
+    setValue(
+      "trkCalendarEndTime",
+      addMinutesToTimeString(timeStr || "09:00", DURATION_BY_TYPE[options.appointmentType] || 45)
+    );
     setValue("trkCalendarLocationType", "client_default");
     setValue("trkCalendarLocation", "");
     setValue("trkCalendarPhone", "");
@@ -1855,12 +1870,13 @@
     toggleDisplay("trkCalendarLocationTypeInlineRow", !isHoliday);
     toggleDisplay("trkCalendarLocationManualRow", ["manual"].indexOf(getValue("trkCalendarLocationType")) !== -1);
 
-    if (type === "Parent Check-In" && getValue("trkCalendarDuration") === "45") {
-      setValue("trkCalendarDuration", "30");
-    }
-
-    if (type === "Initial Consultation" && getValue("trkCalendarDuration") === "45") {
-      setValue("trkCalendarDuration", "60");
+    const startTimeForDuration = getValue("trkCalendarTime");
+    if (startTimeForDuration && getBookingDurationMinutes(type) === 45) {
+      if (type === "Parent Check-In") {
+        setValue("trkCalendarEndTime", addMinutesToTimeString(startTimeForDuration, 30));
+      } else if (type === "Initial Consultation") {
+        setValue("trkCalendarEndTime", addMinutesToTimeString(startTimeForDuration, 60));
+      }
     }
 
     if (isHoliday) {
@@ -2349,6 +2365,25 @@
     const minutes = totalMinutes % 60;
 
     return pad(hours) + ":" + pad(minutes);
+  }
+
+  function addMinutesToTimeString(timeStr, minutes) {
+    return minutesToTime(timeToMinutes(timeStr) + Number(minutes || 0));
+  }
+
+  // Falls back to the type's default length whenever start/end aren't both
+  // set yet, or end isn't after start (e.g. mid-edit) - never lets a save
+  // go through with a zero/negative duration.
+  function getBookingDurationMinutes(type) {
+    const start = getValue("trkCalendarTime");
+    const end = getValue("trkCalendarEndTime");
+
+    if (start && end) {
+      const minutes = timeToMinutes(end) - timeToMinutes(start);
+      if (minutes > 0) return minutes;
+    }
+
+    return DURATION_BY_TYPE[type] || 45;
   }
 
   function pad(value) {

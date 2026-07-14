@@ -114,30 +114,14 @@
 
 <div class="trk-calendar-form-row" id="trkCalendarDurationRow">
   <div class="trk-calendar-field">
-    <label for="trkCalendarDuration">Duration (minutes)</label>
+    <label for="trkCalendarEndTime">End Time *</label>
 
     <input
-      type="number"
-      id="trkCalendarDuration"
+      type="time"
+      id="trkCalendarEndTime"
       class="dashboard-input"
-      min="5"
-      step="5"
-      value="45"
-      list="trkCalendarDurationPresets"
+      step="900"
     >
-    <datalist id="trkCalendarDurationPresets">
-      <option value="30">
-      <option value="45">
-      <option value="60">
-      <option value="90">
-      <option value="120">
-      <option value="180">
-      <option value="240">
-      <option value="300">
-      <option value="360">
-      <option value="420">
-      <option value="480">
-    </datalist>
   </div>
 
   <div class="trk-calendar-field" id="trkCalendarLocationTypeInlineRow">
