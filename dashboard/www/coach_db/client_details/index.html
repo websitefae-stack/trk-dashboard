@@ -401,8 +401,6 @@
                           <th>Service Item</th>
                           <th>Purchased</th>
                           <th>Booked</th>
-                          <th>Used</th>
-                          <th>Avail</th>
                           <th>To Add</th>
                           <th>Status</th>
                         </tr>
@@ -418,15 +416,13 @@
                               <td>{{ balance.service_item or "—" }}</td>
                               <td>{{ (balance.qty_purchased or 0)|int }}</td>
                               <td>{{ (balance.qty_booked or 0)|int }}</td>
-                              <td>{{ (balance.qty_used or 0)|int }}</td>
-                              <td>{{ (balance.qty_available or 0)|int }}</td>
                               <td>{{ (balance.appointments_to_add or 0)|int }}</td>
                               <td>{{ balance.status or "—" }}</td>
                             </tr>
                           {% endfor %}
                         {% else %}
                           <tr>
-                            <td colspan="9" class="dashboard-empty">No session packs found.</td>
+                            <td colspan="7" class="dashboard-empty">No session packs found.</td>
                           </tr>
                         {% endif %}
                       </tbody>

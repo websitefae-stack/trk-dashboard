@@ -803,7 +803,8 @@ table:has(#clientNotesTableBody) thead th:nth-child(3),
   }
 }
 
-/* Session pack summary mobile: date, booked, used, available, to add */
+/* Session pack summary mobile: date, booked, to add (columns are now
+   Date, Package Balance, Service Item, Purchased, Booked, To Add, Status) */
 @media (max-width: 640px) {
   .dashboard-client-pack-table th:nth-child(2),
   .dashboard-client-pack-table td:nth-child(2),
@@ -811,25 +812,21 @@ table:has(#clientNotesTableBody) thead th:nth-child(3),
   .dashboard-client-pack-table td:nth-child(3),
   .dashboard-client-pack-table th:nth-child(4),
   .dashboard-client-pack-table td:nth-child(4),
-  .dashboard-client-pack-table th:nth-child(9),
-  .dashboard-client-pack-table td:nth-child(9) {
+  .dashboard-client-pack-table th:nth-child(7),
+  .dashboard-client-pack-table td:nth-child(7) {
     display: none !important;
   }
 
   .dashboard-client-pack-table th:nth-child(1),
   .dashboard-client-pack-table td:nth-child(1) {
-    width: 22%;
+    width: 34%;
   }
 
   .dashboard-client-pack-table th:nth-child(5),
   .dashboard-client-pack-table td:nth-child(5),
   .dashboard-client-pack-table th:nth-child(6),
-  .dashboard-client-pack-table td:nth-child(6),
-  .dashboard-client-pack-table th:nth-child(7),
-  .dashboard-client-pack-table td:nth-child(7),
-  .dashboard-client-pack-table th:nth-child(8),
-  .dashboard-client-pack-table td:nth-child(8) {
-    width: 19.5%;
+  .dashboard-client-pack-table td:nth-child(6) {
+    width: 33%;
     text-align: center;
   }
 }
