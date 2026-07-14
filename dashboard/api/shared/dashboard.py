@@ -435,11 +435,13 @@ def _get_dashboard_client_rows(dashboard_type, context, primary_only_for_coach=F
 
         return rows
 
-    if dashboard_type == COACH_DASHBOARD:
+    if dashboard_type in (COACH_DASHBOARD, FRANCHISOR_DASHBOARD):
+        # Same helper for both - it already prefers the logged-in person's
+        # own coach identity when one is resolvable (e.g. Ashley/Chantelle
+        # viewing their own franchisor-accessible dashboard), only falling
+        # back to every client for a login with no coach identity of its
+        # own (e.g. a pure office account).
         return _get_client_rows_for_coach(context, primary_only=primary_only_for_coach)
-
-    if dashboard_type == FRANCHISOR_DASHBOARD:
-        return _get_client_rows_for_franchisor()
 
     return []
 
@@ -815,23 +817,24 @@ def _get_invoice_client_names_for_dashboard(dashboard_type, context):
         return [row.name for row in rows if row.name]
 
     if dashboard_type == FRANCHISOR_DASHBOARD:
-        rows = _get_client_rows_for_franchisor()
+        # Prefers the logged-in person's own coach identity when one is
+        # resolvable (e.g. Ashley/Chantelle only see their own revenue,
+        # fees, YTD income, and outstanding invoices on their own home
+        # page), only falling back to every client for a login with no
+        # coach identity of its own (e.g. a pure office account). The full
+        # Invoices list page is unaffected - it queries independently.
+        coach_name = context.get("coach_name")
+        if coach_name:
+            rows = _get_client_rows_for_coach_name(coach_name, primary_only=True)
+        else:
+            rows = _get_client_rows_for_franchisor()
         return [row.name for row in rows if row.name]
 
     return []
 
 
-def _get_invoice_filters(dashboard_type, context, start_date=None, end_date=None, outstanding_only=False, own_coach_only=False):
-    if own_coach_only and dashboard_type == FRANCHISOR_DASHBOARD and context.get("coach_name"):
-        # Only the dashboard home page's Outstanding Invoices widget passes
-        # this - scoped to whichever coach the logged-in person actually is
-        # (e.g. Ashley only sees her own outstanding invoices), unlike
-        # revenue/fees/YTD income (and the full Invoices list page) which
-        # stay franchise-wide by design.
-        rows = _get_client_rows_for_coach_name(context.get("coach_name"), primary_only=True)
-        client_names = [row.name for row in rows if row.name]
-    else:
-        client_names = _get_invoice_client_names_for_dashboard(dashboard_type, context)
+def _get_invoice_filters(dashboard_type, context, start_date=None, end_date=None, outstanding_only=False):
+    client_names = _get_invoice_client_names_for_dashboard(dashboard_type, context)
 
     or_conditions = []
     if client_names:
@@ -1049,7 +1052,6 @@ def _get_outstanding_invoices(dashboard_type, context, limit=8):
         dashboard_type=dashboard_type,
         context=context,
         outstanding_only=True,
-        own_coach_only=True,
     )
 
     rows = frappe.get_all(
