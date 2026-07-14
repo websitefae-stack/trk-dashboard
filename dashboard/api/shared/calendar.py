@@ -2109,6 +2109,7 @@ def compute_occurrence_window(index, start_dt, end_dt, recurring_frequency, dura
 
 
 def _create_booking_impl(
+    allow_double_booking=None,
     client=None,
     client_name=None,
     parent_contact=None,
@@ -2171,6 +2172,7 @@ def _create_booking_impl(
     location = _coalesce_str("location", location)
     phone = _coalesce_str("phone", phone)
     google_meet = _coalesce_raw("google_meet", google_meet)
+    allow_double_booking = _to_int(_coalesce_raw("allow_double_booking", allow_double_booking))
     notes = _coalesce_str("notes", notes)
     billing_type = _coalesce_str("billing_type", billing_type)
     travel_charged = _coalesce_raw("travel_charged", travel_charged)
@@ -2270,7 +2272,7 @@ def _create_booking_impl(
             context=context,
         )
 
-        if conflict:
+        if conflict and not allow_double_booking:
             frappe.throw(_(
                 "This calendar already has something booked at {0}: {1}"
             ).format(
@@ -2310,7 +2312,7 @@ def _create_booking_impl(
             context=context,
         )
 
-        if conflict:
+        if conflict and not allow_double_booking:
             frappe.throw(_(
                 "This calendar already has something booked at {0}: {1}"
             ).format(
@@ -2618,6 +2620,7 @@ def create_booking(
     occurrence_overrides=None,
     additional_workers=None,
     dashboard_type=None,
+    allow_double_booking=None,
 ):
     """
     Wrapper around _create_booking_impl() - see that function for the actual
@@ -2668,6 +2671,7 @@ def create_booking(
         occurrence_overrides=occurrence_overrides,
         additional_workers=additional_workers,
         dashboard_type=dashboard_type,
+        allow_double_booking=allow_double_booking,
     )
 
     try:
