@@ -76,11 +76,19 @@
   const STATUS_COLUMNS = ["New", "In Progress", "Past Due", "Sent", "Archived"];
 
   let allNotifications = [];
-  let showArchived = false;
+  let archivedExpanded = false;
 
   function todayIso() {
     const now = new Date();
     return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
+  }
+
+  // There's no dedicated "archived on" field - archiving always touches
+  // modified (frappe.db.set_value / doc.save() both bump it by default),
+  // so it doubles as a reliable stand-in for "when was this archived".
+  function wasArchivedToday(row) {
+    const stamp = String(row.modified || row.notification_date || "");
+    return stamp.slice(0, 10) === todayIso();
   }
 
   // Bucket is derived from status + due_date rather than a stored value,
@@ -255,29 +263,51 @@
     const board = el("notificationsKanbanBoard");
     if (!board) return;
 
-    // Archived is a dumping ground that only grows over time - showing it
-    // by default buried everything else behind old, dealt-with items.
-    // Hidden unless explicitly opted into via the "Show archived" checkbox.
-    const columnsToRender = showArchived
-      ? STATUS_COLUMNS
-      : STATUS_COLUMNS.filter(function (bucket) { return bucket !== "Archived"; });
-
     const byBucket = {};
-    columnsToRender.forEach(function (bucket) { byBucket[bucket] = []; });
+    STATUS_COLUMNS.forEach(function (bucket) { byBucket[bucket] = []; });
 
     rows.forEach(function (row) {
-      const bucket = bucketFor(row);
-      if (byBucket[bucket]) byBucket[bucket].push(row);
+      byBucket[bucketFor(row)].push(row);
     });
 
-    columnsToRender.forEach(function (bucket) {
+    STATUS_COLUMNS.forEach(function (bucket) {
       byBucket[bucket].sort(function (a, b) {
         return String(b.notification_date || "").localeCompare(String(a.notification_date || ""));
       });
     });
 
-    board.innerHTML = columnsToRender.map(function (bucket) {
+    board.innerHTML = STATUS_COLUMNS.map(function (bucket) {
       const items = byBucket[bucket];
+
+      // Archived only ever grows - showing everything ever archived would
+      // bury the column. Today's is always visible; anything older stays
+      // collapsed behind "See more" until asked for.
+      if (bucket === "Archived") {
+        const todayItems = items.filter(wasArchivedToday);
+        const olderItems = items.filter(function (row) { return !wasArchivedToday(row); });
+        const shown = archivedExpanded ? items : todayItems;
+
+        let body = shown.length
+          ? shown.map(renderCard).join("")
+          : '<div class="dashboard-notif-column-empty">Nothing archived today</div>';
+
+        if (olderItems.length) {
+          body += archivedExpanded
+            ? `<button type="button" class="dashboard-notif-column-more-btn" id="archivedSeeLessBtn">Show today only</button>`
+            : `<button type="button" class="dashboard-notif-column-more-btn" id="archivedSeeMoreBtn">See more (${olderItems.length})</button>`;
+        }
+
+        return `
+          <div class="dashboard-notif-column" data-bucket="${escapeHtml(bucket)}">
+            <div class="dashboard-notif-column-head">
+              <span>${escapeHtml(bucket)}</span>
+              <span class="dashboard-notif-column-count">${items.length}</span>
+            </div>
+            <div class="dashboard-notif-column-body">${body}</div>
+          </div>
+        `;
+      }
+
       const body = items.length
         ? items.map(renderCard).join("")
         : '<div class="dashboard-notif-column-empty">Nothing here</div>';
@@ -292,6 +322,22 @@
         </div>
       `;
     }).join("");
+
+    const seeMoreBtn = el("archivedSeeMoreBtn");
+    if (seeMoreBtn) {
+      seeMoreBtn.addEventListener("click", function () {
+        archivedExpanded = true;
+        applyFilters();
+      });
+    }
+
+    const seeLessBtn = el("archivedSeeLessBtn");
+    if (seeLessBtn) {
+      seeLessBtn.addEventListener("click", function () {
+        archivedExpanded = false;
+        applyFilters();
+      });
+    }
 
     board.querySelectorAll(".dashboard-notif-card").forEach(function (card) {
       card.addEventListener("click", function (event) {
@@ -342,13 +388,13 @@
       });
     });
 
-    const visibleCount = columnsToRender.reduce(function (sum, bucket) {
+    const totalCount = STATUS_COLUMNS.reduce(function (sum, bucket) {
       return sum + byBucket[bucket].length;
     }, 0);
 
     const countEl = el("notificationCount");
     if (countEl) {
-      countEl.textContent = visibleCount + (visibleCount === 1 ? " notification" : " notifications");
+      countEl.textContent = totalCount + (totalCount === 1 ? " notification" : " notifications");
     }
   }
 
@@ -699,7 +745,6 @@
   function init() {
     const searchInput = el("notificationSearch");
     const typeFilter = el("notificationTypeFilter");
-    const archivedToggle = el("notificationShowArchived");
     const refreshBtn = el("refreshNotifications");
     const openBtn = el("openSendNotification");
     const cancelBtn = el("cancelSendNotification");
@@ -707,14 +752,6 @@
 
     if (searchInput) searchInput.addEventListener("input", applyFilters);
     if (typeFilter) typeFilter.addEventListener("change", applyFilters);
-
-    if (archivedToggle) {
-      archivedToggle.checked = showArchived;
-      archivedToggle.addEventListener("change", function () {
-        showArchived = archivedToggle.checked;
-        applyFilters();
-      });
-    }
 
     if (refreshBtn) {
       refreshBtn.addEventListener("click", loadNotifications);
