@@ -29,10 +29,13 @@ FREE_TRAVEL_MILES_ONE_WAY = 10
 TRAVEL_EXCLUDED_SESSION_TYPES = ["Parent Check-In"]
 CLIENT_SESSION_TYPES = ["Therapy Session", "Parent Check-In"]
 NON_CLIENT_TYPES = ["Initial Consultation", "Internal Training", "School Visit", "Company Meeting", "School Session", "Company Session", "Event / Stall", "Holiday", "Personal"]
-# Every appointment type except Holiday, which isn't a single start time to
-# begin with - it's already its own from_date/to_date range, so "recurring"
-# doesn't map onto it the same way without a different UI entirely.
-RECURRING_ALLOWED_TYPES = CLIENT_SESSION_TYPES + [t for t in NON_CLIENT_TYPES if t != "Holiday"]
+# Every appointment type except Holiday and Initial Consultation. Holiday
+# isn't a single start time to begin with - it's already its own
+# from_date/to_date range, so "recurring" doesn't map onto it the same way
+# without a different UI entirely. Initial Consultation is a one-off
+# meet-and-greet by nature, not something that repeats.
+_RECURRING_EXCLUDED_TYPES = ("Holiday", "Initial Consultation")
+RECURRING_ALLOWED_TYPES = CLIENT_SESSION_TYPES + [t for t in NON_CLIENT_TYPES if t not in _RECURRING_EXCLUDED_TYPES]
 SCHOOL_LINKED_TYPES = ("School Visit", "Company Meeting", "School Session", "Company Session")
 PACK_LINKED_SCHOOL_TYPES = ("School Session", "Company Session")
 

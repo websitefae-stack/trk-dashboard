@@ -15,10 +15,10 @@
   // Matches RECURRING_ALLOWED_TYPES in dashboard/api/shared/calendar.py -
   // the backend silently forces repeat_count back to 1 for anything else,
   // so showing the recurring controls for other types would be misleading.
-  // Every type except Holiday, which is its own from_date/to_date range
-  // rather than a single start time.
+  // Every type except Holiday (its own from_date/to_date range, not a
+  // single start time) and Initial Consultation (a one-off by nature).
   const RECURRING_ALLOWED_TYPES = [
-    "Therapy Session", "Parent Check-In", "Initial Consultation",
+    "Therapy Session", "Parent Check-In",
     "Internal Training", "School Visit", "Company Meeting",
     "School Session", "Company Session", "Event / Stall", "Personal",
   ];
