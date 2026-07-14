@@ -677,6 +677,7 @@ def _build_client_option(row):
         "therapy_location": row.get("main_therapy_location") or "",
         "therapy_location_label": _get_client_therapy_location_label(row),
         "contacts": _get_client_contacts(row.get("name")),
+        "client_type": row.get("client_type") or "",
     }
 
 
@@ -1237,42 +1238,62 @@ def _get_event_rows_for_dashboard(dashboard_type, range_start_date, range_end_da
             client_map = {row.get("name"): row for row in client_rows if row.get("name")}
 
             owner_user = context.get("view_as_user") or frappe.session.user
+            has_coach_field = _event_has_field("custom_coach")
+            coach_name = context.get("coach_name")
+
+            by_name = {}
 
             owner_filters = base_filters + [
                 ["Event", "owner", "=", owner_user],
             ]
 
-            rows = frappe.get_all(
+            for row in frappe.get_all(
                 "Event",
                 fields=_get_event_fields(),
                 filters=owner_filters,
                 order_by="starts_on asc",
                 limit_page_length=1000,
                 ignore_permissions=True,
-            )
+            ):
+                by_name[row.get("name")] = row
 
             if client_map and has_client_field:
                 client_filters = base_filters + [
                     ["Event", "custom_client", "in", list(client_map.keys())],
                 ]
 
-                client_rows_for_calendar = frappe.get_all(
+                for row in frappe.get_all(
                     "Event",
                     fields=_get_event_fields(),
                     filters=client_filters,
                     order_by="starts_on asc",
                     limit_page_length=1000,
                     ignore_permissions=True,
-                )
-
-                by_name = {row.get("name"): row for row in rows}
-                for row in client_rows_for_calendar:
+                ):
                     by_name[row.get("name")] = row
 
-                rows = sorted(
-                    by_name.values(),
-                    key=lambda row: row.get("starts_on") or "",
-                )
+            # Events pulled in from Google Calendar (personal appointments,
+            # or anything with no linked client) are inserted by a
+            # background sync job whose owner is never the coach's own
+            # login - only custom_coach identifies them as this coach's.
+            # Without this, they'd never show up here at all, even though
+            # they exist in the Event doctype.
+            if has_coach_field and coach_name:
+                coach_filters = base_filters + [
+                    ["Event", "custom_coach", "=", coach_name],
+                ]
+
+                for row in frappe.get_all(
+                    "Event",
+                    fields=_get_event_fields(),
+                    filters=coach_filters,
+                    order_by="starts_on asc",
+                    limit_page_length=1000,
+                    ignore_permissions=True,
+                ):
+                    by_name[row.get("name")] = row
+
+            rows = sorted(by_name.values(), key=lambda row: row.get("starts_on") or "")
 
             if has_worker_field:
                 rows = [
