@@ -1231,6 +1231,7 @@
     }
 
     setButtonLoading("trkCalendarSaveBtn", true, "Saving...");
+    hideNoBalanceNotice();
 
     apiPost(SHARED_API + ".create_booking", {
       dashboard_type: state.dashboardType,
@@ -1274,7 +1275,44 @@
 
       setButtonLoading("trkCalendarSaveBtn", false, "Save Calendar Item");
       showToast(error.message || "Could not save calendar item");
+      showNoBalanceNoticeIfApplicable(error.message || "", clientId || schoolId);
     });
+  }
+
+  // Package Booking Validation (a Frappe Server Script, not something in
+  // this app's own code) blocks the booking outright when a client has no
+  // sessions left on their pack, rather than an ordinary validation error -
+  // "balance" is the one word that's a safe bet to appear in its message
+  // regardless of the exact wording, since every other booking failure
+  // (missing fields, a time conflict) is about something else entirely.
+  function showNoBalanceNoticeIfApplicable(errorMessage, clientId) {
+    const notice = document.getElementById("trkCalendarNoBalanceNotice");
+    const messageEl = document.getElementById("trkCalendarNoBalanceMessage");
+    const link = document.getElementById("trkCalendarNoBalanceInvoiceLink");
+    if (!notice || !messageEl || !link) return;
+
+    const invoiceUrl = getInvoiceUrlForClient(clientId);
+
+    if (!invoiceUrl || !/balance/i.test(errorMessage)) {
+      notice.style.display = "none";
+      return;
+    }
+
+    messageEl.textContent = errorMessage;
+    link.href = invoiceUrl;
+    notice.style.display = "";
+  }
+
+  function hideNoBalanceNotice() {
+    const notice = document.getElementById("trkCalendarNoBalanceNotice");
+    if (notice) notice.style.display = "none";
+  }
+
+  function getInvoiceUrlForClient(clientId) {
+    if (!clientId) return "";
+    if (state.dashboardType === "coach") return "/coach_db/invoice_details?new=1&client=" + encodeURIComponent(clientId);
+    if (state.dashboardType === "franchisor") return "/franchisor_db/invoice_details?new=1&client=" + encodeURIComponent(clientId);
+    return "";
   }
 
   function saveSessionChanges() {
@@ -1441,11 +1479,13 @@
 
     renderParentContactOptions();
     syncBookingFields();
+    hideNoBalanceNotice();
     toggleModal("trkCalendarModal", true);
   }
 
   function closeBookingModal() {
     toggleModal("trkCalendarModal", false);
+    hideNoBalanceNotice();
     var listEl = document.getElementById("trkCalendarAdditionalWorkersList");
     if (listEl) listEl.innerHTML = "";
   }
