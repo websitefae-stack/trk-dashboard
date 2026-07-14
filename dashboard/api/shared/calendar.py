@@ -1463,16 +1463,6 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
     if row.get("google_calendar_event_id") and not custom_client:
         return None
 
-    # The coach_calendar_sync app's own pull (custom_google_event_id) also
-    # imports a coach's personal Google Calendar events - genuinely real
-    # appointments, but not client sessions, and Ashley doesn't want them
-    # cluttering the dashboard grid. coach_calendar_sync's own daily
-    # notification job already flags these ("N appointments from Google
-    # Calendar need a client linked") with a link straight to the Event in
-    # the desk, so they're still reachable - just not shown here.
-    if row.get("custom_google_event_id") and not custom_client:
-        return None
-
     is_private_for_viewing_coach = False
 
     if dashboard_type == COACH_DASHBOARD and custom_client and not _coach_can_view_client(client_row or {}, context):
@@ -1571,7 +1561,10 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
         "progress_text": row.get("custom_progress_text") or "",
         "booking_warning": row.get("custom_booking_warning") or "",
         "google_meet_link": row.get("custom_google_meet_url") or row.get("google_meet_link") or "",
-        "needs_linking": bool(row.get("google_calendar_event_id") and not custom_client),
+        "needs_linking": bool(
+            (row.get("google_calendar_event_id") or row.get("custom_google_event_id"))
+            and not custom_client
+        ),
         "is_private": 0,
     }
 
