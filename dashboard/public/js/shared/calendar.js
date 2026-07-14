@@ -12,6 +12,17 @@
 
   const SHARED_API = "dashboard.api.shared.calendar";
 
+  // Matches RECURRING_ALLOWED_TYPES in dashboard/api/shared/calendar.py -
+  // the backend silently forces repeat_count back to 1 for anything else,
+  // so showing the recurring controls for other types would be misleading.
+  // Every type except Holiday (its own from_date/to_date range, not a
+  // single start time) and Initial Consultation (a one-off by nature).
+  const RECURRING_ALLOWED_TYPES = [
+    "Therapy Session", "Parent Check-In",
+    "Internal Training", "School Visit", "Company Meeting",
+    "School Session", "Company Session", "Event / Stall", "Personal",
+  ];
+
   const COACH_ME_VALUE = "__coach_me__";
   const FRANCHISOR_ME_VALUE = "__franchisor_me__";
 
@@ -194,6 +205,8 @@
     bindClick("trkCalendarNewBtn", function () {
       openBookingModal(formatDateKey(state.currentDate), "09:00");
     });
+
+    bindClick("trkSyncGoogleCalendarBtn", syncGoogleCalendarNow);
 
     bindClick("trkCalendarDatePickerBtn", openCalendarDatePicker);
 
@@ -424,6 +437,41 @@
   function bindClick(id, handler) {
     const node = document.getElementById(id);
     if (node) node.addEventListener("click", handler);
+  }
+
+  function syncGoogleCalendarNow() {
+    const button = document.getElementById("trkSyncGoogleCalendarBtn");
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Syncing...";
+    }
+
+    apiPost("coach_calendar_sync.api.manual_sync.trigger_pull_for_current_user", {})
+      .then(function (result) {
+        const imported = Number((result && result.imported) || 0);
+        const updated = Number((result && result.updated) || 0);
+
+        if (!imported && !updated) {
+          showToast("No new appointments found on Google Calendar.");
+        } else {
+          showToast(
+            "Synced from Google Calendar: " +
+            [imported ? imported + " new" : "", updated ? updated + " updated" : ""]
+              .filter(Boolean).join(", ")
+          );
+        }
+
+        loadCalendarData();
+      })
+      .catch(function (error) {
+        showToast(error.message || "Could not sync Google Calendar");
+      })
+      .finally(function () {
+        if (button) {
+          button.disabled = false;
+          button.textContent = "Sync Google Calendar";
+        }
+      });
   }
 
   function bindBackdropClose(id, closer) {
@@ -1488,7 +1536,7 @@
 
     const type = getValue("trkCalendarType") || "Therapy Session";
     const count = parseInt(getValue("trkCalendarRecurringCount") || "1", 10) || 1;
-    const isRecurring = type === "Therapy Session" && isChecked("trkCalendarRecurring") && count > 1;
+    const isRecurring = RECURRING_ALLOWED_TYPES.includes(type) && isChecked("trkCalendarRecurring") && count > 1;
 
     const baseDateKey = getValue("trkCalendarDate");
     const baseTime = getValue("trkCalendarTime");
@@ -1608,7 +1656,7 @@
 
     toggleDisplay("trkCalendarTravelRow", ["Therapy Session", "Parent Check-In"].concat(SCHOOL_LINKED_TYPES).indexOf(type) !== -1);
     toggleDisplay("trkCalendarGoogleMeetRow", GOOGLE_MEET_TYPES.indexOf(type) !== -1);
-    toggleDisplay("trkCalendarRecurringRow", type === "Therapy Session");
+    toggleDisplay("trkCalendarRecurringRow", RECURRING_ALLOWED_TYPES.includes(type));
 
     var additionalWorkerTypes = ["Internal Training", "Company Meeting", "School Visit", "Event / Stall"];
     var showWorkers = additionalWorkerTypes.indexOf(type) !== -1;
@@ -1633,7 +1681,7 @@
       }
     }
     
-    const showRecurringOptions = type === "Therapy Session" && isChecked("trkCalendarRecurring");
+    const showRecurringOptions = RECURRING_ALLOWED_TYPES.includes(type) && isChecked("trkCalendarRecurring");
     toggleDisplay("trkCalendarRecurringOptions", showRecurringOptions);
     renderRecurringPreview();
 
