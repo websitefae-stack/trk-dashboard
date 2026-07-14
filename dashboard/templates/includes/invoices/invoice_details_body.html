@@ -71,10 +71,11 @@
       inset: 0;
       background: rgba(67, 75, 73, 0.45);
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
       padding: 20px;
       z-index: 1000;
+      overflow-y: auto;
     }
 
     .invoice-modal-backdrop[hidden] {
@@ -87,6 +88,7 @@
       border-radius: 16px;
       padding: 24px;
       box-shadow: 0 16px 40px rgba(67, 75, 73, 0.16);
+      margin: auto 0;
     }
 
     .invoice-modal-actions {
@@ -366,7 +368,7 @@
       <h2 class="dashboard-detail-section-title">Email Invoice</h2>
     </div>
 
-    <div class="dashboard-detail-grid dashboard-detail-grid-1">
+    <div class="dashboard-detail-grid dashboard-detail-grid-2">
       <div class="dashboard-detail-field">
         <label for="emailRecipient">Send To</label>
         <input type="email" id="emailRecipient" class="dashboard-input" value="{{ contact_email or '' }}">
@@ -387,12 +389,12 @@
         <input type="text" id="emailCc" class="dashboard-input" placeholder="Optional, comma separated">
       </div>
 
-      <div class="dashboard-detail-field">
+      <div class="dashboard-detail-field dashboard-detail-field-full">
         <label for="emailSubject">Subject</label>
         <input type="text" id="emailSubject" class="dashboard-input" value="Invoice {{ doc.name or '' }}">
       </div>
 
-      <div class="dashboard-detail-field">
+      <div class="dashboard-detail-field dashboard-detail-field-full">
         <label for="emailMessage">Message</label>
         <textarea id="emailMessage" class="dashboard-textarea">Hi there,
 
