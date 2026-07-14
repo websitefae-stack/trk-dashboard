@@ -29,6 +29,7 @@ FREE_TRAVEL_MILES_ONE_WAY = 10
 TRAVEL_EXCLUDED_SESSION_TYPES = ["Parent Check-In"]
 CLIENT_SESSION_TYPES = ["Therapy Session", "Parent Check-In"]
 NON_CLIENT_TYPES = ["Initial Consultation", "Internal Training", "School Visit", "Company Meeting", "School Session", "Company Session", "Event / Stall", "Holiday", "Personal"]
+RECURRING_ALLOWED_TYPES = ["Therapy Session", "Personal"]
 SCHOOL_LINKED_TYPES = ("School Visit", "Company Meeting", "School Session", "Company Session")
 PACK_LINKED_SCHOOL_TYPES = ("School Session", "Company Session")
 
@@ -2239,7 +2240,7 @@ def _create_booking_impl(
         if not _to_int(recurring):
             repeat_count = 1
 
-        if appointment_type != "Therapy Session":
+        if appointment_type not in RECURRING_ALLOWED_TYPES:
             repeat_count = 1
 
         if repeat_count not in [1, 4, 12]:

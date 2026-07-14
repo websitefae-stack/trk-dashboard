@@ -12,6 +12,11 @@
 
   const SHARED_API = "dashboard.api.shared.calendar";
 
+  // Matches RECURRING_ALLOWED_TYPES in dashboard/api/shared/calendar.py -
+  // the backend silently forces repeat_count back to 1 for anything else,
+  // so showing the recurring controls for other types would be misleading.
+  const RECURRING_ALLOWED_TYPES = ["Therapy Session", "Personal"];
+
   const COACH_ME_VALUE = "__coach_me__";
   const FRANCHISOR_ME_VALUE = "__franchisor_me__";
 
@@ -1525,7 +1530,7 @@
 
     const type = getValue("trkCalendarType") || "Therapy Session";
     const count = parseInt(getValue("trkCalendarRecurringCount") || "1", 10) || 1;
-    const isRecurring = type === "Therapy Session" && isChecked("trkCalendarRecurring") && count > 1;
+    const isRecurring = RECURRING_ALLOWED_TYPES.includes(type) && isChecked("trkCalendarRecurring") && count > 1;
 
     const baseDateKey = getValue("trkCalendarDate");
     const baseTime = getValue("trkCalendarTime");
@@ -1645,7 +1650,7 @@
 
     toggleDisplay("trkCalendarTravelRow", ["Therapy Session", "Parent Check-In"].concat(SCHOOL_LINKED_TYPES).indexOf(type) !== -1);
     toggleDisplay("trkCalendarGoogleMeetRow", GOOGLE_MEET_TYPES.indexOf(type) !== -1);
-    toggleDisplay("trkCalendarRecurringRow", type === "Therapy Session");
+    toggleDisplay("trkCalendarRecurringRow", RECURRING_ALLOWED_TYPES.includes(type));
 
     var additionalWorkerTypes = ["Internal Training", "Company Meeting", "School Visit", "Event / Stall"];
     var showWorkers = additionalWorkerTypes.indexOf(type) !== -1;
@@ -1670,7 +1675,7 @@
       }
     }
     
-    const showRecurringOptions = type === "Therapy Session" && isChecked("trkCalendarRecurring");
+    const showRecurringOptions = RECURRING_ALLOWED_TYPES.includes(type) && isChecked("trkCalendarRecurring");
     toggleDisplay("trkCalendarRecurringOptions", showRecurringOptions);
     renderRecurringPreview();
 
