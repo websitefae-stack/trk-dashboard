@@ -97,7 +97,8 @@
     autoOpenBookingClient: "",
     autoOpenBookingLead: "",
     autoOpenBookingLeadName: "",
-    pendingClientLead: ""
+    pendingClientLead: "",
+    allowDoubleBooking: false
   };
   function getDefaultCalendarView() {
     return window.innerWidth <= MOBILE_BREAKPOINT ? "day" : "week";
@@ -207,6 +208,11 @@
     });
 
     bindClick("trkSyncGoogleCalendarBtn", syncGoogleCalendarNow);
+
+    bindClick("trkCalendarConflictBookAnywayBtn", function () {
+      state.allowDoubleBooking = true;
+      saveBooking();
+    });
 
     bindClick("trkCalendarDatePickerBtn", openCalendarDatePicker);
 
@@ -1231,6 +1237,8 @@
     }
 
     setButtonLoading("trkCalendarSaveBtn", true, "Saving...");
+    hideNoBalanceNotice();
+    hideConflictNotice();
 
     apiPost(SHARED_API + ".create_booking", {
       dashboard_type: state.dashboardType,
@@ -1263,9 +1271,11 @@
       additional_workers: (function () {
         var checked = document.querySelectorAll("#trkCalendarAdditionalWorkersList input[type='checkbox']:checked");
         return JSON.stringify(Array.prototype.map.call(checked, function (cb) { return cb.dataset.workerValue; }));
-      })()
+      })(),
+      allow_double_booking: state.allowDoubleBooking ? "1" : "0"
     }).then(function () {
       setButtonLoading("trkCalendarSaveBtn", false, "Save Calendar Item");
+      state.allowDoubleBooking = false;
       closeBookingModal();
       showToast(type === "Therapy Session" ? "Session booked" : "Calendar item added");
       loadCalendarData();
@@ -1274,7 +1284,67 @@
 
       setButtonLoading("trkCalendarSaveBtn", false, "Save Calendar Item");
       showToast(error.message || "Could not save calendar item");
+      showNoBalanceNoticeIfApplicable(error.message || "", clientId || schoolId);
+      showConflictNoticeIfApplicable(error.message || "");
     });
+  }
+
+  // The exact wording here is this app's own (see the two
+  // "already has something booked" frappe.throw() calls in
+  // _create_booking_impl), so it's safe to match precisely.
+  function showConflictNoticeIfApplicable(errorMessage) {
+    const notice = document.getElementById("trkCalendarConflictNotice");
+    const messageEl = document.getElementById("trkCalendarConflictMessage");
+    if (!notice || !messageEl) return;
+
+    if (errorMessage.indexOf("already has something booked") === -1) {
+      notice.style.display = "none";
+      return;
+    }
+
+    messageEl.textContent = errorMessage;
+    notice.style.display = "";
+  }
+
+  function hideConflictNotice() {
+    const notice = document.getElementById("trkCalendarConflictNotice");
+    if (notice) notice.style.display = "none";
+  }
+
+  // Package Booking Validation (a Frappe Server Script, not something in
+  // this app's own code) blocks the booking outright when a client has no
+  // sessions left on their pack, rather than an ordinary validation error -
+  // "balance" is the one word that's a safe bet to appear in its message
+  // regardless of the exact wording, since every other booking failure
+  // (missing fields, a time conflict) is about something else entirely.
+  function showNoBalanceNoticeIfApplicable(errorMessage, clientId) {
+    const notice = document.getElementById("trkCalendarNoBalanceNotice");
+    const messageEl = document.getElementById("trkCalendarNoBalanceMessage");
+    const link = document.getElementById("trkCalendarNoBalanceInvoiceLink");
+    if (!notice || !messageEl || !link) return;
+
+    const invoiceUrl = getInvoiceUrlForClient(clientId);
+
+    if (!invoiceUrl || !/balance/i.test(errorMessage)) {
+      notice.style.display = "none";
+      return;
+    }
+
+    messageEl.textContent = errorMessage;
+    link.href = invoiceUrl;
+    notice.style.display = "";
+  }
+
+  function hideNoBalanceNotice() {
+    const notice = document.getElementById("trkCalendarNoBalanceNotice");
+    if (notice) notice.style.display = "none";
+  }
+
+  function getInvoiceUrlForClient(clientId) {
+    if (!clientId) return "";
+    if (state.dashboardType === "coach") return "/coach_db/invoice_details?new=1&client=" + encodeURIComponent(clientId);
+    if (state.dashboardType === "franchisor") return "/franchisor_db/invoice_details?new=1&client=" + encodeURIComponent(clientId);
+    return "";
   }
 
   function saveSessionChanges() {
@@ -1399,6 +1469,7 @@
 
   function openBookingModal(dateStr, timeStr, clientName, options) {
     options = options || {};
+    state.allowDoubleBooking = false;
 
     setValue("trkCalendarClientSelect", clientName || "");
     setValue("trkCalendarParentContactSelect", "");
@@ -1441,11 +1512,16 @@
 
     renderParentContactOptions();
     syncBookingFields();
+    hideNoBalanceNotice();
+    hideConflictNotice();
     toggleModal("trkCalendarModal", true);
   }
 
   function closeBookingModal() {
     toggleModal("trkCalendarModal", false);
+    hideNoBalanceNotice();
+    hideConflictNotice();
+    state.allowDoubleBooking = false;
     var listEl = document.getElementById("trkCalendarAdditionalWorkersList");
     if (listEl) listEl.innerHTML = "";
   }
