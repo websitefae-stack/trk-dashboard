@@ -677,6 +677,7 @@ def _build_client_option(row):
         "therapy_location": row.get("main_therapy_location") or "",
         "therapy_location_label": _get_client_therapy_location_label(row),
         "contacts": _get_client_contacts(row.get("name")),
+        "client_type": row.get("client_type") or "",
     }
 
 

@@ -1087,6 +1087,7 @@
         + ' value="' + escapeHtml(client.value) + '"'
         + ' data-therapy-location="' + escapeHtml(client.therapy_location || "") + '"'
         + ' data-therapy-location-label="' + escapeHtml(client.therapy_location_label || client.therapy_location || "") + '"'
+        + ' data-client-type="' + escapeHtml(client.client_type || "") + '"'
         + '>'
         + escapeHtml(client.label)
         + '</option>';
@@ -1094,6 +1095,7 @@
 
     select.innerHTML = html;
     renderParentContactOptions();
+    syncParentCheckInAvailability();
   }
 
   function renderParentContactOptions() {
@@ -1701,7 +1703,39 @@
     });
   }
 
+  // Parent Check-In means "check in with the parent/carer" - meaningless
+  // for an Adult client, who has no parent in that sense. Disables/hides
+  // the option once an Adult client is selected, and bumps the type
+  // selection off it if it was already chosen, rather than letting one get
+  // booked that never made sense in the first place.
+  function syncParentCheckInAvailability() {
+    const typeSelect = document.getElementById("trkCalendarType");
+    if (!typeSelect) return;
+
+    const option = Array.prototype.find.call(typeSelect.options, function (opt) {
+      return opt.value === "Parent Check-In";
+    });
+    if (!option) return;
+
+    const clientSelect = document.getElementById("trkCalendarClientSelect");
+    const selectedOption = clientSelect && clientSelect.selectedIndex >= 0
+      ? clientSelect.options[clientSelect.selectedIndex]
+      : null;
+    const clientType = selectedOption ? (selectedOption.getAttribute("data-client-type") || "") : "";
+    const isAdult = clientType === "Adult";
+
+    option.disabled = isAdult;
+    option.hidden = isAdult;
+
+    if (isAdult && typeSelect.value === "Parent Check-In") {
+      typeSelect.value = "Therapy Session";
+      showToast("Parent Check-In isn't available for an adult client - switched to Therapy Session.");
+    }
+  }
+
   function syncBookingFields() {
+    syncParentCheckInAvailability();
+
     const type = getValue("trkCalendarType") || "Therapy Session";
     const isHoliday = type === "Holiday";
     const isClientType = CLIENT_REQUIRED_TYPES.indexOf(type) !== -1;
