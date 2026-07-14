@@ -105,6 +105,7 @@ def _get_client_base_fields():
         "travel_miles_one_way",
         "main_therapy_location",
         "client_type",
+        "date_of_birth",
         "address",
         "city",
         "zip_code",
@@ -681,6 +682,25 @@ def _get_company_options():
     return _get_clients_by_type_options("Company")
 
 
+def _get_effective_client_type(row):
+    # The stored client_type field is only ever (re)computed when a Client
+    # record is saved through code that calls apply_age_and_client_type() -
+    # so any client created/edited before that logic existed can carry a
+    # blank or stale value even though their date_of_birth is correct. Since
+    # this drives whether Parent Check-In is offered at all, trust the DOB
+    # (the real source of truth) over whatever's sitting in the field
+    # whenever a DOB is available.
+    from dashboard.api.shared.client_details import calculate_age_from_dob, get_client_type_from_age
+
+    dob = row.get("date_of_birth")
+    if dob:
+        derived = get_client_type_from_age(calculate_age_from_dob(dob))
+        if derived:
+            return derived
+
+    return row.get("client_type") or ""
+
+
 def _build_client_option(row):
     return {
         "value": row.get("name"),
@@ -688,7 +708,7 @@ def _build_client_option(row):
         "therapy_location": row.get("main_therapy_location") or "",
         "therapy_location_label": _get_client_therapy_location_label(row),
         "contacts": _get_client_contacts(row.get("name")),
-        "client_type": row.get("client_type") or "",
+        "client_type": _get_effective_client_type(row),
     }
 
 
