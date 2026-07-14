@@ -29,7 +29,10 @@ FREE_TRAVEL_MILES_ONE_WAY = 10
 TRAVEL_EXCLUDED_SESSION_TYPES = ["Parent Check-In"]
 CLIENT_SESSION_TYPES = ["Therapy Session", "Parent Check-In"]
 NON_CLIENT_TYPES = ["Initial Consultation", "Internal Training", "School Visit", "Company Meeting", "School Session", "Company Session", "Event / Stall", "Holiday", "Personal"]
-RECURRING_ALLOWED_TYPES = ["Therapy Session", "Personal"]
+# Every appointment type except Holiday, which isn't a single start time to
+# begin with - it's already its own from_date/to_date range, so "recurring"
+# doesn't map onto it the same way without a different UI entirely.
+RECURRING_ALLOWED_TYPES = CLIENT_SESSION_TYPES + [t for t in NON_CLIENT_TYPES if t != "Holiday"]
 SCHOOL_LINKED_TYPES = ("School Visit", "Company Meeting", "School Session", "Company Session")
 PACK_LINKED_SCHOOL_TYPES = ("School Session", "Company Session")
 
@@ -2287,6 +2290,11 @@ def _create_booking_impl(
         client_therapy_location, client_therapy_location_text = _get_client_therapy_location(client_doc_for_booking)
         client_travel = _get_client_travel_defaults(client_doc_for_booking)
 
+    # Same idea as above: Initial Consultation can now repeat too, and this
+    # must only ever resolve to one Lead for the whole series, not a fresh
+    # (or duplicate) one per occurrence.
+    initial_consultation_lead = None
+
     created_events = []
 
     for index in range(repeat_count):
@@ -2422,12 +2430,13 @@ def _create_booking_impl(
             final_notes = f"Parent/contact: {parent_contact}\n\n{final_notes}".strip()
 
         if appointment_type == "Initial Consultation":
-            lead = _create_or_update_initial_consultation_lead(
-                lead_name=lead_name,
-                phone=phone,
-                notes=notes,
-            )
-            final_notes = f"Lead: {lead}\n\n{final_notes}".strip()
+            if initial_consultation_lead is None:
+                initial_consultation_lead = _create_or_update_initial_consultation_lead(
+                    lead_name=lead_name,
+                    phone=phone,
+                    notes=notes,
+                )
+            final_notes = f"Lead: {initial_consultation_lead}\n\n{final_notes}".strip()
 
             # Booked straight from the calendar (not via the Leads section's
             # "Book a Call" button, which already supplies client_lead) -
