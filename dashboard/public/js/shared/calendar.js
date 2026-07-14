@@ -195,6 +195,8 @@
       openBookingModal(formatDateKey(state.currentDate), "09:00");
     });
 
+    bindClick("trkSyncGoogleCalendarBtn", syncGoogleCalendarNow);
+
     bindClick("trkCalendarDatePickerBtn", openCalendarDatePicker);
 
     const datePicker = document.getElementById("trkCalendarDatePicker");
@@ -424,6 +426,41 @@
   function bindClick(id, handler) {
     const node = document.getElementById(id);
     if (node) node.addEventListener("click", handler);
+  }
+
+  function syncGoogleCalendarNow() {
+    const button = document.getElementById("trkSyncGoogleCalendarBtn");
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Syncing...";
+    }
+
+    apiPost("coach_calendar_sync.api.manual_sync.trigger_pull_for_current_user", {})
+      .then(function (result) {
+        const imported = Number((result && result.imported) || 0);
+        const updated = Number((result && result.updated) || 0);
+
+        if (!imported && !updated) {
+          showToast("No new appointments found on Google Calendar.");
+        } else {
+          showToast(
+            "Synced from Google Calendar: " +
+            [imported ? imported + " new" : "", updated ? updated + " updated" : ""]
+              .filter(Boolean).join(", ")
+          );
+        }
+
+        loadCalendarData();
+      })
+      .catch(function (error) {
+        showToast(error.message || "Could not sync Google Calendar");
+      })
+      .finally(function () {
+        if (button) {
+          button.disabled = false;
+          button.textContent = "Sync Google Calendar";
+        }
+      });
   }
 
   function bindBackdropClose(id, closer) {
