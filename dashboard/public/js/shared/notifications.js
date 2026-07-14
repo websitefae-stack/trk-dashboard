@@ -140,9 +140,17 @@
     const bucket = bucketFor(row);
     const canArchive = Number(row.can_archive || 0);
     const isArchived = bucket === "Archived";
+    const isSentByMe = Number(row.is_sent_by_me || 0);
+    const isAwaitingResponse = Number(row.awaiting_response || 0);
+
+    const directionLabel = isSentByMe
+      ? (isAwaitingResponse ? "Waiting on Response" : "Sent")
+      : "";
+    const directionClass = isAwaitingResponse ? "is-awaiting-response" : "is-sent";
 
     return `
       <div class="dashboard-notif-card ${borderClassFor(bucket)}" draggable="true" data-name="${escapeHtml(row.name)}" data-detail-url="${escapeHtml(getDetailUrl(row))}">
+        ${directionLabel ? `<div class="dashboard-notif-card-direction ${directionClass}">${escapeHtml(directionLabel)}</div>` : ""}
         <div class="dashboard-notif-card-heading">
           <h3 class="dashboard-notif-card-title">${escapeHtml(row.title || row.notification_type || "Notification")}</h3>
           <span class="dashboard-priority-pill priority-${priorityClass}">${escapeHtml(row.priority || "Normal")}</span>
