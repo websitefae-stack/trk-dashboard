@@ -26,6 +26,7 @@ same recalculation twice.
 """
 
 import frappe
+from frappe import _
 
 PARENT_CHECKIN_ITEM = "PAR001"
 USED_CUSTOM_STATUSES = ["Attended", "No Show"]
@@ -322,3 +323,260 @@ def _recalculate_one_event(event, balance, session_index, total_purchased):
             usage.insert(ignore_permissions=True)
 
         frappe.db.set_value("Client Appointment", appointment_name, "usage_consumed", 1, update_modified=False)
+
+
+# ─────────────────────────────────────────────────────────────
+# Delete cascade - Event <-> Client Appointment
+# ─────────────────────────────────────────────────────────────
+#
+# calendar.delete_session() (the dashboard's own "delete this appointment"
+# action) has only ever removed the Event itself. Its Client Appointment
+# mirror record (built by _recalculate_one_event above) was left behind
+# with linked_event pointing at a Sales-Invoice/package-bearing record that
+# no longer exists, and the Client Package Balance it was counted against
+# never got told the session was gone - qty_booked/qty_available stayed
+# stale. That's the exact "APT-2026-00163 references EV00198 which no
+# longer exists" pattern.
+#
+# The two on_trash hooks below make deletion work in both directions
+# without looping into each other: deleting an Event cascades to its
+# Client Appointment, and deleting a Client Appointment directly (e.g. from
+# the Frappe desk) cascades to its Event. _dashboard_event_trash_in_progress
+# is how each side knows not to re-trigger the other once one side has
+# already started the cascade.
+
+def handle_event_trash(doc, method=None):
+    appointment_name = doc.get("custom_client_appointment")
+    balance_name = doc.get("custom_client_package_balance")
+    client_name = doc.get("custom_client")
+
+    if appointment_name and frappe.db.exists("Client Appointment", appointment_name):
+        in_progress = frappe.local.flags.setdefault("dashboard_event_trash_in_progress", set())
+        in_progress.add(doc.name)
+        try:
+            frappe.delete_doc("Client Appointment", appointment_name, ignore_permissions=True, force=True)
+        except Exception:
+            frappe.log_error(
+                frappe.get_traceback(), f"Delete Client Appointment on Event trash - {appointment_name}"
+            )
+
+    if not balance_name and not client_name:
+        return
+
+    try:
+        frappe.enqueue(
+            "dashboard.api.shared.packages.recalculate_client_package_balance_job",
+            queue="long",
+            timeout=600,
+            enqueue_after_commit=True,
+            event_client_package_balance=balance_name,
+            event_client=client_name,
+        )
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Recalculate Client Package Balance on Event trash - {doc.name}")
+
+
+def handle_client_appointment_trash(doc, method=None):
+    event_name = doc.get("linked_event")
+    if not event_name:
+        return
+
+    in_progress = frappe.local.flags.get("dashboard_event_trash_in_progress") or set()
+    if event_name in in_progress:
+        return
+
+    if frappe.db.exists("Event", event_name):
+        try:
+            frappe.delete_doc("Event", event_name, ignore_permissions=True, force=True)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"Delete Event on Client Appointment trash - {event_name}")
+
+
+# ─────────────────────────────────────────────────────────────
+# Integrity diagnostics / repair
+# ─────────────────────────────────────────────────────────────
+
+# Only these two types ever carry a Client Package Balance - any other
+# appointment type (School Visit, Personal, Internal Training, Holiday,
+# ...) is *supposed* to have no client/package link at all, so it must
+# never be flagged as an "orphan" just for lacking one.
+_PACKAGE_ELIGIBLE_SESSION_TYPES = ["Therapy Session", "Parent Check-In"]
+
+REPORTS_USER = "office@theresilienthub.co.uk"
+
+
+def _ensure_reports_access():
+    # Restricted to the office account specifically (the Reports section on
+    # the franchisor dashboard is only shown to that login), not every
+    # System Manager - kept as an OR so a real System Manager can still
+    # call these directly (desk API explorer, bench console) for support.
+    if frappe.session.user == REPORTS_USER:
+        return
+
+    if "System Manager" in frappe.get_roles(frappe.session.user):
+        return
+
+    frappe.throw(_("You do not have permission to run this report."), frappe.PermissionError)
+
+
+def _event_session_type(event_row):
+    return (event_row.get("custom_appointment_type") or event_row.get("custom_item") or "").strip()
+
+
+@frappe.whitelist()
+def get_appointment_integrity_report():
+    """
+    Read-only. Reports, but never changes, anything - safe to run any time.
+    Use repair_duplicate_client_session_events() to actually act on the
+    "duplicate_events" section.
+    """
+    _ensure_reports_access()
+
+    report = {
+        "orphan_client_appointments": [],
+        "broken_event_appointment_links": [],
+        "orphan_client_session_events": [],
+        "duplicate_events": [],
+        "duplicate_client_appointments": [],
+    }
+
+    for appt in frappe.get_all(
+        "Client Appointment",
+        fields=["name", "linked_event", "client", "appointment_start"],
+    ):
+        if appt.linked_event and not frappe.db.exists("Event", appt.linked_event):
+            report["orphan_client_appointments"].append(appt)
+
+    events_with_appointment = frappe.get_all(
+        "Event",
+        filters={"custom_client_appointment": ["is", "set"]},
+        fields=["name", "custom_client_appointment", "custom_client", "starts_on"],
+    )
+    for event in events_with_appointment:
+        if not frappe.db.exists("Client Appointment", event.custom_client_appointment):
+            report["broken_event_appointment_links"].append(event)
+
+    session_events = frappe.get_all(
+        "Event",
+        fields=[
+            "name", "subject", "starts_on", "custom_client", "custom_client_package_balance",
+            "custom_client_appointment", "custom_appointment_type", "custom_item",
+            "custom_appointment_status", "status",
+        ],
+        limit_page_length=20000,
+    )
+
+    by_client_time = {}
+
+    for event in session_events:
+        is_cancelled = (
+            (event.get("custom_appointment_status") or "") in CANCELLED_CUSTOM_STATUSES
+            or (event.get("status") or "") in CANCELLED_EVENT_STATUSES
+        )
+        if is_cancelled:
+            continue
+
+        session_type = _event_session_type(event)
+        has_any_link = bool(
+            event.get("custom_client")
+            or event.get("custom_client_package_balance")
+            or event.get("custom_client_appointment")
+        )
+
+        if session_type in _PACKAGE_ELIGIBLE_SESSION_TYPES and not has_any_link:
+            report["orphan_client_session_events"].append(event)
+
+        if event.get("custom_client") and event.get("starts_on"):
+            key = (event.get("custom_client"), str(event.get("starts_on")))
+            by_client_time.setdefault(key, []).append(event)
+
+    for (client, starts_on), events in by_client_time.items():
+        if len(events) > 1:
+            report["duplicate_events"].append({
+                "client": client,
+                "starts_on": starts_on,
+                "events": events,
+            })
+
+    balance_session_counts = {}
+    for appt in frappe.get_all(
+        "Client Appointment",
+        filters={"client_package_balance": ["is", "set"]},
+        fields=["name", "client_package_balance", "session_number", "status"],
+    ):
+        if appt.status in CANCELLED_CUSTOM_STATUSES:
+            continue
+        key = (appt.client_package_balance, appt.session_number)
+        balance_session_counts.setdefault(key, []).append(appt)
+
+    for (balance, session_number), appointments in balance_session_counts.items():
+        if len(appointments) > 1:
+            report["duplicate_client_appointments"].append({
+                "client_package_balance": balance,
+                "session_number": session_number,
+                "appointments": appointments,
+            })
+
+    report["summary"] = {
+        "orphan_client_appointments": len(report["orphan_client_appointments"]),
+        "broken_event_appointment_links": len(report["broken_event_appointment_links"]),
+        "orphan_client_session_events": len(report["orphan_client_session_events"]),
+        "duplicate_event_groups": len(report["duplicate_events"]),
+        "duplicate_client_appointment_groups": len(report["duplicate_client_appointments"]),
+    }
+
+    return report
+
+
+@frappe.whitelist()
+def repair_duplicate_client_session_events(confirm=0):
+    """
+    Only ever acts on the confident case: 2+ non-cancelled Events sharing
+    the same client AND the exact same start time. Keeps whichever one
+    already has a Client Appointment linked (or, if none/several do, the
+    oldest by creation) and deletes the rest via the same delete_session()
+    path the dashboard itself uses, so the on_trash cascade above cleans up
+    each duplicate's own Client Appointment/package balance correctly too.
+
+    Orphan events with no client at all are deliberately NOT touched here -
+    there's no reliable way to know which (if any) real appointment an
+    unlinked event duplicates without a client to match it against. Those
+    stay in the report for manual review.
+
+    confirm=0 (default): dry run, reports what WOULD be deleted.
+    confirm=1: actually deletes.
+    """
+    _ensure_reports_access()
+
+    confirm = int(confirm or 0)
+
+    report = get_appointment_integrity_report()
+    deleted = []
+    kept = []
+
+    for group in report["duplicate_events"]:
+        events = sorted(
+            group["events"],
+            key=lambda ev: (0 if ev.get("custom_client_appointment") else 1, ev.get("name")),
+        )
+        keeper = events[0]
+        kept.append(keeper.get("name"))
+
+        for duplicate in events[1:]:
+            deleted.append(duplicate.get("name"))
+            if confirm:
+                try:
+                    frappe.delete_doc("Event", duplicate.get("name"), ignore_permissions=True, force=True)
+                except Exception:
+                    frappe.log_error(
+                        frappe.get_traceback(), f"Repair Duplicate Events - delete {duplicate.get('name')}"
+                    )
+
+    if confirm:
+        frappe.db.commit()
+
+    return {
+        "confirmed": bool(confirm),
+        "kept": kept,
+        "duplicate_event_names": deleted,
+    }

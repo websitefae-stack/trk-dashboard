@@ -67,6 +67,13 @@
             <span>Invoices</span>
         </a>
 
+        {% if frappe.session.user == "office@theresilienthub.co.uk" %}
+        <a href="/franchisor_db/reports" class="{% if active_page == 'reports' %}is-active{% endif %}">
+            <span class="dashboard-nav-icon">🩺</span>
+            <span>Reports</span>
+        </a>
+        {% endif %}
+
         <a href="/franchisor_db/profile" class="{% if active_page == 'profile' %}is-active{% endif %}">
             <span class="dashboard-nav-icon">⚙️</span>
             <span>Profile</span>
