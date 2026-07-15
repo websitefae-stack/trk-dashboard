@@ -109,6 +109,22 @@
   "company_city",
   "company_postalcode",
   "company_support_required",
+  "section_break_family",
+  "family_first",
+  "family_last",
+  "family_email",
+  "family_mobile",
+  "column_break_family",
+  "family_address",
+  "family_city",
+  "family_zip",
+  "section_break_family_notes",
+  "family_dr",
+  "family_get",
+  "family_tried",
+  "column_break_family_notes",
+  "family_siblings",
+  "family_challenge",
   "section_break_billing_contact",
   "billing_contact_full_name",
   "billing_contact_email",
@@ -307,7 +323,7 @@
    "fieldname": "client_type",
    "fieldtype": "Select",
    "label": "Who Is This Enquiry For?",
-   "options": "Kid\nTeen\nUni Student\nAdult\nSchool\nCompany"
+   "options": "Kid\nTeen\nUni Student\nAdult\nSchool\nCompany\nFamily Session"
   },
   {
    "fieldname": "section_break_young_person",
@@ -432,6 +448,38 @@
   {"fieldname": "company_city", "fieldtype": "Data", "label": "Company City"},
   {"fieldname": "company_postalcode", "fieldtype": "Data", "label": "Company Postal Code"},
   {"fieldname": "company_support_required", "fieldtype": "Small Text", "label": "What Support Are You Interested In?"},
+  {
+   "fieldname": "section_break_family",
+   "fieldtype": "Section Break",
+   "label": "Family Session Details",
+   "depends_on": "eval:doc.client_type==\"Family Session\""
+  },
+  {"fieldname": "family_first", "fieldtype": "Data", "label": "First Name"},
+  {"fieldname": "family_last", "fieldtype": "Data", "label": "Last Name"},
+  {"fieldname": "family_email", "fieldtype": "Data", "label": "Email", "options": "Email"},
+  {"fieldname": "family_mobile", "fieldtype": "Data", "label": "Mobile"},
+  {
+   "fieldname": "column_break_family",
+   "fieldtype": "Column Break"
+  },
+  {"fieldname": "family_address", "fieldtype": "Data", "label": "Address Line 1"},
+  {"fieldname": "family_city", "fieldtype": "Data", "label": "City"},
+  {"fieldname": "family_zip", "fieldtype": "Data", "label": "Postal Code"},
+  {
+   "fieldname": "section_break_family_notes",
+   "fieldtype": "Section Break",
+   "label": "Family Session Notes",
+   "depends_on": "eval:doc.client_type==\"Family Session\""
+  },
+  {"fieldname": "family_dr", "fieldtype": "Small Text", "label": "GP / Doctor Details"},
+  {"fieldname": "family_get", "fieldtype": "Small Text", "label": "What Would You Like To Get From Sessions?"},
+  {"fieldname": "family_tried", "fieldtype": "Small Text", "label": "What Have You Tried Already?"},
+  {
+   "fieldname": "column_break_family_notes",
+   "fieldtype": "Column Break"
+  },
+  {"fieldname": "family_siblings", "fieldtype": "Small Text", "label": "Names and Ages of Siblings"},
+  {"fieldname": "family_challenge", "fieldtype": "Small Text", "label": "Main Challenges"},
   {
    "fieldname": "section_break_billing_contact",
    "fieldtype": "Section Break",
