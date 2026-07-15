@@ -29,6 +29,7 @@
           <th>Status</th>
           <th>Invoice Amount</th>
           <th>Outstanding</th>
+          <th>Sent</th>
           <th class="dashboard-text-right">Action</th>
         </tr>
       </thead>
@@ -69,6 +70,8 @@
                 {{ frappe.format_value(inv.outstanding_amount, {"fieldtype": "Currency", "options": inv.currency}) }}
               </td>
 
+              <td>{{ inv.sent_on_display or "—" }}</td>
+
               <td class="dashboard-text-right">
                 <a
                   class="dashboard-link-btn"
@@ -92,7 +95,7 @@
           {% endfor %}
         {% else %}
           <tr>
-            <td colspan="7" class="dashboard-empty">No invoices found.</td>
+            <td colspan="8" class="dashboard-empty">No invoices found.</td>
           </tr>
         {% endif %}
       </tbody>
