@@ -150,6 +150,17 @@
       },
     });
 
+    // Editing partway into an already-filled date (e.g. clicking between
+    // the "1" and "0" of "10" to fix just the month) inserts a digit into
+    // the middle of the existing string rather than replacing it -
+    // formatWhileTyping() then re-slices ALL the digits including the ones
+    // that were never meant to move, which can scramble the day/month/year
+    // into something that isn't the date anyone typed. Selecting the whole
+    // value on focus means any typing starts fresh instead.
+    textInput.addEventListener("focus", function () {
+      textInput.select();
+    });
+
     textInput.addEventListener("input", function () {
       const caretWasAtEnd = textInput.selectionStart === textInput.value.length;
       textInput.value = formatWhileTyping(textInput.value);
