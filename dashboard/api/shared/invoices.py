@@ -1,7 +1,7 @@
 import json
 import frappe
 from frappe import _
-from frappe.utils import nowdate, flt
+from frappe.utils import nowdate, flt, now_datetime
 
 from dashboard.api.shared.pagination import get_page_args, make_pagination
 from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, parse_email_list, INVOICE_EMAIL_TEMPLATE
@@ -618,7 +618,7 @@ def _get_invoice_fields():
 
     meta = frappe.get_meta("Sales Invoice")
 
-    for fieldname in ["custom_created_by_coach", "custom_income_owner_coach"]:
+    for fieldname in ["custom_created_by_coach", "custom_income_owner_coach", "custom_invoice_sent_on"]:
         if meta.has_field(fieldname):
             fields.append(fieldname)
 
@@ -642,12 +642,15 @@ def _normalise_invoice_row(row, client_map, dashboard_type):
     base_url = "/franchisor_db/invoice_details" if dashboard_type == FRANCHISOR_DASHBOARD else "/coach_db/invoice_details"
 
     posting_date = row.get("posting_date")
+    sent_on = row.get("custom_invoice_sent_on")
 
     return {
         "name": row.get("name"),
         "posting_date": str(posting_date or ""),
         "posting_date_display": frappe.utils.formatdate(posting_date, "dd-MM-yyyy") if posting_date else "—",
         "due_date": str(row.get("due_date") or ""),
+        "sent_on": str(sent_on or ""),
+        "sent_on_display": frappe.utils.format_datetime(sent_on, "dd-MM-yyyy") if sent_on else "—",
         "custom_client": client_name or "",
         "client_name": (
             _client_display_from_row(client_row) if client_row
@@ -1920,6 +1923,13 @@ def send_invoice_email(docname, recipient=None, reply_to=None, subject=None, mes
         kwargs["sender"] = sender
 
     frappe.sendmail(**kwargs)
+
+    # Overwritten (not appended to) on every send, deliberately - the "Sent"
+    # column always reflects the most recent time this invoice actually
+    # went out, including resends.
+    if doc.meta.has_field("custom_invoice_sent_on"):
+        frappe.db.set_value("Sales Invoice", doc.name, "custom_invoice_sent_on", now_datetime())
+        frappe.db.commit()
 
     return {"ok": 1}
 

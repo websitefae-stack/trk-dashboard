@@ -150,6 +150,28 @@
       },
     });
 
+    // Editing partway into an already-filled date (e.g. clicking between
+    // the "1" and "0" of "10" to fix just the month) inserts a digit into
+    // the middle of the existing string rather than replacing it -
+    // formatWhileTyping() then re-slices ALL the digits including the ones
+    // that were never meant to move, which can scramble the day/month/year
+    // into something that isn't the date anyone typed. Selecting the whole
+    // value on focus means any typing starts fresh instead.
+    textInput.addEventListener("focus", function () {
+      textInput.select();
+    });
+
+    // Typing a date by hand is how the dd/mm/yyyy scramble bug above
+    // happened in the first place - clicking into the field now opens the
+    // real calendar picker straight away (same as clicking the 📅 button),
+    // so picking a date is the natural first thing that happens rather
+    // than something only found by noticing the small trigger button.
+    // Typing is still fully possible - the picker doesn't block the field.
+    textInput.addEventListener("click", function () {
+      if (nativeInput.disabled || nativeInput.readOnly) return;
+      openNativePicker(nativeInput);
+    });
+
     textInput.addEventListener("input", function () {
       const caretWasAtEnd = textInput.selectionStart === textInput.value.length;
       textInput.value = formatWhileTyping(textInput.value);

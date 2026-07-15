@@ -1848,6 +1848,8 @@ def send_dashboard_notification(
             priority=priority,
             subject=subject,
             due_date=_coalesce_str("due_date", due_date),
+            linked_client=_coalesce_str("linked_client", linked_client),
+            linked_event=_coalesce_str("linked_event", linked_event),
         )
 
     recipient_users = _normalise_recipient_users(_coalesce_raw("recipient_users", recipient_users))
@@ -1974,6 +1976,8 @@ def _send_legacy_notification(
     priority="Normal",
     subject=None,
     due_date=None,
+    linked_client=None,
+    linked_event=None,
 ):
     recipient_users = _normalise_recipient_users(recipient_users)
 
@@ -2018,14 +2022,25 @@ def _send_legacy_notification(
         # builds a "view record" link from document_type/document_name
         # (get_url_to_form -> slug()), which crashes with
         # "'NoneType' object has no attribute 'lower'" if both are left
-        # blank - this legacy broadcast notification has no specific
-        # record to link to, so point it at the recipient's own User
-        # record instead of leaving it unset.
+        # blank. Notification Log only has room for one such link, so a
+        # linked client takes priority (that's what _format_notification_log()
+        # reads to show "Linked Client" on the detail page - dropping it
+        # here silently was why a coach's note about a client kept arriving
+        # with no client attached, even though they'd picked one), then a
+        # linked event, and only falls back to the recipient's own User
+        # record when this notification has no specific record to link to.
+        if linked_client and frappe.db.exists("Client", linked_client):
+            link_doctype, link_name = "Client", linked_client
+        elif linked_event and frappe.db.exists("Event", linked_event):
+            link_doctype, link_name = "Event", linked_event
+        else:
+            link_doctype, link_name = "User", recipient_user
+
         if _field_exists(NOTIFICATION_DOCTYPE, "document_type"):
-            doc_data["document_type"] = "User"
+            doc_data["document_type"] = link_doctype
 
         if _field_exists(NOTIFICATION_DOCTYPE, "document_name"):
-            doc_data["document_name"] = recipient_user
+            doc_data["document_name"] = link_name
 
         # Drives the Notifications Kanban board (New / In Progress / Past
         # Due / Archived) - see _format_notification_log(). custom_due_date
@@ -2125,13 +2140,24 @@ def create_trk_notification(
     # Same crash guard as _send_legacy_notification() above - Frappe's own
     # after_insert hook needs document_type/document_name to both be set
     # to something real, or get_url_to_form() throws building the email
-    # link. Fall back to the recipient's own User record when no specific
-    # reference was given.
+    # link. Prefer an explicit reference, then fall back to the client/
+    # event passed in directly (matching the conversation-enabled branch
+    # above, which already honours client/event this way), and only fall
+    # back to the recipient's own User record when none of those exist.
+    if reference_doctype and reference_name:
+        link_doctype, link_name = reference_doctype, reference_name
+    elif client:
+        link_doctype, link_name = "Client", client
+    elif event:
+        link_doctype, link_name = "Event", event
+    else:
+        link_doctype, link_name = "User", recipient_user
+
     if _field_exists(NOTIFICATION_DOCTYPE, "document_type"):
-        doc_data["document_type"] = reference_doctype or "User"
+        doc_data["document_type"] = link_doctype
 
     if _field_exists(NOTIFICATION_DOCTYPE, "document_name"):
-        doc_data["document_name"] = reference_name or recipient_user
+        doc_data["document_name"] = link_name
 
     doc = frappe.get_doc(doc_data)
     doc.insert(ignore_permissions=True)

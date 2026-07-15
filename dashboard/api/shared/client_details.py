@@ -1084,19 +1084,24 @@ def get_client_invoices(client_name):
         if coach_name:
             filters["custom_income_owner_coach"] = coach_name
 
+    invoice_fields = [
+        "name",
+        "posting_date",
+        "due_date",
+        "customer",
+        "grand_total",
+        "outstanding_amount",
+        "status",
+        "docstatus",
+    ]
+
+    if invoice_meta.has_field("custom_invoice_sent_on"):
+        invoice_fields.append("custom_invoice_sent_on")
+
     return frappe.get_all(
         "Sales Invoice",
         filters=filters,
-        fields=[
-            "name",
-            "posting_date",
-            "due_date",
-            "customer",
-            "grand_total",
-            "outstanding_amount",
-            "status",
-            "docstatus",
-        ],
+        fields=invoice_fields,
         order_by="posting_date desc, creation desc",
         limit_page_length=500,
         ignore_permissions=True,

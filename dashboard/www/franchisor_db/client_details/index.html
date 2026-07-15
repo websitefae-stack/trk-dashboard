@@ -517,6 +517,7 @@
                           <th>Status</th>
                           <th>Total</th>
                           <th>Owed</th>
+                          <th>Sent</th>
                           <th class="dashboard-action-col">Action</th>
                         </tr>
                       </thead>
@@ -535,6 +536,7 @@
                               <td>{{ invoice.status or "—" }}</td>
                               <td>{{ frappe.format_value(invoice.grand_total or 0, {"fieldtype": "Currency"}) }}</td>
                               <td>{{ frappe.format_value(invoice.outstanding_amount or 0, {"fieldtype": "Currency"}) }}</td>
+                              <td>{{ frappe.utils.format_datetime(invoice.custom_invoice_sent_on, "dd-MM-yyyy") if invoice.custom_invoice_sent_on else "—" }}</td>
                               <td class="dashboard-action-cell">
                                 <a class="dashboard-link-btn" href="/franchisor_db/invoice_details?name={{ invoice.name }}">View</a>
                               </td>
@@ -542,7 +544,7 @@
                           {% endfor %}
                         {% else %}
                           <tr>
-                            <td colspan="7" class="dashboard-empty">No invoices found.</td>
+                            <td colspan="8" class="dashboard-empty">No invoices found.</td>
                           </tr>
                         {% endif %}
                       </tbody>
