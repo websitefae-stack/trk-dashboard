@@ -552,7 +552,6 @@
                         <tr>
                           <th>Invoice</th>
                           <th>Date</th>
-                          <th>Due Date</th>
                           <th>Status</th>
                           <th>Total</th>
                           <th>Owed</th>
@@ -571,7 +570,6 @@
                                 </a>
                               </td>
                               <td>{{ frappe.utils.formatdate(invoice.posting_date, "dd-MM-yyyy") if invoice.posting_date else "—" }}</td>
-                              <td>{{ frappe.utils.formatdate(invoice.due_date, "dd-MM-yyyy") if invoice.due_date else "—" }}</td>
                               <td>{{ invoice.status or "—" }}</td>
                               <td>{{ frappe.format_value(invoice.grand_total or 0, {"fieldtype": "Currency"}) }}</td>
                               <td>{{ frappe.format_value(invoice.outstanding_amount or 0, {"fieldtype": "Currency"}) }}</td>
@@ -583,7 +581,7 @@
                           {% endfor %}
                         {% else %}
                           <tr>
-                            <td colspan="8" class="dashboard-empty">No invoices found.</td>
+                            <td colspan="7" class="dashboard-empty">No invoices found.</td>
                           </tr>
                         {% endif %}
                       </tbody>
