@@ -26,6 +26,7 @@ same recalculation twice.
 """
 
 import frappe
+from frappe import _
 
 PARENT_CHECKIN_ITEM = "PAR001"
 USED_CUSTOM_STATUSES = ["Attended", "No Show"]
@@ -401,6 +402,22 @@ def handle_client_appointment_trash(doc, method=None):
 # never be flagged as an "orphan" just for lacking one.
 _PACKAGE_ELIGIBLE_SESSION_TYPES = ["Therapy Session", "Parent Check-In"]
 
+REPORTS_USER = "office@theresilienthub.co.uk"
+
+
+def _ensure_reports_access():
+    # Restricted to the office account specifically (the Reports section on
+    # the franchisor dashboard is only shown to that login), not every
+    # System Manager - kept as an OR so a real System Manager can still
+    # call these directly (desk API explorer, bench console) for support.
+    if frappe.session.user == REPORTS_USER:
+        return
+
+    if "System Manager" in frappe.get_roles(frappe.session.user):
+        return
+
+    frappe.throw(_("You do not have permission to run this report."), frappe.PermissionError)
+
 
 def _event_session_type(event_row):
     return (event_row.get("custom_appointment_type") or event_row.get("custom_item") or "").strip()
@@ -413,7 +430,7 @@ def get_appointment_integrity_report():
     Use repair_duplicate_client_session_events() to actually act on the
     "duplicate_events" section.
     """
-    frappe.only_for("System Manager")
+    _ensure_reports_access()
 
     report = {
         "orphan_client_appointments": [],
@@ -529,7 +546,7 @@ def repair_duplicate_client_session_events(confirm=0):
     confirm=0 (default): dry run, reports what WOULD be deleted.
     confirm=1: actually deletes.
     """
-    frappe.only_for("System Manager")
+    _ensure_reports_access()
 
     confirm = int(confirm or 0)
 

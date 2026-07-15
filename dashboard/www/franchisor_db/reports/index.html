@@ -1,0 +1,55 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Reports</h1>
+          <p class="dashboard-page-subtitle">Diagnostic tools for the calendar/appointment bookkeeping system.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-card" style="margin-bottom:20px;">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Appointment Integrity Report</h2>
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="runIntegrityReportBtn">Run Report</button>
+        </div>
+
+        <p class="dashboard-help" style="margin-bottom:16px;">
+          Read-only - checks every Event and Client Appointment for orphaned records, broken links, and
+          duplicates. Nothing on this site is changed by running it.
+        </p>
+
+        <div id="integrityReportEmpty" class="dashboard-empty">Run the report to see results.</div>
+        <div id="integrityReportResults" style="display:none;"></div>
+      </div>
+
+      <div class="dashboard-card" id="repairSection" style="display:none;">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Repair Duplicate Events</h2>
+        </div>
+
+        <p class="dashboard-help" style="margin-bottom:16px;">
+          Only acts on the confident case: two or more non-cancelled Events for the exact same client at the
+          exact same start time. The one already linked to a Client Appointment (or the oldest, if neither is)
+          is kept - the rest are deleted the same way "Delete" on the calendar itself does, so Google Calendar
+          and package balances are cleaned up correctly too.
+        </p>
+
+        <div class="dashboard-detail-actions" style="margin-bottom:16px;">
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="previewRepairBtn">Preview (no changes made)</button>
+          <button type="button" class="dashboard-btn dashboard-btn-danger" id="confirmRepairBtn" style="display:none;">
+            Confirm Delete
+          </button>
+        </div>
+
+        <div id="repairResults"></div>
+      </div>
+    </div>
+  </div>
+</div>
