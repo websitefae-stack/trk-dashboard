@@ -7,7 +7,7 @@
 
   const TRAVEL_ITEM_CODE = "TRA002";
   const FREE_MILES_ONE_WAY = 10;
-  const TRAVEL_RATE_PER_MILE = 0.45;
+  const TRAVEL_RATE_PER_MILE = 0.55;
 
   var el = Dashboard.el;
   var qsa = Dashboard.qsa;
