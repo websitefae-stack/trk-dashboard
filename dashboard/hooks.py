@@ -56,6 +56,18 @@ doc_events = {
             "dashboard.api.shared.calendar.share_event_with_admins",
             "dashboard.api.shared.packages.recalculate_client_package_balance",
         ],
+        # Deleting an appointment (calendar.delete_session(), or a raw
+        # desk delete) used to leave its Client Appointment bookkeeping
+        # record behind pointing at an Event that no longer exists, and
+        # never told the Client Package Balance a session was freed up.
+        # See packages.py's "Delete cascade" section.
+        "on_trash": "dashboard.api.shared.packages.handle_event_trash",
+    },
+    # Same cascade in the other direction - deleting the bookkeeping
+    # record directly (e.g. from the Frappe desk) must not leave its
+    # Event stranded on the calendar.
+    "Client Appointment": {
+        "on_trash": "dashboard.api.shared.packages.handle_client_appointment_trash",
     },
     # Intake Doctype is the real "client intake" Web Form, built and owned
     # directly in Frappe Desk (not part of this app) - these fire on every
