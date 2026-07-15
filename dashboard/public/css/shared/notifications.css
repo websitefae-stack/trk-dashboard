@@ -539,6 +539,24 @@
   font-size: 13px;
 }
 
+.dashboard-notif-column-more-btn {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 10px;
+  border: 1px dashed #A9C4C4;
+  border-radius: 10px;
+  background: transparent;
+  color: #007274;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dashboard-notif-column-more-btn:hover {
+  background: rgba(0, 161, 158, 0.08);
+}
+
 .dashboard-notif-card {
   display: block;
   padding: 12px;

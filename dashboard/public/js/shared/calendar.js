@@ -1373,6 +1373,8 @@
     const eventName = getValue("trkEditEventName");
     const bookingDate = getValue("trkEditDate");
     const bookingTime = getValue("trkEditTime");
+    const originalEvent = getEventByName(eventName);
+    const dateChanged = !!(originalEvent && originalEvent.date && originalEvent.date !== bookingDate);
     const status = getValue("trkEditStatus");
     const appointmentType = getValue("trkEditType");
 
@@ -1419,7 +1421,18 @@
     }).then(function () {
       setButtonLoading("trkCalendarEditSaveBtn", false, "Save Changes");
       closeEditModal();
-      showToast("Session updated");
+
+      // A date change can move the session outside the week/day currently
+      // on screen - the reload below won't show it there, so say exactly
+      // where it went instead of a generic "updated" that leaves it
+      // looking like it vanished.
+      if (dateChanged) {
+        showToast("Session updated - moved to " + formatLongDisplayDate(bookingDate));
+        state.currentDate = parseDateKey(bookingDate) || state.currentDate;
+      } else {
+        showToast("Session updated");
+      }
+
       loadCalendarData();
     }).catch(function (error) {
       console.error("Update session failed:", error);

@@ -1033,7 +1033,54 @@ def _find_calendar_conflict(event_start, event_end, dashboard_type, context):
     )
 
     return existing[0] if existing else None
-    
+
+
+_DUPLICATE_BOOKING_WINDOW_MINUTES = 60
+
+
+def _find_recent_duplicate_booking(event_start, owner_user, identity_text):
+    """
+    Catches a whole recurring series being submitted twice in a row - e.g.
+    the coach isn't sure the first save actually went through (a slow
+    multi-occurrence save, a confusing conflict prompt, a page reload) and
+    resubmits the identical booking from scratch. Each submission passes
+    its own upfront per-occurrence conflict check fine (it's checking
+    against *other* appointments, not against itself), so nothing before
+    this ever caught a person duplicating their own just-created series -
+    that's how the same school visits kept turning up as two, sometimes
+    three, complete sets of Events.
+
+    Only looks at the very first occurrence's exact start time - if that
+    matches something created moments ago by the same owner with a
+    matching subject, the rest of the series is almost certainly the same
+    resubmission, not worth checking occurrence-by-occurrence.
+    """
+    if not identity_text:
+        return None
+
+    cutoff = add_to_date(now_datetime(), minutes=-_DUPLICATE_BOOKING_WINDOW_MINUTES)
+
+    rows = frappe.get_all(
+        "Event",
+        fields=["name", "subject"],
+        filters=[
+            ["Event", "starts_on", "=", event_start],
+            ["Event", "owner", "=", owner_user],
+            ["Event", "creation", ">=", cutoff],
+        ],
+        limit_page_length=5,
+        ignore_permissions=True,
+    )
+
+    identity_text = identity_text.strip().lower()
+
+    for row in rows:
+        if identity_text in (row.get("subject") or "").strip().lower():
+            return row
+
+    return None
+
+
 def _create_or_update_initial_consultation_lead(lead_name, phone=None, notes=None):
     if not frappe.db.exists("DocType", "Lead"):
         return ""
@@ -2297,6 +2344,26 @@ def _create_booking_impl(
             index, start_dt, end_dt, recurring_frequency, duration_minutes, occurrence_overrides
         )
 
+    calendar_owner = context.get("view_as_user") or frappe.session.user
+
+    # A resubmission of the exact same series looks, to the ordinary
+    # conflict check below, like any other double-booking - and
+    # allow_double_booking (clicking "Book Anyway" on that warning) was
+    # letting people click straight through their own accidental
+    # resubmission, silently creating a second full set of the same
+    # recurring booking. This check is deliberately NOT affected by
+    # allow_double_booking - unlike a genuine clash with an unrelated
+    # appointment, "you already created this exact thing a moment ago"
+    # should never be something a stray click bypasses.
+    first_start, _ = _occurrence_window(0)
+    duplicate_identity = (client_name or school_name or school_manual_name or item_name or lead_name or "").strip()
+    duplicate = _find_recent_duplicate_booking(first_start, calendar_owner, duplicate_identity)
+    if duplicate:
+        frappe.throw(_(
+            "This looks like it was already booked recently: {0} "
+            "(starting {1}). If this isn't a duplicate, please wait a moment and try again."
+        ).format(duplicate.get("subject") or duplicate.get("name"), first_start.strftime("%d/%m/%Y %H:%M")))
+
     # Validate every occurrence of a recurring booking for conflicts BEFORE
     # creating any of them, so a doomed series never partially creates
     # occurrences before failing on a later one.
@@ -2359,7 +2426,6 @@ def _create_booking_impl(
             ))
 
         event = frappe.new_doc("Event")
-        calendar_owner = context.get("view_as_user") or frappe.session.user
         event.owner = calendar_owner
 
         # Types with no client attached (School Visit, Company Meeting,
@@ -2538,37 +2604,43 @@ def _create_booking_impl(
 
     _ADDITIONAL_WORKER_TYPES = {"Internal Training", "Company Meeting", "School Visit", "Event / Stall"}
     if additional_workers and appointment_type in _ADDITIONAL_WORKER_TYPES and created_events:
-        primary = created_events[0]
         for worker_value in additional_workers:
             worker_user = _get_user_for_worker_value(worker_value, dashboard_type)
             if not worker_user:
                 continue
-            copy = frappe.new_doc("Event")
-            copy.subject = primary.subject
-            copy.starts_on = primary.starts_on
-            copy.ends_on = primary.ends_on
-            copy.owner = worker_user
-            if _event_has_field("event_type"):
-                copy.event_type = "Private"
-            _set_session_type(copy, appointment_type)
-            if _event_has_field("custom_billing_type"):
-                copy.custom_billing_type = primary.get("custom_billing_type") or "Non-Billable"
-            if _event_has_field("custom_appointment_status"):
-                copy.custom_appointment_status = "Scheduled"
-            elif _event_has_field("appointment_status"):
-                copy.appointment_status = "Open"
-            if _event_has_field("status"):
-                copy.status = "Open"
-            if _event_has_field("location") and primary.get("location"):
-                copy.location = primary.location
-            if _event_has_field("description") and primary.get("description"):
-                copy.description = primary.description
             worker_doctype, worker_name = _get_worker_doctype_and_name_for_user(worker_user)
-            if worker_doctype == "Session Worker" and worker_name and _event_has_field("custom_session_worker"):
-                copy.custom_session_worker = worker_name
-            elif worker_doctype == "Coach" and worker_name and _event_has_field("custom_coach"):
-                copy.custom_coach = worker_name
-            copy.insert(ignore_permissions=True)
+
+            # A recurring booking has one entry in created_events per
+            # occurrence - the additional worker needs a copy of every one
+            # of them, not just the first, or their calendar ends up with
+            # only the initial occurrence while the primary coach has all of
+            # them.
+            for primary in created_events:
+                copy = frappe.new_doc("Event")
+                copy.subject = primary.subject
+                copy.starts_on = primary.starts_on
+                copy.ends_on = primary.ends_on
+                copy.owner = worker_user
+                if _event_has_field("event_type"):
+                    copy.event_type = "Private"
+                _set_session_type(copy, appointment_type)
+                if _event_has_field("custom_billing_type"):
+                    copy.custom_billing_type = primary.get("custom_billing_type") or "Non-Billable"
+                if _event_has_field("custom_appointment_status"):
+                    copy.custom_appointment_status = "Scheduled"
+                elif _event_has_field("appointment_status"):
+                    copy.appointment_status = "Open"
+                if _event_has_field("status"):
+                    copy.status = "Open"
+                if _event_has_field("location") and primary.get("location"):
+                    copy.location = primary.location
+                if _event_has_field("description") and primary.get("description"):
+                    copy.description = primary.description
+                if worker_doctype == "Session Worker" and worker_name and _event_has_field("custom_session_worker"):
+                    copy.custom_session_worker = worker_name
+                elif worker_doctype == "Coach" and worker_name and _event_has_field("custom_coach"):
+                    copy.custom_coach = worker_name
+                copy.insert(ignore_permissions=True)
 
     return {
         "name": created_events[0].name if created_events else "",
