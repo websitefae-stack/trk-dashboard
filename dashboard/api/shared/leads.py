@@ -51,6 +51,8 @@ INTAKE_TEXT_FIELDS = [
     "school_address_line_1", "school_address_line_2", "school_city", "school_postalcode", "school_support_required",
     "company_name", "company_contact_name", "company_contact_role", "company_contact_email", "company_mobile",
     "company_address_line_1", "company_address_line_2", "company_city", "company_postalcode", "company_support_required",
+    "family_first", "family_last", "family_email", "family_mobile", "family_address", "family_city", "family_zip",
+    "family_dr", "family_get", "family_tried", "family_siblings", "family_challenge",
     "billing_contact_full_name", "billing_contact_email", "billing_contact_mobile",
     "billing_contact_address_line_1", "billing_contact_address_line_2", "billing_contact_city", "billing_contact_postal_code",
     "support_required", "allergies", "neurodiverse_status", "neurodiverse_information", "doctor_details",
@@ -703,6 +705,12 @@ def _intake_doctype_display_names(doc):
         if full:
             names.append(full)
 
+    family_first = (doc.get("family_first") or "").strip()
+    family_last = (doc.get("family_last") or "").strip()
+    family_full = " ".join(part for part in [family_first, family_last] if part)
+    if family_full:
+        names.append(family_full)
+
     for fieldname in ("signature_name", "primary_caregiver_full_name"):
         value = (doc.get(fieldname) or "").strip()
         if value:
@@ -820,6 +828,31 @@ def sync_intake_doctype_submission(doc, method=None):
         lead_doc.set(fieldname, value)
         changed = True
 
+    # Family Session: the contact and client are the same person/family,
+    # unlike every other client_type (a parent contacting on behalf of a
+    # young person, a school's admin on behalf of the school, ...), where
+    # they're normally different. contact_name/contact_email/contact_mobile
+    # are what drive Contact creation on conversion regardless of
+    # client_type, so refresh them from the family's own submitted answers
+    # here rather than leaving them as whatever was typed in when this Lead
+    # was first quickly created.
+    if lead_doc.client_type == "Family Session":
+        family_first = (doc.get("family_first") or "").strip()
+        family_last = (doc.get("family_last") or "").strip()
+        family_full_name = " ".join(part for part in [family_first, family_last] if part)
+
+        if family_full_name and lead_meta.has_field("contact_name"):
+            lead_doc.contact_name = family_full_name
+            changed = True
+
+        if doc.get("family_email") and lead_meta.has_field("contact_email"):
+            lead_doc.contact_email = doc.get("family_email")
+            changed = True
+
+        if doc.get("family_mobile") and lead_meta.has_field("contact_mobile"):
+            lead_doc.contact_mobile = doc.get("family_mobile")
+            changed = True
+
     was_already_complete = bool(lead_doc.intake_completed_on)
 
     if changed or not was_already_complete:
@@ -876,6 +909,17 @@ def _format_intake_notes(doc):
         lines.append(f"SENDCO department involved: {doc.sendco_involved}")
     if doc.education_contact:
         lines.append(f"Other education contact: {doc.education_contact}")
+    if doc.family_dr:
+        sent_on = frappe.utils.formatdate(doc.intake_sent_on) if doc.intake_sent_on else "unknown date"
+        lines.append(f"GP / Doctor details: {doc.family_dr} (intake form sent {sent_on})")
+    if doc.family_get:
+        lines.append(f"What they'd like to get from sessions: {doc.family_get}")
+    if doc.family_tried:
+        lines.append(f"What they've already tried: {doc.family_tried}")
+    if doc.family_siblings:
+        lines.append(f"Siblings: {doc.family_siblings}")
+    if doc.family_challenge:
+        lines.append(f"Main challenges: {doc.family_challenge}")
 
     if not lines:
         return ""
@@ -941,6 +985,16 @@ def _client_field_values(doc):
             "address": doc.company_address_line_1,
             "city": doc.company_city,
             "zip_code": doc.company_postalcode,
+        })
+    elif client_type == "Family Session":
+        values.update({
+            "name1": doc.family_first,
+            "last_name": doc.family_last,
+            "email": doc.family_email,
+            "mobile": doc.family_mobile,
+            "address": doc.family_address,
+            "city": doc.family_city,
+            "zip_code": doc.family_zip,
         })
 
     if client_type in ("Kid", "Teen", "Uni Student", "Adult"):
