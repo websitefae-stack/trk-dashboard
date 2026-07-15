@@ -2538,37 +2538,43 @@ def _create_booking_impl(
 
     _ADDITIONAL_WORKER_TYPES = {"Internal Training", "Company Meeting", "School Visit", "Event / Stall"}
     if additional_workers and appointment_type in _ADDITIONAL_WORKER_TYPES and created_events:
-        primary = created_events[0]
         for worker_value in additional_workers:
             worker_user = _get_user_for_worker_value(worker_value, dashboard_type)
             if not worker_user:
                 continue
-            copy = frappe.new_doc("Event")
-            copy.subject = primary.subject
-            copy.starts_on = primary.starts_on
-            copy.ends_on = primary.ends_on
-            copy.owner = worker_user
-            if _event_has_field("event_type"):
-                copy.event_type = "Private"
-            _set_session_type(copy, appointment_type)
-            if _event_has_field("custom_billing_type"):
-                copy.custom_billing_type = primary.get("custom_billing_type") or "Non-Billable"
-            if _event_has_field("custom_appointment_status"):
-                copy.custom_appointment_status = "Scheduled"
-            elif _event_has_field("appointment_status"):
-                copy.appointment_status = "Open"
-            if _event_has_field("status"):
-                copy.status = "Open"
-            if _event_has_field("location") and primary.get("location"):
-                copy.location = primary.location
-            if _event_has_field("description") and primary.get("description"):
-                copy.description = primary.description
             worker_doctype, worker_name = _get_worker_doctype_and_name_for_user(worker_user)
-            if worker_doctype == "Session Worker" and worker_name and _event_has_field("custom_session_worker"):
-                copy.custom_session_worker = worker_name
-            elif worker_doctype == "Coach" and worker_name and _event_has_field("custom_coach"):
-                copy.custom_coach = worker_name
-            copy.insert(ignore_permissions=True)
+
+            # A recurring booking has one entry in created_events per
+            # occurrence - the additional worker needs a copy of every one
+            # of them, not just the first, or their calendar ends up with
+            # only the initial occurrence while the primary coach has all of
+            # them.
+            for primary in created_events:
+                copy = frappe.new_doc("Event")
+                copy.subject = primary.subject
+                copy.starts_on = primary.starts_on
+                copy.ends_on = primary.ends_on
+                copy.owner = worker_user
+                if _event_has_field("event_type"):
+                    copy.event_type = "Private"
+                _set_session_type(copy, appointment_type)
+                if _event_has_field("custom_billing_type"):
+                    copy.custom_billing_type = primary.get("custom_billing_type") or "Non-Billable"
+                if _event_has_field("custom_appointment_status"):
+                    copy.custom_appointment_status = "Scheduled"
+                elif _event_has_field("appointment_status"):
+                    copy.appointment_status = "Open"
+                if _event_has_field("status"):
+                    copy.status = "Open"
+                if _event_has_field("location") and primary.get("location"):
+                    copy.location = primary.location
+                if _event_has_field("description") and primary.get("description"):
+                    copy.description = primary.description
+                if worker_doctype == "Session Worker" and worker_name and _event_has_field("custom_session_worker"):
+                    copy.custom_session_worker = worker_name
+                elif worker_doctype == "Coach" and worker_name and _event_has_field("custom_coach"):
+                    copy.custom_coach = worker_name
+                copy.insert(ignore_permissions=True)
 
     return {
         "name": created_events[0].name if created_events else "",
