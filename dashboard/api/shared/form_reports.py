@@ -1,10 +1,12 @@
 """
 "Forms" report for the Reports section: Intake Forms (Client Lead's
-intake questionnaire) and Feedback Forms (Client session notes logged as
-"Parent Feedback"), scoped the same way every other list in this app is -
-coaches see their own, franchisors see everyone's. Both are read-only
-summaries that link out to the existing lead/client detail pages rather
-than duplicating their full answer/notes rendering here.
+intake questionnaire) plus every DocType in the site's "Forms" module
+(Desk-built feedback/survey forms, discovered from Frappe's own DocType
+metadata rather than a hardcoded list - see get_form_module_doctypes()).
+Scoped the same way every other list in this app is - coaches see their
+own, franchisors see everyone's. Read-only summaries that link out to the
+existing lead/client detail pages rather than duplicating their full
+answer rendering here.
 """
 
 import frappe
@@ -15,6 +17,7 @@ from dashboard.api.shared.permissions import (
     is_franchisor_user,
     get_current_coach_name,
     get_allowed_client_names,
+    CLIENT_DOCTYPE,
 )
 from dashboard.api.shared.leads import (
     LEAD_DOCTYPE,
@@ -24,8 +27,13 @@ from dashboard.api.shared.leads import (
 )
 from dashboard.api.shared.clients import get_coach_label
 
-FEEDBACK_NOTE_DOCTYPE = "Notes"
-FEEDBACK_SESSION_TYPES = ["Parent Feedback"]
+FORMS_MODULE = "Forms"
+
+_FORM_SKIP_FIELDTYPES = {
+    "Section Break", "Column Break", "Table", "HTML", "Button", "Tab Break",
+    "Table MultiSelect", "Fold", "Heading",
+}
+_FORM_SKIP_FIELDNAMES = {"naming_series", "amended_from"}
 
 
 def _lead_filters_for_forms_report():
@@ -192,60 +200,325 @@ def get_intake_form_answers_for_question(question=None):
     return {"question": label, "rows": rows}
 
 
-@frappe.whitelist()
-def get_feedback_form_report(from_date=None, to_date=None):
+def _form_doctype_meta(doctype):
     """
-    Deliberately takes no scope argument - see _lead_filters_for_forms_report()
-    above for why franchisor-vs-coach scope is never taken from the
-    request. from_date/to_date just narrow the date range.
+    Validates that `doctype` is a real, non-child, non-single DocType in
+    the Forms module before ever touching its data - the only thing a
+    caller can pick is one of the names get_form_module_doctypes() itself
+    offered, never an arbitrary doctype name.
+    """
+    doctype = (doctype or "").strip()
+    if not doctype:
+        frappe.throw(_("Select a form."))
+
+    row = frappe.db.get_value("DocType", doctype, ["module", "istable", "issingle"], as_dict=True)
+
+    if not row or row.module != FORMS_MODULE or row.istable or row.issingle:
+        frappe.throw(_("Unknown form."))
+
+    return frappe.get_meta(doctype)
+
+
+def _form_question_fields(meta):
+    return [
+        df for df in meta.fields
+        if df.fieldtype not in _FORM_SKIP_FIELDTYPES and df.fieldname not in _FORM_SKIP_FIELDNAMES
+    ]
+
+
+def _form_link_field(meta):
+    """
+    The field a submission is tied to a person by, if any - the first
+    Link field pointing at Client or Client Lead. Many forms are set up
+    anonymous with no such field at all, in which case submissions can't
+    be attributed to anyone (or scoped to a particular coach's clients -
+    see _form_scope_filter_value()).
+    """
+    for df in meta.fields:
+        if df.fieldtype == "Link" and df.options in (CLIENT_DOCTYPE, LEAD_DOCTYPE):
+            return df
+    return None
+
+
+def _form_field_value(row, df):
+    value = row.get(df.fieldname)
+
+    if df.fieldtype == "Check":
+        return "Yes" if value else None
+    if df.fieldtype == "Date" and value:
+        return frappe.utils.formatdate(value, "dd-MM-yyyy")
+    if df.fieldtype == "Datetime" and value:
+        return frappe.utils.format_datetime(value, "dd-MM-yyyy HH:mm")
+
+    return value or None
+
+
+def _form_person_label(link_doctype, name):
+    if not name:
+        return "Anonymous"
+
+    if link_doctype == CLIENT_DOCTYPE:
+        return _client_display_name(name) or name
+
+    if link_doctype == LEAD_DOCTYPE:
+        row = frappe.db.get_value(LEAD_DOCTYPE, name, ["client_name", "contact_name"], as_dict=True)
+        if row:
+            return row.get("client_name") or row.get("contact_name") or name
+
+    return name
+
+
+def _form_coach_label(link_doctype, name):
+    if not name:
+        return ""
+
+    if link_doctype == CLIENT_DOCTYPE:
+        return _coach_label_for_client(name)
+
+    if link_doctype == LEAD_DOCTYPE:
+        return get_coach_label(frappe.db.get_value(LEAD_DOCTYPE, name, "coach"))
+
+    return ""
+
+
+def _form_scope_filter_value(link_field):
+    """
+    None means no restriction is applied - either a franchisor/office
+    login (sees every submission), or a form with no Client/Client Lead
+    link field at all (an anonymous form's submissions aren't attributable
+    to any particular coach's clients, so there's nothing meaningful to
+    scope by - every logged-in user sees the same anonymous aggregate).
+    Otherwise an ["in", [...]] filter value for the link field, restricting
+    to the current coach's own clients/leads.
+    """
+    if not link_field or is_franchisor_user():
+        return None
+
+    if link_field.options == CLIENT_DOCTYPE:
+        names = get_allowed_client_names()
+    elif link_field.options == LEAD_DOCTYPE:
+        coach_name = get_current_coach_name(optional=True)
+        names = (
+            frappe.get_all(LEAD_DOCTYPE, filters={"coach": coach_name}, pluck="name", limit_page_length=5000)
+            if coach_name else []
+        )
+    else:
+        return None
+
+    return ["in", names]
+
+
+def _form_date_range_filters(from_date, to_date):
+    if not (from_date or to_date):
+        return {}
+
+    return {
+        "creation": [
+            "between",
+            [f"{from_date} 00:00:00" if from_date else "1970-01-01 00:00:00",
+             f"{to_date} 23:59:59" if to_date else frappe.utils.now()],
+        ]
+    }
+
+
+@frappe.whitelist()
+def get_form_module_doctypes():
+    """
+    Every DocType in the "Forms" module - powers the Reports section's
+    form picker. Discovered from Frappe's own DocType metadata rather than
+    a hardcoded list, so a form added in Desk shows up here with no code
+    change needed.
     """
     ensure_logged_in()
 
-    if is_franchisor_user():
-        client_names = None
-    else:
-        client_names = get_allowed_client_names()
+    rows = frappe.get_all(
+        "DocType",
+        filters={"module": FORMS_MODULE, "istable": 0, "issingle": 0},
+        fields=["name"],
+        order_by="name asc",
+    )
 
-        if not client_names:
-            return []
+    return [{"value": row.name, "label": row.name} for row in rows]
 
-    filters = {
-        "parenttype": "Client",
-        "parentfield": "session_notes",
-        "session_type": ["in", FEEDBACK_SESSION_TYPES],
-    }
 
-    if from_date or to_date:
-        filters["session_date"] = ["between", [from_date or "1970-01-01", to_date or frappe.utils.nowdate()]]
+@frappe.whitelist()
+def get_form_questions(doctype=None):
+    """Every "question" (field) on one Forms-module doctype, for the "one question" view."""
+    meta = _form_doctype_meta(doctype)
+    link_field = _form_link_field(meta)
+    link_fieldname = link_field.fieldname if link_field else None
 
-    if client_names is not None:
-        filters["parent"] = ["in", client_names]
+    return [
+        {"value": df.fieldname, "label": df.label or df.fieldname}
+        for df in _form_question_fields(meta)
+        if df.fieldname != link_fieldname
+    ]
+
+
+@frappe.whitelist()
+def get_form_report(doctype=None, from_date=None, to_date=None):
+    """Summary - every submission of one form, newest first."""
+    ensure_logged_in()
+
+    meta = _form_doctype_meta(doctype)
+    link_field = _form_link_field(meta)
+
+    filters = _form_date_range_filters(from_date, to_date)
+
+    scope = _form_scope_filter_value(link_field)
+    if scope is not None:
+        filters[link_field.fieldname] = scope
+
+    fields = ["name", "creation"]
+    if link_field:
+        fields.append(link_field.fieldname)
 
     rows = frappe.get_all(
-        FEEDBACK_NOTE_DOCTYPE,
+        doctype,
         filters=filters,
-        fields=[
-            "name",
-            "parent as client",
-            "session_date",
-            "session_type",
-            "notes",
-            "owner",
-            "creation",
-        ],
-        order_by="session_date desc, creation desc",
+        fields=fields,
+        order_by="creation desc",
         limit_page_length=2000,
         ignore_permissions=True,
     )
 
-    for row in rows:
-        row["client_label"] = _client_display_name(row.get("client"))
-        row["coach_label"] = _coach_label_for_client(row.get("client"))
-        row["user_label"] = (
-            frappe.get_cached_value("User", row.get("owner"), "full_name") if row.get("owner") else ""
-        ) or row.get("owner") or ""
+    link_doctype = link_field.options if link_field else None
 
-    return rows
+    for row in rows:
+        linked_name = row.get(link_field.fieldname) if link_field else None
+        row["person_label"] = _form_person_label(link_doctype, linked_name)
+        row["coach_label"] = _form_coach_label(link_doctype, linked_name)
+
+    return {"rows": rows, "has_person_link": bool(link_field)}
+
+
+@frappe.whitelist()
+def get_form_people(doctype=None):
+    """Distinct people who've submitted this form - only meaningful if it has a Client/Client Lead link field."""
+    meta = _form_doctype_meta(doctype)
+    link_field = _form_link_field(meta)
+
+    if not link_field:
+        return []
+
+    filters = {link_field.fieldname: ["is", "set"]}
+    scope = _form_scope_filter_value(link_field)
+    if scope is not None:
+        filters[link_field.fieldname] = scope
+
+    rows = frappe.get_all(
+        doctype,
+        filters=filters,
+        fields=[link_field.fieldname],
+        order_by="creation desc",
+        limit_page_length=2000,
+        ignore_permissions=True,
+    )
+
+    seen = {}
+    for row in rows:
+        name = row.get(link_field.fieldname)
+        if name and name not in seen:
+            seen[name] = _form_person_label(link_field.options, name)
+
+    return [{"value": k, "label": v} for k, v in seen.items()]
+
+
+@frappe.whitelist()
+def get_form_answers_for_person(doctype=None, person=None):
+    """Every submission this person made on this form, in full."""
+    ensure_logged_in()
+
+    meta = _form_doctype_meta(doctype)
+    link_field = _form_link_field(meta)
+
+    if not link_field:
+        frappe.throw(_("This form has no linked person to filter by."))
+
+    person = (person or "").strip()
+    if not person:
+        frappe.throw(_("Select a person."))
+
+    scope = _form_scope_filter_value(link_field)
+    if scope is not None and person not in (scope[1] or []):
+        frappe.throw(_("You do not have permission to view this person's submissions."), frappe.PermissionError)
+
+    submission_names = frappe.get_all(
+        doctype,
+        filters={link_field.fieldname: person},
+        pluck="name",
+        order_by="creation desc",
+        limit_page_length=50,
+        ignore_permissions=True,
+    )
+
+    submissions = []
+    for name in submission_names:
+        doc = frappe.get_doc(doctype, name)
+        answers = [
+            {"label": df.label or df.fieldname, "value": _form_field_value(doc, df)}
+            for df in _form_question_fields(meta)
+            if df.fieldname != link_field.fieldname
+        ]
+
+        submissions.append({
+            "name": doc.name,
+            "submitted_on": doc.creation,
+            "answers": [a for a in answers if a["value"] is not None],
+        })
+
+    return {
+        "person": _form_person_label(link_field.options, person),
+        "submissions": submissions,
+    }
+
+
+@frappe.whitelist()
+def get_form_answers_for_question(doctype=None, question=None, from_date=None, to_date=None):
+    """Every submission's answer to one specific question."""
+    ensure_logged_in()
+
+    meta = _form_doctype_meta(doctype)
+    link_field = _form_link_field(meta)
+
+    question = (question or "").strip()
+    matching = [df for df in _form_question_fields(meta) if df.fieldname == question]
+    if not matching:
+        frappe.throw(_("Unknown question."))
+    df = matching[0]
+
+    filters = _form_date_range_filters(from_date, to_date)
+
+    scope = _form_scope_filter_value(link_field)
+    if scope is not None:
+        filters[link_field.fieldname] = scope
+
+    fields = ["name", "creation", question]
+    if link_field and link_field.fieldname != question:
+        fields.append(link_field.fieldname)
+
+    rows = frappe.get_all(
+        doctype,
+        filters=filters,
+        fields=fields,
+        order_by="creation desc",
+        limit_page_length=2000,
+        ignore_permissions=True,
+    )
+
+    link_doctype = link_field.options if link_field else None
+
+    out = []
+    for row in rows:
+        linked_name = row.get(link_field.fieldname) if link_field else None
+        out.append({
+            "name": row.get("name"),
+            "person_label": _form_person_label(link_doctype, linked_name),
+            "coach_label": _form_coach_label(link_doctype, linked_name),
+            "value": _form_field_value(row, df) or "",
+        })
+
+    return {"question": df.label or question, "rows": out}
 
 
 def _client_display_name(client_name):

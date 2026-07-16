@@ -2,7 +2,7 @@
   <p class="dashboard-help" style="margin-bottom:12px;">Choose a report, set your parameters, then run it.</p>
   <div class="dashboard-tabs" id="formsReportPicker">
     <button type="button" class="dashboard-tab-btn is-active" data-forms-report-tab="intake">Intake Forms</button>
-    <button type="button" class="dashboard-tab-btn" data-forms-report-tab="feedback">Feedback Forms</button>
+    <button type="button" class="dashboard-tab-btn" data-forms-report-tab="forms">Form Results</button>
     <button type="button" class="dashboard-tab-btn" data-forms-report-tab="packs">Open Session Packs</button>
   </div>
 </div>
@@ -106,46 +106,94 @@
   </div>
 </div>
 
-<div class="dashboard-tab-panel" data-forms-report-panel="feedback" style="display:none;">
+<div class="dashboard-tab-panel" data-forms-report-panel="forms" style="display:none;">
   <div class="dashboard-card">
     <div class="dashboard-detail-section-head">
-      <h2 class="dashboard-detail-section-title">Feedback Forms</h2>
+      <h2 class="dashboard-detail-section-title">Form Results</h2>
     </div>
 
     <p class="dashboard-help" style="margin-bottom:16px;">
-      Every client note logged as "Parent Feedback".
+      Results from every form in the Forms module - pick a form, then a view.
     </p>
 
     <div class="trk-calendar-form-row">
       <div class="trk-calendar-field">
-        <label for="feedbackFormFromDate">From</label>
-        <input type="date" id="feedbackFormFromDate" class="dashboard-input">
+        <label for="formModuleSelect">Form</label>
+        <select id="formModuleSelect" class="dashboard-select">
+          <option value="">Select a form</option>
+        </select>
       </div>
 
       <div class="trk-calendar-field">
-        <label for="feedbackFormToDate">To</label>
-        <input type="date" id="feedbackFormToDate" class="dashboard-input">
+        <label for="formModuleFromDate">From</label>
+        <input type="date" id="formModuleFromDate" class="dashboard-input">
+      </div>
+
+      <div class="trk-calendar-field">
+        <label for="formModuleToDate">To</label>
+        <input type="date" id="formModuleToDate" class="dashboard-input">
+      </div>
+
+      <div class="trk-calendar-field">
+        <label for="formModuleViewMode">View</label>
+        <select id="formModuleViewMode" class="dashboard-select">
+          <option value="summary">Summary - every submission</option>
+          <option value="person">One person - all their answers</option>
+          <option value="question">One question - everyone's answer</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="trk-calendar-form-row" id="formModuleControlsRow" style="display:none;">
+      <div class="trk-calendar-field" id="formModulePersonRow" style="display:none;">
+        <label for="formModulePersonSelect">Person</label>
+        <select id="formModulePersonSelect" class="dashboard-select">
+          <option value="">Select a person</option>
+        </select>
+      </div>
+
+      <div class="trk-calendar-field" id="formModuleQuestionRow" style="display:none;">
+        <label for="formModuleQuestionSelect">Question</label>
+        <select id="formModuleQuestionSelect" class="dashboard-select">
+          <option value="">Select a question</option>
+        </select>
       </div>
     </div>
 
     <div class="dashboard-detail-actions" style="margin:8px 0 18px;">
-      <button type="button" class="dashboard-btn dashboard-btn-primary" id="runFeedbackFormReportBtn">Run Report</button>
-      <button type="button" class="dashboard-btn dashboard-btn-light" id="exportFeedbackFormReportBtn" style="display:none;">Export to Excel</button>
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="runFormModuleReportBtn">Run Report</button>
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="exportFormModuleReportBtn" style="display:none;">Export to Excel</button>
     </div>
 
-    <div id="feedbackFormReportEmpty" class="dashboard-empty">Run the report to see results.</div>
-    <div class="dashboard-table-wrap" id="feedbackFormReportResults" style="display:none;">
+    <div id="formModuleEmpty" class="dashboard-empty">Select a form and run the report to see results.</div>
+
+    <div class="dashboard-table-wrap" id="formModuleSummaryResults" style="display:none;">
       <table class="dashboard-table dashboard-table-compact">
         <thead>
           <tr>
-            <th>Client</th>
+            <th>Submitted</th>
+            <th>Person</th>
             <th>Coach</th>
-            <th>Date</th>
-            <th>Logged By</th>
-            <th>Feedback</th>
+            <th>Link</th>
           </tr>
         </thead>
-        <tbody id="feedbackFormReportTableBody"></tbody>
+        <tbody id="formModuleSummaryTableBody"></tbody>
+      </table>
+    </div>
+
+    <div id="formModulePersonResults" style="display:none;"></div>
+
+    <div class="dashboard-table-wrap" id="formModuleQuestionResults" style="display:none;">
+      <table class="dashboard-table dashboard-table-compact">
+        <thead>
+          <tr>
+            <th>Submitted</th>
+            <th>Person</th>
+            <th>Coach</th>
+            <th id="formModuleQuestionColumnHead">Answer</th>
+          </tr>
+        </thead>
+        <tbody id="formModuleQuestionTableBody"></tbody>
       </table>
     </div>
   </div>

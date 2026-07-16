@@ -45,22 +45,45 @@ def _get_current_coach():
     return coach
 
 
-def _get_email_account_row():
+def _get_email_account_row(coach=None):
     """
-    The current user's own Email Account, matched by email_id ==
-    frappe.session.user (a coach's Workspace address, their Frappe User
-    email, and their Email Account's email_id are all the same address in
-    this setup). Never accepts an account name/email from the caller.
+    The current user's own Email Account. Tried by email_id ==
+    frappe.session.user first (the common case - a coach's Workspace
+    address, their Frappe User login, and their Email Account's email_id
+    are all the same string), then by the coach's own coach_email field if
+    that didn't match - a coach can log in with a different User ID than
+    their actual Workspace/Coach.coach_email address (e.g. Fiona's Email
+    Account is keyed to fiona@theresilientkid.co.uk, but that isn't
+    necessarily also her literal Frappe login), in which case an
+    already-configured Email Account existed but was never found. Only
+    ever looks up by frappe.session.user or the coach doc _get_current_coach()
+    already confirmed belongs to that same session - never an account
+    name/email from the caller.
     """
-    return frappe.db.get_value(
+    row = frappe.db.get_value(
         EMAIL_ACCOUNT_DOCTYPE,
         {"email_id": frappe.session.user},
         ["name", "email_id", "auth_method", "connected_app", "connected_user"],
         as_dict=True,
     )
 
+    if row:
+        return row
 
-def _ensure_email_account_ready(email_account_row):
+    coach_email = (coach.get("coach_email") or "").strip() if coach else ""
+
+    if coach_email and coach_email != frappe.session.user:
+        row = frappe.db.get_value(
+            EMAIL_ACCOUNT_DOCTYPE,
+            {"email_id": coach_email},
+            ["name", "email_id", "auth_method", "connected_app", "connected_user"],
+            as_dict=True,
+        )
+
+    return row
+
+
+def _ensure_email_account_ready(email_account_row, coach=None):
     if not email_account_row:
         frappe.throw(_(NOT_CONFIGURED_MESSAGE))
 
@@ -70,16 +93,28 @@ def _ensure_email_account_ready(email_account_row):
     if (email_account_row.connected_app or "") != CONNECTED_APP_NAME:
         frappe.throw(_(NOT_CONFIGURED_MESSAGE))
 
+    # Whichever address _get_email_account_row() actually matched this
+    # Email Account on - frappe.session.user (the common case) or the
+    # coach's own coach_email (when a coach's Frappe login differs from
+    # their Workspace/Coach.coach_email address, e.g. the Email Account
+    # was set up keyed to coach_email before this login existed).
+    coach_email = (coach.get("coach_email") or "").strip() if coach else ""
+    own_addresses = {addr for addr in (frappe.session.user, coach_email) if addr}
+
     connected_user = (email_account_row.connected_user or "").strip()
 
-    if connected_user and connected_user != frappe.session.user:
+    if connected_user and connected_user not in own_addresses:
         # This Email Account is wired to someone else's mailbox - never let
         # one coach's click reassign it or start an OAuth flow against it.
         frappe.throw(_(NOT_CONFIGURED_MESSAGE), frappe.PermissionError)
 
     if not connected_user:
         # First-time setup for this coach's own account - safe to fill in,
-        # since email_id already matched frappe.session.user above.
+        # since _get_email_account_row() already matched this row to one
+        # of this session's own addresses above. The OAuth token itself is
+        # always cached under frappe.session.user (initiate_web_application_flow
+        # and has_token() both key off it below), so that's what gets
+        # stored here regardless of which address found the row.
         frappe.db.set_value(
             EMAIL_ACCOUNT_DOCTYPE, email_account_row.name, "connected_user", frappe.session.user
         )
@@ -105,10 +140,10 @@ def start_google_mail_connect(return_to=None):
     "redirect" type only does anything useful when the browser itself
     follows it.
     """
-    _get_current_coach()
+    coach = _get_current_coach()
 
-    email_account_row = _get_email_account_row()
-    _ensure_email_account_ready(email_account_row)
+    email_account_row = _get_email_account_row(coach)
+    _ensure_email_account_ready(email_account_row, coach)
 
     success_path = _safe_return_to(return_to)
     separator = "&" if "?" in success_path else "?"
@@ -142,9 +177,9 @@ def get_google_mail_status():
     only on frappe.session.user's own account - never a token, secret, or
     another user's connection state.
     """
-    _get_current_coach()
+    coach = _get_current_coach()
 
-    email_account_row = _get_email_account_row()
+    email_account_row = _get_email_account_row(coach)
 
     if (
         not email_account_row
