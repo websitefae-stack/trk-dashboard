@@ -1081,6 +1081,47 @@ def _find_recent_duplicate_booking(event_start, owner_user, identity_text):
     return None
 
 
+def _find_matching_school_visit_event(subject, event_start, event_end, owner_user):
+    """
+    School/company visits are booked one class or session at a time from
+    the same physical visit slot - two submissions for the same
+    (school, start, end, coach) with different class notes are the same
+    visit, not two separate appointments. Subject alone (set from
+    school_name + appointment_type, never the per-class notes) already
+    encodes "which school, which appointment type" precisely, so matching
+    on (subject, starts_on, ends_on, owner) is exactly the
+    (school, start, end, coach) tuple this needs, without requiring a
+    dedicated school/class link field that doesn't exist on Event.
+    """
+    if not subject:
+        return None
+
+    rows = frappe.get_all(
+        "Event",
+        fields=["name", "description"],
+        filters=[
+            ["Event", "subject", "=", subject],
+            ["Event", "starts_on", "=", event_start],
+            ["Event", "ends_on", "=", event_end],
+            ["Event", "owner", "=", owner_user],
+        ],
+        limit_page_length=1,
+        ignore_permissions=True,
+    )
+    return rows[0] if rows else None
+
+
+def _merge_school_visit_notes(existing_description, new_notes):
+    existing_description = (existing_description or "").strip()
+    new_notes = (new_notes or "").strip()
+
+    if not new_notes or new_notes in existing_description:
+        return existing_description
+    if not existing_description:
+        return new_notes
+    return f"{existing_description}\n\n{new_notes}"
+
+
 def _create_or_update_initial_consultation_lead(lead_name, phone=None, notes=None):
     if not frappe.db.exists("DocType", "Lead"):
         return ""
@@ -2589,6 +2630,19 @@ def _create_booking_impl(
         if final_notes:
             event.description = final_notes
 
+        if appointment_type in SCHOOL_LINKED_TYPES:
+            existing_school_event = _find_matching_school_visit_event(
+                event.subject, event_start, event_end, calendar_owner
+            )
+            if existing_school_event:
+                merged_description = _merge_school_visit_notes(
+                    existing_school_event.get("description"), final_notes
+                )
+                if merged_description != (existing_school_event.get("description") or ""):
+                    frappe.db.set_value("Event", existing_school_event.name, "description", merged_description)
+                created_events.append(frappe.get_doc("Event", existing_school_event.name))
+                continue
+
         event.insert(ignore_permissions=True)
         created_events.append(event)
 
@@ -2616,6 +2670,20 @@ def _create_booking_impl(
             # only the initial occurrence while the primary coach has all of
             # them.
             for primary in created_events:
+                if appointment_type in SCHOOL_LINKED_TYPES:
+                    existing_worker_event = _find_matching_school_visit_event(
+                        primary.subject, primary.starts_on, primary.ends_on, worker_user
+                    )
+                    if existing_worker_event:
+                        merged_description = _merge_school_visit_notes(
+                            existing_worker_event.get("description"), primary.get("description")
+                        )
+                        if merged_description != (existing_worker_event.get("description") or ""):
+                            frappe.db.set_value(
+                                "Event", existing_worker_event.name, "description", merged_description
+                            )
+                        continue
+
                 copy = frappe.new_doc("Event")
                 copy.subject = primary.subject
                 copy.starts_on = primary.starts_on
