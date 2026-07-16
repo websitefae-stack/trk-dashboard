@@ -1,0 +1,52 @@
+<div class="trk-calendar-modal-backdrop" id="trkCalendarEmailModal">
+  <div class="trk-calendar-modal">
+    <div class="trk-calendar-modal-head">
+      <h3>Send Booking Confirmation</h3>
+
+      <button type="button" class="trk-calendar-icon-btn" id="trkCalendarEmailModalClose">
+        ✕
+      </button>
+    </div>
+
+    <div class="trk-calendar-modal-body">
+      <input type="hidden" id="trkCalendarEmailEventName">
+
+      <div class="trk-calendar-field">
+        <label for="trkCalendarEmailRecipient">Send To</label>
+        <select id="trkCalendarEmailRecipient" class="dashboard-select"></select>
+      </div>
+
+      <div class="trk-calendar-field">
+        <label for="trkCalendarEmailSender">From</label>
+        <select id="trkCalendarEmailSender" class="dashboard-select"></select>
+      </div>
+
+      <div class="trk-calendar-field">
+        <label for="trkCalendarEmailCc">Cc</label>
+        <input type="text" id="trkCalendarEmailCc" class="dashboard-input" placeholder="Optional, comma separated">
+      </div>
+
+      <div class="trk-calendar-field">
+        <label for="trkCalendarEmailSubject">Subject</label>
+        <input type="text" id="trkCalendarEmailSubject" class="dashboard-input">
+      </div>
+
+      <div class="trk-calendar-field">
+        <label for="trkCalendarEmailMessage">Message</label>
+        <textarea id="trkCalendarEmailMessage" class="dashboard-textarea" rows="10"></textarea>
+      </div>
+
+      <div class="dashboard-help" id="trkCalendarEmailStatus"></div>
+    </div>
+
+    <div class="trk-calendar-modal-foot">
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="trkCalendarEmailCancel">
+        Cancel
+      </button>
+
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="trkCalendarEmailSubmit">
+        Send
+      </button>
+    </div>
+  </div>
+</div>

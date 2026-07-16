@@ -69,6 +69,37 @@
     return text.slice(0, maxLength).trim() + "…";
   }
 
+  function csvCell(value) {
+    var text = String(value == null ? "" : value).replace(/"/g, '""');
+    return '"' + text + '"';
+  }
+
+  // Plain CSV rather than a real .xlsx - Excel (and Sheets/Numbers) all
+  // open CSV directly with no extra dependency on this app's side.
+  function exportRowsToCsv(filename, columns, rows) {
+    if (!rows || !rows.length) {
+      window.alert("Run the report first.");
+      return;
+    }
+
+    var lines = [columns.map(function (c) { return csvCell(c.label); }).join(",")];
+
+    rows.forEach(function (row) {
+      lines.push(columns.map(function (c) { return csvCell(c.value(row)); }).join(","));
+    });
+
+    var blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    var url = URL.createObjectURL(blob);
+
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   function renderSection(title, items, renderItem) {
     if (!items || !items.length) {
       return '<div class="dashboard-detail-section" style="margin-top:16px;">'
@@ -243,7 +274,6 @@
     var empty = el("intakeFormReportEmpty");
     var results = el("intakeFormReportResults");
     var body = el("intakeFormReportTableBody");
-    var controls = el("intakeFormReportControls");
     if (!empty || !results || !body) return;
 
     intakeFormState.rows = rows || [];
@@ -252,12 +282,10 @@
       empty.textContent = "No intake forms found.";
       empty.style.display = "";
       results.style.display = "none";
-      if (controls) controls.style.display = "none";
       return;
     }
 
     empty.style.display = "none";
-    if (controls) controls.style.display = "";
 
     fillSelect(el("intakeFormPersonSelect"), rows.map(function (row) {
       return { value: row.name, label: row.client_name || row.name };
@@ -402,6 +430,7 @@
   function applyIntakeFormViewMode() {
     var mode = (el("intakeFormViewMode") || {}).value || "summary";
 
+    toggleDisplayEl("intakeFormControlsRow", mode !== "summary");
     toggleDisplayEl("intakeFormPersonRow", mode === "person");
     toggleDisplayEl("intakeFormQuestionRow", mode === "question");
 
@@ -436,8 +465,14 @@
     if (btn) { btn.disabled = true; btn.textContent = "Running..."; }
 
     try {
-      var rows = await callApi("dashboard.api.shared.form_reports.get_intake_form_report", {});
+      var rows = await callApi("dashboard.api.shared.form_reports.get_intake_form_report", {
+        from_date: (el("intakeFormFromDate") || {}).value || "",
+        to_date: (el("intakeFormToDate") || {}).value || ""
+      });
       renderIntakeFormReport(rows);
+
+      var exportBtn = el("exportIntakeFormReportBtn");
+      if (exportBtn) exportBtn.style.display = rows.length ? "" : "none";
     } catch (error) {
       console.error("Intake form report failed:", error);
       window.alert(error.message || "Could not run the report.");
@@ -446,11 +481,26 @@
     }
   }
 
+  function exportIntakeFormReport() {
+    exportRowsToCsv("intake-forms.csv", [
+      { label: "Client / Young Person", value: function (r) { return r.client_name || r.name; } },
+      { label: "Contact", value: function (r) { return r.contact_name || ""; } },
+      { label: "Contact Email", value: function (r) { return r.contact_email || ""; } },
+      { label: "Coach", value: function (r) { return r.coach_label || ""; } },
+      { label: "Sent", value: function (r) { return formatDate(r.intake_sent_on); } },
+      { label: "Status", value: function (r) { return r.is_completed ? "Completed" : "Sent, not yet completed"; } }
+    ], intakeFormState.rows);
+  }
+
+  var feedbackFormState = { rows: [] };
+
   function renderFeedbackFormReport(rows) {
     var empty = el("feedbackFormReportEmpty");
     var results = el("feedbackFormReportResults");
     var body = el("feedbackFormReportTableBody");
     if (!empty || !results || !body) return;
+
+    feedbackFormState.rows = rows || [];
 
     if (!rows.length) {
       empty.textContent = "No feedback forms found.";
@@ -483,8 +533,14 @@
     if (btn) { btn.disabled = true; btn.textContent = "Running..."; }
 
     try {
-      var rows = await callApi("dashboard.api.shared.form_reports.get_feedback_form_report", {});
+      var rows = await callApi("dashboard.api.shared.form_reports.get_feedback_form_report", {
+        from_date: (el("feedbackFormFromDate") || {}).value || "",
+        to_date: (el("feedbackFormToDate") || {}).value || ""
+      });
       renderFeedbackFormReport(rows);
+
+      var exportBtn = el("exportFeedbackFormReportBtn");
+      if (exportBtn) exportBtn.style.display = rows.length ? "" : "none";
     } catch (error) {
       console.error("Feedback form report failed:", error);
       window.alert(error.message || "Could not run the report.");
@@ -493,12 +549,51 @@
     }
   }
 
+  function exportFeedbackFormReport() {
+    exportRowsToCsv("feedback-forms.csv", [
+      { label: "Client", value: function (r) { return r.client_label || r.client; } },
+      { label: "Coach", value: function (r) { return r.coach_label || ""; } },
+      { label: "Date", value: function (r) { return formatDate(r.session_date); } },
+      { label: "Logged By", value: function (r) { return r.user_label || ""; } },
+      { label: "Feedback", value: function (r) { return r.notes || ""; } }
+    ], feedbackFormState.rows);
+  }
+
+  function initFormsReportPicker() {
+    var picker = el("formsReportPicker");
+    if (!picker) return;
+
+    var buttons = picker.querySelectorAll("[data-forms-report-tab]");
+    var panels = document.querySelectorAll("[data-forms-report-panel]");
+
+    buttons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        var tab = button.getAttribute("data-forms-report-tab");
+
+        buttons.forEach(function (btn) { btn.classList.toggle("is-active", btn === button); });
+        panels.forEach(function (panel) {
+          var isActive = panel.getAttribute("data-forms-report-panel") === tab;
+          panel.classList.toggle("is-active", isActive);
+          panel.style.display = isActive ? "" : "none";
+        });
+      });
+    });
+  }
+
   function init() {
     var intakeBtn = el("runIntakeFormReportBtn");
     if (intakeBtn) intakeBtn.addEventListener("click", runIntakeFormReport);
 
     var feedbackBtn = el("runFeedbackFormReportBtn");
     if (feedbackBtn) feedbackBtn.addEventListener("click", runFeedbackFormReport);
+
+    var exportIntakeBtn = el("exportIntakeFormReportBtn");
+    if (exportIntakeBtn) exportIntakeBtn.addEventListener("click", exportIntakeFormReport);
+
+    var exportFeedbackBtn = el("exportFeedbackFormReportBtn");
+    if (exportFeedbackBtn) exportFeedbackBtn.addEventListener("click", exportFeedbackFormReport);
+
+    initFormsReportPicker();
 
     var viewModeSelect = el("intakeFormViewMode");
     if (viewModeSelect) viewModeSelect.addEventListener("change", applyIntakeFormViewMode);

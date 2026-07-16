@@ -56,12 +56,19 @@ def _lead_filters_for_forms_report():
 
 
 @frappe.whitelist()
-def get_intake_form_report():
+def get_intake_form_report(from_date=None, to_date=None):
     ensure_logged_in()
 
     filters = _lead_filters_for_forms_report()
     filters = dict(filters) if filters else {}
     filters["intake_sent_on"] = ["is", "set"]
+
+    if from_date or to_date:
+        filters["intake_sent_on"] = [
+            "between",
+            [f"{from_date} 00:00:00" if from_date else "1970-01-01 00:00:00",
+             f"{to_date} 23:59:59" if to_date else frappe.utils.now()],
+        ]
 
     rows = frappe.get_all(
         LEAD_DOCTYPE,
@@ -186,11 +193,11 @@ def get_intake_form_answers_for_question(question=None):
 
 
 @frappe.whitelist()
-def get_feedback_form_report():
+def get_feedback_form_report(from_date=None, to_date=None):
     """
-    Deliberately takes no arguments - see _lead_filters_for_forms_report()
+    Deliberately takes no scope argument - see _lead_filters_for_forms_report()
     above for why franchisor-vs-coach scope is never taken from the
-    request.
+    request. from_date/to_date just narrow the date range.
     """
     ensure_logged_in()
 
@@ -208,6 +215,9 @@ def get_feedback_form_report():
         "session_type": ["in", FEEDBACK_SESSION_TYPES],
     }
 
+    if from_date or to_date:
+        filters["session_date"] = ["between", [from_date or "1970-01-01", to_date or frappe.utils.nowdate()]]
+
     if client_names is not None:
         filters["parent"] = ["in", client_names]
 
@@ -220,7 +230,7 @@ def get_feedback_form_report():
             "session_date",
             "session_type",
             "notes",
-            "user",
+            "owner",
             "creation",
         ],
         order_by="session_date desc, creation desc",
@@ -232,8 +242,8 @@ def get_feedback_form_report():
         row["client_label"] = _client_display_name(row.get("client"))
         row["coach_label"] = _coach_label_for_client(row.get("client"))
         row["user_label"] = (
-            frappe.get_cached_value("User", row.get("user"), "full_name") if row.get("user") else ""
-        ) or row.get("user") or ""
+            frappe.get_cached_value("User", row.get("owner"), "full_name") if row.get("owner") else ""
+        ) or row.get("owner") or ""
 
     return rows
 
