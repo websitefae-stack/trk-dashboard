@@ -2355,7 +2355,7 @@ def _create_booking_impl(
     # allow_double_booking - unlike a genuine clash with an unrelated
     # appointment, "you already created this exact thing a moment ago"
     # should never be something a stray click bypasses.
-    first_start, _ = _occurrence_window(0)
+    first_start, _first_end = _occurrence_window(0)
     duplicate_identity = (client_name or school_name or school_manual_name or item_name or lead_name or "").strip()
     duplicate = _find_recent_duplicate_booking(first_start, calendar_owner, duplicate_identity)
     if duplicate:
