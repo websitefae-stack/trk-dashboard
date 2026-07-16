@@ -29,13 +29,13 @@ TEMPLATES = [
         # editor. plain_text_to_email_html() wraps this into <p> tags per
         # line at send time.
         "name": BOOKING_CONFIRMATION_TEMPLATE,
-        "subject": "Your next session with {{ coach_name }} is confirmed",
+        "subject": "Your next session is confirmed",
         "body": (
             "Hi {{ contact_name }},\n"
             "\n"
-            "Your next session with {{ coach_name }} will take place on {{ date }} at {{ time }}"
+            "Your next session will take place on {{ date }} at {{ time }}"
             "{% if location_address %}, {{ location_address }}{% endif %}.\n"
-            "{% if meet_link %}\n"
+            "{% if is_online and meet_link %}\n"
             "This session is online - you can join here: {{ meet_link }}\n"
             "{% endif %}\n"
             "Please let us know if you have any questions or need to make any changes.\n"

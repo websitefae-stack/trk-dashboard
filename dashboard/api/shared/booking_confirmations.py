@@ -29,7 +29,7 @@ def _batch_needs_meet_link(created_events):
     return any("online" in (event.get("location") or "").lower() for event in created_events)
 
 
-def _compose_multi_session_message(event_rows, client, coach_display_name):
+def _compose_multi_session_message(event_rows, client):
     lines = []
 
     for row in event_rows:
@@ -38,13 +38,14 @@ def _compose_multi_session_message(event_rows, client, coach_display_name):
 
         location = row.get("location") or ""
         meet_link = row.get("custom_google_meet_url") or row.get("google_meet_link") or ""
+        is_online = location.lower() == "online"
 
-        if location and location.lower() != "online":
+        if location and not is_online:
             line += f", {location}"
 
-        if meet_link:
+        if is_online and meet_link:
             line += f" - join here: {meet_link}"
-        elif location.lower() == "online":
+        elif is_online:
             line += " - the online meeting link will follow separately"
 
         lines.append(line)
@@ -52,13 +53,13 @@ def _compose_multi_session_message(event_rows, client, coach_display_name):
     contact_name = _get_client_display_name(client)
     session_word = "session" if len(event_rows) == 1 else "sessions"
 
-    subject = f"Your upcoming {session_word} with {coach_display_name} " + (
+    subject = f"Your upcoming {session_word} " + (
         "is confirmed" if len(event_rows) == 1 else "are confirmed"
     )
 
     message = (
         f"Hi {contact_name},\n\n"
-        f"Your upcoming {session_word} with {coach_display_name} "
+        f"Your upcoming {session_word} "
         + ("is" if len(event_rows) == 1 else "are")
         + " confirmed:\n\n"
         + "\n".join(lines)
@@ -83,14 +84,7 @@ def _send_confirmation_email(recipient, subject, message, reference_event):
         frappe.log_error(frappe.get_traceback(), "Booking Confirmation Email Failed")
 
 
-def _coach_display_name(coach_name):
-    if not coach_name:
-        return "your coach"
-
-    return frappe.db.get_value("Coach", coach_name, "coach_name") or coach_name
-
-
-def handle_booking_confirmation_request(created_events, client, coach_name, recipient):
+def handle_booking_confirmation_request(created_events, client, recipient):
     """
     created_events: the frappe.new_doc("Event") docs just inserted by
     _create_booking_impl for this one booking action (one per recurring
@@ -105,7 +99,6 @@ def handle_booking_confirmation_request(created_events, client, coach_name, reci
         # failing the booking over an email feature that isn't set up.
         return
 
-    coach_display_name = _coach_display_name(coach_name)
     event_names = [event.name for event in created_events]
 
     if not _batch_needs_meet_link(created_events):
@@ -113,7 +106,7 @@ def handle_booking_confirmation_request(created_events, client, coach_name, reci
             {"starts_on": event.starts_on, "location": event.get("location") or ""}
             for event in created_events
         ]
-        subject, message = _compose_multi_session_message(event_rows, client, coach_display_name)
+        subject, message = _compose_multi_session_message(event_rows, client)
         _send_confirmation_email(recipient, subject, message, event_names[0])
         return
 
@@ -146,7 +139,7 @@ def send_pending_booking_confirmations():
         "Event",
         filters={"custom_confirmation_pending": 1},
         fields=["name", "custom_confirmation_recipient", "custom_confirmation_batch_events", "creation",
-                "custom_coach", "custom_client"],
+                "custom_client"],
     )
 
     cutoff = add_to_date(now_datetime(), minutes=-PENDING_TIMEOUT_MINUTES)
@@ -181,8 +174,7 @@ def send_pending_booking_confirmations():
         if still_waiting and leader.creation > cutoff:
             continue
 
-        coach_display_name = _coach_display_name(leader.custom_coach)
-        subject, message = _compose_multi_session_message(event_rows, leader.custom_client, coach_display_name)
+        subject, message = _compose_multi_session_message(event_rows, leader.custom_client)
         _send_confirmation_email(leader.custom_confirmation_recipient, subject, message, leader.name)
 
         frappe.db.set_value("Event", leader.name, "custom_confirmation_pending", 0, update_modified=False)
