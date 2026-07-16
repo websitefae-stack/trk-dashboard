@@ -1092,14 +1092,17 @@ _INTAKE_PDF_SKIP_FIELDS = {
 }
 
 
-def _intake_pdf_rows(doc):
+def get_intake_question_fields():
     """
-    Every filled-in answer on the Lead, in the same order as the doctype's
-    own field layout - so the PDF stays a complete record of the intake as
-    the form grows, rather than a hardcoded handful of fields going stale.
+    The Lead fields that make up "the intake form's questions", in the
+    doctype's own field layout order - shared by _intake_pdf_rows() below
+    and the Reports section's per-question/per-person breakdowns
+    (form_reports.py), so both answer "what counts as a question" the same
+    way. Reads straight off the doctype's meta rather than one particular
+    Lead's answers, so it works even before anyone has filled anything in.
     """
     meta = frappe.get_meta(LEAD_DOCTYPE)
-    rows = [("Client Name", doc.client_name), ("Contact Name", doc.contact_name)]
+    fields = []
     seen = {"client_name", "contact_name"}
 
     for df in meta.fields:
@@ -1108,20 +1111,38 @@ def _intake_pdf_rows(doc):
         if df.fieldtype in _INTAKE_PDF_SKIP_FIELDTYPES:
             continue
 
-        value = doc.get(df.fieldname)
+        fields.append(df)
+        seen.add(df.fieldname)
 
-        if df.fieldtype == "Check":
-            value = "Yes" if value else None
-        elif df.fieldtype == "Date" and value:
-            value = frappe.utils.formatdate(value, "dd-MM-yyyy")
-        elif not value:
-            value = None
+    return fields
 
+
+def get_intake_field_value(doc, df):
+    """One Lead's formatted answer to a single intake question field."""
+    value = doc.get(df.fieldname)
+
+    if df.fieldtype == "Check":
+        return "Yes" if value else None
+    if df.fieldtype == "Date" and value:
+        return frappe.utils.formatdate(value, "dd-MM-yyyy")
+
+    return value or None
+
+
+def _intake_pdf_rows(doc):
+    """
+    Every filled-in answer on the Lead, in the same order as the doctype's
+    own field layout - so the PDF stays a complete record of the intake as
+    the form grows, rather than a hardcoded handful of fields going stale.
+    """
+    rows = [("Client Name", doc.client_name), ("Contact Name", doc.contact_name)]
+
+    for df in get_intake_question_fields():
+        value = get_intake_field_value(doc, df)
         if value is None:
             continue
 
         rows.append((df.label or df.fieldname, value))
-        seen.add(df.fieldname)
 
     completed_on = doc.intake_completed_on
     rows.append((

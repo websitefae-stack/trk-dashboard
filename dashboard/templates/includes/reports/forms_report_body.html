@@ -9,6 +9,34 @@
   </p>
 
   <div id="intakeFormReportEmpty" class="dashboard-empty">Run the report to see results.</div>
+
+  <div id="intakeFormReportControls" style="display:none;margin-bottom:16px;">
+    <div class="trk-calendar-form-row">
+      <div class="trk-calendar-field">
+        <label for="intakeFormViewMode">View</label>
+        <select id="intakeFormViewMode" class="dashboard-select">
+          <option value="summary">Summary - every lead</option>
+          <option value="person">One person - all their answers</option>
+          <option value="question">One question - everyone's answer</option>
+        </select>
+      </div>
+
+      <div class="trk-calendar-field" id="intakeFormPersonRow" style="display:none;">
+        <label for="intakeFormPersonSelect">Person</label>
+        <select id="intakeFormPersonSelect" class="dashboard-select">
+          <option value="">Select a person</option>
+        </select>
+      </div>
+
+      <div class="trk-calendar-field" id="intakeFormQuestionRow" style="display:none;">
+        <label for="intakeFormQuestionSelect">Question</label>
+        <select id="intakeFormQuestionSelect" class="dashboard-select">
+          <option value="">Select a question</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
   <div class="dashboard-table-wrap" id="intakeFormReportResults" style="display:none;">
     <table class="dashboard-table dashboard-table-compact">
       <thead>
@@ -18,9 +46,37 @@
           <th>Coach</th>
           <th>Sent</th>
           <th>Status</th>
+          <th>Link</th>
         </tr>
       </thead>
       <tbody id="intakeFormReportTableBody"></tbody>
+    </table>
+  </div>
+
+  <div id="intakeFormPersonEmpty" class="dashboard-empty" style="display:none;">Select a person to see their answers.</div>
+  <div class="dashboard-table-wrap" id="intakeFormPersonResults" style="display:none;">
+    <table class="dashboard-table dashboard-table-compact">
+      <thead>
+        <tr>
+          <th>Question</th>
+          <th>Answer</th>
+        </tr>
+      </thead>
+      <tbody id="intakeFormPersonTableBody"></tbody>
+    </table>
+  </div>
+
+  <div id="intakeFormQuestionEmpty" class="dashboard-empty" style="display:none;">Select a question to see everyone's answer.</div>
+  <div class="dashboard-table-wrap" id="intakeFormQuestionResults" style="display:none;">
+    <table class="dashboard-table dashboard-table-compact">
+      <thead>
+        <tr>
+          <th>Client / Young Person</th>
+          <th>Coach</th>
+          <th id="intakeFormQuestionColumnHead">Answer</th>
+        </tr>
+      </thead>
+      <tbody id="intakeFormQuestionTableBody"></tbody>
     </table>
   </div>
 </div>

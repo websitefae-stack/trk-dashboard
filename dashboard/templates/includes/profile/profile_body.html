@@ -69,6 +69,9 @@
           {% if profile_role in ["coach", "franchisor"] %}
             <button type="button" class="dashboard-tab-btn" data-tab="availability">Availability</button>
           {% endif %}
+          {% if profile_role == "coach" and not coach_is_view_mode %}
+            <button type="button" class="dashboard-tab-btn" data-tab="email">Email</button>
+          {% endif %}
         </div>
       </div>
 
@@ -96,13 +99,6 @@
                 <label>Email</label>
                 <input class="dashboard-input" value="{{ user_doc.email or profile_email or '' }}" readonly>
               </div>
-
-              {% if profile_role == "coach" and not coach_is_view_mode %}
-                <div class="dashboard-detail-field dashboard-detail-field-full" id="googleMailConnectField" data-return-to="/coach_db/profile">
-                  <label>Google Email (for sending)</label>
-                  <div class="dashboard-html-block" id="googleMailConnectStatus">Checking status&hellip;</div>
-                </div>
-              {% endif %}
 
               <div class="dashboard-detail-field">
                 <label>First Name</label>
@@ -585,6 +581,25 @@
                 <tr><td colspan="6" class="dashboard-empty">Loading…</td></tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if profile_role == "coach" and not coach_is_view_mode %}
+      <!-- EMAIL TAB -->
+      <div class="dashboard-tab-panel" data-tab-panel="email" style="display:none;">
+        <div class="dashboard-card">
+          <div class="dashboard-detail-section-head" style="margin-bottom:18px;">
+            <div>
+              <h3>Google Email</h3>
+              <p class="dashboard-page-subtitle">Connect your Google Workspace mailbox so booking confirmations and other emails are sent from your own address.</p>
+            </div>
+          </div>
+
+          <div class="dashboard-detail-field dashboard-detail-field-full" id="googleMailConnectField" data-return-to="/coach_db/profile">
+            <label>Google Email (for sending)</label>
+            <div class="dashboard-html-block" id="googleMailConnectStatus">Checking status&hellip;</div>
           </div>
         </div>
       </div>

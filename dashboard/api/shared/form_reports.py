@@ -16,7 +16,12 @@ from dashboard.api.shared.permissions import (
     get_current_coach_name,
     get_allowed_client_names,
 )
-from dashboard.api.shared.leads import LEAD_DOCTYPE
+from dashboard.api.shared.leads import (
+    LEAD_DOCTYPE,
+    ensure_lead_access,
+    get_intake_question_fields,
+    get_intake_field_value,
+)
 from dashboard.api.shared.clients import get_coach_label
 
 FEEDBACK_NOTE_DOCTYPE = "Notes"
@@ -72,16 +77,112 @@ def get_intake_form_report():
             "intake_sent_on",
             "intake_completed_on",
         ],
-        order_by="coalesce(intake_completed_on, intake_sent_on) desc",
         limit_page_length=2000,
         ignore_permissions=True,
     )
+
+    # frappe.get_all()'s order_by validation rejects raw SQL like
+    # coalesce(...) (only 'field', 'link_field.field', 'child_table.field'
+    # are allowed), so the "completed date, falling back to sent date" sort
+    # is done here instead.
+    rows.sort(key=lambda row: row.get("intake_completed_on") or row.get("intake_sent_on"), reverse=True)
 
     for row in rows:
         row["coach_label"] = get_coach_label(row.get("coach"))
         row["is_completed"] = 1 if row.get("intake_completed_on") else 0
 
     return rows
+
+
+@frappe.whitelist()
+def get_intake_form_questions():
+    """
+    Every "question" the intake form can be broken down by - powers the
+    Reports section's "one question - everyone's answer" view. No access
+    check beyond being logged in: this only lists field labels, never
+    answer data.
+    """
+    ensure_logged_in()
+
+    return [
+        {"value": "client_name", "label": "Client Name"},
+        {"value": "contact_name", "label": "Contact Name"},
+    ] + [
+        {"value": df.fieldname, "label": df.label or df.fieldname}
+        for df in get_intake_question_fields()
+    ]
+
+
+@frappe.whitelist()
+def get_intake_form_answers_for_person(name=None):
+    """One lead's full set of intake answers - the "one specific person" view."""
+    doc = ensure_lead_access(name)
+
+    if not doc.get("intake_sent_on"):
+        frappe.throw(_("This lead has no intake form."))
+
+    answers = [{"label": "Client Name", "value": doc.client_name}, {"label": "Contact Name", "value": doc.contact_name}]
+    answers += [
+        {"label": df.label or df.fieldname, "value": get_intake_field_value(doc, df)}
+        for df in get_intake_question_fields()
+        if get_intake_field_value(doc, df) is not None
+    ]
+
+    return {
+        "name": doc.name,
+        "client_name": doc.client_name,
+        "contact_name": doc.contact_name,
+        "coach_label": get_coach_label(doc.coach),
+        "answers": answers,
+    }
+
+
+@frappe.whitelist()
+def get_intake_form_answers_for_question(question=None):
+    """Every accessible lead's answer to one specific intake question."""
+    ensure_logged_in()
+
+    question = (question or "").strip()
+    if not question:
+        frappe.throw(_("Select a question."))
+
+    label = question
+    df = None
+
+    if question in ("client_name", "contact_name"):
+        label = "Client Name" if question == "client_name" else "Contact Name"
+    else:
+        # Only fields get_intake_form_questions() actually offered - not any
+        # arbitrary Lead fieldname (e.g. the internal "status"/"coach"/
+        # "source" fields _INTAKE_PDF_SKIP_FIELDS deliberately excludes from
+        # "questions").
+        matching = [f for f in get_intake_question_fields() if f.fieldname == question]
+        if not matching:
+            frappe.throw(_("Unknown question."))
+        df = matching[0]
+        label = df.label or question
+
+    filters = _lead_filters_for_forms_report()
+    filters = dict(filters) if filters else {}
+    filters["intake_sent_on"] = ["is", "set"]
+
+    lead_names = frappe.get_all(
+        LEAD_DOCTYPE, filters=filters, pluck="name", limit_page_length=2000, ignore_permissions=True
+    )
+
+    rows = []
+    for lead_name in lead_names:
+        doc = frappe.get_doc(LEAD_DOCTYPE, lead_name)
+        value = doc.get(question) if df is None else get_intake_field_value(doc, df)
+
+        rows.append({
+            "lead": lead_name,
+            "client_name": doc.client_name,
+            "coach_label": get_coach_label(doc.coach),
+            "value": value or "",
+        })
+
+    return {"question": label, "rows": rows}
 
 
 @frappe.whitelist()

@@ -54,7 +54,6 @@
   const CLIENT_REQUIRED_TYPES = ["Therapy Session", "Parent Check-In"];
   const NON_CLIENT_TITLE_TYPES = ["Internal Training", "Event / Stall", "Personal"];
   const SCHOOL_LINKED_TYPES = ["School Visit", "Company Meeting", "School Session", "Company Session"];
-  const GOOGLE_MEET_TYPES = ["Therapy Session", "Parent Check-In", "Initial Consultation"];
 
   const DEFAULT_BILLING_BY_TYPE = {
     "Therapy Session": "One to One",
@@ -277,10 +276,6 @@
       if (event.target && event.target.id === "trkCalendarRecurring") {
         setTimeout(syncBookingFields, 0);
       }
-
-      if (event.target && event.target.id === "trkCalendarGoogleMeet") {
-        setTimeout(syncBookingFields, 0);
-      }
     });
 
     document.addEventListener("change", function (event) {
@@ -310,10 +305,6 @@
           event.target.id === "trkCalendarRecurringCount")
       ) {
         renderRecurringPreview();
-      }
-
-      if (event.target && event.target.id === "trkCalendarGoogleMeet") {
-        syncBookingFields();
       }
 
       if (event.target && event.target.id === "trkCalendarLocationType") {
@@ -1198,7 +1189,6 @@
 
     const duration = String(getBookingDurationMinutes(type));
     const locationType = getValue("trkCalendarLocationType") || "client_default";
-    const googleMeet = isChecked("trkCalendarGoogleMeet") ? "1" : "0";
     const travelCharged = isChecked("trkCalendarTravelChargedSingle") ? "1" : "0";
     const phone = getValue("trkCalendarPhone");
     const notes = getValue("trkCalendarNotes");
@@ -1284,7 +1274,6 @@
       location_type: locationType,
       location: location,
       phone: phone,
-      google_meet: googleMeet,
       recurring: isChecked("trkCalendarRecurring") ? "1" : "0",
       recurring_frequency: getValue("trkCalendarRecurringFrequency"),
       recurring_count: getValue("trkCalendarRecurringCount"),
@@ -1295,11 +1284,21 @@
         return JSON.stringify(Array.prototype.map.call(checked, function (cb) { return cb.dataset.workerValue; }));
       })(),
       allow_double_booking: state.allowDoubleBooking ? "1" : "0"
-    }).then(function () {
+    }).then(function (result) {
       setButtonLoading("trkCalendarSaveBtn", false, "Save Calendar Item");
       state.allowDoubleBooking = false;
       closeBookingModal();
       showToast(type === "Therapy Session" ? "Session booked" : "Calendar item added");
+
+      if (isChecked("trkCalendarSendEmailToClient") && result && result.client && result.event_names && result.event_names.length) {
+        apiPost(SHARED_API + ".queue_new_booking_client_email", {
+          client: result.client,
+          event_names: JSON.stringify(result.event_names)
+        }).catch(function (error) {
+          console.error("Could not queue new booking email:", error);
+        });
+      }
+
       loadCalendarData();
     }).catch(function (error) {
       console.error("Save calendar item failed:", error);
@@ -1527,7 +1526,7 @@
     setValue("trkCalendarLocation", "");
     setValue("trkCalendarPhone", "");
     setChecked("trkCalendarTravelChargedSingle", false);
-    setChecked("trkCalendarGoogleMeet", false);
+    setChecked("trkCalendarSendEmailToClient", false);
     setChecked("trkCalendarRecurring", false);
     setValue("trkCalendarRecurringFrequency", "Weekly");
     setValue("trkCalendarRecurringCount", "4");
@@ -1673,12 +1672,20 @@
       const index = row.dataset.occurrenceIndex;
       const dateField = row.querySelector("[data-occurrence-date]");
       const timeField = row.querySelector("[data-occurrence-time]");
+      const locationField = row.querySelector("[data-occurrence-location]");
       existingValues[index] = {
         date: dateField ? dateField.value : "",
         time: timeField ? timeField.value : "",
+        location: locationField ? locationField.value : "",
         userEdited: row.dataset.userEdited === "1"
       };
     });
+
+    // Per-occurrence location only makes sense for the client-facing
+    // session types (Therapy Session / Parent Check-In) - other recurring
+    // types (Internal Training etc) have no per-client "Main Therapy
+    // Location" default to offer alongside Online/Home.
+    const showLocationPicker = CLIENT_REQUIRED_TYPES.indexOf(type) !== -1;
 
     const frequency = getValue("trkCalendarRecurringFrequency") || "Weekly";
     let html = "";
@@ -1700,13 +1707,24 @@
       const isUserEdited = !!(previous && previous.userEdited);
       const dateValue = isUserEdited && previous.date ? previous.date : formatDateKey(occurrenceDate);
       const timeValue = isUserEdited && previous.time ? previous.time : baseTime;
+      const locationValue = previous ? previous.location : "";
 
-      html += '<div class="trk-recurring-preview-row" data-occurrence-index="' + index + '"'
+      html += '<div class="trk-recurring-preview-row' + (showLocationPicker ? ' has-location' : '') + '" data-occurrence-index="' + index + '"'
         + (isUserEdited ? ' data-user-edited="1"' : '') + '>'
         + '<span class="trk-recurring-preview-index">' + (index + 1) + '</span>'
         + '<input type="date" class="dashboard-input" data-occurrence-date value="' + escapeHtml(dateValue) + '">'
-        + '<input type="time" class="dashboard-input" data-occurrence-time value="' + escapeHtml(timeValue) + '">'
-        + '</div>';
+        + '<input type="time" class="dashboard-input" data-occurrence-time value="' + escapeHtml(timeValue) + '">';
+
+      if (showLocationPicker) {
+        html += '<select class="dashboard-select" data-occurrence-location>'
+          + '<option value=""' + (locationValue === "" ? " selected" : "") + '>Same as above</option>'
+          + '<option value="client_default"' + (locationValue === "client_default" ? " selected" : "") + '>Main Therapy Location</option>'
+          + '<option value="online"' + (locationValue === "online" ? " selected" : "") + '>Online / Google Meet</option>'
+          + '<option value="home"' + (locationValue === "home" ? " selected" : "") + '>Home</option>'
+          + '</select>';
+      }
+
+      html += '</div>';
     }
 
     list.innerHTML = html;
@@ -1722,6 +1740,9 @@
     if (!rows.length) return null;
 
     return rows.map(function (row) {
+      const locationField = row.querySelector("[data-occurrence-location]");
+      const locationType = locationField ? locationField.value : "";
+
       // Only send a date/time override for occurrences the coach actually
       // hand-edited - the backend already computes correct weekly/
       // fortnightly/monthly dates itself, and previously this sent the
@@ -1729,12 +1750,13 @@
       // which silently overrode that server-side math with whatever the
       // (buggy, stale) preview happened to be showing at submit time.
       if (row.dataset.userEdited !== "1") {
-        return { date: "", time: "" };
+        return { date: "", time: "", location_type: locationType };
       }
 
       return {
         date: row.querySelector("[data-occurrence-date]")?.value || "",
-        time: row.querySelector("[data-occurrence-time]")?.value || ""
+        time: row.querySelector("[data-occurrence-time]")?.value || "",
+        location_type: locationType
       };
     });
   }
@@ -1801,8 +1823,8 @@
     toggleDisplay("trkCalendarDurationRow", !isHoliday);
 
     toggleDisplay("trkCalendarTravelRow", ["Therapy Session", "Parent Check-In"].concat(SCHOOL_LINKED_TYPES).indexOf(type) !== -1);
-    toggleDisplay("trkCalendarGoogleMeetRow", GOOGLE_MEET_TYPES.indexOf(type) !== -1);
     toggleDisplay("trkCalendarRecurringRow", RECURRING_ALLOWED_TYPES.includes(type));
+    toggleDisplay("trkCalendarSendEmailRow", CLIENT_REQUIRED_TYPES.indexOf(type) !== -1);
 
     var additionalWorkerTypes = ["Internal Training", "Company Meeting", "School Visit", "Event / Stall"];
     var showWorkers = additionalWorkerTypes.indexOf(type) !== -1;
@@ -1869,19 +1891,18 @@
       }
     }
 
-    const locationType = getValue("trkCalendarLocationType") || "manual";
-    const googleMeet = isChecked("trkCalendarGoogleMeet");
     if (type === "Therapy Session") {
       toggleDisplay("trkCalendarRecurringOptions", isChecked("trkCalendarRecurring"));
-    }
-
-    if (googleMeet && GOOGLE_MEET_TYPES.indexOf(type) !== -1) {
-      setValue("trkCalendarLocationType", "online");
     }
 
     toggleDisplay("trkCalendarPhoneRow", getValue("trkCalendarLocationType") === "telephone");
     toggleDisplay("trkCalendarLocationTypeInlineRow", !isHoliday);
     toggleDisplay("trkCalendarLocationManualRow", ["manual"].indexOf(getValue("trkCalendarLocationType")) !== -1);
+
+    const locationTypeHint = document.getElementById("trkCalendarLocationTypeHint");
+    if (locationTypeHint) {
+      locationTypeHint.style.display = getValue("trkCalendarLocationType") === "online" ? "" : "none";
+    }
 
     const startTimeForDuration = getValue("trkCalendarTime");
     if (startTimeForDuration && getBookingDurationMinutes(type) === 45) {
@@ -1893,7 +1914,6 @@
     }
 
     if (isHoliday) {
-      setChecked("trkCalendarGoogleMeet", false);
       setChecked("trkCalendarTravelChargedSingle", false);
     }
 

@@ -1835,9 +1835,12 @@ def send_client_email(client_name=None, recipient=None, subject=None, message=No
 @frappe.whitelist()
 def get_client_email_options(client_name=None):
     """
-    The two email addresses "Send Email" can offer: the client's own
-    email (if they have one on file) and their billing contact's email -
-    Ashley's own wording for these is "client email" vs "contact email".
+    Every email address "Send Email" can offer: the client's own email (if
+    they have one on file) plus every contact linked to the client (their
+    parents/guardians etc, from Client.client_contacts) - not just whichever
+    one happens to be flagged as the billing contact. The billing contact is
+    still labelled as such when it shows up here, since it's usually also
+    the main point of contact, but it's no longer the only non-client option.
     """
     _require_logged_in_user()
 
@@ -1853,17 +1856,43 @@ def get_client_email_options(client_name=None):
         return []
 
     client = frappe.get_doc("Client", client_name)
+    billing_contact = client.get("billing_contact") or ""
+
     options = []
+    seen_emails = set()
 
     client_email = (client.get("email") or "").strip() if client.meta.has_field("email") else ""
     if client_email:
         options.append({"value": client_email, "label": f"Client email ({client_email})"})
+        seen_emails.add(client_email.lower())
 
-    billing_contact = client.get("billing_contact") or ""
-    contact_email = _customer_email(billing_contact) if billing_contact else ""
+    from dashboard.api.shared.client_details import get_client_contacts
+    contacts = get_client_contacts(client_name=client_name)
 
-    if contact_email and contact_email != client_email:
-        options.append({"value": contact_email, "label": f"Contact email ({contact_email})"})
+    for contact in contacts:
+        contact_email = (contact.get("email") or "").strip()
+        if not contact_email or contact_email.lower() in seen_emails:
+            continue
+
+        seen_emails.add(contact_email.lower())
+        contact_label = contact.get("display_name") or contact.get("contact") or "Contact"
+        is_billing = billing_contact and contact.get("contact") == billing_contact
+        relationship = contact.get("relationship") or ""
+
+        if is_billing:
+            label = f"Billing contact - {contact_label} ({contact_email})"
+        elif relationship:
+            label = f"{relationship} - {contact_label} ({contact_email})"
+        else:
+            label = f"Contact - {contact_label} ({contact_email})"
+
+        options.append({"value": contact_email, "label": label})
+
+    # Covers a billing contact that's linked on the Client but, for
+    # whatever reason, isn't (yet) in client_contacts.
+    fallback_email = _customer_email(billing_contact) if billing_contact else ""
+    if fallback_email and fallback_email.lower() not in seen_emails:
+        options.append({"value": fallback_email, "label": f"Billing contact email ({fallback_email})"})
 
     return options
 
