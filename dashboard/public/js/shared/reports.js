@@ -50,6 +50,25 @@
       + escapeHtml(name) + '</a>';
   }
 
+  function dashboardBaseUrl() {
+    var container = document.querySelector("[data-base-url]");
+    return (container && container.dataset.baseUrl) || "/coach_db";
+  }
+
+  function formatDate(value) {
+    if (!value) return "—";
+    var datePart = String(value).split(" ")[0];
+    var parts = datePart.split("-");
+    if (parts.length !== 3) return datePart;
+    return parts[2] + "/" + parts[1] + "/" + parts[0];
+  }
+
+  function truncate(text, maxLength) {
+    text = String(text || "");
+    if (text.length <= maxLength) return text;
+    return text.slice(0, maxLength).trim() + "…";
+  }
+
   function renderSection(title, items, renderItem) {
     if (!items || !items.length) {
       return '<div class="dashboard-detail-section" style="margin-top:16px;">'
@@ -211,9 +230,113 @@
     }
   }
 
+  function renderIntakeFormReport(rows) {
+    var empty = el("intakeFormReportEmpty");
+    var results = el("intakeFormReportResults");
+    var body = el("intakeFormReportTableBody");
+    if (!empty || !results || !body) return;
+
+    if (!rows.length) {
+      empty.textContent = "No intake forms found.";
+      empty.style.display = "";
+      results.style.display = "none";
+      return;
+    }
+
+    empty.style.display = "none";
+    results.style.display = "";
+
+    var baseUrl = dashboardBaseUrl();
+
+    body.innerHTML = rows.map(function (row) {
+      var detailUrl = baseUrl + "/lead_details?name=" + encodeURIComponent(row.name);
+      var statusLabel = row.is_completed
+        ? '<span style="color:#1a7f37;">Completed</span>'
+        : '<span style="color:#b8860b;">Sent, not yet completed</span>';
+
+      return "<tr>"
+        + '<td><a class="dashboard-inline-link" href="' + escapeHtml(detailUrl) + '">'
+        + escapeHtml(row.client_name || row.name) + "</a></td>"
+        + "<td>" + escapeHtml(row.contact_name || "—")
+        + (row.contact_email ? "<br><small>" + escapeHtml(row.contact_email) + "</small>" : "") + "</td>"
+        + "<td>" + escapeHtml(row.coach_label || "—") + "</td>"
+        + "<td>" + formatDate(row.intake_sent_on) + "</td>"
+        + "<td>" + statusLabel + "</td>"
+        + "</tr>";
+    }).join("");
+  }
+
+  async function runIntakeFormReport() {
+    var btn = el("runIntakeFormReportBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Running..."; }
+
+    try {
+      var rows = await callApi("dashboard.api.shared.form_reports.get_intake_form_report", {});
+      renderIntakeFormReport(rows);
+    } catch (error) {
+      console.error("Intake form report failed:", error);
+      window.alert(error.message || "Could not run the report.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Run Report"; }
+    }
+  }
+
+  function renderFeedbackFormReport(rows) {
+    var empty = el("feedbackFormReportEmpty");
+    var results = el("feedbackFormReportResults");
+    var body = el("feedbackFormReportTableBody");
+    if (!empty || !results || !body) return;
+
+    if (!rows.length) {
+      empty.textContent = "No feedback forms found.";
+      empty.style.display = "";
+      results.style.display = "none";
+      return;
+    }
+
+    empty.style.display = "none";
+    results.style.display = "";
+
+    var baseUrl = dashboardBaseUrl();
+
+    body.innerHTML = rows.map(function (row) {
+      var detailUrl = baseUrl + "/client_details?name=" + encodeURIComponent(row.client);
+
+      return "<tr>"
+        + '<td><a class="dashboard-inline-link" href="' + escapeHtml(detailUrl) + '">'
+        + escapeHtml(row.client_label || row.client) + "</a></td>"
+        + "<td>" + escapeHtml(row.coach_label || "—") + "</td>"
+        + "<td>" + formatDate(row.session_date) + "</td>"
+        + "<td>" + escapeHtml(row.user_label || "—") + "</td>"
+        + "<td>" + escapeHtml(truncate(row.notes, 140)) + "</td>"
+        + "</tr>";
+    }).join("");
+  }
+
+  async function runFeedbackFormReport() {
+    var btn = el("runFeedbackFormReportBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Running..."; }
+
+    try {
+      var rows = await callApi("dashboard.api.shared.form_reports.get_feedback_form_report", {});
+      renderFeedbackFormReport(rows);
+    } catch (error) {
+      console.error("Feedback form report failed:", error);
+      window.alert(error.message || "Could not run the report.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Run Report"; }
+    }
+  }
+
   function init() {
+    var intakeBtn = el("runIntakeFormReportBtn");
+    if (intakeBtn) intakeBtn.addEventListener("click", runIntakeFormReport);
+
+    var feedbackBtn = el("runFeedbackFormReportBtn");
+    if (feedbackBtn) feedbackBtn.addEventListener("click", runFeedbackFormReport);
+
     var runBtn = el("runIntegrityReportBtn");
-    if (!runBtn) return; // not on the reports page
+    if (!runBtn) return; // diagnostic tools not on this page (coach reports, or a non-office franchisor)
 
     runBtn.addEventListener("click", runIntegrityReport);
 
