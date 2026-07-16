@@ -6,17 +6,15 @@
   <div class="dashboard-main">
     {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
 
-    <div class="dashboard-container">
+    <div class="dashboard-container" data-base-url="{{ dashboard_base_url }}" data-dashboard-type="coach">
       <div class="dashboard-page-header">
         <div>
           <h1 class="dashboard-page-title">Reports</h1>
-          <p class="dashboard-page-subtitle">Coming soon.</p>
+          <p class="dashboard-page-subtitle">Intake and feedback forms for your own clients.</p>
         </div>
       </div>
 
-      <div class="dashboard-card">
-        <div class="dashboard-empty">Nothing here yet.</div>
-      </div>
+      {% include "dashboard/templates/includes/reports/forms_report_body.html" %}
     </div>
   </div>
 </div>

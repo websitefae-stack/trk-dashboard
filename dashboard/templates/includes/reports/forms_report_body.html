@@ -1,0 +1,53 @@
+<div class="dashboard-card" style="margin-bottom:20px;">
+  <div class="dashboard-detail-section-head">
+    <h2 class="dashboard-detail-section-title">Intake Forms</h2>
+    <button type="button" class="dashboard-btn dashboard-btn-primary" id="runIntakeFormReportBtn">Run Report</button>
+  </div>
+
+  <p class="dashboard-help" style="margin-bottom:16px;">
+    Every lead an intake form has been sent to, with completion status.
+  </p>
+
+  <div id="intakeFormReportEmpty" class="dashboard-empty">Run the report to see results.</div>
+  <div class="dashboard-table-wrap" id="intakeFormReportResults" style="display:none;">
+    <table class="dashboard-table dashboard-table-compact">
+      <thead>
+        <tr>
+          <th>Client / Young Person</th>
+          <th>Contact</th>
+          <th>Coach</th>
+          <th>Sent</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="intakeFormReportTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="dashboard-card">
+  <div class="dashboard-detail-section-head">
+    <h2 class="dashboard-detail-section-title">Feedback Forms</h2>
+    <button type="button" class="dashboard-btn dashboard-btn-primary" id="runFeedbackFormReportBtn">Run Report</button>
+  </div>
+
+  <p class="dashboard-help" style="margin-bottom:16px;">
+    Every client note logged as "Parent Feedback".
+  </p>
+
+  <div id="feedbackFormReportEmpty" class="dashboard-empty">Run the report to see results.</div>
+  <div class="dashboard-table-wrap" id="feedbackFormReportResults" style="display:none;">
+    <table class="dashboard-table dashboard-table-compact">
+      <thead>
+        <tr>
+          <th>Client</th>
+          <th>Coach</th>
+          <th>Date</th>
+          <th>Logged By</th>
+          <th>Feedback</th>
+        </tr>
+      </thead>
+      <tbody id="feedbackFormReportTableBody"></tbody>
+    </table>
+  </div>
+</div>
