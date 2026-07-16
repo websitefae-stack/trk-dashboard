@@ -1948,19 +1948,21 @@ def _booking_confirmation_context(event_doc, client):
         "date": start_dt.strftime("%A %d %B %Y") if start_dt else "",
         "time": start_dt.strftime("%H:%M") if start_dt else "",
         "location_address": event_doc.get("location") or "",
+        "meet_link": event_doc.get("custom_google_meet_url") or event_doc.get("google_meet_link") or "",
     }
 
 
 _BOOKING_CONFIRMATION_FALLBACK = (
     "Hi {{ contact_name }},\n"
     "\n"
-    "Your {{ appointment_type }} with {{ coach_name }} is confirmed:\n"
+    "Your next session with {{ coach_name }} will take place on {{ date }} at {{ time }}"
+    "{% if location_address %}, {{ location_address }}{% endif %}.\n"
+    "{% if meet_link %}\n"
+    "This session is online - you can join here: {{ meet_link }}\n"
+    "{% endif %}\n"
+    "Please let us know if you have any questions or need to make any changes.\n"
     "\n"
-    "{{ date }} at {{ time }}"
-    "{% if location_address %}\n"
-    "Location: {{ location_address }}{% endif %}\n"
-    "\n"
-    "We'll be in touch if anything changes. See you then!"
+    "The Resilient Office"
 )
 
 
@@ -1990,7 +1992,7 @@ def get_booking_confirmation_email_defaults(event=None):
     subject, message = render_email(
         BOOKING_CONFIRMATION_TEMPLATE,
         context,
-        fallback_subject="Your {{ appointment_type }} is confirmed",
+        fallback_subject="Your next session with {{ coach_name }} is confirmed",
         fallback_message=_BOOKING_CONFIRMATION_FALLBACK,
     )
 
