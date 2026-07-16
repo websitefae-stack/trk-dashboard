@@ -63,12 +63,6 @@
     return parts[2] + "/" + parts[1] + "/" + parts[0];
   }
 
-  function truncate(text, maxLength) {
-    text = String(text || "");
-    if (text.length <= maxLength) return text;
-    return text.slice(0, maxLength).trim() + "…";
-  }
-
   function csvCell(value) {
     var text = String(value == null ? "" : value).replace(/"/g, '""');
     return '"' + text + '"';
@@ -492,71 +486,258 @@
     ], intakeFormState.rows);
   }
 
-  var feedbackFormState = { rows: [] };
+  var formModuleState = { rows: [], questionRows: [], mode: "summary" };
 
-  function renderFeedbackFormReport(rows) {
-    var empty = el("feedbackFormReportEmpty");
-    var results = el("feedbackFormReportResults");
-    var body = el("feedbackFormReportTableBody");
-    if (!empty || !results || !body) return;
+  function formModuleSelectedDoctype() {
+    var select = el("formModuleSelect");
+    return select ? select.value : "";
+  }
 
-    feedbackFormState.rows = rows || [];
+  async function loadFormModuleDoctypes() {
+    var select = el("formModuleSelect");
+    if (!select) return;
 
-    if (!rows.length) {
-      empty.textContent = "No feedback forms found.";
+    try {
+      var options = await callApi("dashboard.api.shared.form_reports.get_form_module_doctypes", {});
+      fillSelect(select, options || [], "Select a form");
+    } catch (error) {
+      console.error("Could not load forms:", error);
+    }
+  }
+
+  function resetFormModuleReport() {
+    formModuleState.rows = [];
+    formModuleState.questionRows = [];
+
+    toggleDisplayEl("formModuleSummaryResults", false);
+    toggleDisplayEl("formModulePersonResults", false);
+    toggleDisplayEl("formModuleQuestionResults", false);
+    toggleDisplayEl("exportFormModuleReportBtn", false);
+
+    var empty = el("formModuleEmpty");
+    if (empty) {
+      empty.textContent = "Select a form and run the report to see results.";
+      empty.style.display = "";
+    }
+
+    fillSelect(el("formModulePersonSelect"), [], "Select a person");
+    fillSelect(el("formModuleQuestionSelect"), [], "Select a question");
+  }
+
+  function renderFormModuleSummaryTable(rows) {
+    var body = el("formModuleSummaryTableBody");
+    if (!body) return;
+
+    var doctype = formModuleSelectedDoctype();
+
+    body.innerHTML = rows.map(function (row) {
+      return "<tr>"
+        + "<td>" + formatDate(row.creation) + "</td>"
+        + "<td>" + escapeHtml(row.person_label || "—") + "</td>"
+        + "<td>" + escapeHtml(row.coach_label || "—") + "</td>"
+        + "<td>" + nameLink(doctype, row.name) + "</td>"
+        + "</tr>";
+    }).join("");
+  }
+
+  function renderFormModulePersonAnswers(data) {
+    var wrap = el("formModulePersonResults");
+    if (!wrap) return;
+
+    if (!data.submissions || !data.submissions.length) {
+      wrap.innerHTML = '<div class="dashboard-empty">No submissions found for ' + escapeHtml(data.person || "this person") + '.</div>';
+      return;
+    }
+
+    wrap.innerHTML = data.submissions.map(function (submission) {
+      return '<div class="dashboard-detail-section" style="margin-top:16px;">'
+        + '<h3 style="margin-bottom:8px;">' + formatDate(submission.submitted_on) + '</h3>'
+        + '<div class="dashboard-table-wrap"><table class="dashboard-table dashboard-table-compact">'
+        + '<thead><tr><th>Question</th><th>Answer</th></tr></thead>'
+        + '<tbody>'
+        + submission.answers.map(function (answer) {
+          return "<tr><td>" + escapeHtml(answer.label) + "</td><td>" + escapeHtml(answer.value == null ? "—" : answer.value) + "</td></tr>";
+        }).join("")
+        + '</tbody></table></div></div>';
+    }).join("");
+  }
+
+  function renderFormModuleQuestionTable(data) {
+    var body = el("formModuleQuestionTableBody");
+    var columnHead = el("formModuleQuestionColumnHead");
+    if (!body) return;
+
+    if (columnHead) columnHead.textContent = data.question || "Answer";
+
+    body.innerHTML = (data.rows || []).map(function (row) {
+      return "<tr>"
+        + "<td>" + formatDate(row.creation) + "</td>"
+        + "<td>" + escapeHtml(row.person_label || "—") + "</td>"
+        + "<td>" + escapeHtml(row.coach_label || "—") + "</td>"
+        + "<td>" + escapeHtml(row.value || "—") + "</td>"
+        + "</tr>";
+    }).join("");
+  }
+
+  async function loadFormModulePersonAnswers(person) {
+    var empty = el("formModuleEmpty");
+    var wrap = el("formModulePersonResults");
+    if (!empty || !wrap) return;
+
+    if (!person) {
+      empty.textContent = "Select a person to see their answers.";
+      empty.style.display = "";
+      wrap.style.display = "none";
+      return;
+    }
+
+    empty.textContent = "Loading...";
+    empty.style.display = "";
+    wrap.style.display = "none";
+
+    try {
+      var data = await callApi("dashboard.api.shared.form_reports.get_form_answers_for_person", {
+        doctype: formModuleSelectedDoctype(),
+        person: person
+      });
+
+      empty.style.display = "none";
+      wrap.style.display = "";
+      renderFormModulePersonAnswers(data);
+    } catch (error) {
+      console.error("Could not load person's form answers:", error);
+      empty.textContent = error.message || "Could not load this person's answers.";
+      empty.style.display = "";
+      wrap.style.display = "none";
+    }
+  }
+
+  async function loadFormModuleQuestionAnswers(question) {
+    var empty = el("formModuleEmpty");
+    var results = el("formModuleQuestionResults");
+    if (!empty || !results) return;
+
+    if (!question) {
+      empty.textContent = "Select a question to see everyone's answer.";
       empty.style.display = "";
       results.style.display = "none";
       return;
     }
 
-    empty.style.display = "none";
-    results.style.display = "";
-
-    var baseUrl = dashboardBaseUrl();
-
-    body.innerHTML = rows.map(function (row) {
-      var detailUrl = baseUrl + "/client_details?name=" + encodeURIComponent(row.client);
-
-      return "<tr>"
-        + '<td><a class="dashboard-inline-link" href="' + escapeHtml(detailUrl) + '">'
-        + escapeHtml(row.client_label || row.client) + "</a></td>"
-        + "<td>" + escapeHtml(row.coach_label || "—") + "</td>"
-        + "<td>" + formatDate(row.session_date) + "</td>"
-        + "<td>" + escapeHtml(row.user_label || "—") + "</td>"
-        + "<td>" + escapeHtml(truncate(row.notes, 140)) + "</td>"
-        + "</tr>";
-    }).join("");
-  }
-
-  async function runFeedbackFormReport() {
-    var btn = el("runFeedbackFormReportBtn");
-    if (btn) { btn.disabled = true; btn.textContent = "Running..."; }
+    empty.textContent = "Loading...";
+    empty.style.display = "";
+    results.style.display = "none";
 
     try {
-      var rows = await callApi("dashboard.api.shared.form_reports.get_feedback_form_report", {
-        from_date: (el("feedbackFormFromDate") || {}).value || "",
-        to_date: (el("feedbackFormToDate") || {}).value || ""
+      var data = await callApi("dashboard.api.shared.form_reports.get_form_answers_for_question", {
+        doctype: formModuleSelectedDoctype(),
+        question: question,
+        from_date: (el("formModuleFromDate") || {}).value || "",
+        to_date: (el("formModuleToDate") || {}).value || ""
       });
-      renderFeedbackFormReport(rows);
 
-      var exportBtn = el("exportFeedbackFormReportBtn");
-      if (exportBtn) exportBtn.style.display = rows.length ? "" : "none";
+      formModuleState.questionRows = data.rows || [];
+
+      if (!data.rows || !data.rows.length) {
+        empty.textContent = "No answers found.";
+        empty.style.display = "";
+        results.style.display = "none";
+        return;
+      }
+
+      empty.style.display = "none";
+      results.style.display = "";
+      renderFormModuleQuestionTable(data);
+      toggleDisplayEl("exportFormModuleReportBtn", true);
     } catch (error) {
-      console.error("Feedback form report failed:", error);
+      console.error("Could not load question's form answers:", error);
+      empty.textContent = error.message || "Could not load answers for this question.";
+      empty.style.display = "";
+      results.style.display = "none";
+    }
+  }
+
+  async function runFormModuleReport() {
+    var doctype = formModuleSelectedDoctype();
+    if (!doctype) {
+      window.alert("Select a form first.");
+      return;
+    }
+
+    var mode = (el("formModuleViewMode") || {}).value || "summary";
+    formModuleState.mode = mode;
+
+    var btn = el("runFormModuleReportBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Running..."; }
+
+    resetFormModuleReport();
+
+    try {
+      if (mode === "summary") {
+        var data = await callApi("dashboard.api.shared.form_reports.get_form_report", {
+          doctype: doctype,
+          from_date: (el("formModuleFromDate") || {}).value || "",
+          to_date: (el("formModuleToDate") || {}).value || ""
+        });
+
+        formModuleState.rows = data.rows || [];
+        var empty = el("formModuleEmpty");
+
+        if (!formModuleState.rows.length) {
+          if (empty) { empty.textContent = "No submissions found."; empty.style.display = ""; }
+        } else {
+          if (empty) empty.style.display = "none";
+          toggleDisplayEl("formModuleSummaryResults", true);
+          renderFormModuleSummaryTable(formModuleState.rows);
+          toggleDisplayEl("exportFormModuleReportBtn", true);
+        }
+      } else if (mode === "person") {
+        var people = await callApi("dashboard.api.shared.form_reports.get_form_people", { doctype: doctype });
+        fillSelect(el("formModulePersonSelect"), people || [], "Select a person");
+
+        var personEmpty = el("formModuleEmpty");
+        if (personEmpty) {
+          personEmpty.textContent = (people && people.length)
+            ? "Select a person to see their answers."
+            : "This form has no linked person to filter by, or nobody's submitted it yet.";
+          personEmpty.style.display = "";
+        }
+      } else if (mode === "question") {
+        var questions = await callApi("dashboard.api.shared.form_reports.get_form_questions", { doctype: doctype });
+        fillSelect(el("formModuleQuestionSelect"), questions || [], "Select a question");
+
+        var questionEmpty = el("formModuleEmpty");
+        if (questionEmpty) {
+          questionEmpty.textContent = "Select a question to see everyone's answer.";
+          questionEmpty.style.display = "";
+        }
+      }
+    } catch (error) {
+      console.error("Form report failed:", error);
       window.alert(error.message || "Could not run the report.");
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = "Run Report"; }
     }
   }
 
-  function exportFeedbackFormReport() {
-    exportRowsToCsv("feedback-forms.csv", [
-      { label: "Client", value: function (r) { return r.client_label || r.client; } },
-      { label: "Coach", value: function (r) { return r.coach_label || ""; } },
-      { label: "Date", value: function (r) { return formatDate(r.session_date); } },
-      { label: "Logged By", value: function (r) { return r.user_label || ""; } },
-      { label: "Feedback", value: function (r) { return r.notes || ""; } }
-    ], feedbackFormState.rows);
+  function exportFormModuleReport() {
+    var mode = formModuleState.mode;
+
+    if (mode === "question") {
+      exportRowsToCsv("form-results.csv", [
+        { label: "Submitted", value: function (r) { return formatDate(r.creation); } },
+        { label: "Person", value: function (r) { return r.person_label || ""; } },
+        { label: "Coach", value: function (r) { return r.coach_label || ""; } },
+        { label: "Answer", value: function (r) { return r.value || ""; } }
+      ], formModuleState.questionRows);
+      return;
+    }
+
+    exportRowsToCsv("form-results.csv", [
+      { label: "Submitted", value: function (r) { return formatDate(r.creation); } },
+      { label: "Person", value: function (r) { return r.person_label || ""; } },
+      { label: "Coach", value: function (r) { return r.coach_label || ""; } }
+    ], formModuleState.rows);
   }
 
   var openPacksState = { rows: [] };
@@ -653,14 +834,40 @@
     var intakeBtn = el("runIntakeFormReportBtn");
     if (intakeBtn) intakeBtn.addEventListener("click", runIntakeFormReport);
 
-    var feedbackBtn = el("runFeedbackFormReportBtn");
-    if (feedbackBtn) feedbackBtn.addEventListener("click", runFeedbackFormReport);
-
     var exportIntakeBtn = el("exportIntakeFormReportBtn");
     if (exportIntakeBtn) exportIntakeBtn.addEventListener("click", exportIntakeFormReport);
 
-    var exportFeedbackBtn = el("exportFeedbackFormReportBtn");
-    if (exportFeedbackBtn) exportFeedbackBtn.addEventListener("click", exportFeedbackFormReport);
+    var formModuleBtn = el("runFormModuleReportBtn");
+    if (formModuleBtn) formModuleBtn.addEventListener("click", runFormModuleReport);
+
+    var exportFormModuleBtn = el("exportFormModuleReportBtn");
+    if (exportFormModuleBtn) exportFormModuleBtn.addEventListener("click", exportFormModuleReport);
+
+    var formModuleSelect = el("formModuleSelect");
+    if (formModuleSelect) {
+      loadFormModuleDoctypes();
+      formModuleSelect.addEventListener("change", resetFormModuleReport);
+    }
+
+    var formModuleViewModeSelect = el("formModuleViewMode");
+    if (formModuleViewModeSelect) {
+      formModuleViewModeSelect.addEventListener("change", function () {
+        var mode = formModuleViewModeSelect.value;
+        toggleDisplayEl("formModuleControlsRow", mode !== "summary");
+        toggleDisplayEl("formModulePersonRow", mode === "person");
+        toggleDisplayEl("formModuleQuestionRow", mode === "question");
+      });
+    }
+
+    var formModulePersonSelect = el("formModulePersonSelect");
+    if (formModulePersonSelect) {
+      formModulePersonSelect.addEventListener("change", function () { loadFormModulePersonAnswers(formModulePersonSelect.value); });
+    }
+
+    var formModuleQuestionSelect = el("formModuleQuestionSelect");
+    if (formModuleQuestionSelect) {
+      formModuleQuestionSelect.addEventListener("change", function () { loadFormModuleQuestionAnswers(formModuleQuestionSelect.value); });
+    }
 
     var packsBtn = el("runOpenPacksReportBtn");
     if (packsBtn) packsBtn.addEventListener("click", runOpenPacksReport);
