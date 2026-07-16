@@ -1,0 +1,20 @@
+{% include "dashboard/templates/includes/head/session_worker_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/session_worker_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container" data-base-url="{{ dashboard_base_url }}" data-dashboard-type="session_worker">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Reports</h1>
+          <p class="dashboard-page-subtitle">Open session packs for your own clients.</p>
+        </div>
+      </div>
+
+      {% include "dashboard/templates/includes/reports/open_packs_report_body.html" %}
+    </div>
+  </div>
+</div>

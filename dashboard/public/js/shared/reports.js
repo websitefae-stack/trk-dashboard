@@ -559,6 +559,75 @@
     ], feedbackFormState.rows);
   }
 
+  var openPacksState = { rows: [] };
+
+  function renderOpenPacksReport(rows) {
+    var empty = el("openPacksReportEmpty");
+    var results = el("openPacksReportResults");
+    var body = el("openPacksReportTableBody");
+    if (!empty || !results || !body) return;
+
+    openPacksState.rows = rows || [];
+
+    if (!rows.length) {
+      empty.textContent = "No open session packs found.";
+      empty.style.display = "";
+      results.style.display = "none";
+      return;
+    }
+
+    empty.style.display = "none";
+    results.style.display = "";
+
+    body.innerHTML = rows.map(function (row) {
+      var baseUrl = dashboardBaseUrl();
+      var detailUrl = baseUrl + "/client_details?name=" + encodeURIComponent(row.client);
+
+      return "<tr>"
+        + '<td><a class="dashboard-inline-link" href="' + escapeHtml(detailUrl) + '">'
+        + escapeHtml(row.client_label || row.client) + "</a></td>"
+        + "<td>" + escapeHtml(row.coach_label || "—") + "</td>"
+        + "<td>" + escapeHtml(row.worker_label || "—") + "</td>"
+        + "<td>" + escapeHtml(row.service_item || row.client_package || "—") + "</td>"
+        + "<td>" + escapeHtml(row.qty_purchased) + "</td>"
+        + "<td>" + escapeHtml(row.qty_used) + "</td>"
+        + "<td>" + escapeHtml(row.qty_booked) + "</td>"
+        + "<td><strong>" + escapeHtml(row.qty_available) + "</strong></td>"
+        + "</tr>";
+    }).join("");
+  }
+
+  async function runOpenPacksReport() {
+    var btn = el("runOpenPacksReportBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Running..."; }
+
+    try {
+      var rows = await callApi("dashboard.api.shared.packages.get_open_session_packs_report", {});
+      renderOpenPacksReport(rows);
+
+      var exportBtn = el("exportOpenPacksReportBtn");
+      if (exportBtn) exportBtn.style.display = rows.length ? "" : "none";
+    } catch (error) {
+      console.error("Open session packs report failed:", error);
+      window.alert(error.message || "Could not run the report.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Run Report"; }
+    }
+  }
+
+  function exportOpenPacksReport() {
+    exportRowsToCsv("open-session-packs.csv", [
+      { label: "Client", value: function (r) { return r.client_label || r.client; } },
+      { label: "Coach", value: function (r) { return r.coach_label || ""; } },
+      { label: "Session Worker", value: function (r) { return r.worker_label || ""; } },
+      { label: "Package", value: function (r) { return r.service_item || r.client_package || ""; } },
+      { label: "Purchased", value: function (r) { return r.qty_purchased; } },
+      { label: "Used", value: function (r) { return r.qty_used; } },
+      { label: "Booked", value: function (r) { return r.qty_booked; } },
+      { label: "Available", value: function (r) { return r.qty_available; } }
+    ], openPacksState.rows);
+  }
+
   function initFormsReportPicker() {
     var picker = el("formsReportPicker");
     if (!picker) return;
@@ -592,6 +661,12 @@
 
     var exportFeedbackBtn = el("exportFeedbackFormReportBtn");
     if (exportFeedbackBtn) exportFeedbackBtn.addEventListener("click", exportFeedbackFormReport);
+
+    var packsBtn = el("runOpenPacksReportBtn");
+    if (packsBtn) packsBtn.addEventListener("click", runOpenPacksReport);
+
+    var exportPacksBtn = el("exportOpenPacksReportBtn");
+    if (exportPacksBtn) exportPacksBtn.addEventListener("click", exportOpenPacksReport);
 
     initFormsReportPicker();
 

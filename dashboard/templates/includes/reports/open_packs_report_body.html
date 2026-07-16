@@ -1,0 +1,33 @@
+<div class="dashboard-card">
+  <div class="dashboard-detail-section-head">
+    <h2 class="dashboard-detail-section-title">Open Session Packs</h2>
+  </div>
+
+  <p class="dashboard-help" style="margin-bottom:16px;">
+    Every client with an active session pack that still has sessions left over, and how many.
+  </p>
+
+  <div class="dashboard-detail-actions" style="margin-bottom:16px;">
+    <button type="button" class="dashboard-btn dashboard-btn-primary" id="runOpenPacksReportBtn">Run Report</button>
+    <button type="button" class="dashboard-btn dashboard-btn-light" id="exportOpenPacksReportBtn" style="display:none;">Export to Excel</button>
+  </div>
+
+  <div id="openPacksReportEmpty" class="dashboard-empty">Run the report to see results.</div>
+  <div class="dashboard-table-wrap" id="openPacksReportResults" style="display:none;">
+    <table class="dashboard-table dashboard-table-compact">
+      <thead>
+        <tr>
+          <th>Client</th>
+          <th>Coach</th>
+          <th>Session Worker</th>
+          <th>Package</th>
+          <th>Purchased</th>
+          <th>Used</th>
+          <th>Booked</th>
+          <th>Available</th>
+        </tr>
+      </thead>
+      <tbody id="openPacksReportTableBody"></tbody>
+    </table>
+  </div>
+</div>
