@@ -28,7 +28,7 @@ same recalculation twice.
 import frappe
 from frappe import _
 
-from dashboard.api.shared.permissions import ensure_logged_in, get_allowed_client_names
+from dashboard.api.shared.permissions import ensure_logged_in, get_allowed_client_names, get_current_coach_name
 
 PARENT_CHECKIN_ITEM = "PAR001"
 USED_CUSTOM_STATUSES = ["Attended", "No Show"]
@@ -432,22 +432,49 @@ def _whole(value):
         return 0
 
 
+def _client_names_for_open_packs_report():
+    coach_name = get_current_coach_name(optional=True)
+
+    if coach_name:
+        # A franchisor/office login that's also a working coach (Ashley)
+        # only sees their own clients here, same as get_allowed_client_or_
+        # filters() already does for the coach dashboard - checked before
+        # falling back to get_allowed_client_names()'s franchisor-sees-all
+        # branch, which would otherwise fire first for any FRANCHISOR_USERS
+        # login regardless of whether they're also a coach.
+        return frappe.get_all(
+            "Client",
+            or_filters=[
+                ["Client", "primary_coach", "=", coach_name],
+                ["Client", "attending_coach", "=", coach_name],
+                ["Client", "client_type", "=", "Franchise"],
+            ],
+            pluck="name",
+            limit_page_length=5000,
+        )
+
+    return get_allowed_client_names()
+
+
 @frappe.whitelist()
 def get_open_session_packs_report():
     """
     Every client with sessions still available on an Active Client Package
     Balance ("session pack") - who has appointments left over and how many.
-    Scoped the same way every other list in this app is: a coach sees their
-    own clients' packs, a session worker sees theirs, a franchisor sees
-    everyone's (get_allowed_client_names() already implements exactly this
-    for all three dashboards).
+
+    Scoped by whether the current user has their own Coach profile, not by
+    dashboard type: a coach (whether on their own dashboard, or a
+    franchisor login like Ashley's that's also a working coach) sees only
+    their own clients' packs; a session worker sees theirs; only a
+    franchisor/office login with no Coach profile of its own (the actual
+    office account) sees every client's packs.
     """
     ensure_logged_in()
 
     if not frappe.db.exists("DocType", "Client Package Balance"):
         return []
 
-    client_names = get_allowed_client_names()
+    client_names = _client_names_for_open_packs_report()
     if not client_names:
         return []
 
