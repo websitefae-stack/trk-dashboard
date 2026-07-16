@@ -28,6 +28,8 @@ same recalculation twice.
 import frappe
 from frappe import _
 
+from dashboard.api.shared.permissions import ensure_logged_in, get_allowed_client_names
+
 PARENT_CHECKIN_ITEM = "PAR001"
 USED_CUSTOM_STATUSES = ["Attended", "No Show"]
 USED_EVENT_STATUSES = ["Completed", "Closed"]
@@ -421,6 +423,84 @@ def _ensure_reports_access():
 
 def _event_session_type(event_row):
     return (event_row.get("custom_appointment_type") or event_row.get("custom_item") or "").strip()
+
+
+def _whole(value):
+    try:
+        return int(float(value or 0))
+    except Exception:
+        return 0
+
+
+@frappe.whitelist()
+def get_open_session_packs_report():
+    """
+    Every client with sessions still available on an Active Client Package
+    Balance ("session pack") - who has appointments left over and how many.
+    Scoped the same way every other list in this app is: a coach sees their
+    own clients' packs, a session worker sees theirs, a franchisor sees
+    everyone's (get_allowed_client_names() already implements exactly this
+    for all three dashboards).
+    """
+    ensure_logged_in()
+
+    if not frappe.db.exists("DocType", "Client Package Balance"):
+        return []
+
+    client_names = get_allowed_client_names()
+    if not client_names:
+        return []
+
+    rows = frappe.get_all(
+        "Client Package Balance",
+        filters={"client": ["in", client_names], "status": "Active"},
+        fields=[
+            "name",
+            "client",
+            "client_package",
+            "service_item",
+            "qty_purchased",
+            "qty_booked",
+            "qty_used",
+            "qty_available",
+            "creation",
+        ],
+        order_by="qty_available desc",
+        limit_page_length=2000,
+        ignore_permissions=True,
+    )
+
+    rows = [row for row in rows if _whole(row.get("qty_available")) > 0]
+
+    from dashboard.api.shared.clients import build_display_name, get_coach_label
+    from dashboard.api.shared.session_workers import get_session_worker_label
+
+    client_cache = {}
+
+    def _client_row(client_name):
+        if client_name not in client_cache:
+            client_cache[client_name] = frappe.db.get_value(
+                "Client",
+                client_name,
+                ["name", "name1", "last_name", "full_name", "preferred_name",
+                 "primary_coach", "attending_coach", "session_worker"],
+                as_dict=True,
+            )
+        return client_cache[client_name]
+
+    for row in rows:
+        client_row = _client_row(row.get("client")) or {}
+
+        row["client_label"] = build_display_name(client_row) if client_row else row.get("client")
+        row["coach_label"] = get_coach_label(client_row.get("primary_coach") or client_row.get("attending_coach"))
+        row["worker_label"] = get_session_worker_label(client_row.get("session_worker"))
+
+        row["qty_purchased"] = _whole(row.get("qty_purchased"))
+        row["qty_booked"] = _whole(row.get("qty_booked"))
+        row["qty_used"] = _whole(row.get("qty_used"))
+        row["qty_available"] = _whole(row.get("qty_available"))
+
+    return rows
 
 
 @frappe.whitelist()

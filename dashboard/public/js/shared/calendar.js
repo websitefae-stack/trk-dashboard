@@ -272,6 +272,10 @@
     bindClick("trkCalendarNoteModalCancel", closeNoteModal);
     bindClick("trkCalendarNoteSaveBtn", saveClientNote);
 
+    bindClick("trkCalendarEmailModalClose", closeEmailModal);
+    bindClick("trkCalendarEmailCancel", closeEmailModal);
+    bindClick("trkCalendarEmailSubmit", sendEmailFromModal);
+
     document.addEventListener("click", function (event) {
       if (event.target && event.target.id === "trkCalendarRecurring") {
         setTimeout(syncBookingFields, 0);
@@ -355,6 +359,12 @@
       const noteBtn = event.target.closest("[data-calendar-action='add-note']");
       if (noteBtn) {
         openNoteModal(noteBtn.dataset.event);
+        return;
+      }
+
+      const emailBtn = event.target.closest("[data-calendar-action='email']");
+      if (emailBtn) {
+        openEmailModal(emailBtn.dataset.event);
         return;
       }
 
@@ -989,6 +999,7 @@
 
       if (event.client_name) {
         actions += '<button type="button" class="dashboard-btn dashboard-btn-light" data-calendar-action="add-note" data-event="' + escapeHtml(event.name || "") + '">Add Note</button>';
+        actions += '<button type="button" class="dashboard-btn dashboard-btn-light" data-calendar-action="email" data-event="' + escapeHtml(event.name || "") + '">Email</button>';
       }
 
       actions += '<a class="dashboard-link-btn" href="' + escapeHtml(detailsUrl) + '">Open Full Page</a>'
@@ -1283,22 +1294,13 @@
         var checked = document.querySelectorAll("#trkCalendarAdditionalWorkersList input[type='checkbox']:checked");
         return JSON.stringify(Array.prototype.map.call(checked, function (cb) { return cb.dataset.workerValue; }));
       })(),
-      allow_double_booking: state.allowDoubleBooking ? "1" : "0"
+      allow_double_booking: state.allowDoubleBooking ? "1" : "0",
+      send_confirmation_email: isChecked("trkCalendarSendEmailToClient") ? "1" : "0"
     }).then(function (result) {
       setButtonLoading("trkCalendarSaveBtn", false, "Save Calendar Item");
       state.allowDoubleBooking = false;
       closeBookingModal();
       showToast(type === "Therapy Session" ? "Session booked" : "Calendar item added");
-
-      if (isChecked("trkCalendarSendEmailToClient") && result && result.client && result.event_names && result.event_names.length) {
-        apiPost(SHARED_API + ".queue_new_booking_client_email", {
-          client: result.client,
-          event_names: JSON.stringify(result.event_names)
-        }).catch(function (error) {
-          console.error("Could not queue new booking email:", error);
-        });
-      }
-
       loadCalendarData();
     }).catch(function (error) {
       console.error("Save calendar item failed:", error);
@@ -1640,6 +1642,97 @@
 
   function closeNoteModal() {
     toggleModal("trkCalendarNoteModal", false);
+  }
+
+  function fillEmailSelect(id, options) {
+    const select = document.getElementById(id);
+    if (!select) return;
+    select.innerHTML = (options || []).map(function (opt) {
+      return '<option value="' + escapeHtml(opt.value) + '">' + escapeHtml(opt.label) + '</option>';
+    }).join("");
+  }
+
+  async function openEmailModal(eventName) {
+    const eventRow = getEventByName(eventName);
+
+    if (!eventRow) {
+      showToast("Session not found");
+      return;
+    }
+
+    if (!eventRow.client_name) {
+      showToast("This session is not linked to a client");
+      return;
+    }
+
+    setValue("trkCalendarEmailEventName", eventName || "");
+    setValue("trkCalendarEmailCc", "");
+    var statusEl = document.getElementById("trkCalendarEmailStatus");
+    if (statusEl) statusEl.textContent = "Loading...";
+
+    toggleModal("trkCalendarEmailModal", true);
+
+    try {
+      const [defaults, senderOptions] = await Promise.all([
+        apiGet(SHARED_API + ".get_booking_confirmation_email_defaults", { event: eventName }),
+        apiGet("dashboard.api.shared.email_templates.get_email_sender_options", {})
+      ]);
+
+      fillEmailSelect("trkCalendarEmailRecipient", defaults.email_options || []);
+      if (defaults.recipient) setValue("trkCalendarEmailRecipient", defaults.recipient);
+      fillEmailSelect("trkCalendarEmailSender", senderOptions || []);
+
+      setValue("trkCalendarEmailSubject", defaults.subject || "");
+      setValue("trkCalendarEmailMessage", defaults.message || "");
+
+      if (statusEl) statusEl.textContent = "";
+    } catch (error) {
+      console.error("Could not load booking confirmation email", error);
+      if (statusEl) statusEl.textContent = error.message || "Could not load the booking confirmation email.";
+    }
+  }
+
+  function closeEmailModal() {
+    toggleModal("trkCalendarEmailModal", false);
+  }
+
+  async function sendEmailFromModal() {
+    const eventName = getValue("trkCalendarEmailEventName");
+    const recipient = getValue("trkCalendarEmailRecipient");
+    const statusEl = document.getElementById("trkCalendarEmailStatus");
+    const submitBtn = document.getElementById("trkCalendarEmailSubmit");
+
+    if (!recipient) {
+      if (statusEl) statusEl.textContent = "Select an email address to send to.";
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Sending...";
+    }
+    if (statusEl) statusEl.textContent = "";
+
+    try {
+      await apiPost(SHARED_API + ".send_booking_confirmation_email", {
+        event: eventName,
+        recipient: recipient,
+        subject: getValue("trkCalendarEmailSubject"),
+        message: getValue("trkCalendarEmailMessage"),
+        sender: getValue("trkCalendarEmailSender"),
+        cc: getValue("trkCalendarEmailCc")
+      });
+
+      closeEmailModal();
+      showToast("Email sent");
+    } catch (error) {
+      if (statusEl) statusEl.textContent = error.message || "Could not send the email.";
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Send";
+      }
+    }
   }
 
   function renderRecurringPreview() {

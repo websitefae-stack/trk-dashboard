@@ -286,7 +286,6 @@
         : "—"
     );
 
-    setText("notificationMessageText", data.message || "—");
     setValue("notificationStatus", data.status || "Open");
 
     renderRecipients(data.recipients || []);
@@ -325,6 +324,48 @@
     }).join("");
   }
 
+  function initials(label) {
+    const clean = String(label || "").trim();
+    if (!clean) return "?";
+
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (parts.length === 1) return parts[0].slice(0, 2);
+
+    return (parts[0][0] || "") + (parts[parts.length - 1][0] || "");
+  }
+
+  function attachmentFileName(url) {
+    const clean = String(url || "").split("?")[0];
+    const parts = clean.split("/");
+    return parts[parts.length - 1] || "Attachment";
+  }
+
+  function renderFeedItem(message, isPost) {
+    const isSystem = message.message_type === "Status Update" || message.message_type === "System";
+    const author = message.sent_by_label || message.sent_by_name || message.sent_by || "System";
+
+    const classes = "notification-feed-item"
+      + (isPost ? " is-post" : "")
+      + (isSystem ? " is-system" : "");
+
+    return [
+      '<div class="' + classes + '">',
+      '<div class="notification-avatar">' + escapeHtml(isSystem ? "•" : initials(author)) + '</div>',
+      '<div class="notification-feed-bubble">',
+      '<div class="notification-feed-head">',
+      '<span class="notification-feed-author">' + escapeHtml(author) + (isPost ? ' <span class="dashboard-help">posted this</span>' : '') + '</span>',
+      '<span class="notification-feed-meta">' + escapeHtml(formatDateTime(message.created_on)) + '</span>',
+      '</div>',
+      '<div class="notification-feed-body">' + escapeHtml(message.message || "") + '</div>',
+      message.attachment
+        ? '<a class="notification-feed-attachment" href="' + escapeHtml(message.attachment) + '" target="_blank" rel="noopener">📎 '
+          + escapeHtml(attachmentFileName(message.attachment)) + '</a>'
+        : '',
+      '</div>',
+      '</div>'
+    ].join("");
+  }
+
   function renderTimeline(messages) {
     const wrap = el("notificationTimeline");
 
@@ -335,26 +376,10 @@
       return;
     }
 
-    wrap.innerHTML = messages.map(function (message) {
-      const isSystem = message.message_type === "Status Update" || message.message_type === "System";
-
-      return [
-        '<div class="notification-thread-item' + (isSystem ? ' is-system' : '') + '" style="border:1px solid #D9E6E6;border-radius:16px;padding:14px;margin-bottom:12px;background:#fff;">',
-        '<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:8px;">',
-        '<div>',
-        '<div style="font-weight:800;">' + escapeHtml(message.sent_by_label || message.sent_by_name || message.sent_by || "System") + '</div>',
-        '<div style="font-size:12px;color:#667;">',
-        escapeHtml(message.role_type || ""),
-        message.role_type ? " · " : "",
-        escapeHtml(message.message_type || "Message"),
-        '</div>',
-        '</div>',
-        '<div style="font-size:12px;color:#667;white-space:nowrap;">' + escapeHtml(formatDateTime(message.created_on)) + '</div>',
-        '</div>',
-        '<div style="white-space:pre-wrap;line-height:1.5;">' + escapeHtml(message.message || "") + '</div>',
-        message.attachment ? '<div style="margin-top:10px;"><a class="dashboard-link-btn" href="' + escapeHtml(message.attachment) + '" target="_blank">Open attachment</a></div>' : '',
-        '</div>'
-      ].join("");
+    // Messages arrive oldest first - the first one is the post the card was
+    // created with, everything after it is a comment on that post.
+    wrap.innerHTML = messages.map(function (message, index) {
+      return renderFeedItem(message, index === 0);
     }).join("");
   }
 
@@ -562,52 +587,43 @@
   
     const toggleDetailsBtn = el("toggleNotificationDetails");
     const detailsMeta = el("notificationDetailsMeta");
-  
-    const toggleOriginalBtn = el("toggleOriginalMessage");
-    const originalBody = el("notificationOriginalMessageBody");
-  
-    const toggleReplyBtn = el("toggleNotificationReply");
-    const replyBody = el("notificationReplyBody");
-  
+
     const archiveBtn = el("archiveNotificationBtn");
-  
+
     if (saveBtn) {
       saveBtn.addEventListener("click", saveStatus);
     }
-  
+
     if (replyBtn) {
       replyBtn.addEventListener("click", sendReply);
     }
-  
+
     if (toggleDetailsBtn && detailsMeta) {
       toggleDetailsBtn.addEventListener("click", function () {
         detailsMeta.classList.toggle("is-hidden");
       });
     }
-  
-    if (toggleOriginalBtn && originalBody) {
-      toggleOriginalBtn.addEventListener("click", function () {
-        originalBody.classList.toggle("is-hidden");
-      });
-    }
-  
-    if (toggleReplyBtn && replyBody) {
-      toggleReplyBtn.addEventListener("click", function () {
-        replyBody.classList.toggle("is-hidden");
-      });
-    }
-  
+
     if (archiveBtn) {
       archiveBtn.addEventListener("click", archiveNotification);
     }
   }
   
+  function setComposerAvatar() {
+    const avatar = el("notificationComposerAvatar");
+    const nameNode = document.querySelector(".dashboard-topbar-name");
+    if (avatar && nameNode) {
+      avatar.textContent = initials(nameNode.textContent);
+    }
+  }
+
   function init() {
     if (!el("notificationDetailsRoot")) {
       return;
     }
-  
+
     bindEvents();
+    setComposerAvatar();
     loadNotification();
   }
   

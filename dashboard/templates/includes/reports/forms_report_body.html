@@ -1,17 +1,33 @@
-<div class="dashboard-card" style="margin-bottom:20px;">
-  <div class="dashboard-detail-section-head">
-    <h2 class="dashboard-detail-section-title">Intake Forms</h2>
-    <button type="button" class="dashboard-btn dashboard-btn-primary" id="runIntakeFormReportBtn">Run Report</button>
+<div class="dashboard-card dashboard-tabs-card" style="margin-bottom:20px;">
+  <p class="dashboard-help" style="margin-bottom:12px;">Choose a report, set your parameters, then run it.</p>
+  <div class="dashboard-tabs" id="formsReportPicker">
+    <button type="button" class="dashboard-tab-btn is-active" data-forms-report-tab="intake">Intake Forms</button>
+    <button type="button" class="dashboard-tab-btn" data-forms-report-tab="feedback">Feedback Forms</button>
+    <button type="button" class="dashboard-tab-btn" data-forms-report-tab="packs">Open Session Packs</button>
   </div>
+</div>
 
-  <p class="dashboard-help" style="margin-bottom:16px;">
-    Every lead an intake form has been sent to, with completion status.
-  </p>
+<div class="dashboard-tab-panel is-active" data-forms-report-panel="intake">
+  <div class="dashboard-card" style="margin-bottom:20px;">
+    <div class="dashboard-detail-section-head">
+      <h2 class="dashboard-detail-section-title">Intake Forms</h2>
+    </div>
 
-  <div id="intakeFormReportEmpty" class="dashboard-empty">Run the report to see results.</div>
+    <p class="dashboard-help" style="margin-bottom:16px;">
+      Every lead an intake form has been sent to, with completion status.
+    </p>
 
-  <div id="intakeFormReportControls" style="display:none;margin-bottom:16px;">
     <div class="trk-calendar-form-row">
+      <div class="trk-calendar-field">
+        <label for="intakeFormFromDate">From</label>
+        <input type="date" id="intakeFormFromDate" class="dashboard-input">
+      </div>
+
+      <div class="trk-calendar-field">
+        <label for="intakeFormToDate">To</label>
+        <input type="date" id="intakeFormToDate" class="dashboard-input">
+      </div>
+
       <div class="trk-calendar-field">
         <label for="intakeFormViewMode">View</label>
         <select id="intakeFormViewMode" class="dashboard-select">
@@ -20,7 +36,9 @@
           <option value="question">One question - everyone's answer</option>
         </select>
       </div>
+    </div>
 
+    <div class="trk-calendar-form-row" id="intakeFormControlsRow" style="display:none;">
       <div class="trk-calendar-field" id="intakeFormPersonRow" style="display:none;">
         <label for="intakeFormPersonSelect">Person</label>
         <select id="intakeFormPersonSelect" class="dashboard-select">
@@ -35,75 +53,104 @@
         </select>
       </div>
     </div>
-  </div>
 
-  <div class="dashboard-table-wrap" id="intakeFormReportResults" style="display:none;">
-    <table class="dashboard-table dashboard-table-compact">
-      <thead>
-        <tr>
-          <th>Client / Young Person</th>
-          <th>Contact</th>
-          <th>Coach</th>
-          <th>Sent</th>
-          <th>Status</th>
-          <th>Link</th>
-        </tr>
-      </thead>
-      <tbody id="intakeFormReportTableBody"></tbody>
-    </table>
-  </div>
+    <div class="dashboard-detail-actions" style="margin:8px 0 18px;">
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="runIntakeFormReportBtn">Run Report</button>
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="exportIntakeFormReportBtn" style="display:none;">Export to Excel</button>
+    </div>
 
-  <div id="intakeFormPersonEmpty" class="dashboard-empty" style="display:none;">Select a person to see their answers.</div>
-  <div class="dashboard-table-wrap" id="intakeFormPersonResults" style="display:none;">
-    <table class="dashboard-table dashboard-table-compact">
-      <thead>
-        <tr>
-          <th>Question</th>
-          <th>Answer</th>
-        </tr>
-      </thead>
-      <tbody id="intakeFormPersonTableBody"></tbody>
-    </table>
-  </div>
+    <div id="intakeFormReportEmpty" class="dashboard-empty">Run the report to see results.</div>
 
-  <div id="intakeFormQuestionEmpty" class="dashboard-empty" style="display:none;">Select a question to see everyone's answer.</div>
-  <div class="dashboard-table-wrap" id="intakeFormQuestionResults" style="display:none;">
-    <table class="dashboard-table dashboard-table-compact">
-      <thead>
-        <tr>
-          <th>Client / Young Person</th>
-          <th>Coach</th>
-          <th id="intakeFormQuestionColumnHead">Answer</th>
-        </tr>
-      </thead>
-      <tbody id="intakeFormQuestionTableBody"></tbody>
-    </table>
+    <div class="dashboard-table-wrap" id="intakeFormReportResults" style="display:none;">
+      <table class="dashboard-table dashboard-table-compact">
+        <thead>
+          <tr>
+            <th>Client / Young Person</th>
+            <th>Contact</th>
+            <th>Coach</th>
+            <th>Sent</th>
+            <th>Status</th>
+            <th>Link</th>
+          </tr>
+        </thead>
+        <tbody id="intakeFormReportTableBody"></tbody>
+      </table>
+    </div>
+
+    <div id="intakeFormPersonEmpty" class="dashboard-empty" style="display:none;">Select a person to see their answers.</div>
+    <div class="dashboard-table-wrap" id="intakeFormPersonResults" style="display:none;">
+      <table class="dashboard-table dashboard-table-compact">
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Answer</th>
+          </tr>
+        </thead>
+        <tbody id="intakeFormPersonTableBody"></tbody>
+      </table>
+    </div>
+
+    <div id="intakeFormQuestionEmpty" class="dashboard-empty" style="display:none;">Select a question to see everyone's answer.</div>
+    <div class="dashboard-table-wrap" id="intakeFormQuestionResults" style="display:none;">
+      <table class="dashboard-table dashboard-table-compact">
+        <thead>
+          <tr>
+            <th>Client / Young Person</th>
+            <th>Coach</th>
+            <th id="intakeFormQuestionColumnHead">Answer</th>
+          </tr>
+        </thead>
+        <tbody id="intakeFormQuestionTableBody"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
-<div class="dashboard-card">
-  <div class="dashboard-detail-section-head">
-    <h2 class="dashboard-detail-section-title">Feedback Forms</h2>
-    <button type="button" class="dashboard-btn dashboard-btn-primary" id="runFeedbackFormReportBtn">Run Report</button>
-  </div>
+<div class="dashboard-tab-panel" data-forms-report-panel="feedback" style="display:none;">
+  <div class="dashboard-card">
+    <div class="dashboard-detail-section-head">
+      <h2 class="dashboard-detail-section-title">Feedback Forms</h2>
+    </div>
 
-  <p class="dashboard-help" style="margin-bottom:16px;">
-    Every client note logged as "Parent Feedback".
-  </p>
+    <p class="dashboard-help" style="margin-bottom:16px;">
+      Every client note logged as "Parent Feedback".
+    </p>
 
-  <div id="feedbackFormReportEmpty" class="dashboard-empty">Run the report to see results.</div>
-  <div class="dashboard-table-wrap" id="feedbackFormReportResults" style="display:none;">
-    <table class="dashboard-table dashboard-table-compact">
-      <thead>
-        <tr>
-          <th>Client</th>
-          <th>Coach</th>
-          <th>Date</th>
-          <th>Logged By</th>
-          <th>Feedback</th>
-        </tr>
-      </thead>
-      <tbody id="feedbackFormReportTableBody"></tbody>
-    </table>
+    <div class="trk-calendar-form-row">
+      <div class="trk-calendar-field">
+        <label for="feedbackFormFromDate">From</label>
+        <input type="date" id="feedbackFormFromDate" class="dashboard-input">
+      </div>
+
+      <div class="trk-calendar-field">
+        <label for="feedbackFormToDate">To</label>
+        <input type="date" id="feedbackFormToDate" class="dashboard-input">
+      </div>
+    </div>
+
+    <div class="dashboard-detail-actions" style="margin:8px 0 18px;">
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="runFeedbackFormReportBtn">Run Report</button>
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="exportFeedbackFormReportBtn" style="display:none;">Export to Excel</button>
+    </div>
+
+    <div id="feedbackFormReportEmpty" class="dashboard-empty">Run the report to see results.</div>
+    <div class="dashboard-table-wrap" id="feedbackFormReportResults" style="display:none;">
+      <table class="dashboard-table dashboard-table-compact">
+        <thead>
+          <tr>
+            <th>Client</th>
+            <th>Coach</th>
+            <th>Date</th>
+            <th>Logged By</th>
+            <th>Feedback</th>
+          </tr>
+        </thead>
+        <tbody id="feedbackFormReportTableBody"></tbody>
+      </table>
+    </div>
   </div>
+</div>
+
+<div class="dashboard-tab-panel" data-forms-report-panel="packs" style="display:none;">
+  {% include "dashboard/templates/includes/reports/open_packs_report_body.html" %}
 </div>
