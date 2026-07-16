@@ -1016,6 +1016,21 @@ def _find_calendar_conflict(event_start, event_end, dashboard_type, context):
         ["Event", "ends_on", ">", event_start],
     ]
 
+    # Only a real, package-backed appointment can block a new booking - not
+    # just any Event occupying the slot. Without this, the ~1,200+ imported
+    # Google Calendar events (personal/training/school/holiday entries, and
+    # plain externally-synced events with no Client Appointment or package
+    # info at all) blocked new therapy bookings just by existing at that
+    # time, the same as School Visit/Company Meeting/Personal/Holiday
+    # entries booked through this app do. custom_client_appointment is only
+    # ever populated by the package recalculation job for a genuine
+    # Therapy Session/Parent Check-In tied to a Client Package Balance
+    # (packages.py's _recalculate_one_event), so it's a reliable signal of
+    # "this slot is actually booked" that none of those other Event kinds
+    # ever have.
+    if _event_has_field("custom_client_appointment"):
+        filters.append(["Event", "custom_client_appointment", "is", "set"])
+
     if dashboard_type == SESSION_WORKER_DASHBOARD and _event_has_field("custom_session_worker"):
         worker_name = (context.get("worker_name") or "").strip()
         if worker_name:
@@ -1935,19 +1950,17 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
 
 
 def _booking_confirmation_context(event_doc, client):
-    coach = event_doc.get("custom_coach") or ""
-    coach_display_name = (frappe.db.get_value("Coach", coach, "coach_name") or coach) if coach else "Coach"
-
     starts_on = event_doc.get("starts_on")
     start_dt = get_datetime(starts_on) if starts_on else None
+    location = event_doc.get("location") or ""
 
     return {
         "contact_name": _get_client_display_name(client),
         "appointment_type": event_doc.get("custom_appointment_type") or "",
-        "coach_name": coach_display_name,
         "date": start_dt.strftime("%A %d %B %Y") if start_dt else "",
         "time": start_dt.strftime("%H:%M") if start_dt else "",
-        "location_address": event_doc.get("location") or "",
+        "location_address": location,
+        "is_online": location.strip().lower() == "online",
         "meet_link": event_doc.get("custom_google_meet_url") or event_doc.get("google_meet_link") or "",
     }
 
@@ -1955,9 +1968,9 @@ def _booking_confirmation_context(event_doc, client):
 _BOOKING_CONFIRMATION_FALLBACK = (
     "Hi {{ contact_name }},\n"
     "\n"
-    "Your next session with {{ coach_name }} will take place on {{ date }} at {{ time }}"
+    "Your next session will take place on {{ date }} at {{ time }}"
     "{% if location_address %}, {{ location_address }}{% endif %}.\n"
-    "{% if meet_link %}\n"
+    "{% if is_online and meet_link %}\n"
     "This session is online - you can join here: {{ meet_link }}\n"
     "{% endif %}\n"
     "Please let us know if you have any questions or need to make any changes.\n"
@@ -1992,7 +2005,7 @@ def get_booking_confirmation_email_defaults(event=None):
     subject, message = render_email(
         BOOKING_CONFIRMATION_TEMPLATE,
         context,
-        fallback_subject="Your next session with {{ coach_name }} is confirmed",
+        fallback_subject="Your next session is confirmed",
         fallback_message=_BOOKING_CONFIRMATION_FALLBACK,
     )
 
@@ -2737,9 +2750,7 @@ def _create_booking_impl(
         recipient = email_options[0]["value"] if email_options else ""
 
         if recipient:
-            handle_booking_confirmation_request(
-                created_events, client, context.get("coach_name"), recipient
-            )
+            handle_booking_confirmation_request(created_events, client, recipient)
 
     return {
         "name": created_events[0].name if created_events else "",
