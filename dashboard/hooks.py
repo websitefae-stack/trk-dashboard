@@ -87,6 +87,7 @@ scheduler_events = {
     "cron": {
         "*/5 * * * *": [
             "dashboard.api.shared.pending_bookings.sweep_stuck_pending_bookings",
+            "dashboard.api.shared.booking_confirmations.send_pending_booking_confirmations",
         ],
     }
 }

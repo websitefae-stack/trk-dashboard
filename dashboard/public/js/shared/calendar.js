@@ -1294,22 +1294,13 @@
         var checked = document.querySelectorAll("#trkCalendarAdditionalWorkersList input[type='checkbox']:checked");
         return JSON.stringify(Array.prototype.map.call(checked, function (cb) { return cb.dataset.workerValue; }));
       })(),
-      allow_double_booking: state.allowDoubleBooking ? "1" : "0"
+      allow_double_booking: state.allowDoubleBooking ? "1" : "0",
+      send_confirmation_email: isChecked("trkCalendarSendEmailToClient") ? "1" : "0"
     }).then(function (result) {
       setButtonLoading("trkCalendarSaveBtn", false, "Save Calendar Item");
       state.allowDoubleBooking = false;
       closeBookingModal();
       showToast(type === "Therapy Session" ? "Session booked" : "Calendar item added");
-
-      if (isChecked("trkCalendarSendEmailToClient") && result && result.client && result.event_names && result.event_names.length) {
-        apiPost(SHARED_API + ".queue_new_booking_client_email", {
-          client: result.client,
-          event_names: JSON.stringify(result.event_names)
-        }).catch(function (error) {
-          console.error("Could not queue new booking email:", error);
-        });
-      }
-
       loadCalendarData();
     }).catch(function (error) {
       console.error("Save calendar item failed:", error);
