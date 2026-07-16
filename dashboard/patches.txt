@@ -9,3 +9,4 @@ dashboard.patches.add_notification_log_reply_field
 dashboard.patches.backfill_client_type_from_dob
 dashboard.patches.add_invoice_sent_on_field
 dashboard.patches.backfill_invoice_sent_on_from_communications
+dashboard.patches.add_notification_log_thread_id

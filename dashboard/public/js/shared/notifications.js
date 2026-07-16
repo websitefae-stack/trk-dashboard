@@ -99,9 +99,19 @@
   function bucketFor(row) {
     if ((row.status || "Open") === "Archived") return "Archived";
 
-    // Keep what you've sent to other people out of the lanes meant for
-    // tracking work coming AT you - they belong in their own column so
-    // they never get mixed in with New/In Progress/Past Due.
+    // A reply means progress is actually being made on it - promote it
+    // into In Progress for everyone looking at it, including whoever
+    // originally sent it, instead of leaving it sitting untouched-looking
+    // in their own Sent column while the conversation moves on underneath.
+    if (Number(row.reply_count || 0) > 0) {
+      const dueDate = row.due_date || "";
+      return (dueDate && dueDate < todayIso()) ? "Past Due" : "In Progress";
+    }
+
+    // Keep what you've sent to other people (and nobody's replied to yet)
+    // out of the lanes meant for tracking work coming AT you - they belong
+    // in their own column so they never get mixed in with New/In
+    // Progress/Past Due.
     if (Number(row.is_sent_by_me || 0)) return "Sent";
 
     const dueDate = row.due_date || "";
