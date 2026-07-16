@@ -827,12 +827,13 @@ def _format_conversation(doc):
 
     messages = _get_conversation_messages(doc.name)
 
-    messages = sorted(
-        messages,
-        key=lambda row: row.get("created_on") or "",
-        reverse=True,
-    )
-        
+    # Oldest first - the post, then its comments in the order they were
+    # written, same as _format_notification_log_replies() below already
+    # does for the legacy path. (Previously newest-first, which read
+    # backwards for a "post + comments" feed and made the original message
+    # look like just another reply at the bottom.)
+    messages = sorted(messages, key=lambda row: row.get("created_on") or "")
+
     if not messages:
         messages = [{
             "name": doc.name + "-original",

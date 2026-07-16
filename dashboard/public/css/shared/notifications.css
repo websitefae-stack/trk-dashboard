@@ -1105,3 +1105,169 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* =========================================================
+   NOTIFICATION CARD + FEED (post/comments, Trello card x
+   Facebook post) - notification_details_body.html
+========================================================= */
+
+.notification-detail-grid-compact.is-hidden {
+  display: none;
+}
+
+.notification-post-card {
+  border-radius: 18px;
+}
+
+.notification-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.notification-feed-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.notification-avatar {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #00A19E;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 14px;
+  text-transform: uppercase;
+}
+
+.notification-feed-item.is-system .notification-avatar {
+  background: #A2B2B2;
+}
+
+.notification-feed-bubble {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid #D9E6E6;
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: #F7FAFA;
+}
+
+/* The original message - the "post" the whole card is about - reads as a
+   pinned/highlighted entry at the top of the feed, everything else below
+   it are comments on it. */
+.notification-feed-item.is-post .notification-avatar {
+  width: 44px;
+  height: 44px;
+  font-size: 16px;
+}
+
+.notification-feed-item.is-post .notification-feed-bubble {
+  background: #FFFFFF;
+  border: 1px solid #00A19E;
+  border-radius: 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.notification-feed-item.is-system .notification-feed-bubble {
+  background: #FBFCFC;
+  border-style: dashed;
+}
+
+.notification-feed-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.notification-feed-author {
+  font-weight: 800;
+}
+
+.notification-feed-meta {
+  font-size: 12px;
+  color: #667;
+  white-space: nowrap;
+}
+
+.notification-feed-body {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.notification-feed-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #EAF6F5;
+  color: #007274;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.notification-feed-attachment:hover {
+  background: #D9EEEC;
+}
+
+.notification-composer {
+  border-top: 1px solid #D9E6E6;
+  padding-top: 16px;
+}
+
+.notification-composer-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.notification-composer-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.notification-composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.notification-attach-btn {
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 6px;
+  border-radius: 8px;
+}
+
+.notification-attach-btn:hover {
+  background: #EAF6F5;
+}
+
+@media (max-width: 768px) {
+  .notification-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+
+  .notification-feed-item.is-post .notification-avatar {
+    width: 38px;
+    height: 38px;
+    font-size: 14px;
+  }
+}

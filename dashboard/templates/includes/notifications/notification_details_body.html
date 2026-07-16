@@ -5,7 +5,7 @@
 
   <div class="dashboard-detail-form" id="notificationDetailsContent" style="display:none;">
 
-    <div class="dashboard-detail-section">
+    <div class="dashboard-detail-section notification-post-card">
       <div class="dashboard-detail-section-head notification-collapsible-head">
         <div>
           <h2 class="dashboard-detail-section-title" id="notificationTitleText">Notification</h2>
@@ -25,19 +25,19 @@
             Back
           </a>
 
-          <button type="button" class="dashboard-btn dashboard-btn-primary" id="toggleNotificationDetails">
-            Hide Details
+          <button type="button" class="dashboard-btn notification-archive-btn" id="archiveNotificationBtn" style="display:none;">
+            Archive Card
           </button>
 
-          <button type="button" class="dashboard-btn notification-archive-btn" id="archiveNotificationBtn" style="display:none;">
-            Archive Conversation
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="toggleNotificationDetails">
+            Details
           </button>
         </div>
       </div>
 
       <input type="hidden" id="notificationDocname" value="{{ notification_docname or '' }}">
 
-      <div id="notificationDetailsMeta" class="dashboard-detail-grid notification-detail-grid-compact">
+      <div id="notificationDetailsMeta" class="dashboard-detail-grid notification-detail-grid-compact is-hidden">
         <div class="dashboard-detail-field">
           <label>Type</label>
           <div class="dashboard-html-block" id="notificationTypeText">—</div>
@@ -81,65 +81,36 @@
     </div>
 
     <div class="dashboard-detail-section">
-      <div class="dashboard-detail-section-head notification-section-head">
-        <h2 class="dashboard-detail-section-title">Original Message</h2>
+      <div id="notificationTimeline" class="notification-feed"></div>
 
-        <button type="button" class="dashboard-btn dashboard-btn-light" id="toggleOriginalMessage">
-          Hide / Show
-        </button>
-      </div>
+      <div class="notification-composer" id="notificationReplySection">
+        <div class="notification-composer-row">
+          <div class="notification-avatar" id="notificationComposerAvatar">·</div>
 
-      <div class="dashboard-html-block notification-section-body notification-original-message" id="notificationOriginalMessageBody">
-        <div id="notificationMessageText">—</div>
-      </div>
-    </div>
+          <div class="notification-composer-input">
+            <textarea
+              id="notificationReplyText"
+              class="dashboard-textarea"
+              placeholder="Write a comment..."
+              rows="2"
+            ></textarea>
 
-    <div class="dashboard-detail-section" id="notificationReplySection">
-      <div class="dashboard-detail-section-head notification-section-head">
-        <h2 class="dashboard-detail-section-title">Reply</h2>
+            <div class="notification-composer-actions">
+              <label class="notification-attach-btn" for="notificationReplyFile" title="Attach a file">
+                📎
+                <input type="file" id="notificationReplyFile" hidden>
+              </label>
 
-        <button type="button" class="dashboard-btn dashboard-btn-light" id="toggleNotificationReply">
-          Hide / Show
-        </button>
-      </div>
+              <span class="dashboard-help" id="notificationAttachmentHelp"></span>
+              <input type="hidden" id="notificationReplyAttachment">
 
-      <div class="notification-section-body" id="notificationReplyBody">
-        <div class="dashboard-detail-field">
-          <label for="notificationReplyText">Your Reply</label>
-          <textarea
-            id="notificationReplyText"
-            class="dashboard-textarea"
-            placeholder="Write your reply..."
-          ></textarea>
-        </div>
-
-        <div class="dashboard-detail-field">
-          <label for="notificationReplyFile">Attachment</label>
-          <input
-            type="file"
-            id="notificationReplyFile"
-            class="dashboard-input"
-          >
-          <input type="hidden" id="notificationReplyAttachment">
-          <div class="dashboard-help" id="notificationAttachmentHelp">
-            Optional. Add a file from your computer.
+              <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendNotificationReplyBtn">
+                Comment
+              </button>
+            </div>
           </div>
         </div>
-
-        <div class="dashboard-detail-actions">
-          <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendNotificationReplyBtn">
-            Send Reply
-          </button>
-        </div>
       </div>
-    </div>
-
-    <div class="dashboard-detail-section">
-      <div class="dashboard-detail-section-head">
-        <h2 class="dashboard-detail-section-title">Conversation Thread</h2>
-      </div>
-
-      <div id="notificationTimeline"></div>
     </div>
 
   </div>
