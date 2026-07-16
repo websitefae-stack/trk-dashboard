@@ -230,26 +230,60 @@
     }
   }
 
+  var intakeFormState = {
+    rows: [],
+    questions: null // fetched lazily, cached once loaded
+  };
+
+  function lead_detail_url(name) {
+    return dashboardBaseUrl() + "/lead_details?name=" + encodeURIComponent(name);
+  }
+
   function renderIntakeFormReport(rows) {
     var empty = el("intakeFormReportEmpty");
     var results = el("intakeFormReportResults");
     var body = el("intakeFormReportTableBody");
+    var controls = el("intakeFormReportControls");
     if (!empty || !results || !body) return;
+
+    intakeFormState.rows = rows || [];
 
     if (!rows.length) {
       empty.textContent = "No intake forms found.";
       empty.style.display = "";
       results.style.display = "none";
+      if (controls) controls.style.display = "none";
       return;
     }
 
     empty.style.display = "none";
-    results.style.display = "";
+    if (controls) controls.style.display = "";
 
-    var baseUrl = dashboardBaseUrl();
+    fillSelect(el("intakeFormPersonSelect"), rows.map(function (row) {
+      return { value: row.name, label: row.client_name || row.name };
+    }), "Select a person");
+
+    applyIntakeFormViewMode();
+  }
+
+  function fillSelect(select, options, placeholderLabel) {
+    if (!select) return;
+    var current = select.value;
+    select.innerHTML = '<option value="">' + escapeHtml(placeholderLabel || "Select") + "</option>"
+      + options.map(function (opt) {
+        return '<option value="' + escapeHtml(opt.value) + '">' + escapeHtml(opt.label) + "</option>";
+      }).join("");
+    if (current && options.some(function (opt) { return opt.value === current; })) {
+      select.value = current;
+    }
+  }
+
+  function renderIntakeFormSummaryTable(rows) {
+    var body = el("intakeFormReportTableBody");
+    if (!body) return;
 
     body.innerHTML = rows.map(function (row) {
-      var detailUrl = baseUrl + "/lead_details?name=" + encodeURIComponent(row.name);
+      var detailUrl = lead_detail_url(row.name);
       var statusLabel = row.is_completed
         ? '<span style="color:#1a7f37;">Completed</span>'
         : '<span style="color:#b8860b;">Sent, not yet completed</span>';
@@ -262,8 +296,139 @@
         + "<td>" + escapeHtml(row.coach_label || "—") + "</td>"
         + "<td>" + formatDate(row.intake_sent_on) + "</td>"
         + "<td>" + statusLabel + "</td>"
+        + '<td><a class="dashboard-inline-link" href="' + escapeHtml(detailUrl) + '" target="_blank" rel="noopener">Open</a></td>'
         + "</tr>";
     }).join("");
+  }
+
+  async function ensureIntakeFormQuestions() {
+    if (intakeFormState.questions) return intakeFormState.questions;
+
+    var questions = await callApi("dashboard.api.shared.form_reports.get_intake_form_questions", {});
+    intakeFormState.questions = questions || [];
+
+    fillSelect(el("intakeFormQuestionSelect"), intakeFormState.questions.map(function (q) {
+      return { value: q.value, label: q.label };
+    }), "Select a question");
+
+    return intakeFormState.questions;
+  }
+
+  async function loadIntakeFormPersonAnswers(name) {
+    var empty = el("intakeFormPersonEmpty");
+    var results = el("intakeFormPersonResults");
+    var body = el("intakeFormPersonTableBody");
+    if (!empty || !results || !body) return;
+
+    if (!name) {
+      empty.textContent = "Select a person to see their answers.";
+      empty.style.display = "";
+      results.style.display = "none";
+      return;
+    }
+
+    empty.textContent = "Loading...";
+    empty.style.display = "";
+    results.style.display = "none";
+
+    try {
+      var data = await callApi("dashboard.api.shared.form_reports.get_intake_form_answers_for_person", { name: name });
+
+      empty.style.display = "none";
+      results.style.display = "";
+
+      var detailUrl = lead_detail_url(data.name);
+      body.innerHTML = '<tr><td><strong>Full record</strong></td><td><a class="dashboard-inline-link" href="'
+        + escapeHtml(detailUrl) + '" target="_blank" rel="noopener">Open ' + escapeHtml(data.client_name || data.name) + "</a></td></tr>"
+        + (data.answers || []).map(function (answer) {
+          return "<tr><td>" + escapeHtml(answer.label) + "</td><td>" + escapeHtml(answer.value == null ? "—" : answer.value) + "</td></tr>";
+        }).join("");
+    } catch (error) {
+      console.error("Could not load person's intake answers:", error);
+      empty.textContent = error.message || "Could not load this person's answers.";
+      empty.style.display = "";
+      results.style.display = "none";
+    }
+  }
+
+  async function loadIntakeFormQuestionAnswers(question) {
+    var empty = el("intakeFormQuestionEmpty");
+    var results = el("intakeFormQuestionResults");
+    var body = el("intakeFormQuestionTableBody");
+    var columnHead = el("intakeFormQuestionColumnHead");
+    if (!empty || !results || !body) return;
+
+    if (!question) {
+      empty.textContent = "Select a question to see everyone's answer.";
+      empty.style.display = "";
+      results.style.display = "none";
+      return;
+    }
+
+    empty.textContent = "Loading...";
+    empty.style.display = "";
+    results.style.display = "none";
+
+    try {
+      var data = await callApi("dashboard.api.shared.form_reports.get_intake_form_answers_for_question", { question: question });
+
+      empty.style.display = "none";
+      results.style.display = "";
+      if (columnHead) columnHead.textContent = data.question || "Answer";
+
+      if (!data.rows || !data.rows.length) {
+        empty.textContent = "No answers found.";
+        empty.style.display = "";
+        results.style.display = "none";
+        return;
+      }
+
+      body.innerHTML = data.rows.map(function (row) {
+        var detailUrl = lead_detail_url(row.lead);
+        return "<tr>"
+          + '<td><a class="dashboard-inline-link" href="' + escapeHtml(detailUrl) + '">' + escapeHtml(row.client_name || row.lead) + "</a></td>"
+          + "<td>" + escapeHtml(row.coach_label || "—") + "</td>"
+          + "<td>" + escapeHtml(row.value || "—") + "</td>"
+          + "</tr>";
+      }).join("");
+    } catch (error) {
+      console.error("Could not load question's intake answers:", error);
+      empty.textContent = error.message || "Could not load answers for this question.";
+      empty.style.display = "";
+      results.style.display = "none";
+    }
+  }
+
+  function applyIntakeFormViewMode() {
+    var mode = (el("intakeFormViewMode") || {}).value || "summary";
+
+    toggleDisplayEl("intakeFormPersonRow", mode === "person");
+    toggleDisplayEl("intakeFormQuestionRow", mode === "question");
+
+    toggleDisplayEl("intakeFormReportResults", mode === "summary" && intakeFormState.rows.length > 0);
+    toggleDisplayEl("intakeFormPersonResults", false);
+    toggleDisplayEl("intakeFormQuestionResults", false);
+
+    var personEmpty = el("intakeFormPersonEmpty");
+    var questionEmpty = el("intakeFormQuestionEmpty");
+    if (personEmpty) personEmpty.style.display = mode === "person" ? "" : "none";
+    if (questionEmpty) questionEmpty.style.display = mode === "question" ? "" : "none";
+
+    if (mode === "summary") {
+      renderIntakeFormSummaryTable(intakeFormState.rows);
+    } else if (mode === "person") {
+      loadIntakeFormPersonAnswers(el("intakeFormPersonSelect") ? el("intakeFormPersonSelect").value : "");
+    } else if (mode === "question") {
+      ensureIntakeFormQuestions().then(function () {
+        loadIntakeFormQuestionAnswers(el("intakeFormQuestionSelect") ? el("intakeFormQuestionSelect").value : "");
+      });
+    }
+  }
+
+  function toggleDisplayEl(id, show) {
+    var node = el(id);
+    if (!node) return;
+    node.style.display = show ? "" : "none";
   }
 
   async function runIntakeFormReport() {
@@ -334,6 +499,15 @@
 
     var feedbackBtn = el("runFeedbackFormReportBtn");
     if (feedbackBtn) feedbackBtn.addEventListener("click", runFeedbackFormReport);
+
+    var viewModeSelect = el("intakeFormViewMode");
+    if (viewModeSelect) viewModeSelect.addEventListener("change", applyIntakeFormViewMode);
+
+    var personSelect = el("intakeFormPersonSelect");
+    if (personSelect) personSelect.addEventListener("change", function () { loadIntakeFormPersonAnswers(personSelect.value); });
+
+    var questionSelect = el("intakeFormQuestionSelect");
+    if (questionSelect) questionSelect.addEventListener("change", function () { loadIntakeFormQuestionAnswers(questionSelect.value); });
 
     var runBtn = el("runIntegrityReportBtn");
     if (!runBtn) return; // diagnostic tools not on this page (coach reports, or a non-office franchisor)

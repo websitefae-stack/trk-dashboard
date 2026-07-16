@@ -2050,6 +2050,154 @@ def send_booking_confirmation_email(event=None, recipient=None, subject=None, me
     return {"ok": 1}
 
 
+_NEW_BOOKING_EMAIL_DELAY_SECONDS = 45
+
+
+@frappe.whitelist()
+def queue_new_booking_client_email(event_names=None, client=None):
+    """
+    "Send email to client" tickbox on the booking form - queues a single
+    confirmation email (one for the whole series if this was a recurring
+    booking, not one per occurrence) instead of sending it inline.
+
+    Queued rather than sent immediately because the Google Meet link for an
+    online session isn't created here - it's written back by
+    coach_calendar_sync's push_event job, which this request merely
+    triggers (see event_hooks._enqueue) and does not wait for. Sending
+    straight away would usually email a booking confirmation with no Meet
+    link at all.
+    """
+    _require_logged_in_user()
+
+    if isinstance(event_names, str):
+        import json as _json
+        try:
+            event_names = _json.loads(event_names)
+        except Exception:
+            event_names = [event_names] if event_names else []
+    if not isinstance(event_names, list):
+        event_names = []
+    event_names = [e for e in event_names if isinstance(e, str) and e.strip()]
+
+    if not event_names:
+        frappe.throw(_("No appointments to email."))
+
+    client = _coalesce_str("client", client)
+    if not client:
+        frappe.throw(_("Client is required."))
+
+    from dashboard.api.shared.invoices import _current_user_can_access_client
+    if not _current_user_can_access_client(client):
+        frappe.throw(_("You do not have permission to email this client."), frappe.PermissionError)
+
+    # Only events that actually belong to this client - a caller can't use
+    # this to fire an email off the back of somebody else's appointment.
+    valid_event_names = [
+        name for name in event_names
+        if frappe.db.get_value("Event", name, "custom_client") == client
+    ]
+
+    if not valid_event_names:
+        frappe.throw(_("No appointments to email."))
+
+    frappe.enqueue(
+        "dashboard.api.shared.calendar.send_new_booking_client_email_job",
+        queue="short",
+        timeout=180,
+        event_names=valid_event_names,
+        client=client,
+        enqueue_after_commit=True,
+    )
+
+    return {"queued": True}
+
+
+def send_new_booking_client_email_job(event_names=None, client=None):
+    """
+    Background job body for queue_new_booking_client_email() above - not
+    whitelisted, only ever reached via frappe.enqueue.
+    """
+    time.sleep(_NEW_BOOKING_EMAIL_DELAY_SECONDS)
+
+    event_names = event_names or []
+    events = []
+    for name in event_names:
+        if frappe.db.exists("Event", name):
+            events.append(frappe.get_doc("Event", name))
+
+    if not events:
+        return
+
+    events.sort(key=lambda e: e.get("starts_on") or "")
+
+    from dashboard.api.shared.invoices import get_client_email_options
+    email_options = get_client_email_options(client_name=client)
+    recipient = email_options[0]["value"] if email_options else ""
+
+    if not recipient:
+        # Nothing on file to send to - same situation the manual "Email
+        # Booking Confirmation" button would hit, just with nobody there to
+        # see the error, so this simply gives up rather than throwing.
+        return
+
+    if len(events) == 1:
+        context = _booking_confirmation_context(events[0], client)
+        subject, message = render_email(
+            BOOKING_CONFIRMATION_TEMPLATE,
+            context,
+            fallback_subject="Your next session with {{ coach_name }} is confirmed",
+            fallback_message=_BOOKING_CONFIRMATION_FALLBACK,
+        )
+    else:
+        subject, message = _render_multi_session_booking_email(events, client)
+
+    frappe.sendmail(
+        recipients=[recipient],
+        subject=subject,
+        message=plain_text_to_email_html(message),
+        now=True,
+        reference_doctype="Event",
+        reference_name=events[0].name,
+    )
+
+
+def _render_multi_session_booking_email(events, client):
+    coach = events[0].get("custom_coach") or ""
+    coach_display_name = (frappe.db.get_value("Coach", coach, "coach_name") or coach) if coach else "Coach"
+    contact_name = _get_client_display_name(client)
+
+    lines = [
+        f"Hi {contact_name},",
+        "",
+        f"Your upcoming sessions with {coach_display_name} are confirmed:",
+        "",
+    ]
+
+    for event_doc in events:
+        start_dt = get_datetime(event_doc.get("starts_on")) if event_doc.get("starts_on") else None
+        date_label = start_dt.strftime("%A %d %B %Y") if start_dt else ""
+        time_label = start_dt.strftime("%H:%M") if start_dt else ""
+        location = event_doc.get("location") or ""
+        meet_link = event_doc.get("custom_google_meet_url") or event_doc.get("google_meet_link") or ""
+
+        line = f"- {date_label} at {time_label}"
+        if location:
+            line += f", {location}"
+        lines.append(line)
+
+        if meet_link:
+            lines.append(f"  Join here: {meet_link}")
+
+    lines.extend([
+        "",
+        "Please let us know if you have any questions or need to make any changes.",
+        "",
+        "The Resilient Office",
+    ])
+
+    return f"Your upcoming sessions with {coach_display_name} are confirmed", "\n".join(lines)
+
+
 def share_event_with_admins(doc, method=None):
     """
     doc_events hook for Event (after_insert / on_update) - runs for every
@@ -2256,7 +2404,6 @@ def _create_booking_impl(
     location_type=None,
     location=None,
     phone=None,
-    google_meet=None,
     notes=None,
     billing_type=None,
     travel_charged=None,
@@ -2299,7 +2446,6 @@ def _create_booking_impl(
     location_type = _coalesce_str("location_type", location_type)
     location = _coalesce_str("location", location)
     phone = _coalesce_str("phone", phone)
-    google_meet = _coalesce_raw("google_meet", google_meet)
     allow_double_booking = _to_int(_coalesce_raw("allow_double_booking", allow_double_booking))
     notes = _coalesce_str("notes", notes)
     billing_type = _coalesce_str("billing_type", billing_type)
@@ -2537,9 +2683,27 @@ def _create_booking_impl(
         if _event_has_field("status"):
             event.status = "Open"
 
+        # A recurring series' occurrences can each be booked at a different
+        # location (e.g. week 1 online, week 2 at the main therapy
+        # location) - this occurrence's override, if any, wins over the
+        # series-wide location/location_type picked in the booking form.
+        occurrence_location_override = ""
+        if index < len(occurrence_overrides):
+            occurrence_location_override = (occurrence_overrides[index].get("location_type") or "").strip()
+
         if appointment_type in CLIENT_SESSION_TYPES:
-            if not location:
-                location = client_therapy_location_text
+            if occurrence_location_override == "online":
+                event_location = "Online"
+                event_therapy_location = ""
+            elif occurrence_location_override == "home":
+                event_location = "Home"
+                event_therapy_location = ""
+            elif occurrence_location_override == "client_default":
+                event_location = client_therapy_location_text
+                event_therapy_location = client_therapy_location
+            else:
+                event_location = location or client_therapy_location_text
+                event_therapy_location = client_therapy_location
 
             final_travel_charged = _to_int(
                 travel_charged,
@@ -2559,9 +2723,11 @@ def _create_booking_impl(
                 event.custom_session_worker = client_row.get("session_worker")
 
             if _event_has_field("custom_therapy_location"):
-                event.custom_therapy_location = client_therapy_location
+                event.custom_therapy_location = event_therapy_location
 
         else:
+            event_location = location
+
             if _event_has_field("custom_travel_charged"):
                 event.custom_travel_charged = 1 if _to_int(travel_charged) else 0
 
@@ -2572,8 +2738,8 @@ def _create_booking_impl(
 
         if appointment_type in SCHOOL_LINKED_TYPES and school:
             school_row = _get_client_row(school)
-            if school_row and not location:
-                location = _format_school_location(school_row)
+            if school_row and not event_location:
+                event_location = _format_school_location(school_row)
 
         if _event_has_field("custom_total_travel_miles"):
             event.custom_total_travel_miles = _get_effective_total_travel_miles(event)
@@ -2620,14 +2786,11 @@ def _create_booking_impl(
                     coach=booking_coach,
                 )
 
-        if _to_int(google_meet):
-            final_notes = "Google Meet required.\n\n" + final_notes
-
         if phone and appointment_type == "Initial Consultation":
             final_notes = f"Phone: {phone}\n\n{final_notes}".strip()
 
         if _event_has_field("location"):
-            event.location = location
+            event.location = event_location
 
         if final_notes:
             event.description = final_notes
@@ -2717,6 +2880,8 @@ def _create_booking_impl(
         "title": created_events[0].subject if created_events else "",
         "count": len(created_events),
         "record_url": f"{_get_record_base_url(dashboard_type)}?event={created_events[0].name}" if created_events else "",
+        "event_names": [e.name for e in created_events],
+        "client": client if appointment_type in CLIENT_SESSION_TYPES else "",
     }
 
 
@@ -2802,7 +2967,6 @@ def create_booking(
     location_type=None,
     location=None,
     phone=None,
-    google_meet=None,
     notes=None,
     billing_type=None,
     travel_charged=None,
@@ -2853,7 +3017,6 @@ def create_booking(
         location_type=location_type,
         location=location,
         phone=phone,
-        google_meet=google_meet,
         notes=notes,
         billing_type=billing_type,
         travel_charged=travel_charged,
