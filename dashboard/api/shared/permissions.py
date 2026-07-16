@@ -178,6 +178,56 @@ def get_allowed_client_names():
     )
 
 
+def _user_has_notification_linking_to_client(client_name):
+    """
+    A coach/session worker who isn't otherwise assigned to a client can
+    still legitimately need to open that client's file - most commonly,
+    someone sent them a notification with a question about that client and
+    they have no way to answer it without knowing who's being asked about.
+    Grants access via any notification that both links to this client and
+    that the current user can actually see (as sender or recipient) - not
+    just any notification that happens to mention the client.
+    """
+    user = frappe.session.user
+
+    if frappe.db.exists("DocType", "Notification Log"):
+        meta = frappe.get_meta("Notification Log")
+        or_filters = []
+        if meta.has_field("for_user"):
+            or_filters.append(["for_user", "=", user])
+        if meta.has_field("from_user"):
+            or_filters.append(["from_user", "=", user])
+
+        if meta.has_field("document_type") and meta.has_field("document_name") and or_filters:
+            if frappe.get_all(
+                "Notification Log",
+                filters={"document_type": "Client", "document_name": client_name},
+                or_filters=or_filters,
+                limit_page_length=1,
+                ignore_permissions=True,
+            ):
+                return True
+
+    if frappe.db.exists("DocType", "Dashboard Conversation"):
+        meta = frappe.get_meta("Dashboard Conversation")
+        if meta.has_field("linked_client"):
+            for name in frappe.get_all(
+                "Dashboard Conversation",
+                filters={"linked_client": client_name},
+                pluck="name",
+                limit_page_length=50,
+                ignore_permissions=True,
+            ):
+                doc = frappe.get_doc("Dashboard Conversation", name)
+                if doc.get("created_by_user") == user:
+                    return True
+                for row in doc.get("recipients") or []:
+                    if row.get("recipient_user") == user:
+                        return True
+
+    return False
+
+
 def user_can_access_client(client_name):
     ensure_logged_in()
 
@@ -217,15 +267,21 @@ def user_can_access_client(client_name):
     if dashboard_type == "coach":
         coach_name = get_current_coach_name(optional=True)
 
-        return coach_name in {
+        if coach_name in {
             client.get("primary_coach"),
             client.get("attending_coach"),
-        }
+        }:
+            return True
+
+        return _user_has_notification_linking_to_client(client_name)
 
     if dashboard_type == "session_worker":
         session_worker_name = get_current_session_worker_name(optional=True)
 
-        return session_worker_name == client.get("session_worker")
+        if session_worker_name == client.get("session_worker"):
+            return True
+
+        return _user_has_notification_linking_to_client(client_name)
 
     return False
 

@@ -1010,9 +1010,34 @@ def _format_notification_log(row):
         "reply_count": max(len(messages) - 1, 0),
         "message_count": len(messages),
         "messages": messages,
-        "recipients": [],
+        "recipients": _notification_log_thread_recipients(row),
         "replies": messages,
     }
+
+
+def _notification_log_thread_recipients(row):
+    thread_id = row.get("custom_thread_id")
+    if not thread_id or not _field_exists(NOTIFICATION_DOCTYPE, "custom_thread_id"):
+        return []
+
+    sibling_rows = frappe.get_all(
+        NOTIFICATION_DOCTYPE,
+        filters={"custom_thread_id": thread_id},
+        fields=["for_user", "read"],
+        ignore_permissions=True,
+    )
+
+    return [
+        {
+            "recipient_user": sibling.get("for_user"),
+            "recipient_label": _get_user_full_name(sibling.get("for_user")),
+            "read": int(sibling.get("read") or 0),
+            "read_on": None,
+            "archived": 0,
+        }
+        for sibling in sibling_rows
+        if sibling.get("for_user")
+    ]
 
 
 def _notification_log_fields():
@@ -1033,6 +1058,7 @@ def _notification_log_fields():
         "for_user",
         "custom_due_date",
         "custom_archived",
+        "custom_thread_id",
     ]
 
     for fieldname in optional_fields:
@@ -1177,7 +1203,44 @@ def get_notification_summary_for_session_worker_doc(worker_name, limit=5):
         }
 
     return get_notification_summary_for_user(user=user, limit=limit)
-    
+
+
+def _dedupe_notification_log_rows_by_thread(rows):
+    """
+    Rows sharing a custom_thread_id (see _send_legacy_notification) are all
+    copies of the same "sent to several people" notification - collapses
+    them into one card per thread instead of one per recipient. Keeps
+    whichever row belongs to the current viewer (correct personal read
+    status) if they have one in the group, else the most recently created
+    row in it. Rows with no thread_id (single-recipient notifications,
+    system alerts, anything predating this field) pass through untouched.
+    """
+    current_user = frappe.session.user
+    by_thread = {}
+    singles = []
+
+    for row in rows:
+        thread_id = row.get("custom_thread_id")
+        if not thread_id:
+            singles.append(row)
+            continue
+
+        existing = by_thread.get(thread_id)
+        if not existing:
+            by_thread[thread_id] = row
+            continue
+
+        if existing.get("for_user") == current_user:
+            continue
+
+        if row.get("for_user") == current_user:
+            by_thread[thread_id] = row
+        elif str(row.get("creation") or "") > str(existing.get("creation") or ""):
+            by_thread[thread_id] = row
+
+    return singles + list(by_thread.values())
+
+
 @frappe.whitelist()
 def get_notifications(status="All", limit=20):
     ensure_logged_in()
@@ -1224,6 +1287,7 @@ def get_notifications(status="All", limit=20):
             ignore_permissions=True,
         )
 
+        log_rows = _dedupe_notification_log_rows_by_thread(log_rows)
         result.extend(_format_notification_log(row) for row in log_rows)
 
     response_needed = [
@@ -1581,54 +1645,87 @@ def _reply_to_notification_log(doc, message, attachment):
     Notification Log has no built-in thread/recipients structure - it's one
     row per (from_user, for_user) pair. A reply is appended to custom_replies
     (a Table Custom Field added by add_notification_log_reply_field.py) so
-    it's kept with the original notification for either party to read back,
-    and - since for_user/from_user is the only way Notification Log ties a
-    row to a person - a fresh "Re:" notification is sent to whichever side
-    of the exchange didn't just reply, so they actually get told about it.
+    it's kept with the original notification for either party to read back.
+
+    If this notification was sent to several people at once, every sibling
+    row shares the same custom_thread_id (see _send_legacy_notification) -
+    the reply is mirrored onto every one of them and each is marked unread
+    again, so everyone in the group sees the same conversation update
+    instead of just their own disconnected copy. Sending each of them a
+    separate fresh "Re:" card on top of that would just recreate the
+    "one card per person" clutter this was built to get rid of.
+
+    Only when there's no thread (a plain 1:1 notification, or anything
+    that predates thread_id) does this fall back to the original
+    behaviour: for_user/from_user is the only link back to the other
+    person at all in that case, so a fresh "Re:" notification is the only
+    way to actually tell them a reply happened.
     """
-    doc.append("custom_replies", {
+    reply_row = {
         "message": message,
         "attachment": attachment or "",
         "sent_by": frappe.session.user,
         "sent_by_label": _get_user_full_name(frappe.session.user),
         "sent_on": now_datetime(),
-    })
+    }
+
+    doc.append("custom_replies", reply_row)
     doc.save(ignore_permissions=True)
 
     if _field_exists(NOTIFICATION_DOCTYPE, "read") and doc.get("for_user") in (None, "", frappe.session.user):
         frappe.db.set_value(NOTIFICATION_DOCTYPE, doc.name, "read", 1, update_modified=False)
 
-    counterpart = doc.get("from_user") if doc.get("for_user") == frappe.session.user else doc.get("for_user")
-    counterpart = (counterpart or "").strip()
+    thread_id = doc.get("custom_thread_id")
+    sibling_names = []
 
-    if (
-        counterpart
-        and counterpart not in ("Administrator", "Guest", frappe.session.user)
-        and frappe.db.exists("User", counterpart)
-    ):
-        reply_doc = {
-            "doctype": NOTIFICATION_DOCTYPE,
-            "subject": f"Re: {doc.get('subject') or 'Notification'}",
-            "email_content": message,
-            "read": 0,
-        }
+    if thread_id and _field_exists(NOTIFICATION_DOCTYPE, "custom_thread_id"):
+        sibling_names = frappe.get_all(
+            NOTIFICATION_DOCTYPE,
+            filters={"custom_thread_id": thread_id, "name": ["!=", doc.name]},
+            pluck="name",
+            ignore_permissions=True,
+        )
 
-        if _field_exists(NOTIFICATION_DOCTYPE, "for_user"):
-            reply_doc["for_user"] = counterpart
+        for sibling_name in sibling_names:
+            sibling_doc = frappe.get_doc(NOTIFICATION_DOCTYPE, sibling_name)
+            sibling_doc.append("custom_replies", reply_row)
+            sibling_doc.save(ignore_permissions=True)
 
-        if _field_exists(NOTIFICATION_DOCTYPE, "from_user"):
-            reply_doc["from_user"] = frappe.session.user
+            if _field_exists(NOTIFICATION_DOCTYPE, "read"):
+                frappe.db.set_value(NOTIFICATION_DOCTYPE, sibling_name, "read", 0, update_modified=False)
 
-        # Same crash guard as _send_legacy_notification() - Frappe's own
-        # after_insert hook needs document_type/document_name to both
-        # resolve to something real.
-        if _field_exists(NOTIFICATION_DOCTYPE, "document_type"):
-            reply_doc["document_type"] = doc.get("document_type") or "User"
+    if not sibling_names:
+        counterpart = doc.get("from_user") if doc.get("for_user") == frappe.session.user else doc.get("for_user")
+        counterpart = (counterpart or "").strip()
 
-        if _field_exists(NOTIFICATION_DOCTYPE, "document_name"):
-            reply_doc["document_name"] = doc.get("document_name") or counterpart
+        if (
+            counterpart
+            and counterpart not in ("Administrator", "Guest", frappe.session.user)
+            and frappe.db.exists("User", counterpart)
+        ):
+            reply_doc = {
+                "doctype": NOTIFICATION_DOCTYPE,
+                "subject": f"Re: {doc.get('subject') or 'Notification'}",
+                "email_content": message,
+                "read": 0,
+            }
 
-        frappe.get_doc(reply_doc).insert(ignore_permissions=True)
+            if _field_exists(NOTIFICATION_DOCTYPE, "for_user"):
+                reply_doc["for_user"] = counterpart
+
+            if _field_exists(NOTIFICATION_DOCTYPE, "from_user"):
+                reply_doc["from_user"] = frappe.session.user
+
+            # Same crash guard as _send_legacy_notification() - Frappe's own
+            # after_insert hook needs document_type/document_name to both
+            # resolve to something real.
+            if _field_exists(NOTIFICATION_DOCTYPE, "document_type"):
+                reply_doc["document_type"] = doc.get("document_type") or "User"
+
+            if _field_exists(NOTIFICATION_DOCTYPE, "document_name"):
+                reply_doc["document_name"] = doc.get("document_name") or counterpart
+
+            frappe.get_doc(reply_doc).insert(ignore_permissions=True)
 
     frappe.db.commit()
 
@@ -1995,6 +2092,15 @@ def _send_legacy_notification(
 
     created = []
 
+    # Notification Log's for_user is a single Link, so sending to several
+    # people has always meant one row per recipient - stamping all of them
+    # with the same thread_id is what lets get_notifications() collapse
+    # them back into a single shared card, and replies get mirrored across
+    # every row in the group (see _reply_to_notification_log). Only
+    # meaningful with 2+ recipients, but harmless (and simpler) to always
+    # set it.
+    thread_id = frappe.generate_hash(length=12) if _field_exists(NOTIFICATION_DOCTYPE, "custom_thread_id") else None
+
     for recipient_user in recipient_users:
         doc_data = {
             "doctype": NOTIFICATION_DOCTYPE,
@@ -2008,6 +2114,9 @@ def _send_legacy_notification(
 
         if _field_exists(NOTIFICATION_DOCTYPE, "from_user"):
             doc_data["from_user"] = frappe.session.user
+
+        if thread_id:
+            doc_data["custom_thread_id"] = thread_id
 
         # NOTE: deliberately not setting "type" here - Notification Log's
         # type field is Frappe's own internal classification (Mention/

@@ -97,6 +97,13 @@
                 <input class="dashboard-input" value="{{ user_doc.email or profile_email or '' }}" readonly>
               </div>
 
+              {% if profile_role == "coach" and not coach_is_view_mode %}
+                <div class="dashboard-detail-field dashboard-detail-field-full" id="googleMailConnectField" data-return-to="/coach_db/profile">
+                  <label>Google Email (for sending)</label>
+                  <div class="dashboard-html-block" id="googleMailConnectStatus">Checking status&hellip;</div>
+                </div>
+              {% endif %}
+
               <div class="dashboard-detail-field">
                 <label>First Name</label>
                 <input class="dashboard-input js-profile-editable" name="first_name" value="{{ profile_doc.first_name or user_doc.first_name or '' }}" readonly>
