@@ -486,7 +486,20 @@
     ], intakeFormState.rows);
   }
 
-  var formModuleState = { rows: [], questionRows: [], mode: "summary" };
+  var formModuleState = { rows: [], questionRows: [], chartQuestions: [], mode: "summary" };
+
+  // Fixed-order categorical palette (light mode) - validated for CVD-safe
+  // adjacent contrast. Assigned by slot index within each chart, never by
+  // rank/sort order, so the same answer option keeps the same color across
+  // re-renders.
+  var FORM_CHART_COLORS = [
+    "#2a78d6", "#008300", "#e87ba4", "#eda100",
+    "#1baf7a", "#eb6834", "#4a3aa7", "#e34948"
+  ];
+
+  function formChartColor(index) {
+    return FORM_CHART_COLORS[index % FORM_CHART_COLORS.length];
+  }
 
   function formModuleSelectedDoctype() {
     var select = el("formModuleSelect");
@@ -510,9 +523,13 @@
     formModuleState.questionRows = [];
 
     toggleDisplayEl("formModuleSummaryResults", false);
+    toggleDisplayEl("formModuleChartsResults", false);
     toggleDisplayEl("formModulePersonResults", false);
     toggleDisplayEl("formModuleQuestionResults", false);
     toggleDisplayEl("exportFormModuleReportBtn", false);
+
+    var chartsWrap = el("formModuleChartsResults");
+    if (chartsWrap) chartsWrap.innerHTML = "";
 
     var empty = el("formModuleEmpty");
     if (empty) {
@@ -537,6 +554,89 @@
         + "<td>" + escapeHtml(row.coach_label || "—") + "</td>"
         + "<td>" + nameLink(doctype, row.name) + "</td>"
         + "</tr>";
+    }).join("");
+  }
+
+  function renderFormChartPie(data) {
+    var stops = [];
+    var cursor = 0;
+
+    data.forEach(function (row, index) {
+      var start = cursor;
+      cursor += row.percent;
+      stops.push(formChartColor(index) + " " + start + "% " + cursor + "%");
+    });
+
+    var gradient = stops.length ? "conic-gradient(" + stops.join(", ") + ")" : "#F1F5F5";
+
+    return '<div class="form-chart-pie" style="background:' + gradient + ';"></div>'
+      + '<div class="form-chart-legend">'
+      + data.map(function (row, index) {
+        return '<div class="form-chart-legend-row">'
+          + '<span class="form-chart-swatch" style="background:' + formChartColor(index) + ';"></span>'
+          + '<span class="form-chart-legend-label">' + escapeHtml(row.label) + '</span>'
+          + '<span class="form-chart-legend-value">' + row.count + ' (' + row.percent + '%)</span>'
+          + '</div>';
+      }).join("")
+      + '</div>';
+  }
+
+  function renderFormChartBars(data) {
+    var max = Math.max.apply(null, data.map(function (row) { return row.count; }).concat([1]));
+
+    return '<div class="form-chart-bars">'
+      + data.map(function (row, index) {
+        var width = Math.max(Math.round((row.count / max) * 100), 3);
+
+        return '<div class="form-chart-bar-row">'
+          + '<div class="form-chart-bar-head">'
+          + '<span class="form-chart-legend-label">' + escapeHtml(row.label) + '</span>'
+          + '<span class="form-chart-legend-value">' + row.count + ' (' + row.percent + '%)</span>'
+          + '</div>'
+          + '<div class="form-chart-bar-track"><div class="form-chart-bar-fill" style="width:' + width + '%;background:' + formChartColor(index) + ';"></div></div>'
+          + '</div>';
+      }).join("")
+      + '</div>';
+  }
+
+  function renderFormChartAnswerList(answers) {
+    if (!answers || !answers.length) {
+      return '<div class="form-chart-empty">No answers yet.</div>';
+    }
+
+    return '<ul class="form-chart-answer-list">'
+      + answers.map(function (answer) {
+        return "<li>" + escapeHtml(answer) + "</li>";
+      }).join("")
+      + '</ul>';
+  }
+
+  function renderFormModuleCharts(data) {
+    var wrap = el("formModuleChartsResults");
+    if (!wrap) return;
+
+    var questions = data.questions || [];
+
+    if (!questions.length) {
+      wrap.innerHTML = '<div class="dashboard-empty">This form has no questions to chart.</div>';
+      return;
+    }
+
+    wrap.innerHTML = questions.map(function (question) {
+      var body;
+
+      if (question.kind === "chart") {
+        var chartData = question.data || [];
+        body = chartData.length <= 6 ? renderFormChartPie(chartData) : renderFormChartBars(chartData);
+      } else {
+        body = renderFormChartAnswerList(question.answers);
+      }
+
+      return '<div class="form-chart-card">'
+        + '<div class="form-chart-title">' + escapeHtml(question.label) + '</div>'
+        + '<div class="form-chart-subtitle">' + (question.kind === "chart" ? "Answer breakdown" : "Individual answers") + '</div>'
+        + body
+        + '</div>';
     }).join("");
   }
 
@@ -711,6 +811,23 @@
           questionEmpty.textContent = "Select a question to see everyone's answer.";
           questionEmpty.style.display = "";
         }
+      } else if (mode === "charts") {
+        var chartsData = await callApi("dashboard.api.shared.form_reports.get_form_charts", {
+          doctype: doctype,
+          from_date: (el("formModuleFromDate") || {}).value || "",
+          to_date: (el("formModuleToDate") || {}).value || ""
+        });
+
+        formModuleState.chartQuestions = chartsData.questions || [];
+        var chartsEmpty = el("formModuleEmpty");
+
+        if (!chartsData.total_submissions || !formModuleState.chartQuestions.length) {
+          if (chartsEmpty) { chartsEmpty.textContent = "No submissions found."; chartsEmpty.style.display = ""; }
+        } else {
+          if (chartsEmpty) chartsEmpty.style.display = "none";
+          toggleDisplayEl("formModuleChartsResults", true);
+          renderFormModuleCharts(chartsData);
+        }
       }
     } catch (error) {
       console.error("Form report failed:", error);
@@ -853,7 +970,7 @@
     if (formModuleViewModeSelect) {
       formModuleViewModeSelect.addEventListener("change", function () {
         var mode = formModuleViewModeSelect.value;
-        toggleDisplayEl("formModuleControlsRow", mode !== "summary");
+        toggleDisplayEl("formModuleControlsRow", mode === "person" || mode === "question");
         toggleDisplayEl("formModulePersonRow", mode === "person");
         toggleDisplayEl("formModuleQuestionRow", mode === "question");
       });
