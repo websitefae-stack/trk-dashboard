@@ -120,11 +120,75 @@ def get_clients():
     return [normalize_client_row(c, include_permissions=True) for c in clients]
 
 
+def _get_client_filter_args():
+    """
+    client_type/status/session_worker/coach for the franchisor Clients
+    page, read straight off the query string like page_args["search"] -
+    these used to be client-side-only filters applied after pagination had
+    already sliced the rows, so paging past the first page silently
+    dropped them (the dropdowns have no server-restored selected state)
+    and showed an unrelated page's worth of clients with the filter
+    dropdowns reset to "All". Same fix pattern as the invoices list.
+    """
+    return {
+        "client_type": (frappe.form_dict.get("client_type") or "").strip(),
+        "status": (frappe.form_dict.get("status") or "").strip(),
+        "session_worker": (frappe.form_dict.get("session_worker") or "").strip(),
+        "coach": (frappe.form_dict.get("coach") or "").strip(),
+    }
+
+
+def _apply_client_filter_args(filters, filter_args):
+    client_type = filter_args["client_type"]
+    status = filter_args["status"]
+    session_worker = filter_args["session_worker"]
+    coach = filter_args["coach"]
+
+    if client_type and client_type != "All":
+        filters.append(["client_type", "=", client_type])
+
+    if status and status != "All":
+        filters.append(["status", "=", status])
+
+    # Franchise-type clients represent coaches themselves (for cross-coach/
+    # HQ invoicing) and aren't assigned to any one coach or session worker,
+    # so the Session Worker/Coach filters must never hide them - resolved
+    # here (rather than as a plain equality filter) so that carve-out
+    # still applies, matching the previous client-side clientMatches().
+    if session_worker and session_worker != "All":
+        names = frappe.get_all(
+            CLIENT_DOCTYPE,
+            or_filters=[
+                ["session_worker", "=", session_worker],
+                ["client_type", "=", "Franchise"],
+            ],
+            pluck="name",
+            limit_page_length=0,
+        )
+        filters.append(["name", "in", names])
+
+    if coach and coach != "All":
+        names = frappe.get_all(
+            CLIENT_DOCTYPE,
+            or_filters=[
+                ["primary_coach", "=", coach],
+                ["attending_coach", "=", coach],
+                ["client_type", "=", "Franchise"],
+            ],
+            pluck="name",
+            limit_page_length=0,
+        )
+        filters.append(["name", "in", names])
+
+    return filters
+
+
 def get_paginated_clients():
     ensure_logged_in()
 
     page_args = get_page_args()
     search = page_args["search"]
+    filter_args = _get_client_filter_args()
 
     path = ""
     try:
@@ -166,9 +230,13 @@ def get_paginated_clients():
                 "clients": [],
                 "pagination": make_pagination(0, page_args["page"], page_args["page_size"]),
                 "search": search,
+                **filter_args,
             }
 
         filters.append(["name", "in", search_names])
+
+    if not load_all_for_dashboard:
+        _apply_client_filter_args(filters, filter_args)
 
     or_filters = get_allowed_client_or_filters()
 
@@ -211,6 +279,7 @@ def get_paginated_clients():
             page_args["page_size"],
         ),
         "search": search,
+        **filter_args,
     }
 
 

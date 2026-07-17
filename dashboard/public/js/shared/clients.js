@@ -98,21 +98,50 @@
     return window.location.pathname.indexOf("/franchisor_db/clients") !== -1;
   }
 
-  function runServerSearchForFranchisor() {
-    if (!isFranchisorClientsPage()) return;
-
-    const searchValue = (getFilterValue("clientSearch", "") || "").trim();
+  // Franchisor loads clients page-by-page from the server (in pages of
+  // 25), so every filter here needs to be a real server round trip, not
+  // just a client-side hide/show over whatever 25 rows happen to already
+  // be on the page - otherwise picking a Client Type only hides rows on
+  // the current page, the pagination total still reflects everything, and
+  // clicking Next reloads unfiltered data with the dropdowns reset to
+  // "All" (no server-restored selected state). Same fix pattern as the
+  // invoices list. Coach/session worker pages load every client they're
+  // allowed to see up front, so those keep the pure client-side filters.
+  function buildFranchisorClientParams(overrides) {
     const params = new URLSearchParams(window.location.search);
 
-    if (searchValue) {
-      params.set("search", searchValue);
-    } else {
-      params.delete("search");
-    }
+    const searchValue = (getFilterValue("clientSearch", "") || "").trim();
+    const clientType = getFilterValue("clientTypeFilter", "All");
+    const status = getFilterValue("statusFilter", "All");
+    const sessionWorker = getFilterValue("sessionWorkerFilter", "All");
+    const coach = getFilterValue("coachFilter", "All");
 
-    params.set("page", "1");
+    if (searchValue) { params.set("search", searchValue); } else { params.delete("search"); }
+    if (clientType && clientType !== "All") { params.set("client_type", clientType); } else { params.delete("client_type"); }
+    if (status && status !== "All") { params.set("status", status); } else { params.delete("status"); }
+    if (sessionWorker && sessionWorker !== "All") { params.set("session_worker", sessionWorker); } else { params.delete("session_worker"); }
+    if (coach && coach !== "All") { params.set("coach", coach); } else { params.delete("coach"); }
 
+    Object.keys(overrides || {}).forEach(function (key) {
+      const value = overrides[key];
+      if (value === null || value === undefined || value === "") {
+        params.delete(key);
+      } else {
+        params.set(key, value);
+      }
+    });
+
+    return params;
+  }
+
+  function navigateFranchisorClients(overrides) {
+    const params = buildFranchisorClientParams(overrides);
     window.location.href = window.location.pathname + "?" + params.toString();
+  }
+
+  function runServerSearchForFranchisor() {
+    if (!isFranchisorClientsPage()) return;
+    navigateFranchisorClients({ page: 1 });
   }
 
   function runClientSearch() {
@@ -131,26 +160,32 @@
     const coachFilter = el("coachFilter");
     if (!coachFilter || coachFilter.dataset.defaultCoachDone === "1") return;
 
-    const stored = window.sessionStorage.getItem("trkFranchisorClientCoachFilter");
-    if (stored) {
-      coachFilter.value = stored;
-      coachFilter.dataset.defaultCoachDone = "1";
-      return;
-    }
+    coachFilter.dataset.defaultCoachDone = "1";
 
-    const currentName = (coachFilter.dataset.currentUserFullName || "").trim().toLowerCase();
+    // An explicit ?coach= in the URL is already reflected as the selected
+    // option server-side - only fall back to a remembered/current-user
+    // default when nothing was selected server-side, and reload (rather
+    // than just changing the dropdown) so the client list actually
+    // reflects the default instead of only the dropdown appearing to.
+    if (coachFilter.value && coachFilter.value !== "All") return;
 
-    if (currentName) {
-      const match = Array.from(coachFilter.options).find(function (option) {
-        return (option.text || "").trim().toLowerCase() === currentName;
-      });
+    let defaultValue = window.sessionStorage.getItem("trkFranchisorClientCoachFilter") || "";
 
-      if (match) {
-        coachFilter.value = match.value;
+    if (!defaultValue) {
+      const currentName = (coachFilter.dataset.currentUserFullName || "").trim().toLowerCase();
+
+      if (currentName) {
+        const match = Array.from(coachFilter.options).find(function (option) {
+          return (option.text || "").trim().toLowerCase() === currentName;
+        });
+
+        if (match) defaultValue = match.value;
       }
     }
 
-    coachFilter.dataset.defaultCoachDone = "1";
+    if (defaultValue && defaultValue !== "All") {
+      navigateFranchisorClients({ coach: defaultValue, page: 1 });
+    }
   }
 
   function initClientFilterEvents() {
@@ -168,6 +203,8 @@
       field.dataset.clientFilterBound = "1";
 
       const eventName = field.tagName === "SELECT" ? "change" : "input";
+      const isFranchisorServerFilter = isFranchisorClientsPage()
+        && ["statusFilter", "clientTypeFilter", "sessionWorkerFilter", "coachFilter"].indexOf(id) !== -1;
 
       if (id === "clientSearch") {
         // Search only runs on explicit submit (button/Enter), not on every
@@ -179,15 +216,21 @@
             runClientSearch();
           }
         });
+      } else if (isFranchisorServerFilter) {
+        field.addEventListener(eventName, function () {
+          if (id === "coachFilter") {
+            window.sessionStorage.setItem("trkFranchisorClientCoachFilter", field.value || "All");
+          }
+          navigateFranchisorClients({ page: 1 });
+        });
       } else {
         field.addEventListener(eventName, renderClientFilters);
-      }
 
-      if (id === "coachFilter") {
-        field.addEventListener("change", function () {
-          window.sessionStorage.setItem("trkFranchisorClientCoachFilter", field.value || "All");
-          renderClientFilters();
-        });
+        if (id === "coachFilter") {
+          field.addEventListener("change", function () {
+            window.sessionStorage.setItem("trkFranchisorClientCoachFilter", field.value || "All");
+          });
+        }
       }
     });
   }

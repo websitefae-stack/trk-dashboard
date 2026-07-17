@@ -25,13 +25,16 @@
       <div class="dashboard-card contacts-filter-row contacts-filter-row-search-only">
         <div class="dashboard-filter-field dashboard-filter-search">
           <label for="contactSearch">Search contacts</label>
-          <input
-            id="contactSearch"
-            type="text"
-            class="dashboard-input"
-            placeholder="Search by name, mobile, email or client"
-            value="{{ search or '' }}"
-          >
+          <div class="dashboard-filter-search-row">
+            <input
+              id="contactSearch"
+              type="text"
+              class="dashboard-input"
+              placeholder="Search by name, mobile, email or client"
+              value="{{ search or '' }}"
+            >
+            <button type="button" class="dashboard-btn dashboard-btn-primary" id="contactSearchBtn">Search</button>
+          </div>
         </div>
       </div>
 
