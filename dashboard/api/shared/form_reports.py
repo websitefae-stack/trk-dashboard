@@ -321,6 +321,116 @@ def _form_date_range_filters(from_date, to_date):
     }
 
 
+_CHART_CATEGORICAL_FIELDTYPES = {"Select", "Check"}
+_CHART_MAX_LINK_CATEGORIES = 12
+
+
+def _chart_field_value(row, df):
+    """
+    Same idea as _form_field_value(), except a Check field's unanswered
+    (falsy) value comes back as an explicit "No" rather than being dropped
+    - _form_field_value()'s None-for-unchecked convention exists so a
+    label/value list only shows fields someone actually filled in (an
+    optional Intake checkbox nobody ticked shouldn't appear at all), but a
+    chart needs both buckets of a real Yes/No question counted, not one
+    silently vanishing.
+    """
+    value = row.get(df.fieldname)
+
+    if df.fieldtype == "Check":
+        return "Yes" if value else "No"
+    if df.fieldtype == "Date" and value:
+        return frappe.utils.formatdate(value, "dd-MM-yyyy")
+    if df.fieldtype == "Datetime" and value:
+        return frappe.utils.format_datetime(value, "dd-MM-yyyy HH:mm")
+
+    return value or None
+
+
+def _chart_bucket_for_field(df, doctype, filters):
+    """
+    Returns ("chart", [{"label", "count", "percent"}, ...]) for a
+    categorical question (Select, Check, or a Link with few enough distinct
+    values to plot), or ("list", [answer, answer, ...]) for free text (or a
+    Link with too many distinct values to chart meaningfully).
+    """
+    rows = frappe.get_all(
+        doctype,
+        filters=filters,
+        fields=[df.fieldname],
+        order_by="creation desc",
+        limit_page_length=2000,
+        ignore_permissions=True,
+    )
+
+    values = [_chart_field_value(row, df) for row in rows]
+    values = [v for v in values if v is not None]
+
+    is_categorical = df.fieldtype in _CHART_CATEGORICAL_FIELDTYPES
+
+    if df.fieldtype == "Link":
+        is_categorical = len(set(values)) <= _CHART_MAX_LINK_CATEGORIES
+
+    if not is_categorical:
+        return "list", values
+
+    counts = {}
+    for value in values:
+        counts[value] = counts.get(value, 0) + 1
+
+    total = len(values)
+    data = [
+        {"label": label, "count": count, "percent": round(count * 100 / total, 1) if total else 0}
+        for label, count in sorted(counts.items(), key=lambda kv: kv[1], reverse=True)
+    ]
+
+    return "chart", data
+
+
+@frappe.whitelist()
+def get_form_charts(doctype=None, from_date=None, to_date=None):
+    """
+    Every question on one form, summarised for "easily interpreted at a
+    glance" viewing - a pie/bar-ready count breakdown for categorical
+    questions (Select/Check, or a Link field with few enough distinct
+    answers), a plain answer list for free text. Works the same whether the
+    form is anonymous or person-linked - this view was specifically asked
+    for as the anonymous-forms answer, but is offered for every form since
+    "just collect the data" is just as useful alongside person-by-person
+    browsing on a linked form.
+    """
+    ensure_logged_in()
+
+    meta = _form_doctype_meta(doctype)
+    link_field = _form_link_field(meta)
+    link_fieldname = link_field.fieldname if link_field else None
+
+    filters = _form_date_range_filters(from_date, to_date)
+
+    scope = _form_scope_filter_value(link_field)
+    if scope is not None:
+        filters[link_fieldname] = scope
+
+    total_submissions = frappe.db.count(doctype, filters=filters)
+
+    questions = []
+    for df in _form_question_fields(meta):
+        if df.fieldname == link_fieldname:
+            continue
+
+        kind, payload = _chart_bucket_for_field(df, doctype, filters)
+
+        questions.append({
+            "label": df.label or df.fieldname,
+            "fieldtype": df.fieldtype,
+            "kind": kind,
+            "data": payload if kind == "chart" else None,
+            "answers": payload if kind == "list" else None,
+        })
+
+    return {"total_submissions": total_submissions, "questions": questions}
+
+
 @frappe.whitelist()
 def get_form_module_doctypes():
     """

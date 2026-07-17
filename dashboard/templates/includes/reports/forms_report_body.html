@@ -138,6 +138,7 @@
         <label for="formModuleViewMode">View</label>
         <select id="formModuleViewMode" class="dashboard-select">
           <option value="summary">Summary - every submission</option>
+          <option value="charts">Charts - all questions at a glance</option>
           <option value="person">One person - all their answers</option>
           <option value="question">One question - everyone's answer</option>
         </select>
@@ -180,6 +181,8 @@
         <tbody id="formModuleSummaryTableBody"></tbody>
       </table>
     </div>
+
+    <div id="formModuleChartsResults" class="form-charts-grid" style="display:none;"></div>
 
     <div id="formModulePersonResults" style="display:none;"></div>
 
