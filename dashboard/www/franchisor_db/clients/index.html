@@ -40,43 +40,44 @@
               class="dashboard-select"
               id="coachFilter"
               data-current-user-full-name="{{ frappe.get_fullname(frappe.session.user) }}"
+              data-selected="{{ selected_coach or '' }}"
             >
-              <option value="All">All coaches</option>
+              <option value="All" {% if not selected_coach or selected_coach == "All" %}selected{% endif %}>All coaches</option>
               {% for coach in coaches %}
-                <option value="{{ coach.name }}">
+                <option value="{{ coach.name }}" {% if selected_coach == coach.name %}selected{% endif %}>
                   {{ coach.coach_name or coach.name }}
                 </option>
               {% endfor %}
             </select>
           </div>
-        
+
           <div class="dashboard-filter-field">
             <label for="sessionWorkerFilter">Session Worker</label>
             <select class="dashboard-select" id="sessionWorkerFilter">
-              <option value="All">All session workers</option>
+              <option value="All" {% if not selected_session_worker or selected_session_worker == "All" %}selected{% endif %}>All session workers</option>
               {% for sw in session_workers %}
-                <option value="{{ sw.name }}">{{ sw.name }}</option>
+                <option value="{{ sw.name }}" {% if selected_session_worker == sw.name %}selected{% endif %}>{{ sw.name }}</option>
               {% endfor %}
             </select>
           </div>
-        
+
           <div class="dashboard-filter-field">
             <label for="clientTypeFilter">Client Type</label>
             <select class="dashboard-select" id="clientTypeFilter">
-              <option value="All">All types</option>
+              <option value="All" {% if not selected_client_type or selected_client_type == "All" %}selected{% endif %}>All types</option>
               {% for type in client_types %}
-                <option value="{{ type }}">{{ type }}</option>
+                <option value="{{ type }}" {% if selected_client_type == type %}selected{% endif %}>{{ type }}</option>
               {% endfor %}
             </select>
           </div>
-        
+
           <div class="dashboard-filter-field">
             <label for="statusFilter">Status</label>
             <select class="dashboard-select" id="statusFilter">
-              <option value="All">All statuses</option>
-              <option value="Active">Active</option>
-              <option value="On Hold">On Hold</option>
-              <option value="Archived">Archived</option>
+              <option value="All" {% if not selected_status or selected_status == "All" %}selected{% endif %}>All statuses</option>
+              <option value="Active" {% if selected_status == "Active" %}selected{% endif %}>Active</option>
+              <option value="On Hold" {% if selected_status == "On Hold" %}selected{% endif %}>On Hold</option>
+              <option value="Archived" {% if selected_status == "Archived" %}selected{% endif %}>Archived</option>
             </select>
           </div>
         </div>
@@ -147,9 +148,15 @@
           <div class="dashboard-empty">No clients found.</div>
         {% endif %}
 
+        {% set pagination_extra = "" %}
+        {% if selected_client_type and selected_client_type != "All" %}{% set pagination_extra = pagination_extra + "&client_type=" + (selected_client_type | urlencode) %}{% endif %}
+        {% if selected_status and selected_status != "All" %}{% set pagination_extra = pagination_extra + "&status=" + (selected_status | urlencode) %}{% endif %}
+        {% if selected_session_worker and selected_session_worker != "All" %}{% set pagination_extra = pagination_extra + "&session_worker=" + (selected_session_worker | urlencode) %}{% endif %}
+        {% if selected_coach and selected_coach != "All" %}{% set pagination_extra = pagination_extra + "&coach=" + (selected_coach | urlencode) %}{% endif %}
+
         <div class="dashboard-pagination" style="display:flex; gap:12px; align-items:center; justify-content:flex-end; margin-top:16px;">
           {% if pagination.has_previous %}
-            <a class="dashboard-btn dashboard-btn-light" href="?page={{ pagination.previous_page }}{% if search %}&search={{ search | urlencode }}{% endif %}">Previous</a>
+            <a class="dashboard-btn dashboard-btn-light" href="?page={{ pagination.previous_page }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ pagination_extra }}">Previous</a>
           {% else %}
             <button class="dashboard-btn dashboard-btn-light" disabled>Previous</button>
           {% endif %}
@@ -157,7 +164,7 @@
           <span>Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
 
           {% if pagination.has_next %}
-            <a class="dashboard-btn dashboard-btn-light" href="?page={{ pagination.next_page }}{% if search %}&search={{ search | urlencode }}{% endif %}">Next</a>
+            <a class="dashboard-btn dashboard-btn-light" href="?page={{ pagination.next_page }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ pagination_extra }}">Next</a>
           {% else %}
             <button class="dashboard-btn dashboard-btn-light" disabled>Next</button>
           {% endif %}

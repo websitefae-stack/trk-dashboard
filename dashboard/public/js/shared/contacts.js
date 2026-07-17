@@ -56,8 +56,6 @@
     updateContactCount();
   }
 
-  var debounce = Dashboard.debounce;
-
   function runServerContactSearch() {
     const searchField = el("contactSearch");
     const params = new URLSearchParams(window.location.search);
@@ -73,7 +71,7 @@
     if (coachFilter && coachFilter.value) {
       params.set("contact_scope", coachFilter.value);
     }
-    
+
     params.set("page", "1");
 
     window.location.href = window.location.pathname + "?" + params.toString();
@@ -82,9 +80,25 @@
   function initSearchFilter() {
     const searchField = el("contactSearch");
 
+    // Search only runs on explicit submit (Enter or the Search button), not
+    // on every keystroke - reloading the whole page on every typing pause
+    // showed a different, narrowing set of results each time (searching
+    // "k", then "ki", then "kid" in turn) before the coach had even
+    // finished typing, and made the search look like it kept resetting.
     if (searchField && searchField.dataset.contactsSearchBound !== "1") {
       searchField.dataset.contactsSearchBound = "1";
-      searchField.addEventListener("input", debounce(runServerContactSearch, 500));
+      searchField.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          runServerContactSearch();
+        }
+      });
+    }
+
+    const searchBtn = el("contactSearchBtn");
+    if (searchBtn && searchBtn.dataset.contactsSearchBtnBound !== "1") {
+      searchBtn.dataset.contactsSearchBtnBound = "1";
+      searchBtn.addEventListener("click", runServerContactSearch);
     }
   }
 
