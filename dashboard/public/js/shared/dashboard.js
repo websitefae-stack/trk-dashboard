@@ -369,6 +369,27 @@
     return `Franchise Fee (${pct}%)`;
   }
 
+  // Turns a revenue figure into a link straight to the invoices that make
+  // it up - franchisor dashboard only (the element is a plain, non-linked
+  // <div>/<span> on the coach dashboard, which shares these element IDs
+  // but not this clickable behaviour).
+  function setRevenueLink(id, amount, fromDate, toDate, revenueCategory) {
+    const node = el(id);
+    if (!node) return;
+
+    node.textContent = formatMoney(amount || 0, "GBP");
+
+    if (typeof node.href === "undefined" || !fromDate || !toDate) return;
+
+    const params = new URLSearchParams();
+    params.set("from_date", fromDate);
+    params.set("to_date", toDate);
+    params.set("status", "");
+    if (revenueCategory) params.set("revenue_category", revenueCategory);
+
+    node.href = "/franchisor_db/invoices?" + params.toString();
+  }
+
   function renderCoachFranchisorDashboard(payload) {
     setText("dashboardTotalClients", payload.total_clients ?? 0);
     setText("dashboardTotalSessionWorkers", payload.total_session_workers ?? 0);
@@ -384,29 +405,35 @@
     setText("dashboardRevenuePreviousLabel", payload.previous_label || "Last Month");
     setText("dashboardRevenueCurrentLabel", payload.current_label || "This Month");
 
-    setText("dashboardRevenuePreviousTotal", formatMoney(payload.revenue_total_previous || 0, "GBP"));
-    setText("dashboardRevenueCurrentTotal", formatMoney(payload.revenue_total_current || 0, "GBP"));
+    const prevFrom = payload.previous_month_start || "";
+    const prevTo = payload.previous_month_end || "";
+    const currFrom = payload.current_month_start || "";
+    const currTo = payload.current_month_end || "";
+
+    setRevenueLink("dashboardRevenuePreviousTotal", payload.revenue_total_previous, prevFrom, prevTo, "");
+    setRevenueLink("dashboardRevenueCurrentTotal", payload.revenue_total_current, currFrom, currTo, "");
 
     setText("dashboardRevenuePreviousClient", formatMoney(payload.revenue_client_previous || 0, "GBP"));
     setText("dashboardRevenueCurrentClient", formatMoney(payload.revenue_client_current || 0, "GBP"));
 
-    // Franchisor-only revenue breakdown rows - setText() no-ops when the
-    // element isn't on the page, so this is harmless on the coach
-    // dashboard, which still shows the older single "Client Invoices" row.
-    setText("dashboardRevenuePreviousKidsTeensUni", formatMoney(payload.revenue_kids_teens_uni_previous || 0, "GBP"));
-    setText("dashboardRevenueCurrentKidsTeensUni", formatMoney(payload.revenue_kids_teens_uni_current || 0, "GBP"));
+    // Franchisor-only revenue breakdown rows - setRevenueLink()/setText()
+    // no-op when the element isn't on the page, so this is harmless on the
+    // coach dashboard, which still shows the older single "Client
+    // Invoices" row.
+    setRevenueLink("dashboardRevenuePreviousKidsTeensUni", payload.revenue_kids_teens_uni_previous, prevFrom, prevTo, "kids_teens_uni");
+    setRevenueLink("dashboardRevenueCurrentKidsTeensUni", payload.revenue_kids_teens_uni_current, currFrom, currTo, "kids_teens_uni");
 
-    setText("dashboardRevenuePreviousSchools", formatMoney(payload.revenue_schools_previous || 0, "GBP"));
-    setText("dashboardRevenueCurrentSchools", formatMoney(payload.revenue_schools_current || 0, "GBP"));
+    setRevenueLink("dashboardRevenuePreviousSchools", payload.revenue_schools_previous, prevFrom, prevTo, "schools");
+    setRevenueLink("dashboardRevenueCurrentSchools", payload.revenue_schools_current, currFrom, currTo, "schools");
 
-    setText("dashboardRevenuePreviousPeople", formatMoney(payload.revenue_people_previous || 0, "GBP"));
-    setText("dashboardRevenueCurrentPeople", formatMoney(payload.revenue_people_current || 0, "GBP"));
+    setRevenueLink("dashboardRevenuePreviousPeople", payload.revenue_people_previous, prevFrom, prevTo, "people");
+    setRevenueLink("dashboardRevenueCurrentPeople", payload.revenue_people_current, currFrom, currTo, "people");
 
-    setText("dashboardRevenuePreviousTravel", formatMoney(payload.revenue_travel_previous || 0, "GBP"));
-    setText("dashboardRevenueCurrentTravel", formatMoney(payload.revenue_travel_current || 0, "GBP"));
+    setRevenueLink("dashboardRevenuePreviousTravel", payload.revenue_travel_previous, prevFrom, prevTo, "travel");
+    setRevenueLink("dashboardRevenueCurrentTravel", payload.revenue_travel_current, currFrom, currTo, "travel");
 
-    setText("dashboardRevenuePreviousInterbusiness", formatMoney(payload.revenue_interbusiness_previous || 0, "GBP"));
-    setText("dashboardRevenueCurrentInterbusiness", formatMoney(payload.revenue_interbusiness_current || 0, "GBP"));
+    setRevenueLink("dashboardRevenuePreviousInterbusiness", payload.revenue_interbusiness_previous, prevFrom, prevTo, "interbusiness");
+    setRevenueLink("dashboardRevenueCurrentInterbusiness", payload.revenue_interbusiness_current, currFrom, currTo, "interbusiness");
 
     setText("dashboardFeesPreviousLabel", payload.previous_label || "Last Month");
     setText("dashboardFeesCurrentLabel", payload.current_label || "This Month");

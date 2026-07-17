@@ -719,7 +719,14 @@ def _get_invoice_filter_args():
     else:
         status = "Outstanding"
 
-    return {"from_date": from_date, "to_date": to_date, "status": status}
+    revenue_category = (frappe.form_dict.get("revenue_category") or "").strip()
+
+    return {
+        "from_date": from_date,
+        "to_date": to_date,
+        "status": status,
+        "revenue_category": revenue_category,
+    }
 
 
 def _apply_invoice_filter_args(filters, filter_args):
@@ -739,6 +746,62 @@ def _apply_invoice_filter_args(filters, filter_args):
     elif status:
         filters["status"] = status
 
+    _apply_revenue_category_filter(filters, filter_args.get("revenue_category"))
+
+    return filters
+
+
+# Matches dashboard.py's KIDS_TEENS_UNI_CLIENT_TYPES / SCHOOL_CLIENT_TYPES /
+# PEOPLE_CLIENT_TYPES - the franchisor dashboard's revenue breakdown
+# buckets, so clicking a revenue figure there shows exactly the invoices
+# that make it up.
+_REVENUE_CATEGORY_CLIENT_TYPES = {
+    "kids_teens_uni": {"Kid", "Teen", "Uni Student"},
+    "schools": {"School"},
+    "people": {"Adult", "Company"},
+    "interbusiness": {"Franchise"},
+}
+
+
+def _apply_revenue_category_filter(filters, revenue_category):
+    revenue_category = (revenue_category or "").strip()
+    if not revenue_category:
+        return filters
+
+    if revenue_category == "travel":
+        # Any invoice with at least one travel line item - not a distinct
+        # client segment like the others, so this intersects on "name"
+        # rather than "custom_client".
+        travel_invoice_names = set(frappe.get_all(
+            "Sales Invoice Item",
+            filters={"item_code": TRAVEL_ITEM_CODE},
+            pluck="parent",
+            limit_page_length=0,
+        ))
+
+        existing = filters.get("name")
+        if isinstance(existing, list) and len(existing) == 2 and existing[0] == "in":
+            travel_invoice_names = travel_invoice_names.intersection(existing[1])
+
+        filters["name"] = ["in", list(travel_invoice_names)]
+        return filters
+
+    client_types = _REVENUE_CATEGORY_CLIENT_TYPES.get(revenue_category)
+    if client_types is None:
+        return filters
+
+    category_client_names = set(frappe.get_all(
+        "Client",
+        filters=[["client_type", "in", list(client_types)]],
+        pluck="name",
+        limit_page_length=0,
+    ))
+
+    existing = filters.get("custom_client")
+    if isinstance(existing, list) and len(existing) == 2 and existing[0] == "in":
+        category_client_names = category_client_names.intersection(existing[1])
+
+    filters["custom_client"] = ["in", list(category_client_names)]
     return filters
 
 
@@ -889,6 +952,7 @@ def get_invoice_page_data(dashboard_type=None, selected_coach=None):
         "from_date": invoice_data.get("from_date", ""),
         "to_date": invoice_data.get("to_date", ""),
         "status": invoice_data.get("status", "Outstanding"),
+        "revenue_category": invoice_data.get("revenue_category", ""),
     }
 
 
