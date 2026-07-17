@@ -552,9 +552,54 @@
         + "<td>" + formatDate(row.creation) + "</td>"
         + "<td>" + escapeHtml(row.person_label || "—") + "</td>"
         + "<td>" + escapeHtml(row.coach_label || "—") + "</td>"
-        + "<td>" + nameLink(doctype, row.name) + "</td>"
+        + '<td><button type="button" class="dashboard-btn dashboard-btn-light" data-view-form-submission="' + escapeHtml(row.name) + '">View</button></td>'
         + "</tr>";
     }).join("");
+  }
+
+  function openFormSubmissionModal() {
+    var modal = el("formSubmissionModal");
+    if (!modal) return;
+    modal.classList.add("is-open");
+    document.body.classList.add("dashboard-modal-open");
+  }
+
+  function closeFormSubmissionModal() {
+    var modal = el("formSubmissionModal");
+    if (!modal) return;
+    modal.classList.remove("is-open");
+    document.body.classList.remove("dashboard-modal-open");
+  }
+
+  async function showFormSubmission(name) {
+    var title = el("formSubmissionModalTitle");
+    var body = el("formSubmissionModalBody");
+    if (!body) return;
+
+    body.innerHTML = '<tr><td colspan="2" class="dashboard-empty">Loading…</td></tr>';
+    if (title) title.textContent = "Submission";
+    openFormSubmissionModal();
+
+    try {
+      var data = await callApi("dashboard.api.shared.form_reports.get_form_submission", {
+        doctype: formModuleSelectedDoctype(),
+        name: name
+      });
+
+      if (title) title.textContent = data.person ? ("Submission - " + data.person) : ("Submission - " + formatDate(data.submitted_on));
+
+      if (!data.answers || !data.answers.length) {
+        body.innerHTML = '<tr><td colspan="2" class="dashboard-empty">No answers on this submission.</td></tr>';
+        return;
+      }
+
+      body.innerHTML = data.answers.map(function (answer) {
+        return "<tr><td>" + escapeHtml(answer.label) + "</td><td>" + escapeHtml(answer.value == null ? "—" : answer.value) + "</td></tr>";
+      }).join("");
+    } catch (error) {
+      console.error("Could not load form submission:", error);
+      body.innerHTML = '<tr><td colspan="2" class="dashboard-empty">' + escapeHtml(error.message || "Could not load this submission.") + '</td></tr>';
+    }
   }
 
   function renderFormChartPie(data) {
@@ -984,6 +1029,27 @@
     var formModuleQuestionSelect = el("formModuleQuestionSelect");
     if (formModuleQuestionSelect) {
       formModuleQuestionSelect.addEventListener("change", function () { loadFormModuleQuestionAnswers(formModuleQuestionSelect.value); });
+    }
+
+    var formModuleSummaryBody = el("formModuleSummaryTableBody");
+    if (formModuleSummaryBody) {
+      formModuleSummaryBody.addEventListener("click", function (event) {
+        var button = event.target.closest("[data-view-form-submission]");
+        if (!button) return;
+        showFormSubmission(button.getAttribute("data-view-form-submission"));
+      });
+    }
+
+    var formSubmissionModal = el("formSubmissionModal");
+    if (formSubmissionModal) {
+      formSubmissionModal.addEventListener("click", function (event) {
+        if (event.target === formSubmissionModal) closeFormSubmissionModal();
+      });
+    }
+
+    var closeFormSubmissionModalBtn = el("closeFormSubmissionModal");
+    if (closeFormSubmissionModalBtn) {
+      closeFormSubmissionModalBtn.addEventListener("click", closeFormSubmissionModal);
     }
 
     var packsBtn = el("runOpenPacksReportBtn");

@@ -1648,19 +1648,22 @@ def _reply_to_notification_log(doc, message, attachment):
     (a Table Custom Field added by add_notification_log_reply_field.py) so
     it's kept with the original notification for either party to read back.
 
+    Both parties already read the SAME row: get_notifications() matches on
+    for_user == session.user OR from_user == session.user, so for_user and
+    from_user both land on this one document already - there is no need to
+    fabricate a second "Re:" notification for the other person, and doing
+    so previously caused a new card to appear every time either side
+    replied (stacking into "Re: Re: Re:" chains, with the card's preview
+    showing the reply text instead of the original message). The reply is
+    simply appended here and the row is marked unread so it resurfaces to
+    whichever party hasn't seen it yet; mark_notification_read() flips it
+    back the next time either of them opens it.
+
     If this notification was sent to several people at once, every sibling
     row shares the same custom_thread_id (see _send_legacy_notification) -
-    the reply is mirrored onto every one of them and each is marked unread
-    again, so everyone in the group sees the same conversation update
-    instead of just their own disconnected copy. Sending each of them a
-    separate fresh "Re:" card on top of that would just recreate the
-    "one card per person" clutter this was built to get rid of.
-
-    Only when there's no thread (a plain 1:1 notification, or anything
-    that predates thread_id) does this fall back to the original
-    behaviour: for_user/from_user is the only link back to the other
-    person at all in that case, so a fresh "Re:" notification is the only
-    way to actually tell them a reply happened.
+    the reply is mirrored onto every one of them so everyone in the group
+    sees the same conversation update instead of just their own
+    disconnected copy.
     """
     reply_row = {
         "message": message,
@@ -1673,11 +1676,10 @@ def _reply_to_notification_log(doc, message, attachment):
     doc.append("custom_replies", reply_row)
     doc.save(ignore_permissions=True)
 
-    if _field_exists(NOTIFICATION_DOCTYPE, "read") and doc.get("for_user") in (None, "", frappe.session.user):
-        frappe.db.set_value(NOTIFICATION_DOCTYPE, doc.name, "read", 1, update_modified=False)
+    if _field_exists(NOTIFICATION_DOCTYPE, "read"):
+        frappe.db.set_value(NOTIFICATION_DOCTYPE, doc.name, "read", 0, update_modified=False)
 
     thread_id = doc.get("custom_thread_id")
-    sibling_names = []
 
     if thread_id and _field_exists(NOTIFICATION_DOCTYPE, "custom_thread_id"):
         sibling_names = frappe.get_all(
@@ -1694,39 +1696,6 @@ def _reply_to_notification_log(doc, message, attachment):
 
             if _field_exists(NOTIFICATION_DOCTYPE, "read"):
                 frappe.db.set_value(NOTIFICATION_DOCTYPE, sibling_name, "read", 0, update_modified=False)
-
-    if not sibling_names:
-        counterpart = doc.get("from_user") if doc.get("for_user") == frappe.session.user else doc.get("for_user")
-        counterpart = (counterpart or "").strip()
-
-        if (
-            counterpart
-            and counterpart not in ("Administrator", "Guest", frappe.session.user)
-            and frappe.db.exists("User", counterpart)
-        ):
-            reply_doc = {
-                "doctype": NOTIFICATION_DOCTYPE,
-                "subject": f"Re: {doc.get('subject') or 'Notification'}",
-                "email_content": message,
-                "read": 0,
-            }
-
-            if _field_exists(NOTIFICATION_DOCTYPE, "for_user"):
-                reply_doc["for_user"] = counterpart
-
-            if _field_exists(NOTIFICATION_DOCTYPE, "from_user"):
-                reply_doc["from_user"] = frappe.session.user
-
-            # Same crash guard as _send_legacy_notification() - Frappe's own
-            # after_insert hook needs document_type/document_name to both
-            # resolve to something real.
-            if _field_exists(NOTIFICATION_DOCTYPE, "document_type"):
-                reply_doc["document_type"] = doc.get("document_type") or "User"
-
-            if _field_exists(NOTIFICATION_DOCTYPE, "document_name"):
-                reply_doc["document_name"] = doc.get("document_name") or counterpart
-
-            frappe.get_doc(reply_doc).insert(ignore_permissions=True)
 
     frappe.db.commit()
 

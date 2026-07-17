@@ -47,23 +47,40 @@ def _get_current_coach():
 
 def _get_email_account_row(coach=None):
     """
-    The current user's own Email Account. Tried by email_id ==
-    frappe.session.user first (the common case - a coach's Workspace
-    address, their Frappe User login, and their Email Account's email_id
-    are all the same string), then by the coach's own coach_email field if
-    that didn't match - a coach can log in with a different User ID than
-    their actual Workspace/Coach.coach_email address (e.g. Fiona's Email
-    Account is keyed to fiona@theresilientkid.co.uk, but that isn't
-    necessarily also her literal Frappe login), in which case an
-    already-configured Email Account existed but was never found. Only
-    ever looks up by frappe.session.user or the coach doc _get_current_coach()
-    already confirmed belongs to that same session - never an account
-    name/email from the caller.
+    The current user's own Email Account, tried in order:
+
+    1. Coach.custom_email_account - an explicit link the office sets
+       directly on the Coach record (see
+       patches/add_coach_email_account_link_field.py) when neither of the
+       heuristics below finds the right row. This is the escape hatch:
+       office has Desk access to Coach but not to Email Account/Connected
+       App permissions, so pointing this field at the correct Email
+       Account is the one thing they can always do themselves to fix a
+       mismatch without a code change.
+    2. email_id == frappe.session.user - the common case, where a coach's
+       Workspace address, their Frappe User login, and their Email
+       Account's email_id are all the same string.
+    3. email_id == coach.coach_email - covers a coach logging in with a
+       different User ID than their actual Workspace/Coach.coach_email
+       address.
+
+    Only ever looks up by frappe.session.user or the coach doc
+    _get_current_coach() already confirmed belongs to that same session -
+    never an account name/email from the caller.
     """
+    fields = ["name", "email_id", "auth_method", "connected_app", "connected_user"]
+
+    custom_email_account = (coach.get("custom_email_account") or "").strip() if coach else ""
+
+    if custom_email_account:
+        row = frappe.db.get_value(EMAIL_ACCOUNT_DOCTYPE, custom_email_account, fields, as_dict=True)
+        if row:
+            return row
+
     row = frappe.db.get_value(
         EMAIL_ACCOUNT_DOCTYPE,
         {"email_id": frappe.session.user},
-        ["name", "email_id", "auth_method", "connected_app", "connected_user"],
+        fields,
         as_dict=True,
     )
 
@@ -76,7 +93,7 @@ def _get_email_account_row(coach=None):
         row = frappe.db.get_value(
             EMAIL_ACCOUNT_DOCTYPE,
             {"email_id": coach_email},
-            ["name", "email_id", "auth_method", "connected_app", "connected_user"],
+            fields,
             as_dict=True,
         )
 
@@ -92,6 +109,19 @@ def _ensure_email_account_ready(email_account_row, coach=None):
 
     if (email_account_row.connected_app or "") != CONNECTED_APP_NAME:
         frappe.throw(_(NOT_CONFIGURED_MESSAGE))
+
+    # An office-set Coach.custom_email_account link is an explicit
+    # decision to hand this coach that exact Email Account, whatever its
+    # current connected_user happens to be - it overrides the address
+    # heuristics below rather than being checked against them.
+    custom_email_account = (coach.get("custom_email_account") or "").strip() if coach else ""
+    if custom_email_account and custom_email_account == email_account_row.name:
+        if (email_account_row.connected_user or "").strip() != frappe.session.user:
+            frappe.db.set_value(
+                EMAIL_ACCOUNT_DOCTYPE, email_account_row.name, "connected_user", frappe.session.user
+            )
+            frappe.db.commit()
+        return
 
     # Whichever address _get_email_account_row() actually matched this
     # Email Account on - frappe.session.user (the common case) or the
@@ -119,6 +149,27 @@ def _ensure_email_account_ready(email_account_row, coach=None):
             EMAIL_ACCOUNT_DOCTYPE, email_account_row.name, "connected_user", frappe.session.user
         )
         frappe.db.commit()
+
+
+def _not_configured_diagnostic_message(coach):
+    """
+    A more useful "not configured" message for the profile page specifically
+    (never used in a frappe.throw(), so it's fine for it to name the address
+    it searched for) - shows exactly which address(es) _get_email_account_row()
+    tried and came up empty on, so a mismatch is visible from a screenshot
+    alone instead of needing us to query the live database to diagnose it.
+    """
+    coach_email = (coach.get("coach_email") or "").strip() if coach else ""
+    searched = frappe.session.user
+
+    if coach_email and coach_email != frappe.session.user:
+        searched = f"{frappe.session.user} or {coach_email}"
+
+    return _(
+        "No email account found for {0}. Ask the office to set the Email Account field "
+        "on your Coach profile to the matching record, or check that record's email address "
+        "matches one of those."
+    ).format(searched)
 
 
 def _safe_return_to(return_to):
@@ -190,7 +241,7 @@ def get_google_mail_status():
             "configured": False,
             "connected": False,
             "email": "",
-            "message": NOT_CONFIGURED_MESSAGE,
+            "message": _not_configured_diagnostic_message(coach),
         }
 
     # Frappe core's own has_token() - a whitelisted function we call

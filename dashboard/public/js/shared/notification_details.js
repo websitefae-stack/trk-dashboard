@@ -353,7 +353,9 @@
       '<div class="notification-avatar">' + escapeHtml(isSystem ? "•" : initials(author)) + '</div>',
       '<div class="notification-feed-bubble">',
       '<div class="notification-feed-head">',
-      '<span class="notification-feed-author">' + escapeHtml(author) + (isPost ? ' <span class="dashboard-help">posted this</span>' : '') + '</span>',
+      isPost
+        ? '<span class="notification-feed-author">' + escapeHtml(author) + ' <span class="dashboard-help">posted this</span></span>'
+        : '<span class="notification-feed-author"><span class="dashboard-help">Response from</span> ' + escapeHtml(author) + '</span>',
       '<span class="notification-feed-meta">' + escapeHtml(formatDateTime(message.created_on)) + '</span>',
       '</div>',
       '<div class="notification-feed-body">' + escapeHtml(message.message || "") + '</div>',

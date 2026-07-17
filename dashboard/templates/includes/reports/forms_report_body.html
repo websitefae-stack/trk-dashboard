@@ -205,3 +205,26 @@
 <div class="dashboard-tab-panel" data-forms-report-panel="packs" style="display:none;">
   {% include "dashboard/templates/includes/reports/open_packs_report_body.html" %}
 </div>
+
+<div class="dashboard-modal-backdrop" id="formSubmissionModal">
+  <div class="dashboard-modal">
+    <div class="dashboard-modal-head">
+      <h3 id="formSubmissionModalTitle">Submission</h3>
+      <button type="button" class="dashboard-modal-close" id="closeFormSubmissionModal">×</button>
+    </div>
+
+    <div class="dashboard-modal-body">
+      <div class="dashboard-table-wrap">
+        <table class="dashboard-table dashboard-table-compact">
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Answer</th>
+            </tr>
+          </thead>
+          <tbody id="formSubmissionModalBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
