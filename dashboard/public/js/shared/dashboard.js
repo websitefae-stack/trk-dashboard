@@ -390,6 +390,18 @@
     setText("dashboardRevenuePreviousClient", formatMoney(payload.revenue_client_previous || 0, "GBP"));
     setText("dashboardRevenueCurrentClient", formatMoney(payload.revenue_client_current || 0, "GBP"));
 
+    // Franchisor-only revenue breakdown rows - setText() no-ops when the
+    // element isn't on the page, so this is harmless on the coach
+    // dashboard, which still shows the older single "Client Invoices" row.
+    setText("dashboardRevenuePreviousKidsTeensUni", formatMoney(payload.revenue_kids_teens_uni_previous || 0, "GBP"));
+    setText("dashboardRevenueCurrentKidsTeensUni", formatMoney(payload.revenue_kids_teens_uni_current || 0, "GBP"));
+
+    setText("dashboardRevenuePreviousSchools", formatMoney(payload.revenue_schools_previous || 0, "GBP"));
+    setText("dashboardRevenueCurrentSchools", formatMoney(payload.revenue_schools_current || 0, "GBP"));
+
+    setText("dashboardRevenuePreviousPeople", formatMoney(payload.revenue_people_previous || 0, "GBP"));
+    setText("dashboardRevenueCurrentPeople", formatMoney(payload.revenue_people_current || 0, "GBP"));
+
     setText("dashboardRevenuePreviousTravel", formatMoney(payload.revenue_travel_previous || 0, "GBP"));
     setText("dashboardRevenueCurrentTravel", formatMoney(payload.revenue_travel_current || 0, "GBP"));
 

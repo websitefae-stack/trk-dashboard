@@ -903,10 +903,21 @@ def _sum_invoice_total(dashboard_type, context, start_date, end_date):
     return total
 
 
+KIDS_TEENS_UNI_CLIENT_TYPES = {"Kid", "Teen", "Uni Student"}
+SCHOOL_CLIENT_TYPES = {"School"}
+PEOPLE_CLIENT_TYPES = {"Adult", "Company"}
+
+
 def _get_invoice_revenue_breakdown(dashboard_type, context, start_date, end_date):
     """
     Splits the period's invoice total into:
-    - client_total: ordinary client billing.
+    - client_total: ordinary client billing (kids_teens_uni_total +
+      schools_total + people_total).
+    - kids_teens_uni_total / schools_total / people_total: client_total
+      further split by the invoiced Client's client_type - Kid/Teen/Uni
+      Student, School, and Adult/Company respectively. Used by the
+      franchisor dashboard's revenue breakdown and fee calculation (see
+      _compute_fees - fees only apply to kids_teens_uni_total).
     - travel_total: the travel line items within that ordinary billing.
     - interbusiness_total: invoices raised against Franchise-type clients
       (coaches/HQ invoicing each other) - these must never be folded into
@@ -929,22 +940,32 @@ def _get_invoice_revenue_breakdown(dashboard_type, context, start_date, end_date
         ignore_permissions=True,
     )
 
+    empty = {
+        "total": 0.0, "client_total": 0.0, "travel_total": 0.0, "interbusiness_total": 0.0,
+        "kids_teens_uni_total": 0.0, "schools_total": 0.0, "people_total": 0.0,
+    }
+
     if not rows:
-        return {"total": 0.0, "client_total": 0.0, "travel_total": 0.0, "interbusiness_total": 0.0}
+        return empty
 
     invoice_names = [row.get("name") for row in rows if row.get("name")]
     client_names = list({row.get("custom_client") for row in rows if row.get("custom_client")})
 
-    franchise_clients = set()
+    client_type_by_client = {}
 
     if client_names and frappe.db.has_column("Client", "client_type"):
-        franchise_clients = set(frappe.get_all(
+        for client_row in frappe.get_all(
             "Client",
-            filters={"name": ["in", client_names], "client_type": "Franchise"},
-            pluck="name",
+            filters={"name": ["in", client_names]},
+            fields=["name", "client_type"],
             limit_page_length=len(client_names),
             ignore_permissions=True,
-        ))
+        ):
+            client_type_by_client[client_row.get("name")] = client_row.get("client_type") or ""
+
+    franchise_clients = {
+        name for name, client_type in client_type_by_client.items() if client_type == "Franchise"
+    }
 
     travel_by_invoice = {}
 
@@ -962,23 +983,45 @@ def _get_invoice_revenue_breakdown(dashboard_type, context, start_date, end_date
     total = 0.0
     travel_total = 0.0
     interbusiness_total = 0.0
+    kids_teens_uni_total = 0.0
+    schools_total = 0.0
+    people_total = 0.0
 
     for row in rows:
         amount = flt(row.get("grand_total") or row.get("rounded_total") or 0)
         total += amount
+        custom_client = row.get("custom_client")
 
-        if row.get("custom_client") in franchise_clients:
+        if custom_client in franchise_clients:
             interbusiness_total += amount
-        else:
-            travel_total += travel_by_invoice.get(row.get("name"), 0.0)
+            continue
 
-    client_total = total - travel_total - interbusiness_total
+        travel_amount = travel_by_invoice.get(row.get("name"), 0.0)
+        travel_total += travel_amount
+
+        client_amount = amount - travel_amount
+        client_type = client_type_by_client.get(custom_client, "")
+
+        if client_type in SCHOOL_CLIENT_TYPES:
+            schools_total += client_amount
+        elif client_type in PEOPLE_CLIENT_TYPES:
+            people_total += client_amount
+        else:
+            # Kid/Teen/Uni Student, and anything unrecognised (e.g. no
+            # client_type set), default into this bucket rather than
+            # silently vanishing from the client-type breakdown.
+            kids_teens_uni_total += client_amount
+
+    client_total = kids_teens_uni_total + schools_total + people_total
 
     return {
         "total": total,
         "client_total": client_total,
         "travel_total": travel_total,
         "interbusiness_total": interbusiness_total,
+        "kids_teens_uni_total": kids_teens_uni_total,
+        "schools_total": schools_total,
+        "people_total": people_total,
     }
 
 
@@ -1010,25 +1053,33 @@ def _franchise_fee_rate(gross_revenue):
     return FRANCHISE_FEE_DEFAULT_RATE
 
 
-def _compute_fees(revenue_breakdown):
+def _compute_fees(revenue_breakdown, dashboard_type=None):
     """
-    Marketing fee: 2% of Client Invoices specifically (not travel, not
-    interbusiness). Franchise fee: a tiered percentage of Gross Revenue,
-    which for this purpose is Client Invoices + Travel - interbusiness
-    cross-charges are never counted (see _get_invoice_revenue_breakdown's
-    own docstring) - with a £100 minimum that always applies, including a
-    £0 revenue period.
+    Marketing fee: 2% of the fee-eligible client revenue. Franchise fee: a
+    tiered percentage of Gross Revenue (fee-eligible client revenue +
+    Travel) - interbusiness cross-charges are never counted (see
+    _get_invoice_revenue_breakdown's own docstring) - with a £100 minimum
+    that always applies, including a £0 revenue period.
+
+    On the franchisor dashboard, "fee-eligible" is Kids/Teens/Uni Student
+    revenue only - Ashley currently only pays fees on that segment, not on
+    Schools or People (Adult/Company) invoicing. Every other dashboard
+    keeps the old behaviour of fees applying to all client revenue.
     """
-    client_total = flt(revenue_breakdown.get("client_total"))
+    if dashboard_type == FRANCHISOR_DASHBOARD:
+        fee_eligible_total = flt(revenue_breakdown.get("kids_teens_uni_total"))
+    else:
+        fee_eligible_total = flt(revenue_breakdown.get("client_total"))
+
     travel_total = flt(revenue_breakdown.get("travel_total"))
 
-    gross_revenue = client_total + travel_total
+    gross_revenue = fee_eligible_total + travel_total
     franchise_fee_rate = _franchise_fee_rate(gross_revenue)
     franchise_fee = max(gross_revenue * franchise_fee_rate, FRANCHISE_FEE_MINIMUM)
 
     return {
         "gross_revenue": gross_revenue,
-        "marketing_fee": client_total * MARKETING_FEE_RATE,
+        "marketing_fee": fee_eligible_total * MARKETING_FEE_RATE,
         "franchise_fee": franchise_fee,
         "franchise_fee_rate": franchise_fee_rate,
     }
@@ -1612,8 +1663,8 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
         dashboard_type, context, previous_month_start, previous_month_end
     )
 
-    fees_current = _compute_fees(revenue_current)
-    fees_previous = _compute_fees(revenue_previous)
+    fees_current = _compute_fees(revenue_current, dashboard_type)
+    fees_previous = _compute_fees(revenue_previous, dashboard_type)
 
     response = {
         "dashboard_type": dashboard_type,
@@ -1635,6 +1686,12 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
         "revenue_travel_previous": revenue_previous["travel_total"],
         "revenue_interbusiness_current": revenue_current["interbusiness_total"],
         "revenue_interbusiness_previous": revenue_previous["interbusiness_total"],
+        "revenue_kids_teens_uni_current": revenue_current["kids_teens_uni_total"],
+        "revenue_kids_teens_uni_previous": revenue_previous["kids_teens_uni_total"],
+        "revenue_schools_current": revenue_current["schools_total"],
+        "revenue_schools_previous": revenue_previous["schools_total"],
+        "revenue_people_current": revenue_current["people_total"],
+        "revenue_people_previous": revenue_previous["people_total"],
 
         "gross_revenue_current": fees_current["gross_revenue"],
         "gross_revenue_previous": fees_previous["gross_revenue"],
