@@ -486,7 +486,7 @@
     ], intakeFormState.rows);
   }
 
-  var formModuleState = { rows: [], questionRows: [], chartQuestions: [], mode: "summary" };
+  var formModuleState = { rows: [], questionRows: [], chartQuestions: [], mode: "charts" };
 
   // Fixed-order categorical palette (light mode) - validated for CVD-safe
   // adjacent contrast. Assigned by slot index within each chart, never by
@@ -524,12 +524,14 @@
 
     toggleDisplayEl("formModuleSummaryResults", false);
     toggleDisplayEl("formModuleChartsResults", false);
-    toggleDisplayEl("formModulePersonResults", false);
     toggleDisplayEl("formModuleQuestionResults", false);
     toggleDisplayEl("exportFormModuleReportBtn", false);
 
     var chartsWrap = el("formModuleChartsResults");
     if (chartsWrap) chartsWrap.innerHTML = "";
+
+    var questionList = el("formModuleQuestionAnswerList");
+    if (questionList) questionList.innerHTML = "";
 
     var empty = el("formModuleEmpty");
     if (empty) {
@@ -537,7 +539,6 @@
       empty.style.display = "";
     }
 
-    fillSelect(el("formModulePersonSelect"), [], "Select a person");
     fillSelect(el("formModuleQuestionSelect"), [], "Select a question");
   }
 
@@ -685,76 +686,18 @@
     }).join("");
   }
 
-  function renderFormModulePersonAnswers(data) {
-    var wrap = el("formModulePersonResults");
-    if (!wrap) return;
+  function renderFormModuleQuestionAnswers(data) {
+    var heading = el("formModuleQuestionColumnHead");
+    var list = el("formModuleQuestionAnswerList");
+    if (!list) return;
 
-    if (!data.submissions || !data.submissions.length) {
-      wrap.innerHTML = '<div class="dashboard-empty">No submissions found for ' + escapeHtml(data.person || "this person") + '.</div>';
-      return;
-    }
+    if (heading) heading.textContent = data.question || "Answers";
 
-    wrap.innerHTML = data.submissions.map(function (submission) {
-      return '<div class="dashboard-detail-section" style="margin-top:16px;">'
-        + '<h3 style="margin-bottom:8px;">' + formatDate(submission.submitted_on) + '</h3>'
-        + '<div class="dashboard-table-wrap"><table class="dashboard-table dashboard-table-compact">'
-        + '<thead><tr><th>Question</th><th>Answer</th></tr></thead>'
-        + '<tbody>'
-        + submission.answers.map(function (answer) {
-          return "<tr><td>" + escapeHtml(answer.label) + "</td><td>" + escapeHtml(answer.value == null ? "—" : answer.value) + "</td></tr>";
-        }).join("")
-        + '</tbody></table></div></div>';
-    }).join("");
-  }
+    var answers = (data.rows || []).map(function (row) { return row.value; }).filter(function (v) { return v; });
 
-  function renderFormModuleQuestionTable(data) {
-    var body = el("formModuleQuestionTableBody");
-    var columnHead = el("formModuleQuestionColumnHead");
-    if (!body) return;
-
-    if (columnHead) columnHead.textContent = data.question || "Answer";
-
-    body.innerHTML = (data.rows || []).map(function (row) {
-      return "<tr>"
-        + "<td>" + formatDate(row.creation) + "</td>"
-        + "<td>" + escapeHtml(row.person_label || "—") + "</td>"
-        + "<td>" + escapeHtml(row.coach_label || "—") + "</td>"
-        + "<td>" + escapeHtml(row.value || "—") + "</td>"
-        + "</tr>";
-    }).join("");
-  }
-
-  async function loadFormModulePersonAnswers(person) {
-    var empty = el("formModuleEmpty");
-    var wrap = el("formModulePersonResults");
-    if (!empty || !wrap) return;
-
-    if (!person) {
-      empty.textContent = "Select a person to see their answers.";
-      empty.style.display = "";
-      wrap.style.display = "none";
-      return;
-    }
-
-    empty.textContent = "Loading...";
-    empty.style.display = "";
-    wrap.style.display = "none";
-
-    try {
-      var data = await callApi("dashboard.api.shared.form_reports.get_form_answers_for_person", {
-        doctype: formModuleSelectedDoctype(),
-        person: person
-      });
-
-      empty.style.display = "none";
-      wrap.style.display = "";
-      renderFormModulePersonAnswers(data);
-    } catch (error) {
-      console.error("Could not load person's form answers:", error);
-      empty.textContent = error.message || "Could not load this person's answers.";
-      empty.style.display = "";
-      wrap.style.display = "none";
-    }
+    list.innerHTML = answers.length
+      ? answers.map(function (value) { return "<li>" + escapeHtml(value) + "</li>"; }).join("")
+      : '<li class="form-chart-empty">No answers yet.</li>';
   }
 
   async function loadFormModuleQuestionAnswers(question) {
@@ -783,17 +726,10 @@
 
       formModuleState.questionRows = data.rows || [];
 
-      if (!data.rows || !data.rows.length) {
-        empty.textContent = "No answers found.";
-        empty.style.display = "";
-        results.style.display = "none";
-        return;
-      }
-
       empty.style.display = "none";
       results.style.display = "";
-      renderFormModuleQuestionTable(data);
-      toggleDisplayEl("exportFormModuleReportBtn", true);
+      renderFormModuleQuestionAnswers(data);
+      toggleDisplayEl("exportFormModuleReportBtn", (data.rows || []).length > 0);
     } catch (error) {
       console.error("Could not load question's form answers:", error);
       empty.textContent = error.message || "Could not load answers for this question.";
@@ -836,24 +772,15 @@
           renderFormModuleSummaryTable(formModuleState.rows);
           toggleDisplayEl("exportFormModuleReportBtn", true);
         }
-      } else if (mode === "person") {
-        var people = await callApi("dashboard.api.shared.form_reports.get_form_people", { doctype: doctype });
-        fillSelect(el("formModulePersonSelect"), people || [], "Select a person");
-
-        var personEmpty = el("formModuleEmpty");
-        if (personEmpty) {
-          personEmpty.textContent = (people && people.length)
-            ? "Select a person to see their answers."
-            : "This form has no linked person to filter by, or nobody's submitted it yet.";
-          personEmpty.style.display = "";
-        }
       } else if (mode === "question") {
         var questions = await callApi("dashboard.api.shared.form_reports.get_form_questions", { doctype: doctype });
         fillSelect(el("formModuleQuestionSelect"), questions || [], "Select a question");
 
         var questionEmpty = el("formModuleEmpty");
         if (questionEmpty) {
-          questionEmpty.textContent = "Select a question to see everyone's answer.";
+          questionEmpty.textContent = (questions && questions.length)
+            ? "Select a question to see everyone's answer."
+            : "This form has no questions to select.";
           questionEmpty.style.display = "";
         }
       } else if (mode === "charts") {
@@ -1015,15 +942,9 @@
     if (formModuleViewModeSelect) {
       formModuleViewModeSelect.addEventListener("change", function () {
         var mode = formModuleViewModeSelect.value;
-        toggleDisplayEl("formModuleControlsRow", mode === "person" || mode === "question");
-        toggleDisplayEl("formModulePersonRow", mode === "person");
+        toggleDisplayEl("formModuleControlsRow", mode === "question");
         toggleDisplayEl("formModuleQuestionRow", mode === "question");
       });
-    }
-
-    var formModulePersonSelect = el("formModulePersonSelect");
-    if (formModulePersonSelect) {
-      formModulePersonSelect.addEventListener("change", function () { loadFormModulePersonAnswers(formModulePersonSelect.value); });
     }
 
     var formModuleQuestionSelect = el("formModuleQuestionSelect");
