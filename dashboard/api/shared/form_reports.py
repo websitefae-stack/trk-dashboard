@@ -631,6 +631,46 @@ def get_form_answers_for_question(doctype=None, question=None, from_date=None, t
     return {"question": df.label or question, "rows": out}
 
 
+@frappe.whitelist()
+def get_form_submission(doctype=None, name=None):
+    """
+    Every answer on exactly one submission, by its own document name - the
+    dashboard-side stand-in for opening the record in Frappe Desk, which
+    coaches and franchisors don't have access to. Used by the "Link"
+    column on the Form Results summary table.
+    """
+    ensure_logged_in()
+
+    meta = _form_doctype_meta(doctype)
+    link_field = _form_link_field(meta)
+
+    name = (name or "").strip()
+    if not name or not frappe.db.exists(doctype, name):
+        frappe.throw(_("Submission not found."))
+
+    linked_name = None
+    if link_field:
+        linked_name = frappe.db.get_value(doctype, name, link_field.fieldname)
+
+        scope = _form_scope_filter_value(link_field)
+        if scope is not None and linked_name not in (scope[1] or []):
+            frappe.throw(_("You do not have permission to view this submission."), frappe.PermissionError)
+
+    doc = frappe.get_doc(doctype, name)
+    answers = [
+        {"label": df.label or df.fieldname, "value": _form_field_value(doc, df)}
+        for df in _form_question_fields(meta)
+        if not link_field or df.fieldname != link_field.fieldname
+    ]
+
+    return {
+        "name": doc.name,
+        "submitted_on": doc.creation,
+        "person": _form_person_label(link_field.options, linked_name) if link_field else "",
+        "answers": [a for a in answers if a["value"] is not None],
+    }
+
+
 def _client_display_name(client_name):
     if not client_name:
         return ""
