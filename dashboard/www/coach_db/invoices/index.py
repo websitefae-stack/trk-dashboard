@@ -57,6 +57,10 @@ def get_context(context):
         # the shared pagination template still needs one to render.
         context.pagination = make_pagination(len(context.invoices), 1, max(len(context.invoices), 1))
         context.search = ""
+        filter_args = invoice_api._get_invoice_filter_args()
+        context.from_date = filter_args["from_date"]
+        context.to_date = filter_args["to_date"]
+        context.status = filter_args["status"]
 
     else:
         redirect_if_wrong_dashboard("coach")
@@ -71,6 +75,9 @@ def get_context(context):
         context.invoices = data.get("invoices", [])
         context.pagination = data.get("pagination", {})
         context.search = data.get("search", "")
+        context.from_date = data.get("from_date", "")
+        context.to_date = data.get("to_date", "")
+        context.status = data.get("status", "Outstanding")
         context.coach_options = data.get("coach_options", [])
         context.selected_coach = data.get("selected_coach", "")
         context.current_coach = data.get("current_coach", "")
@@ -91,12 +98,15 @@ def get_invoices_for_view_coach(coach_name, coach_view_query=""):
     if not client_names:
         return []
 
+    filters = {
+        "custom_client": ["in", client_names],
+        "docstatus": ["!=", 2],
+    }
+    invoice_api._apply_invoice_filter_args(filters, invoice_api._get_invoice_filter_args())
+
     invoice_rows = frappe.get_all(
         "Sales Invoice",
-        filters={
-            "custom_client": ["in", client_names],
-            "docstatus": ["!=", 2],
-        },
+        filters=filters,
         fields=invoice_api._get_invoice_fields(),
         order_by="posting_date desc, modified desc",
         limit_page_length=1000,

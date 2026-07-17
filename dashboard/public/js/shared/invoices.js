@@ -9,66 +9,6 @@
     return "/coach_db";
   }
 
-  function updateInvoiceCount() {
-    const countEl = el("invoiceCount");
-    if (!countEl) return;
-
-    const rows = Array.from(document.querySelectorAll(".dashboard-invoice-row"));
-    const visible = rows.filter((row) => row.style.display !== "none").length;
-
-    countEl.textContent = `${visible} invoice${visible === 1 ? "" : "s"}`;
-  }
-
-  function invoiceMatches(row, search, fromDate, toDate, status) {
-    const haystack = [
-      row.dataset.name || "",
-      row.dataset.client || "",
-      row.dataset.customer || "",
-      row.dataset.company || ""
-    ].join(" ").toLowerCase();
-
-    const rowDate = row.dataset.date || "";
-    const rowStatus = row.dataset.status || "";
-
-    if (search && !haystack.includes(search)) return false;
-
-    if (!search) {
-      if (status === "Outstanding") {
-        if (!["Unpaid", "Overdue", "Partly Paid"].includes(rowStatus)) return false;
-      } else if (status && rowStatus !== status) {
-        return false;
-      }
-    }
-
-    if (fromDate && rowDate < fromDate) return false;
-    if (toDate && rowDate > toDate) return false;
-
-    return true;
-  }
-
-  function renderFilters() {
-    const search = (el("invoiceSearch")?.value || "").trim().toLowerCase();
-    const fromDate = el("invoiceFromDate")?.value || "";
-    const toDate = el("invoiceToDate")?.value || "";
-    const status = el("invoiceStatusFilter")?.value || "";
-
-    const rows = document.querySelectorAll(".dashboard-invoice-row");
-    let visible = 0;
-
-    rows.forEach((row) => {
-      const show = invoiceMatches(row, search, fromDate, toDate, status);
-      row.style.display = show ? "" : "none";
-      if (show) visible++;
-    });
-
-    const emptyState = el("invoiceEmptyState");
-    if (emptyState) {
-      emptyState.style.display = visible ? "none" : "block";
-    }
-
-    updateInvoiceCount();
-  }
-
   function openInvoiceDetails(name) {
     if (!name) return;
 
@@ -101,19 +41,90 @@
     });
   }
 
-  function goToInvoiceListWithCoach(selectedCoach) {
-    const selector = el("invoiceCoachSelector");
-    const currentCoach = selector ? selector.dataset.currentCoach || "" : "";
+  // Every filter (search, coach, from/to date, status) round-trips through
+  // the server now - the list itself is server-paginated, so filtering only
+  // the rows already on the current page (the old approach) couldn't work
+  // once you left page 1: the date/status inputs are blank on a fresh page
+  // load, so paging reset the filter and showed an unrelated page's worth
+  // of invoices. Building the params from the CURRENT field values (rather
+  // than only what's already in the URL) means changing one filter carries
+  // the others along with it instead of clobbering them.
+  function buildInvoiceParams(overrides) {
+    const params = new URLSearchParams(window.location.search);
 
-    const params = new URLSearchParams();
+    const searchField = el("invoiceSearch");
+    const coachSelector = el("invoiceCoachSelector");
+    const fromDateField = el("invoiceFromDate");
+    const toDateField = el("invoiceToDate");
+    const statusField = el("invoiceStatusFilter");
 
-    if (selectedCoach && selectedCoach !== currentCoach) {
-      params.set("coach", selectedCoach);
+    if (searchField && searchField.value.trim()) {
+      params.set("search", searchField.value.trim());
+    } else {
+      params.delete("search");
     }
 
-    params.set("_refresh", Date.now());
+    if (coachSelector && coachSelector.value) {
+      params.set("coach", coachSelector.value);
+    } else {
+      params.delete("coach");
+    }
 
+    if (fromDateField && fromDateField.value) {
+      params.set("from_date", fromDateField.value);
+    } else {
+      params.delete("from_date");
+    }
+
+    if (toDateField && toDateField.value) {
+      params.set("to_date", toDateField.value);
+    } else {
+      params.delete("to_date");
+    }
+
+    // Always set explicitly (even when empty, meaning "All statuses") so
+    // it never silently falls back to the server's "Outstanding" default
+    // once the user has deliberately chosen something else.
+    if (statusField) {
+      params.set("status", statusField.value || "");
+    }
+
+    params.delete("_refresh");
+
+    Object.keys(overrides || {}).forEach(function (key) {
+      const value = overrides[key];
+      if (value === null || value === undefined || value === "") {
+        params.delete(key);
+      } else {
+        params.set(key, value);
+      }
+    });
+
+    return params;
+  }
+
+  function navigateInvoices(overrides) {
+    const params = buildInvoiceParams(overrides);
     window.location.href = window.location.pathname + "?" + params.toString();
+  }
+
+  var debounce = Dashboard.debounce;
+
+  function initFilters() {
+    const searchField = el("invoiceSearch");
+    if (searchField) {
+      searchField.addEventListener("input", debounce(function () {
+        navigateInvoices({ page: 1 });
+      }, 500));
+    }
+
+    ["invoiceFromDate", "invoiceToDate", "invoiceStatusFilter"].forEach((id) => {
+      const field = el(id);
+      if (!field) return;
+      field.addEventListener("change", function () {
+        navigateInvoices({ page: 1 });
+      });
+    });
   }
 
   function initCoachSelector() {
@@ -121,43 +132,7 @@
     if (!selector) return;
 
     selector.addEventListener("change", function () {
-      goToInvoiceListWithCoach(selector.value || "");
-    });
-  }
-
-  var debounce = Dashboard.debounce;
-
-  function runServerInvoiceSearch() {
-    const searchField = el("invoiceSearch");
-    const params = new URLSearchParams(window.location.search);
-    const coachSelector = el("invoiceCoachSelector");
-    const searchValue = searchField ? searchField.value.trim() : "";
-
-    if (searchValue) {
-      params.set("search", searchValue);
-    } else {
-      params.delete("search");
-    }
-
-    if (coachSelector && coachSelector.value) {
-      params.set("coach", coachSelector.value);
-    }
-    
-    params.set("page", "1");
-
-    window.location.href = window.location.pathname + "?" + params.toString();
-  }
-  
-  function initFilters() {
-    ["invoiceSearch", "invoiceFromDate", "invoiceToDate", "invoiceStatusFilter"].forEach((id) => {
-      const field = el(id);
-      if (!field) return;
-
-      if (id === "invoiceSearch") {
-        field.addEventListener("input", debounce(runServerInvoiceSearch, 500));
-      } else {
-        field.addEventListener("change", renderFilters);
-      }
+      navigateInvoices({ page: 1 });
     });
   }
 
@@ -166,13 +141,10 @@
     if (!button) return;
 
     button.addEventListener("click", function () {
-      const selector = el("invoiceCoachSelector");
-      const selectedCoach = selector ? selector.value || "" : "";
-
       button.disabled = true;
       button.textContent = "Refreshing...";
 
-      goToInvoiceListWithCoach(selectedCoach);
+      navigateInvoices({ _refresh: Date.now() });
     });
   }
 
@@ -202,7 +174,6 @@
     initRefresh();
     initAddInvoice();
     initRowNavigation();
-    renderFilters();
   }
 
   if (document.readyState === "loading") {
