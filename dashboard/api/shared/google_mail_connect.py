@@ -45,43 +45,43 @@ def _get_current_coach():
     return coach
 
 
+def _normalised_email(value):
+    return (value or "").strip().lower()
+
+
 def _get_email_account_row(coach=None):
     """
-    The current user's own Email Account, tried in order:
-
-    1. email_id == frappe.session.user - the common case, where a coach's
-       Workspace address, their Frappe User login (Coach.user), and their
-       Email Account's email_id are all the same string.
-    2. email_id == coach.coach_email - covers a coach whose Frappe login
-       differs from their Coach.coach_email address.
+    The current user's own Email Account, matched against frappe.session.user
+    and coach.coach_email (the two addresses a coach's Email Account is
+    plausibly keyed to). Matched case-insensitively and trimmed of
+    whitespace, rather than an exact SQL "=" - a stray leading/trailing
+    space or a capitalised letter in either the Email Account's email_id or
+    Coach.coach_email is invisible in Desk's UI but silently fails a strict
+    equality filter, so this compares normalised strings in Python instead
+    of relying on the database to do it byte-for-byte.
 
     Only ever looks up by frappe.session.user or the coach doc
     _get_current_coach() already confirmed belongs to that same session -
     never an account name/email from the caller.
     """
-    fields = ["name", "email_id", "auth_method", "connected_app", "connected_user"]
+    coach_email = (coach.get("coach_email") or "").strip() if coach else ""
+    wanted = {_normalised_email(addr) for addr in (frappe.session.user, coach_email) if addr}
 
-    row = frappe.db.get_value(
+    if not wanted:
+        return None
+
+    rows = frappe.get_all(
         EMAIL_ACCOUNT_DOCTYPE,
-        {"email_id": frappe.session.user},
-        fields,
-        as_dict=True,
+        fields=["name", "email_id", "auth_method", "connected_app", "connected_user"],
+        limit_page_length=0,
+        ignore_permissions=True,
     )
 
-    if row:
-        return row
+    for row in rows:
+        if _normalised_email(row.get("email_id")) in wanted:
+            return row
 
-    coach_email = (coach.get("coach_email") or "").strip() if coach else ""
-
-    if coach_email and coach_email != frappe.session.user:
-        row = frappe.db.get_value(
-            EMAIL_ACCOUNT_DOCTYPE,
-            {"email_id": coach_email},
-            fields,
-            as_dict=True,
-        )
-
-    return row
+    return None
 
 
 def _ensure_email_account_ready(email_account_row, coach=None):
@@ -100,11 +100,11 @@ def _ensure_email_account_ready(email_account_row, coach=None):
     # their Workspace/Coach.coach_email address, e.g. the Email Account
     # was set up keyed to coach_email before this login existed).
     coach_email = (coach.get("coach_email") or "").strip() if coach else ""
-    own_addresses = {addr for addr in (frappe.session.user, coach_email) if addr}
+    own_addresses = {_normalised_email(addr) for addr in (frappe.session.user, coach_email) if addr}
 
     connected_user = (email_account_row.connected_user or "").strip()
 
-    if connected_user and connected_user not in own_addresses:
+    if connected_user and _normalised_email(connected_user) not in own_addresses:
         # This Email Account is wired to someone else's mailbox - never let
         # one coach's click reassign it or start an OAuth flow against it.
         frappe.throw(_(NOT_CONFIGURED_MESSAGE), frappe.PermissionError)
