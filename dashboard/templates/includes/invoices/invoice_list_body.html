@@ -15,6 +15,7 @@
 {% set _extra = _extra + ("&from_date=" + from_date | urlencode) if from_date else _extra %}
 {% set _extra = _extra + ("&to_date=" + to_date | urlencode) if to_date else _extra %}
 {% set _extra = _extra + "&status=" + (status | urlencode) %}
+{% set _extra = _extra + ("&revenue_category=" + revenue_category | urlencode) if revenue_category else _extra %}
 
 <div class="dashboard-card">
   <div class="dashboard-table-header">

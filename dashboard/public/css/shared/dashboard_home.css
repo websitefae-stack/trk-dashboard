@@ -124,11 +124,18 @@
 }
 
 .dashboard-revenue-total {
+  display: block;
   margin-bottom: 14px;
   color: #007274;
   font-size: 26px;
   font-weight: 700;
   line-height: 1.1;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.dashboard-revenue-total:hover {
+  text-decoration: underline;
 }
 
 .dashboard-revenue-breakdown {
@@ -152,12 +159,23 @@
   border-top: none;
 }
 
-.dashboard-revenue-row span:last-child {
+.dashboard-revenue-row span:last-child,
+.dashboard-revenue-row a:last-child {
   color: #434B49;
   font-weight: 700;
+  text-decoration: none;
 }
 
-.dashboard-revenue-row.is-interbusiness span:last-child {
+.dashboard-revenue-row a:last-child {
+  cursor: pointer;
+}
+
+.dashboard-revenue-row a:last-child:hover {
+  text-decoration: underline;
+}
+
+.dashboard-revenue-row.is-interbusiness span:last-child,
+.dashboard-revenue-row.is-interbusiness a:last-child {
   color: #ac455c;
 }
 

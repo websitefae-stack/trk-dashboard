@@ -1671,6 +1671,14 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
         "current_label": _get_month_label(current_month_start),
         "previous_label": _get_month_label(previous_month_start),
 
+        # Raw period boundaries (the labels above are just "This Month" /
+        # "Last Month") - the franchisor dashboard's revenue drill-down
+        # links need these to build the matching Invoices list filter.
+        "current_month_start": str(current_month_start),
+        "current_month_end": str(current_month_end),
+        "previous_month_start": str(previous_month_start),
+        "previous_month_end": str(previous_month_end),
+
         "total_clients": len(client_rows),
         "new_clients_current_month": _count_clients_added(client_rows, current_month_start, current_month_end),
         "new_clients_previous_month": _count_clients_added(client_rows, previous_month_start, previous_month_end),
