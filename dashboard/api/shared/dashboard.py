@@ -1075,6 +1075,11 @@ def _get_outstanding_invoices(dashboard_type, context, limit=8):
             row.get("name"),
         )
 
+        base_url = {
+            COACH_DASHBOARD: "/coach_db/invoice_details",
+            FRANCHISOR_DASHBOARD: "/franchisor_db/invoice_details",
+        }.get(dashboard_type, "/coach_db/invoice_details")
+
         invoices.append({
             "name": row.get("name"),
             "client": row.get("custom_client"),
@@ -1086,10 +1091,7 @@ def _get_outstanding_invoices(dashboard_type, context, limit=8):
             "grand_total": flt(row.get("grand_total") or row.get("rounded_total") or 0),
             "outstanding_amount": outstanding_amount,
             "currency": row.get("currency") or "GBP",
-            "invoice_url": {
-                COACH_DASHBOARD: "/coach_db/invoices",
-                FRANCHISOR_DASHBOARD: "/franchisor_db/invoices",
-            }.get(dashboard_type, "/coach_db/invoices"),
+            "invoice_url": f"{base_url}?name={row.get('name')}",
         })
 
     return invoices
@@ -1210,6 +1212,18 @@ def _user_can_access_invoice(invoice_name, dashboard_type, context):
     if context.get("is_dashboard_admin"):
         return True
 
+    coach_name = (context.get("coach_name") or "").strip()
+
+    # An "internal invoice" (HQ invoicing a coach for their own fees) is
+    # raised against Coach.linked_client - the coach it's about needs to be
+    # able to open it regardless of how that Client record's client_type or
+    # primary_coach happen to be set up, since those are independent of the
+    # actual invoice-owner relationship (see _get_outstanding_internal_invoices).
+    if coach_name and frappe.get_meta("Coach").has_field("linked_client"):
+        own_linked_client = frappe.db.get_value("Coach", coach_name, "linked_client")
+        if own_linked_client and own_linked_client == row.get("custom_client"):
+            return True
+
     # Franchise-type clients represent coaches themselves (for cross-coach/
     # HQ invoicing) and aren't tied to a specific primary/attending coach -
     # every coach needs access regardless of assignment.
@@ -1217,7 +1231,7 @@ def _user_can_access_invoice(invoice_name, dashboard_type, context):
     if client_type == "Franchise":
         return True
 
-    return (client_row.get("primary_coach") or "").strip() == (context.get("coach_name") or "").strip()
+    return (client_row.get("primary_coach") or "").strip() == coach_name
 
 
 def _resolve_paid_to_account(invoice_doc, client_row):

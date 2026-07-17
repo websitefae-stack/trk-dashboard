@@ -44,6 +44,43 @@ def get_existing_payment_allocations(invoice_name):
     return 0.0
 
 
+def get_payment_history(invoice_name):
+    """
+    Every SUBMITTED Payment Entry against this invoice, oldest first - the
+    coach/franchisor-only "who paid what, when" quick view on the invoice
+    details page. Sibling to get_existing_payment_allocations() (which
+    only needs the sum); this returns the individual rows since an invoice
+    can be paid off in several parts over time.
+    """
+    if not invoice_name:
+        return []
+
+    rows = frappe.db.sql(
+        """
+        select pe.name as payment_entry, pe.posting_date as posting_date,
+               per.allocated_amount as amount, pe.reference_no as reference_no
+        from `tabPayment Entry Reference` per
+        inner join `tabPayment Entry` pe on pe.name = per.parent
+        where per.reference_doctype = 'Sales Invoice'
+          and per.reference_name = %s
+          and pe.docstatus = 1
+        order by pe.posting_date asc, pe.creation asc
+        """,
+        (invoice_name,),
+        as_dict=True,
+    )
+
+    return [
+        {
+            "payment_entry": row.get("payment_entry"),
+            "posting_date": str(row.get("posting_date") or ""),
+            "amount": flt(row.get("amount"), 2),
+            "reference_no": row.get("reference_no") or "",
+        }
+        for row in rows
+    ]
+
+
 def get_outstanding_amount_for_payment(cached_outstanding, grand_total, invoice_name):
     """
     Authoritative outstanding amount for payment purposes, always to 2dp -

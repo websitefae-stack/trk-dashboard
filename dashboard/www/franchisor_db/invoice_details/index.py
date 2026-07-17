@@ -5,6 +5,7 @@ from frappe.utils import nowdate
 
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
 from dashboard.api.shared import invoices as invoice_api
+from dashboard.api.shared import payment_utils
 
 
 def _naming_series_default():
@@ -152,6 +153,8 @@ def get_context(context):
     )
 
     context.doc_bank_account = doc.get("custom_bank_account") or ""
+
+    context.payment_history = payment_utils.get_payment_history(docname) if docname else []
 
     context.initial_client_defaults_json = json.dumps(client_defaults or {})
 
