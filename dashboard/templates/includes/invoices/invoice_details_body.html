@@ -149,6 +149,61 @@
 
   <div id="openPackageWarning" class="dashboard-card invoice-package-warning" hidden></div>
 
+  {% if docname %}
+    <section class="dashboard-card invoice-payment-summary">
+      <div class="dashboard-detail-section-head">
+        <h2 class="dashboard-detail-section-title">Payment Summary</h2>
+        <span class="dashboard-badge dashboard-status-onhold">Coach &amp; Franchisor only</span>
+      </div>
+
+      <p class="dashboard-page-subtitle" style="margin: 0 0 12px;">
+        Quick view of this invoice's total, every payment received, and what's still outstanding. Not shown to the client.
+      </p>
+
+      <div class="invoice-summary-box" style="margin-bottom: 14px;">
+        <div class="invoice-summary-line">
+          <span>Invoice Total</span>
+          <span>{{ frappe.format_value(doc.grand_total or 0, {'fieldtype': 'Currency'}) }}</span>
+        </div>
+
+        <div class="invoice-summary-line">
+          <span>Total Paid</span>
+          <span>{{ frappe.format_value(doc.paid_amount or 0, {'fieldtype': 'Currency'}) }}</span>
+        </div>
+
+        <div class="invoice-summary-line">
+          <span>Outstanding</span>
+          <span>{{ frappe.format_value(doc.outstanding_amount or 0, {'fieldtype': 'Currency'}) }}</span>
+        </div>
+      </div>
+
+      {% if payment_history %}
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table dashboard-table-compact">
+            <thead>
+              <tr>
+                <th>Payment Date</th>
+                <th>Amount</th>
+                <th>Reference</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for payment in payment_history %}
+                <tr>
+                  <td>{{ frappe.utils.formatdate(payment.posting_date, "dd-MM-yyyy") if payment.posting_date else "—" }}</td>
+                  <td>{{ frappe.format_value(payment.amount, {'fieldtype': 'Currency'}) }}</td>
+                  <td>{{ payment.reference_no or "—" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="dashboard-empty" style="margin:0;">No payments recorded yet.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+
   <form id="invoiceDetailsForm" class="invoice-detail-shell">
     <input type="hidden" id="csrfToken" value="{{ frappe.session.csrf_token }}">
     <input type="hidden" id="invoiceDocname" value="{{ docname or '' }}">

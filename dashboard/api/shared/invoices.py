@@ -463,6 +463,17 @@ def _current_user_can_access_client(client_name):
     if not current_coach_name:
         return False
 
+    # An "internal invoice" (HQ invoicing a coach for their own fees) is
+    # raised against Coach.linked_client - the coach it's about needs
+    # access to it regardless of how that Client record's client_type or
+    # primary/attending coach happen to be set up, since those are
+    # independent of the actual invoice-owner relationship (see
+    # dashboard.py's _get_outstanding_internal_invoices).
+    if frappe.get_meta("Coach").has_field("linked_client"):
+        own_linked_client = frappe.db.get_value("Coach", current_coach_name, "linked_client")
+        if own_linked_client and own_linked_client == client_name:
+            return True
+
     client = frappe.db.get_value(
         "Client",
         client_name,
