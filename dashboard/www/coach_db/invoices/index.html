@@ -57,24 +57,24 @@
 
         <div class="dashboard-filter-field">
           <label for="invoiceFromDate">From Date</label>
-          <input type="date" class="dashboard-input" id="invoiceFromDate">
+          <input type="date" class="dashboard-input" id="invoiceFromDate" value="{{ from_date or '' }}">
         </div>
 
         <div class="dashboard-filter-field">
           <label for="invoiceToDate">To Date</label>
-          <input type="date" class="dashboard-input" id="invoiceToDate">
+          <input type="date" class="dashboard-input" id="invoiceToDate" value="{{ to_date or '' }}">
         </div>
 
         <div class="dashboard-filter-field">
           <label for="invoiceStatusFilter">Status</label>
           <select class="dashboard-select" id="invoiceStatusFilter">
-            <option value="Outstanding" selected>Outstanding</option>
-            <option value="">All statuses</option>
-            <option value="Paid">Paid</option>
-            <option value="Unpaid">Unpaid</option>
-            <option value="Partly Paid">Partly Paid</option>
-            <option value="Overdue">Overdue</option>
-            <option value="Draft">Draft</option>
+            <option value="Outstanding" {% if status == "Outstanding" %}selected{% endif %}>Outstanding</option>
+            <option value="" {% if status == "" %}selected{% endif %}>All statuses</option>
+            <option value="Paid" {% if status == "Paid" %}selected{% endif %}>Paid</option>
+            <option value="Unpaid" {% if status == "Unpaid" %}selected{% endif %}>Unpaid</option>
+            <option value="Partly Paid" {% if status == "Partly Paid" %}selected{% endif %}>Partly Paid</option>
+            <option value="Overdue" {% if status == "Overdue" %}selected{% endif %}>Overdue</option>
+            <option value="Draft" {% if status == "Draft" %}selected{% endif %}>Draft</option>
           </select>
         </div>
       </div>

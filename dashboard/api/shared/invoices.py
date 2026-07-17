@@ -680,9 +680,61 @@ def _amount_search_text(amount):
     return f"{value:.2f} {value:g}"
 
 
+_OUTSTANDING_STATUSES = ["Unpaid", "Overdue", "Partly Paid"]
+
+
+def _get_invoice_filter_args():
+    """
+    from_date/to_date/status for the invoice list, read straight off the
+    query string like page_args["search"] already is - these used to be
+    client-side-only filters applied after pagination had already sliced
+    the rows, so paging past the first page silently dropped them (the
+    date/status inputs are blank on a fresh page load) and showed whatever
+    unrelated invoices happened to land on that page. Filtering here,
+    before pagination, keeps the filtered set and the page count in sync,
+    and letting the page carry these in the URL (see invoice_list_body.html)
+    is what makes them survive a page change.
+
+    status is read with a distinct "not provided at all" vs "explicitly
+    blank" - the default first-visit view is "Outstanding", but once a
+    user has picked "All statuses" (status=empty) that has to stick across
+    pages rather than reverting to the default.
+    """
+    from_date = (frappe.form_dict.get("from_date") or "").strip()
+    to_date = (frappe.form_dict.get("to_date") or "").strip()
+
+    if "status" in frappe.form_dict:
+        status = (frappe.form_dict.get("status") or "").strip()
+    else:
+        status = "Outstanding"
+
+    return {"from_date": from_date, "to_date": to_date, "status": status}
+
+
+def _apply_invoice_filter_args(filters, filter_args):
+    from_date = filter_args["from_date"]
+    to_date = filter_args["to_date"]
+    status = filter_args["status"]
+
+    if from_date and to_date:
+        filters["posting_date"] = ["between", [from_date, to_date]]
+    elif from_date:
+        filters["posting_date"] = [">=", from_date]
+    elif to_date:
+        filters["posting_date"] = ["<=", to_date]
+
+    if status == "Outstanding":
+        filters["status"] = ["in", _OUTSTANDING_STATUSES]
+    elif status:
+        filters["status"] = status
+
+    return filters
+
+
 def _get_invoices_for_clients(client_rows, dashboard_type, owner_coach_name=None):
     page_args = get_page_args()
     search = page_args["search"].lower()
+    filter_args = _get_invoice_filter_args()
 
     client_names = [row.get("name") for row in client_rows if row.get("name")]
 
@@ -703,6 +755,7 @@ def _get_invoices_for_clients(client_rows, dashboard_type, owner_coach_name=None
             "invoices": [],
             "pagination": make_pagination(0, page_args["page"], page_args["page_size"]),
             "search": page_args["search"],
+            **filter_args,
         }
 
     if len(or_conditions) == 1:
@@ -719,6 +772,7 @@ def _get_invoices_for_clients(client_rows, dashboard_type, owner_coach_name=None
         filters = {"name": ["in", matching_names]}
 
     filters["docstatus"] = ["!=", 2]
+    _apply_invoice_filter_args(filters, filter_args)
 
     client_map = {row.get("name"): row for row in client_rows if row.get("name")}
 
@@ -770,6 +824,7 @@ def _get_invoices_for_clients(client_rows, dashboard_type, owner_coach_name=None
             page_args["page_size"],
         ),
         "search": page_args["search"],
+        **filter_args,
     }
 
 
@@ -820,6 +875,9 @@ def get_invoice_page_data(dashboard_type=None, selected_coach=None):
         "invoices": invoices,
         "pagination": invoice_data.get("pagination", {}),
         "search": invoice_data.get("search", ""),
+        "from_date": invoice_data.get("from_date", ""),
+        "to_date": invoice_data.get("to_date", ""),
+        "status": invoice_data.get("status", "Outstanding"),
     }
 
 

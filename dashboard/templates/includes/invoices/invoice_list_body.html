@@ -12,6 +12,9 @@
     selected_coach        — coach filter value; included in pagination links when set
 #}
 {% set _extra = ("&coach=" + selected_coach | urlencode) if selected_coach else "" %}
+{% set _extra = _extra + ("&from_date=" + from_date | urlencode) if from_date else _extra %}
+{% set _extra = _extra + ("&to_date=" + to_date | urlencode) if to_date else _extra %}
+{% set _extra = _extra + "&status=" + (status | urlencode) %}
 
 <div class="dashboard-card">
   <div class="dashboard-table-header">
@@ -100,10 +103,6 @@
         {% endif %}
       </tbody>
     </table>
-  </div>
-
-  <div id="invoiceEmptyState" class="dashboard-empty" style="display:none;">
-    No invoices found.
   </div>
 
   {% set pagination_extra = _extra %}
