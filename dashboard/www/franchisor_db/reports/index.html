@@ -16,6 +16,59 @@
 
       {% include "dashboard/templates/includes/reports/forms_report_body.html" %}
 
+      <div class="dashboard-card" style="margin-top:20px; margin-bottom:20px;">
+        <style>
+          #clientLocationsResults .dashboard-table th:first-child,
+          #clientLocationsResults .dashboard-table td:first-child {
+            text-align: left;
+          }
+        </style>
+
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Client Locations</h2>
+        </div>
+
+        <p class="dashboard-help" style="margin-bottom:16px;">
+          Every client's postcode for a coach (or everyone), plotted on a map so you can see roughly where a
+          coach is working. Shows the client's own postcode and, where set, their Therapy Location's postcode.
+        </p>
+
+        <div class="trk-calendar-form-row">
+          <div class="trk-calendar-field">
+            <label for="clientLocationsCoachSelect">Coach</label>
+            <select id="clientLocationsCoachSelect" class="dashboard-select">
+              <option value="">All Coaches</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="dashboard-detail-actions" style="margin: 14px 0 18px;">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="runClientLocationsReportBtn">Run Report</button>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="exportClientLocationsReportBtn" style="display:none;">Export to Excel</button>
+        </div>
+
+        <div id="clientLocationsEmpty" class="dashboard-empty">Run the report to see results.</div>
+
+        <div id="clientLocationsResults" style="display:none;">
+          <div id="clientLocationsMap" style="height:420px; border-radius:12px; margin-bottom:18px;"></div>
+          <div id="clientLocationsMapNote" class="dashboard-help" style="margin-bottom:12px; display:none;"></div>
+
+          <div class="dashboard-table-wrap">
+            <table class="dashboard-table dashboard-table-compact">
+              <thead>
+                <tr>
+                  <th>Client</th>
+                  <th>Coach</th>
+                  <th>Client Postcode</th>
+                  <th>Therapy Location Postcode</th>
+                </tr>
+              </thead>
+              <tbody id="clientLocationsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       {% if can_view_diagnostics %}
         <div class="dashboard-card" style="margin-top:20px;margin-bottom:20px;">
           <div class="dashboard-detail-section-head">
