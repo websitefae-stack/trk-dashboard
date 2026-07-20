@@ -560,6 +560,7 @@ def get_session_notes(doc):
 
         notes.append(
             {
+                "name": row.name,
                 "session_date": row.get("session_date"),
                 "session_type": row.get("session_type"),
                 "notes": row.get("notes") or row.get("note") or row.get("note_text") or "",
@@ -1453,6 +1454,106 @@ def add_client_note(client_name, note_text, session_date=None, session_type=None
     frappe.db.commit()
 
     return {"ok": 1, "message": _("Note added successfully.")}
+
+
+@frappe.whitelist()
+def update_client_note(client_name, note_name, note_text, session_date=None, session_type=None):
+    """
+    Corrects an existing session note in place (a coach mis-typed something,
+    or the wrong date got saved) rather than requiring it be deleted and
+    re-added, which would lose its original position/attachment. Scoped to
+    this client's own session_notes rows only - note_name is trusted to
+    identify a row, but only ever within the child table of the client_name
+    the caller has access to.
+    """
+    require_logged_in_user()
+    ensure_client_access(client_name)
+
+    if not client_name or not frappe.db.exists("Client", client_name):
+        frappe.throw(_("Client not found."))
+
+    note_text = (note_text or "").strip()
+    if not note_text:
+        frappe.throw(_("Note text is required."))
+
+    doc = frappe.get_doc("Client", client_name)
+
+    if not doc.meta.has_field("session_notes"):
+        frappe.throw(_("No session notes child table was found on Client."))
+
+    child = None
+    for existing_child in doc.get("session_notes") or []:
+        if existing_child.name == note_name:
+            child = existing_child
+            break
+
+    if not child:
+        frappe.throw(_("Note not found."))
+
+    if child.meta.has_field("notes"):
+        child.notes = note_text
+    elif child.meta.has_field("note"):
+        child.note = note_text
+    elif child.meta.has_field("note_text"):
+        child.note_text = note_text
+
+    if child.meta.has_field("session_date") and session_date:
+        child.session_date = session_date
+
+    if child.meta.has_field("session_type") and session_type:
+        child.session_type = session_type
+
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": 1, "message": _("Note updated successfully."), "notes": get_session_notes(doc)}
+
+
+@frappe.whitelist()
+def export_client_notes_pdf(client_name=None):
+    """
+    Streams a PDF of every session note on this client, for coaches/office
+    who want an offline copy - the CSV export ("Export to Excel", matching
+    every other report in this dashboard) covers the spreadsheet case, this
+    covers the "hand a printable copy to someone" case using the same
+    get_pdf() renderer already used for the intake form PDF (leads.py).
+    """
+    require_logged_in_user()
+    ensure_client_access(client_name)
+
+    if not client_name or not frappe.db.exists("Client", client_name):
+        frappe.throw(_("Client not found."))
+
+    from frappe.utils.pdf import get_pdf
+
+    doc = frappe.get_doc("Client", client_name)
+    client_label = doc.get("full_name") or doc.get("name1") or doc.name
+    notes = get_session_notes(doc)
+
+    rows = "".join(
+        "<tr>"
+        f"<td style='padding:6px 8px;color:#839898;white-space:nowrap;'>{frappe.utils.escape_html(frappe.utils.formatdate(note.get('session_date'), 'dd-MM-yyyy') if note.get('session_date') else '-')}</td>"
+        f"<td style='padding:6px 8px;color:#839898;white-space:nowrap;'>{frappe.utils.escape_html(note.get('session_type') or '-')}</td>"
+        f"<td style='padding:6px 8px;color:#839898;white-space:nowrap;'>{frappe.utils.escape_html(note.get('user_full_name') or '-')}</td>"
+        f"<td style='padding:6px 8px;'>{frappe.utils.escape_html(note.get('notes') or '-')}</td>"
+        "</tr>"
+        for note in notes
+    )
+
+    html = (
+        f"<h2>Session Notes - {frappe.utils.escape_html(client_label)}</h2>"
+        "<table style='width:100%;border-collapse:collapse;'>"
+        "<thead><tr>"
+        "<th style='text-align:left;padding:6px 8px;'>Date</th>"
+        "<th style='text-align:left;padding:6px 8px;'>Type</th>"
+        "<th style='text-align:left;padding:6px 8px;'>Coach</th>"
+        "<th style='text-align:left;padding:6px 8px;'>Note</th>"
+        f"</tr></thead><tbody>{rows}</tbody></table>"
+    )
+
+    frappe.local.response.filename = f"Session Notes - {client_label}.pdf"
+    frappe.local.response.filecontent = get_pdf(html)
+    frappe.local.response.type = "download"
 
 
 @frappe.whitelist()

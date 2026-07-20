@@ -317,20 +317,30 @@
                 </div>
 
                 <div class="dashboard-detail-section">
-                  <div class="dashboard-detail-section-head">
+                  <div class="dashboard-detail-section-head" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
                     <h2 class="dashboard-detail-section-title">Session Notes</h2>
+
+                    {% if session_notes %}
+                      <div class="dashboard-detail-actions">
+                        <button type="button" class="dashboard-btn dashboard-btn-light" id="exportClientNotesCsv">Export to Excel</button>
+                        <button type="button" class="dashboard-btn dashboard-btn-light" id="exportClientNotesPdf">Export to PDF</button>
+                      </div>
+                    {% endif %}
                   </div>
 
                   <div class="dashboard-notes-list" id="clientNotesTableBody">
                     {% if session_notes %}
                       {% for note in session_notes %}
-                        <div class="dashboard-note-card">
+                        <div class="dashboard-note-card" data-note-name="{{ note.name }}" data-session-date="{{ note.session_date or '' }}">
                           <div class="dashboard-note-card-head">
                             <span class="dashboard-note-card-date">{{ frappe.utils.formatdate(note.session_date, "dd-MM-yyyy") if note.session_date else "—" }}</span>
                             <span class="dashboard-note-card-user">{{ note.user_full_name or note.user or "—" }}</span>
-                            {% if note.attachement %}
-                              <a class="dashboard-note-card-attachment" href="{{ note.attachement }}" target="_blank" rel="noopener noreferrer" title="View attachment">📎</a>
-                            {% endif %}
+                            <span style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+                              {% if note.attachement %}
+                                <a class="dashboard-note-card-attachment" style="margin-left:0;" href="{{ note.attachement }}" target="_blank" rel="noopener noreferrer" title="View attachment">📎</a>
+                              {% endif %}
+                              <button type="button" class="dashboard-link-btn dashboard-edit-note-btn">Edit</button>
+                            </span>
                           </div>
                           <div class="dashboard-note-card-body">{{ note.notes or "—" }}</div>
                         </div>
