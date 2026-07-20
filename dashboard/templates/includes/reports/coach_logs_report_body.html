@@ -1,0 +1,119 @@
+<div class="dashboard-card" style="margin-bottom:20px;" id="coachLogCoachFilterCard">
+  <div class="dashboard-detail-section-head">
+    <h2 class="dashboard-detail-section-title">Coach Logs</h2>
+  </div>
+
+  <p class="dashboard-help" style="margin-bottom:16px;">
+    Each coach's own mileage and training/supervision records.
+  </p>
+
+  <div class="trk-calendar-form-row" id="coachLogCoachFilterRow" style="display:none;">
+    <div class="trk-calendar-field">
+      <label for="coachLogCoachSelect">Coach</label>
+      <select id="coachLogCoachSelect" class="dashboard-select">
+        <option value="">All Coaches</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-card" style="margin-bottom:20px;">
+  <div class="dashboard-detail-section-head">
+    <h2 class="dashboard-detail-section-title">Mileage Log</h2>
+  </div>
+
+  <div class="dashboard-detail-grid dashboard-detail-grid-2" id="addMileageLogForm">
+    <div class="dashboard-detail-field">
+      <label for="mileageLogDate">Date</label>
+      <input type="date" id="mileageLogDate" class="dashboard-input">
+    </div>
+
+    <div class="dashboard-detail-field">
+      <label for="mileageLogMiles">Miles</label>
+      <input type="number" step="0.1" min="0" id="mileageLogMiles" class="dashboard-input">
+    </div>
+
+    <div class="dashboard-detail-field dashboard-detail-field-full">
+      <label for="mileageLogPurpose">Purpose / Journey</label>
+      <input type="text" id="mileageLogPurpose" class="dashboard-input" placeholder="e.g. Client visit - Jane Doe">
+    </div>
+
+    <div class="dashboard-detail-field dashboard-detail-field-full">
+      <label for="mileageLogNotes">Notes</label>
+      <textarea id="mileageLogNotes" class="dashboard-textarea"></textarea>
+    </div>
+  </div>
+
+  <div class="dashboard-detail-actions" style="margin: 14px 0 18px;">
+    <button type="button" class="dashboard-btn dashboard-btn-primary" id="addMileageLogBtn">Add Entry</button>
+  </div>
+
+  <div id="mileageLogEmpty" class="dashboard-empty">No mileage entries found.</div>
+
+  <div class="dashboard-table-wrap" id="mileageLogResults" style="display:none;">
+    <table class="dashboard-table dashboard-table-compact">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Coach</th>
+          <th>Purpose / Journey</th>
+          <th>Miles</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody id="mileageLogTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="dashboard-card">
+  <div class="dashboard-detail-section-head">
+    <h2 class="dashboard-detail-section-title">Training &amp; Supervision Log</h2>
+  </div>
+
+  <div class="dashboard-detail-grid dashboard-detail-grid-2" id="addTrainingLogForm">
+    <div class="dashboard-detail-field">
+      <label for="trainingLogDate">Date</label>
+      <input type="date" id="trainingLogDate" class="dashboard-input">
+    </div>
+
+    <div class="dashboard-detail-field">
+      <label for="trainingLogType">Type</label>
+      <select id="trainingLogType" class="dashboard-select">
+        <option value="Training">Training</option>
+        <option value="Supervision">Supervision</option>
+      </select>
+    </div>
+
+    <div class="dashboard-detail-field">
+      <label for="trainingLogDuration">Duration (Hours)</label>
+      <input type="number" step="0.1" min="0" id="trainingLogDuration" class="dashboard-input">
+    </div>
+
+    <div class="dashboard-detail-field dashboard-detail-field-full">
+      <label for="trainingLogDescription">Description</label>
+      <textarea id="trainingLogDescription" class="dashboard-textarea"></textarea>
+    </div>
+  </div>
+
+  <div class="dashboard-detail-actions" style="margin: 14px 0 18px;">
+    <button type="button" class="dashboard-btn dashboard-btn-primary" id="addTrainingLogBtn">Add Entry</button>
+  </div>
+
+  <div id="trainingLogEmpty" class="dashboard-empty">No training or supervision entries found.</div>
+
+  <div class="dashboard-table-wrap" id="trainingLogResults" style="display:none;">
+    <table class="dashboard-table dashboard-table-compact">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Coach</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Duration (Hours)</th>
+        </tr>
+      </thead>
+      <tbody id="trainingLogTableBody"></tbody>
+    </table>
+  </div>
+</div>

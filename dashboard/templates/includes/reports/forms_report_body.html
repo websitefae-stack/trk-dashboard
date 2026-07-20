@@ -4,6 +4,7 @@
     <button type="button" class="dashboard-tab-btn is-active" data-forms-report-tab="intake">Intake Forms</button>
     <button type="button" class="dashboard-tab-btn" data-forms-report-tab="forms">Form Results</button>
     <button type="button" class="dashboard-tab-btn" data-forms-report-tab="packs">Open Session Packs</button>
+    <button type="button" class="dashboard-tab-btn" data-forms-report-tab="coach_logs">Coach Logs</button>
   </div>
 </div>
 
@@ -185,6 +186,10 @@
 
 <div class="dashboard-tab-panel" data-forms-report-panel="packs" style="display:none;">
   {% include "dashboard/templates/includes/reports/open_packs_report_body.html" %}
+</div>
+
+<div class="dashboard-tab-panel" data-forms-report-panel="coach_logs" style="display:none;">
+  {% include "dashboard/templates/includes/reports/coach_logs_report_body.html" %}
 </div>
 
 <div class="dashboard-modal-backdrop" id="formSubmissionModal">
