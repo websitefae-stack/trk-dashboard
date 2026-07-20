@@ -860,7 +860,7 @@
         + "<td>" + escapeHtml(row.worker_label || "—") + "</td>"
         + "<td>" + escapeHtml(row.service_item || row.client_package || "—") + "</td>"
         + "<td>" + escapeHtml(row.qty_purchased) + "</td>"
-        + "<td>" + escapeHtml(row.qty_used) + "</td>"
+        + "<td>" + escapeHtml(row.date_issued || "—") + "</td>"
         + "<td>" + escapeHtml(row.qty_booked) + "</td>"
         + "<td><strong>" + escapeHtml(row.qty_available) + "</strong></td>"
         + "</tr>";
@@ -892,7 +892,7 @@
       { label: "Session Worker", value: function (r) { return r.worker_label || ""; } },
       { label: "Package", value: function (r) { return r.service_item || r.client_package || ""; } },
       { label: "Purchased", value: function (r) { return r.qty_purchased; } },
-      { label: "Used", value: function (r) { return r.qty_used; } },
+      { label: "Date Issued", value: function (r) { return r.date_issued || ""; } },
       { label: "Booked", value: function (r) { return r.qty_booked; } },
       { label: "Available", value: function (r) { return r.qty_available; } }
     ], openPacksState.rows);

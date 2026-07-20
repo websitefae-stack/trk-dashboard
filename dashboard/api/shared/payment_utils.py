@@ -101,6 +101,20 @@ def get_outstanding_amount_for_payment(cached_outstanding, grand_total, invoice_
     return min(cached_outstanding, derived_outstanding)
 
 
+def get_display_paid_amount(grand_total, outstanding_amount):
+    """
+    Sales Invoice.paid_amount is only ever kept in sync by ERPNext for POS
+    invoices - every invoice this dashboard creates is settled by a
+    Payment Entry reconciled against it instead (see
+    build_and_submit_payment_entry() below), and that flow updates
+    outstanding_amount but never touches paid_amount, leaving it at 0
+    forever even once an invoice is fully paid. Derive the "paid" figure
+    from the two fields ERPNext does keep in sync rather than trusting the
+    stored field directly.
+    """
+    return flt(flt(grand_total, 2) - flt(outstanding_amount, 2), 2)
+
+
 def build_and_submit_payment_entry(invoice_name, paid_to_account, payment_date, remarks, final_amount, reference_no=None):
     """
     Build the Payment Entry via ERPNext's own get_payment_entry() helper -
