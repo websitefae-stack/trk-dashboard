@@ -387,6 +387,20 @@
     params.set("status", "");
     if (revenueCategory) params.set("revenue_category", revenueCategory);
 
+    // When a franchisor is viewing a specific coach's dashboard
+    // (?view_as=<coach>&viewer=franchisor in the current URL), that has to
+    // carry through to the invoices link too - otherwise it lands back on
+    // the ordinary (unscoped) invoices page instead of that one coach's
+    // invoices, which is exactly the figure this link is supposed to
+    // explain.
+    const currentParams = new URLSearchParams(window.location.search);
+    const viewAs = currentParams.get("view_as");
+    const viewer = currentParams.get("viewer");
+    if (viewAs) {
+      params.set("view_as", viewAs);
+      params.set("viewer", viewer || "");
+    }
+
     const basePath = getDashboardType() === "coach" ? "/coach_db" : "/franchisor_db";
     node.href = basePath + "/invoices?" + params.toString();
   }

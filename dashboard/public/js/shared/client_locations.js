@@ -72,7 +72,7 @@
     URL.revokeObjectURL(url);
   }
 
-  var state = { rows: [], territories: {}, coachLabelByName: {}, coachColorByName: {}, map: null, markerLayer: null, territoryLayer: null };
+  var state = { rows: [], territories: {}, territoryBoundaries: {}, coachLabelByName: {}, coachColorByName: {}, map: null, markerLayer: null, territoryLayer: null };
 
   var TERRITORY_BOUNDARY_COLOR = "#D7263D";
 
@@ -392,20 +392,54 @@
   // Draws each coach's *assigned* Territory Postcode Areas as a filled,
   // labelled region in their own colour (see coachColor()/customCoachColor()).
   //
-  // Rather than a convex hull around a handful of centre points (which can
-  // only ever bulge outward, never fit a real coastline or dip inward
-  // between two coaches - see the git history of this function for that
-  // earlier attempt), this tessellates a Voronoi diagram over every
-  // coach's postcode-area points *site-wide* and gives each coach the
-  // cells belonging to their own points. Two coaches' points always end up
-  // with a shared, gap-free border between their cells - exactly the
-  // "areas fit together like puzzle pieces" look a real postcode-boundary
-  // map (e.g. Vision's) has, without needing real GIS boundary data this
-  // app has no access to. It's still an approximation: a Voronoi cell is
-  // "closer to this point than any other claimed point", not the true
-  // legal shape of a postcode sector, and a sector nobody has claimed gets
-  // silently absorbed into whichever claimed neighbour is nearest.
-  async function plotTerritoryBoundaries(territories) {
+  // Draws a coach's Territory Postcode Areas using real postcode
+  // district/area boundary polygons (see postcode_boundaries.py -
+  // sourced free from Wikipedia's postcode district maps) when the
+  // backend found a match for every one of that coach's prefixes. This is
+  // the actual shape of those postcode areas, not an approximation.
+  function plotRealTerritoryBoundaries(coachNames) {
+    coachNames.forEach(function (coachName) {
+      var features = state.territoryBoundaries[coachName] || [];
+      if (!features.length) return;
+
+      var label = state.coachLabelByName[coachName] || coachName;
+      var color = customCoachColor(coachName) || TERRITORY_BOUNDARY_COLOR;
+      var districtNames = features
+        .map(function (f) { return (f.properties && f.properties.name) || ""; })
+        .filter(Boolean);
+
+      var layer = window.L.geoJSON({ type: "FeatureCollection", features: features }, {
+        style: function () {
+          return { color: color, weight: 3, opacity: 0.9, fillColor: color, fillOpacity: 0.28 };
+        }
+      })
+        .bindPopup(escapeHtml(label) + "'s assigned area (" + escapeHtml(districtNames.join(", ")) + ")")
+        .addTo(state.territoryLayer);
+
+      var center = layer.getBounds().getCenter();
+      window.L.circleMarker(center, { radius: 0, opacity: 0, fillOpacity: 0, interactive: false })
+        .addTo(state.territoryLayer)
+        .bindTooltip(escapeHtml(label), { permanent: true, direction: "center", className: "trk-territory-label" });
+    });
+  }
+
+  // Fallback for whichever of a coach's Territory Postcode Area prefixes
+  // didn't match any real boundary above (a typo, or a Northern
+  // Ireland/Crown Dependency postcode - see postcode_boundaries.py's
+  // coverage notes). Rather than a convex hull around a handful of centre
+  // points (which can only ever bulge outward, never fit a real coastline
+  // or dip inward between two coaches - see the git history of this
+  // function for that earlier attempt), this tessellates a Voronoi
+  // diagram over every coach's postcode-area points *site-wide* and gives
+  // each coach the cells belonging to their own points. Two coaches'
+  // points always end up with a shared, gap-free border between their
+  // cells - exactly the "areas fit together like puzzle pieces" look a
+  // real postcode-boundary map has, without needing real GIS boundary
+  // data. It's still only an approximation: a Voronoi cell is "closer to
+  // this point than any other claimed point", not the true legal shape of
+  // a postcode sector, and a sector nobody has claimed gets silently
+  // absorbed into whichever claimed neighbour is nearest.
+  async function plotTerritoryBoundariesApprox(territories) {
     var coachNames = Object.keys(territories || {});
     if (!coachNames.length) return;
 
@@ -527,6 +561,31 @@
         window.L.polyline(segment, { color: color, weight: 3, opacity: 0.9 }).addTo(state.territoryLayer);
       });
     });
+  }
+
+  // Every coach with Territory Postcode Areas set gets their real
+  // postcode-shaped boundary drawn where the backend found one (see
+  // plotRealTerritoryBoundaries()) - only coaches where none of their
+  // prefixes matched anything (a typo, or a postcode this free dataset
+  // doesn't cover) fall back to the Voronoi approximation.
+  async function plotTerritoryBoundaries(territories) {
+    var coachNames = Object.keys(territories || {});
+    if (!coachNames.length) return;
+
+    var withRealBoundary = coachNames.filter(function (name) {
+      return (state.territoryBoundaries[name] || []).length > 0;
+    });
+    var needsApprox = coachNames.filter(function (name) {
+      return !(state.territoryBoundaries[name] || []).length;
+    });
+
+    plotRealTerritoryBoundaries(withRealBoundary);
+
+    if (needsApprox.length) {
+      var approxTerritories = {};
+      needsApprox.forEach(function (name) { approxTerritories[name] = territories[name]; });
+      await plotTerritoryBoundariesApprox(approxTerritories);
+    }
   }
 
   async function plotMap(rows) {
@@ -727,6 +786,7 @@
       var rows = (payload && payload.rows) || [];
       state.rows = rows;
       state.territories = (payload && payload.territories) || {};
+      state.territoryBoundaries = (payload && payload.territory_boundaries) || {};
 
       if (!rows.length) {
         if (empty) { empty.style.display = ""; empty.textContent = "No clients with a postcode found."; }

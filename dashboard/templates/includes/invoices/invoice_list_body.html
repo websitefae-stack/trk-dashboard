@@ -17,11 +17,31 @@
 {% set _extra = _extra + "&status=" + (status | urlencode) %}
 {% set _extra = _extra + ("&revenue_category=" + revenue_category | urlencode) if revenue_category else _extra %}
 
+{% set _revenue_category_labels = {
+  "kids_teens_uni": "Kids / Teens / Uni",
+  "schools": "Schools",
+  "people": "People (Adults & Companies)",
+  "interbusiness": "Interbusiness Invoices",
+  "client": "Client Invoices",
+} %}
+
 <div class="dashboard-card">
   <div class="dashboard-table-header">
     <div class="dashboard-table-title">Invoice List</div>
     <div class="dashboard-table-count" id="invoiceCount">{{ invoices|length }} invoices</div>
   </div>
+
+  {% if revenue_reconciliation and revenue_reconciliation.travel_total %}
+    <p class="dashboard-help" style="margin: -6px 0 16px;">
+      The <strong>{{ _revenue_category_labels.get(revenue_category, "revenue") }}</strong> figure you clicked
+      through from is <strong>{{ frappe.format_value(revenue_reconciliation.net_total, {"fieldtype": "Currency"}) }}</strong> -
+      that's these invoices' combined total of
+      {{ frappe.format_value(revenue_reconciliation.gross_total, {"fieldtype": "Currency"}) }}
+      minus {{ frappe.format_value(revenue_reconciliation.travel_total, {"fieldtype": "Currency"}) }} of travel
+      charges, which aren't counted as revenue for that figure (travel is a pass-through cost, tracked separately
+      as its own "Travel" row on the dashboard).
+    </p>
+  {% endif %}
 
   <div class="dashboard-table-wrap">
     <table class="dashboard-table">

@@ -25,6 +25,7 @@ def get_context(context):
     context.to_date = data.get("to_date", "")
     context.status = data.get("status", "Outstanding")
     context.revenue_category = data.get("revenue_category", "")
+    context.revenue_reconciliation = data.get("revenue_reconciliation")
     context.coach_options = data.get("coach_options", [])
     context.selected_coach = data.get("selected_coach", "")
     context.current_coach = data.get("current_coach", "")

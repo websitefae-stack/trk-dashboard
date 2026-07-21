@@ -645,7 +645,7 @@
       }
     }
 
-    if (rateField) {
+    if (rateField && !(options && options.preserveRate)) {
       rateField.value = details.rate != null ? details.rate : 0;
     }
 
@@ -778,7 +778,7 @@
     recalcTotals();
   }
 
-  async function addItemRow(data) {
+  async function addItemRow(data, rowOptions) {
     const body = el("invoiceItemsBody");
     if (!body) return;
 
@@ -845,7 +845,10 @@
     });
 
     if (data?.item_code) {
-      await refreshItemRowDefaults(row, { preserveDescription: !!data?.description });
+      await refreshItemRowDefaults(row, {
+        preserveDescription: !!data?.description,
+        preserveRate: !!(rowOptions && rowOptions.preserveExistingRate)
+      });
     } else {
       recalcTotals();
     }
@@ -1267,7 +1270,13 @@
 
   if (existingRows.length) {
     for (const row of existingRows) {
-      await addItemRow(row);
+      // These rows come from a saved invoice - the rate may have been
+      // typed in by hand (e.g. a negotiated Franchise Fee amount with no
+      // matching Item Price) rather than looked up from the current price
+      // list, so it must survive exactly as saved instead of being
+      // silently refetched and overwritten (often with 0, if nothing
+      // matches the current price list).
+      await addItemRow(row, { preserveExistingRate: true });
     }
   } else {
     await addItemRow({ qty: 1, rate: 0, amount: 0 });

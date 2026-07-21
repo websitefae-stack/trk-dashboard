@@ -58,10 +58,12 @@
     coach is working. Shows the client's own postcode and, where set, their Therapy Location's postcode.
     If a coach has Territory Postcode Areas set on their Coach record, clients outside that coach's own
     area - or inside another coach's - are flagged in red, and that coach's assigned area is outlined on
-    the map in their own colour (an approximate boundary from the postcode areas themselves, not an
-    official postcode-area shape; falls back to a plain thick red line until a colour is set on the Coach
-    record). A coach with no Territory Postcode Areas set instead gets a thin, colour-matched outline based
-    on where their actual in-area clients happen to sit.
+    the map in their own colour using the real shape of those postcode areas/districts (free data, (c)
+    Wikipedia contributors, CC BY-SA 3.0 - see dashboard/data/uk_postcode_areas/ATTRIBUTION.md), not an
+    approximation - clients may sit inside or outside it depending on where they actually live. Falls back
+    to a Voronoi-based approximation only for a postcode this free dataset doesn't cover (Northern Ireland
+    or the Channel Islands/Isle of Man), or a coach with no Territory Postcode Areas set at all, in which
+    case the outline is instead based on where their actual in-area clients happen to sit.
   </p>
 
   <div class="trk-calendar-form-row">
