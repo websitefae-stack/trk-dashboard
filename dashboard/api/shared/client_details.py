@@ -1569,25 +1569,24 @@ def export_client_notes_pdf(client_name=None):
     client_label = doc.get("full_name") or doc.get("name1") or doc.name
     notes = get_session_notes(doc)
 
-    rows = "".join(
-        "<tr>"
-        f"<td style='padding:6px 8px;color:#839898;white-space:nowrap;'>{frappe.utils.escape_html(frappe.utils.formatdate(note.get('session_date'), 'dd-MM-yyyy') if note.get('session_date') else '-')}</td>"
-        f"<td style='padding:6px 8px;color:#839898;white-space:nowrap;'>{frappe.utils.escape_html(note.get('session_type') or '-')}</td>"
-        f"<td style='padding:6px 8px;color:#839898;white-space:nowrap;'>{frappe.utils.escape_html(note.get('user_full_name') or '-')}</td>"
-        f"<td style='padding:6px 8px;'>{frappe.utils.escape_html(note.get('notes') or '-')}</td>"
-        "</tr>"
+    # Mirrors the on-screen note card (date + type + coach on one line,
+    # the note text below it) rather than a table - a table read very
+    # oddly once note text ran to more than a few words per row.
+    cards = "".join(
+        "<div style='border:1px solid #D9E6E6;border-radius:10px;padding:12px 14px;margin-bottom:10px;'>"
+        "<div style='margin-bottom:6px;'>"
+        f"<span style='font-weight:700;color:#434B49;'>{frappe.utils.escape_html(frappe.utils.formatdate(note.get('session_date'), 'dd-MM-yyyy') if note.get('session_date') else '-')}</span>"
+        f"<span style='color:#839898;'> &middot; {frappe.utils.escape_html(note.get('session_type') or 'Other')}</span>"
+        f"<span style='color:#839898;'> &middot; {frappe.utils.escape_html(note.get('user_full_name') or '-')}</span>"
+        "</div>"
+        f"<div style='color:#434B49;white-space:pre-wrap;'>{frappe.utils.escape_html(note.get('notes') or '-')}</div>"
+        "</div>"
         for note in notes
     )
 
     html = (
         f"<h2>Session Notes - {frappe.utils.escape_html(client_label)}</h2>"
-        "<table style='width:100%;border-collapse:collapse;'>"
-        "<thead><tr>"
-        "<th style='text-align:left;padding:6px 8px;'>Date</th>"
-        "<th style='text-align:left;padding:6px 8px;'>Type</th>"
-        "<th style='text-align:left;padding:6px 8px;'>Coach</th>"
-        "<th style='text-align:left;padding:6px 8px;'>Note</th>"
-        f"</tr></thead><tbody>{rows}</tbody></table>"
+        + (cards or "<p>No notes found.</p>")
     )
 
     frappe.local.response.filename = f"Session Notes - {client_label}.pdf"

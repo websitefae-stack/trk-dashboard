@@ -1949,6 +1949,21 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
     }
 
 
+# Matches coach_calendar_sync's own MEET_LOCATION_KEYWORDS (utils/google_calendar.py)
+# - that's what actually decides whether a Meet link gets requested from
+# Google in the first place, so "does this location count as online" has
+# to agree with it exactly. A strict "location == 'online'" check here
+# missed every event booked with location "Google Meet" (a real, common
+# value - see the booking modal's location options), silently leaving the
+# Meet link out of the confirmation email even though one existed.
+ONLINE_LOCATION_KEYWORDS = ("google meet", "online", "virtual")
+
+
+def _is_online_location(location):
+    location = (location or "").strip().lower()
+    return any(keyword in location for keyword in ONLINE_LOCATION_KEYWORDS)
+
+
 def _booking_confirmation_context(event_doc, client):
     starts_on = event_doc.get("starts_on")
     start_dt = get_datetime(starts_on) if starts_on else None
@@ -1960,7 +1975,7 @@ def _booking_confirmation_context(event_doc, client):
         "date": start_dt.strftime("%A %d %B %Y") if start_dt else "",
         "time": start_dt.strftime("%H:%M") if start_dt else "",
         "location_address": location,
-        "is_online": location.strip().lower() == "online",
+        "is_online": _is_online_location(location),
         "meet_link": event_doc.get("custom_google_meet_url") or event_doc.get("google_meet_link") or "",
     }
 
@@ -1971,7 +1986,7 @@ _BOOKING_CONFIRMATION_FALLBACK = (
     "Your next session will take place on {{ date }} at {{ time }}"
     "{% if location_address %}, {{ location_address }}{% endif %}.\n"
     "{% if is_online and meet_link %}\n"
-    "This session is online - you can join here: {{ meet_link }}\n"
+    "Here is the Google Meet link for easy access: {{ meet_link }}\n"
     "{% endif %}\n"
     "Please let us know if you have any questions or need to make any changes.\n"
     "\n"

@@ -19,7 +19,7 @@ completely un-confirmed just because a sync attempt is stuck.
 import frappe
 from frappe.utils import add_to_date, get_datetime, now_datetime
 
-from dashboard.api.shared.calendar import _event_has_field, _get_client_display_name
+from dashboard.api.shared.calendar import _event_has_field, _get_client_display_name, _is_online_location
 from dashboard.api.shared.email_templates import plain_text_to_email_html
 
 PENDING_TIMEOUT_MINUTES = 10
@@ -27,7 +27,7 @@ FOLLOWUP_GIVE_UP_HOURS = 24
 
 
 def _batch_needs_meet_link(created_events):
-    return any("online" in (event.get("location") or "").lower() for event in created_events)
+    return any(_is_online_location(event.get("location")) for event in created_events)
 
 
 def _compose_multi_session_message(event_rows, client):
@@ -39,13 +39,13 @@ def _compose_multi_session_message(event_rows, client):
 
         location = row.get("location") or ""
         meet_link = row.get("custom_google_meet_url") or row.get("google_meet_link") or ""
-        is_online = location.lower() == "online"
+        is_online = _is_online_location(location)
 
         if location and not is_online:
             line += f", {location}"
 
         if is_online and meet_link:
-            line += f" - join here: {meet_link}"
+            line += f" - here is the Google Meet link for easy access: {meet_link}"
         elif is_online:
             line += " - the online meeting link will follow separately"
 
@@ -86,7 +86,7 @@ def _compose_meet_link_followup_message(event_rows, client):
             continue
 
         start_dt = get_datetime(row.get("starts_on"))
-        lines.append(f"- {start_dt.strftime('%A %d %B %Y')} at {start_dt.strftime('%H:%M')} - join here: {meet_link}")
+        lines.append(f"- {start_dt.strftime('%A %d %B %Y')} at {start_dt.strftime('%H:%M')} - here is the Google Meet link for easy access: {meet_link}")
 
     if not lines:
         return None, None
@@ -203,7 +203,7 @@ def send_pending_booking_confirmations():
             continue
 
         still_waiting = any(
-            "online" in (row.get("location") or "").lower() and not (row.get("custom_google_meet_url") or row.get("google_meet_link"))
+            _is_online_location(row.get("location")) and not (row.get("custom_google_meet_url") or row.get("google_meet_link"))
             for row in event_rows
         )
 
@@ -273,7 +273,7 @@ def send_pending_meet_link_followups():
             continue
 
         still_waiting = any(
-            "online" in (row.get("location") or "").lower() and not (row.get("custom_google_meet_url") or row.get("google_meet_link"))
+            _is_online_location(row.get("location")) and not (row.get("custom_google_meet_url") or row.get("google_meet_link"))
             for row in event_rows
         )
 
