@@ -652,7 +652,13 @@
           );
         }
 
-        window.L.marker(point, { icon: pinIcon(color, flagged) })
+        // keyboard:false - same fix as the map container itself (see
+        // ensureMap()): Leaflet markers get their own separate tabindex
+        // for keyboard accessibility by default, so clicking a pin to
+        // open its popup was focusing it and the browser was scrolling
+        // that focused element into view - reading as "the page jumps"
+        // every time a pin is clicked.
+        window.L.marker(point, { icon: pinIcon(color, flagged), keyboard: false })
           .addTo(state.markerLayer)
           .bindPopup(popupLines.join("<br>"));
 

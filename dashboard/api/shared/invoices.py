@@ -1048,7 +1048,17 @@ def get_invoice_page_data(dashboard_type=None, selected_coach=None):
     selected_coach = (selected_coach or "").strip()
     current_coach_name = (current_coach.get("name") or "").strip()
 
-    if selected_coach == current_coach_name:
+    # Only meaningful for a coach's own dashboard, where "selecting
+    # yourself" is the same as no selection at all - collapsing it to ""
+    # keeps _get_clients_for_invoice_scope() on its plain
+    # {"primary_coach": current_coach_name} branch. For a franchisor this
+    # would be actively wrong: their own dashboard revenue figures are
+    # scoped to their own coach identity (see dashboard.py's
+    # _get_invoice_client_names_for_dashboard), so the drill-down link
+    # explicitly selects that same coach by name - resetting it here would
+    # silently widen the list back out to every coach's invoices instead
+    # of matching the figure that was clicked.
+    if dashboard_type == COACH_DASHBOARD and selected_coach == current_coach_name:
         selected_coach = ""
 
     client_rows = _get_clients_for_invoice_scope(

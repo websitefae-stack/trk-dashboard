@@ -1718,6 +1718,15 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
         "previous_month_start": str(previous_month_start),
         "previous_month_end": str(previous_month_end),
 
+        # The revenue figures below are scoped to this coach (see
+        # _get_invoice_client_names_for_dashboard - a franchisor with their
+        # own coach identity, e.g. Ashley, only sees their own revenue
+        # here, not the whole company's) - the drill-down links need this
+        # too, otherwise they land on the Invoices list with no coach
+        # filter, which shows every coach's invoices and won't match the
+        # figure that was clicked.
+        "current_coach_name": context.get("coach_name") or "",
+
         "total_clients": len(client_rows),
         "new_clients_current_month": _count_clients_added(client_rows, current_month_start, current_month_end),
         "new_clients_previous_month": _count_clients_added(client_rows, previous_month_start, previous_month_end),

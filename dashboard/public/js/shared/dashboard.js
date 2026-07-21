@@ -373,7 +373,7 @@
   // it up, on whichever dashboard is currently loaded - a no-op on any
   // page where the element is a plain, non-linked <div>/<span> rather than
   // an <a> (node.href stays undefined for those).
-  function setRevenueLink(id, amount, fromDate, toDate, revenueCategory) {
+  function setRevenueLink(id, amount, fromDate, toDate, revenueCategory, currentCoachName) {
     const node = el(id);
     if (!node) return;
 
@@ -399,6 +399,14 @@
     if (viewAs) {
       params.set("view_as", viewAs);
       params.set("viewer", viewer || "");
+    } else if (currentCoachName) {
+      // Not in view-mode, but the figure itself is still scoped to the
+      // logged-in person's own coach identity where one exists (see
+      // get_dashboard_summary's current_coach_name / dashboard.py's
+      // _get_invoice_client_names_for_dashboard) - without this, the
+      // Invoices list has no coach filter at all and defaults to showing
+      // every coach's invoices, which never matches the figure clicked.
+      params.set("coach", currentCoachName);
     }
 
     const basePath = getDashboardType() === "coach" ? "/coach_db" : "/franchisor_db";
@@ -425,30 +433,30 @@
     const currFrom = payload.current_month_start || "";
     const currTo = payload.current_month_end || "";
 
-    setRevenueLink("dashboardRevenuePreviousTotal", payload.revenue_total_previous, prevFrom, prevTo, "");
-    setRevenueLink("dashboardRevenueCurrentTotal", payload.revenue_total_current, currFrom, currTo, "");
+    setRevenueLink("dashboardRevenuePreviousTotal", payload.revenue_total_previous, prevFrom, prevTo, "", payload.current_coach_name);
+    setRevenueLink("dashboardRevenueCurrentTotal", payload.revenue_total_current, currFrom, currTo, "", payload.current_coach_name);
 
-    setRevenueLink("dashboardRevenuePreviousClient", payload.revenue_client_previous, prevFrom, prevTo, "client");
-    setRevenueLink("dashboardRevenueCurrentClient", payload.revenue_client_current, currFrom, currTo, "client");
+    setRevenueLink("dashboardRevenuePreviousClient", payload.revenue_client_previous, prevFrom, prevTo, "client", payload.current_coach_name);
+    setRevenueLink("dashboardRevenueCurrentClient", payload.revenue_client_current, currFrom, currTo, "client", payload.current_coach_name);
 
     // Franchisor-only revenue breakdown rows - setRevenueLink()/setText()
     // no-op when the element isn't on the page, so this is harmless on the
     // coach dashboard, which still shows the older single "Client
     // Invoices" row.
-    setRevenueLink("dashboardRevenuePreviousKidsTeensUni", payload.revenue_kids_teens_uni_previous, prevFrom, prevTo, "kids_teens_uni");
-    setRevenueLink("dashboardRevenueCurrentKidsTeensUni", payload.revenue_kids_teens_uni_current, currFrom, currTo, "kids_teens_uni");
+    setRevenueLink("dashboardRevenuePreviousKidsTeensUni", payload.revenue_kids_teens_uni_previous, prevFrom, prevTo, "kids_teens_uni", payload.current_coach_name);
+    setRevenueLink("dashboardRevenueCurrentKidsTeensUni", payload.revenue_kids_teens_uni_current, currFrom, currTo, "kids_teens_uni", payload.current_coach_name);
 
-    setRevenueLink("dashboardRevenuePreviousSchools", payload.revenue_schools_previous, prevFrom, prevTo, "schools");
-    setRevenueLink("dashboardRevenueCurrentSchools", payload.revenue_schools_current, currFrom, currTo, "schools");
+    setRevenueLink("dashboardRevenuePreviousSchools", payload.revenue_schools_previous, prevFrom, prevTo, "schools", payload.current_coach_name);
+    setRevenueLink("dashboardRevenueCurrentSchools", payload.revenue_schools_current, currFrom, currTo, "schools", payload.current_coach_name);
 
-    setRevenueLink("dashboardRevenuePreviousPeople", payload.revenue_people_previous, prevFrom, prevTo, "people");
-    setRevenueLink("dashboardRevenueCurrentPeople", payload.revenue_people_current, currFrom, currTo, "people");
+    setRevenueLink("dashboardRevenuePreviousPeople", payload.revenue_people_previous, prevFrom, prevTo, "people", payload.current_coach_name);
+    setRevenueLink("dashboardRevenueCurrentPeople", payload.revenue_people_current, currFrom, currTo, "people", payload.current_coach_name);
 
-    setRevenueLink("dashboardRevenuePreviousTravel", payload.revenue_travel_previous, prevFrom, prevTo, "travel");
-    setRevenueLink("dashboardRevenueCurrentTravel", payload.revenue_travel_current, currFrom, currTo, "travel");
+    setRevenueLink("dashboardRevenuePreviousTravel", payload.revenue_travel_previous, prevFrom, prevTo, "travel", payload.current_coach_name);
+    setRevenueLink("dashboardRevenueCurrentTravel", payload.revenue_travel_current, currFrom, currTo, "travel", payload.current_coach_name);
 
-    setRevenueLink("dashboardRevenuePreviousInterbusiness", payload.revenue_interbusiness_previous, prevFrom, prevTo, "interbusiness");
-    setRevenueLink("dashboardRevenueCurrentInterbusiness", payload.revenue_interbusiness_current, currFrom, currTo, "interbusiness");
+    setRevenueLink("dashboardRevenuePreviousInterbusiness", payload.revenue_interbusiness_previous, prevFrom, prevTo, "interbusiness", payload.current_coach_name);
+    setRevenueLink("dashboardRevenueCurrentInterbusiness", payload.revenue_interbusiness_current, currFrom, currTo, "interbusiness", payload.current_coach_name);
 
     setText("dashboardFeesPreviousLabel", payload.previous_label || "Last Month");
     setText("dashboardFeesCurrentLabel", payload.current_label || "This Month");
