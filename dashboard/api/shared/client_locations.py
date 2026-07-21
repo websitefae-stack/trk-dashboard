@@ -45,6 +45,71 @@ def _therapy_location_postcodes(location_names):
     return {row.name: (row.postal_code or "").strip() for row in rows if row.postal_code}
 
 
+def _outward_code(postcode):
+    """
+    The "outward" half of a UK postcode (e.g. "N1" from "N1 2AB", "SW1A"
+    from "SW1A 1AA") - the inward half is always exactly 3 characters
+    (digit + 2 letters), so stripping the last 3 characters works whether
+    or not the postcode has a space in it.
+    """
+    postcode = (postcode or "").strip().upper().replace(" ", "")
+    if len(postcode) <= 3:
+        return postcode
+    return postcode[:-3]
+
+
+def _get_coach_territories():
+    """{coach_name: [prefix, ...]} for every coach with Territory Postcode
+    Areas set (a Custom Field - see add_coach_territory_postcodes_field.py
+    patch) - empty until office has actually filled any in."""
+    if not frappe.get_meta("Coach").has_field("territory_postcodes"):
+        return {}
+
+    rows = frappe.get_all(
+        "Coach",
+        filters={"territory_postcodes": ["is", "set"]},
+        fields=["name", "territory_postcodes"],
+        limit_page_length=1000,
+        ignore_permissions=True,
+    )
+
+    territories = {}
+    for row in rows:
+        prefixes = [p.strip().upper() for p in (row.territory_postcodes or "").split(",") if p.strip()]
+        if prefixes:
+            territories[row.name] = prefixes
+
+    return territories
+
+
+def _area_check(coach_name, postcodes, territories):
+    """
+    None: no territory defined for this client's own coach, so there's
+    nothing to check against. True: at least one of the client's postcodes
+    falls inside their own coach's territory. False: none do - `other`
+    names whichever other coach's territory one of them falls into
+    instead, if any.
+    """
+    own_prefixes = territories.get(coach_name)
+    postcodes = [p for p in postcodes if p]
+
+    if not own_prefixes or not postcodes:
+        return None, ""
+
+    outward_codes = [_outward_code(p) for p in postcodes]
+
+    if any(code.startswith(prefix) for code in outward_codes for prefix in own_prefixes):
+        return True, ""
+
+    for other_coach, other_prefixes in territories.items():
+        if other_coach == coach_name:
+            continue
+        if any(code.startswith(prefix) for code in outward_codes for prefix in other_prefixes):
+            return False, get_coach_label(other_coach)
+
+    return False, ""
+
+
 @frappe.whitelist()
 def get_client_locations_report(coach=None):
     ensure_logged_in()
@@ -53,7 +118,7 @@ def get_client_locations_report(coach=None):
         frappe.throw(_("You do not have permission to view this report."), frappe.PermissionError)
 
     if not frappe.db.exists("DocType", "Client"):
-        return []
+        return {"rows": [], "territories": {}}
 
     postcode_fieldname = _client_field(_POSTCODE_FIELD_CFG)
     therapy_location_fieldname = _client_field(_THERAPY_LOCATION_FIELD_CFG)
@@ -93,6 +158,7 @@ def get_client_locations_report(coach=None):
         if therapy_location_fieldname and row.get(therapy_location_fieldname)
     }
     therapy_postcodes = _therapy_location_postcodes(therapy_location_names)
+    territories = _get_coach_territories()
 
     out = []
     for row in rows:
@@ -104,15 +170,19 @@ def get_client_locations_report(coach=None):
             continue
 
         coach_name = row.get("primary_coach") or row.get("attending_coach")
+        in_area, other_coach_label = _area_check(coach_name, [client_postcode, therapy_postcode], territories)
 
         out.append({
             "client": row.name,
             "client_label": build_display_name(row),
+            "coach": coach_name,
             "coach_label": get_coach_label(coach_name),
             "client_postcode": client_postcode,
             "therapy_postcode": therapy_postcode,
+            "in_area": in_area,
+            "other_coach_label": other_coach_label,
         })
 
     out.sort(key=lambda r: (r.get("client_label") or "").lower())
 
-    return out
+    return {"rows": out, "territories": territories}

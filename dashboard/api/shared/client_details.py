@@ -74,6 +74,10 @@ LAYOUT = [
                     {"label": "Age", "candidates": ["age"]},
                     {"label": "Address", "candidates": ["address"]},
 
+                    # Label is overridden dynamically in build_field() below
+                    # based on the client's own client_type (Kid vs Teen) -
+                    # the label here is just a fallback.
+                    {"label": "Resilient Pack Sent", "candidates": ["custom_resilient_pack_sent", "trk_pack", "trt_pack"]},
                     {"label": "City", "candidates": ["city"]},
                     {"label": "Zip Code", "candidates": ["zip_code", "postcode", "postal_code"]},
                 ],
@@ -192,9 +196,17 @@ def build_field(df, doc, config, is_new=False):
     else:
         read_only = 0 if force_editable else int(df.read_only or 0)
 
+    label = config.get("display_label") or df.label or df.fieldname.replace("_", " ").title()
+
+    # A client is always exactly one of Kid or Teen, never both, so one
+    # tickbox does the job of two - it just needs to read as whichever one
+    # actually applies to this record instead of a generic label.
+    if df.fieldname in ("custom_resilient_pack_sent", "trk_pack", "trt_pack"):
+        label = "The Resilient Teen Pack sent" if doc.get("client_type") == "Teen" else "The Resilient Kid Pack sent"
+
     return {
         "fieldname": df.fieldname,
-        "label": config.get("display_label") or df.label or df.fieldname.replace("_", " ").title(),
+        "label": label,
         "fieldtype": df.fieldtype,
         "options": df.options or "",
         "reqd": int(df.reqd or 0),
@@ -1072,18 +1084,44 @@ def get_client_invoices(client_name):
         return []
 
     filters = {"name": ["in", list(invoice_names)]}
+    or_filters = None
 
     # Franchise-type clients represent coaches themselves (for cross-coach/
     # HQ invoicing) - a coach viewing that client's file should only see the
     # invoices they themselves raised against it, not every other coach's
     # invoices to the same client. Franchisor still sees everything.
+    #
+    # Matched on custom_created_by_coach (unconditionally set to whoever
+    # was logged in when the invoice was created - see
+    # invoices.py's _set_invoice_defaults()) rather than only
+    # custom_income_owner_coach, which defaults to the CLIENT's own
+    # primary_coach whenever no bank-account override was set - for a
+    # coach's own linked Client that's usually the coach themselves, which
+    # would silently attribute every OTHER coach's invoice against them to
+    # themselves and defeat this filter entirely. custom_income_owner_coach
+    # is still matched too, since a bank-account override does legitimately
+    # mean the income (not just the paperwork) belongs to that coach.
     client_type = frappe.db.get_value("Client", client_name, "client_type")
 
-    if client_type == "Franchise" and not is_franchisor_user() and invoice_meta.has_field("custom_income_owner_coach"):
+    if client_type == "Franchise" and not is_franchisor_user():
         coach_name = get_current_coach_name(optional=True)
 
         if coach_name:
-            filters["custom_income_owner_coach"] = coach_name
+            ownership_conditions = []
+
+            if invoice_meta.has_field("custom_created_by_coach"):
+                ownership_conditions.append(["custom_created_by_coach", "=", coach_name])
+
+            if invoice_meta.has_field("custom_income_owner_coach"):
+                ownership_conditions.append(["custom_income_owner_coach", "=", coach_name])
+
+            if ownership_conditions:
+                or_filters = ownership_conditions
+            else:
+                # Neither field exists on this site to establish whose
+                # invoice this is - default to showing none of them rather
+                # than every coach's, since privacy was the whole point.
+                filters["name"] = ["in", []]
 
     invoice_fields = [
         "name",
@@ -1102,6 +1140,7 @@ def get_client_invoices(client_name):
     return frappe.get_all(
         "Sales Invoice",
         filters=filters,
+        or_filters=or_filters,
         fields=invoice_fields,
         order_by="posting_date desc, creation desc",
         limit_page_length=500,

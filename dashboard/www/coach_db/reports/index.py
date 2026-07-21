@@ -22,6 +22,7 @@ def get_context(context):
     context.page_title = "Reports"
     context.active_page = "reports"
     context.dashboard_base_url = "/coach_db"
+    context.dashboard_type = "coach"
     context.dashboard_notifications_url = "/coach_db/notifications" + (view_mode.get("query_string") or "")
 
     context.coach_view_mode = view_mode

@@ -603,14 +603,28 @@
     }
   }
 
-  function renderFormChartPie(data) {
+  // Brand colours (matches .dashboard-btn-primary / .dashboard-btn-danger)
+  // for a Check (Yes/No) question's chart - a plain palette slot doesn't
+  // read as "good/bad" the way these do.
+  var BRAND_BLUE = "#00A19E";
+  var BRAND_RED = "#C0392B";
+
+  function colorForChartRow(question, row, index) {
+    if (question && question.fieldtype === "Check") {
+      if (row.label === "Yes") return BRAND_BLUE;
+      if (row.label === "No") return BRAND_RED;
+    }
+    return formChartColor(index);
+  }
+
+  function renderFormChartPie(data, question) {
     var stops = [];
     var cursor = 0;
 
     data.forEach(function (row, index) {
       var start = cursor;
       cursor += row.percent;
-      stops.push(formChartColor(index) + " " + start + "% " + cursor + "%");
+      stops.push(colorForChartRow(question, row, index) + " " + start + "% " + cursor + "%");
     });
 
     var gradient = stops.length ? "conic-gradient(" + stops.join(", ") + ")" : "#F1F5F5";
@@ -619,7 +633,7 @@
       + '<div class="form-chart-legend">'
       + data.map(function (row, index) {
         return '<div class="form-chart-legend-row">'
-          + '<span class="form-chart-swatch" style="background:' + formChartColor(index) + ';"></span>'
+          + '<span class="form-chart-swatch" style="background:' + colorForChartRow(question, row, index) + ';"></span>'
           + '<span class="form-chart-legend-label">' + escapeHtml(row.label) + '</span>'
           + '<span class="form-chart-legend-value">' + row.count + ' (' + row.percent + '%)</span>'
           + '</div>';
@@ -627,7 +641,7 @@
       + '</div>';
   }
 
-  function renderFormChartBars(data) {
+  function renderFormChartBars(data, question) {
     var max = Math.max.apply(null, data.map(function (row) { return row.count; }).concat([1]));
 
     return '<div class="form-chart-bars">'
@@ -639,7 +653,7 @@
           + '<span class="form-chart-legend-label">' + escapeHtml(row.label) + '</span>'
           + '<span class="form-chart-legend-value">' + row.count + ' (' + row.percent + '%)</span>'
           + '</div>'
-          + '<div class="form-chart-bar-track"><div class="form-chart-bar-fill" style="width:' + width + '%;background:' + formChartColor(index) + ';"></div></div>'
+          + '<div class="form-chart-bar-track"><div class="form-chart-bar-fill" style="width:' + width + '%;background:' + colorForChartRow(question, row, index) + ';"></div></div>'
           + '</div>';
       }).join("")
       + '</div>';
@@ -673,7 +687,11 @@
 
       if (question.kind === "chart") {
         var chartData = question.data || [];
-        body = chartData.length <= 6 ? renderFormChartPie(chartData) : renderFormChartBars(chartData);
+        // A star rating reads as an ordered scale (1 through 5) - bars
+        // keep that order visible left-to-right; a pie would scatter it
+        // around a circle with no meaningful order.
+        var useBars = question.fieldtype === "Rating" || chartData.length > 6;
+        body = useBars ? renderFormChartBars(chartData, question) : renderFormChartPie(chartData, question);
       } else {
         body = renderFormChartAnswerList(question.answers);
       }
@@ -698,6 +716,15 @@
     list.innerHTML = answers.length
       ? answers.map(function (value) { return "<li>" + escapeHtml(value) + "</li>"; }).join("")
       : '<li class="form-chart-empty">No answers yet.</li>';
+  }
+
+  async function ensureFormModuleQuestions() {
+    var doctype = formModuleSelectedDoctype();
+    if (!doctype) return [];
+
+    var questions = await callApi("dashboard.api.shared.form_reports.get_form_questions", { doctype: doctype });
+    fillSelect(el("formModuleQuestionSelect"), questions || [], "Select a question");
+    return questions || [];
   }
 
   async function loadFormModuleQuestionAnswers(question) {
@@ -1127,18 +1154,51 @@
     var exportFormModuleBtn = el("exportFormModuleReportBtn");
     if (exportFormModuleBtn) exportFormModuleBtn.addEventListener("click", exportFormModuleReport);
 
+    function loadFormModuleQuestionsIfNeeded() {
+      var mode = (el("formModuleViewMode") || {}).value || "summary";
+      if (mode !== "question") return;
+
+      var doctype = formModuleSelectedDoctype();
+      var empty = el("formModuleEmpty");
+
+      if (!doctype) {
+        if (empty) { empty.textContent = "Select a form first."; empty.style.display = ""; }
+        return;
+      }
+
+      toggleDisplayEl("formModuleSummaryResults", false);
+      toggleDisplayEl("formModuleChartsResults", false);
+
+      ensureFormModuleQuestions().then(function (questions) {
+        if (empty) {
+          empty.textContent = questions.length ? "Select a question to see everyone's answer." : "This form has no questions to select.";
+          empty.style.display = "";
+        }
+        loadFormModuleQuestionAnswers(el("formModuleQuestionSelect") ? el("formModuleQuestionSelect").value : "");
+      });
+    }
+
     var formModuleSelect = el("formModuleSelect");
     if (formModuleSelect) {
       loadFormModuleDoctypes();
-      formModuleSelect.addEventListener("change", resetFormModuleReport);
+      formModuleSelect.addEventListener("change", function () {
+        resetFormModuleReport();
+        loadFormModuleQuestionsIfNeeded();
+      });
     }
 
+    // Auto-loads the question list as soon as "One question - everyone's
+    // answer" is picked, the same way the Intake Forms tab already does
+    // (see applyIntakeFormViewMode) - previously the dropdown stayed empty
+    // until "Run Report" was clicked too, which read as this view simply
+    // not working since nothing else on the page asks for a second click.
     var formModuleViewModeSelect = el("formModuleViewMode");
     if (formModuleViewModeSelect) {
       formModuleViewModeSelect.addEventListener("change", function () {
         var mode = formModuleViewModeSelect.value;
         toggleDisplayEl("formModuleControlsRow", mode === "question");
         toggleDisplayEl("formModuleQuestionRow", mode === "question");
+        loadFormModuleQuestionsIfNeeded();
       });
     }
 

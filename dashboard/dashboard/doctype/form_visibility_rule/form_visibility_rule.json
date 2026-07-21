@@ -22,12 +22,12 @@
   },
   {
    "default": "Everyone",
-   "description": "Everyone: normal behaviour - coaches see their own clients'/leads' submissions, franchisors see all. Franchisors Only: hidden from every coach's Form Results picker entirely - only franchisor/office logins can see it.",
+   "description": "Everyone: normal behaviour - coaches see their own clients'/leads' submissions, franchisors see all. Franchisors Only: hidden from every coach's Form Results picker entirely - only franchisor/office logins can see it. Hidden: removed from the Form Results picker for everyone, coach and franchisor alike - use this for a form that's been superseded by a dedicated feature elsewhere (e.g. Mileage, now under the Coach Logs tab) without deleting its data.",
    "fieldname": "visibility",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Who Can See This Form",
-   "options": "Everyone\nFranchisors Only",
+   "options": "Everyone\nFranchisors Only\nHidden",
    "reqd": 1
   }
  ],

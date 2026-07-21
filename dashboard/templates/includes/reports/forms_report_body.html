@@ -5,6 +5,9 @@
     <button type="button" class="dashboard-tab-btn" data-forms-report-tab="forms">Form Results</button>
     <button type="button" class="dashboard-tab-btn" data-forms-report-tab="packs">Open Session Packs</button>
     <button type="button" class="dashboard-tab-btn" data-forms-report-tab="coach_logs">Coach Logs</button>
+    {% if dashboard_type == "franchisor" %}
+      <button type="button" class="dashboard-tab-btn" data-forms-report-tab="client_locations">Client Locations</button>
+    {% endif %}
   </div>
 </div>
 
@@ -191,6 +194,12 @@
 <div class="dashboard-tab-panel" data-forms-report-panel="coach_logs" style="display:none;">
   {% include "dashboard/templates/includes/reports/coach_logs_report_body.html" %}
 </div>
+
+{% if dashboard_type == "franchisor" %}
+  <div class="dashboard-tab-panel" data-forms-report-panel="client_locations" style="display:none;">
+    {% include "dashboard/templates/includes/reports/client_locations_report_body.html" %}
+  </div>
+{% endif %}
 
 <div class="dashboard-modal-backdrop" id="formSubmissionModal">
   <div class="dashboard-modal">

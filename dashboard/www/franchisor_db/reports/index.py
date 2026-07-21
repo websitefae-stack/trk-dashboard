@@ -25,6 +25,7 @@ def get_context(context):
     context.page_title = "Reports"
     context.active_page = "reports"
     context.dashboard_base_url = "/franchisor_db"
+    context.dashboard_type = "franchisor"
     context.can_view_diagnostics = 1 if frappe.session.user == OFFICE_USER else 0
 
     try:

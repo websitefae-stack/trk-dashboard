@@ -73,7 +73,7 @@
       .replace(/'/g, "&#039;");
   }
 
-  const STATUS_COLUMNS = ["New", "In Progress", "Past Due", "Sent", "Archived"];
+  const STATUS_COLUMNS = ["New", "In Progress", "Past Due", "Archived"];
 
   let allNotifications = [];
   let archivedExpanded = false;
@@ -91,30 +91,29 @@
     return stamp.slice(0, 10) === todayIso();
   }
 
-  // Bucket is derived from status + due_date rather than a stored value,
-  // so it works the same way whether a row came from the "Dashboard
-  // Conversation" doctype or the legacy Notification Log fallback (see
-  // _format_conversation / _format_notification_log in notifications.py)
-  // - both already expose status/due_date/read_status in this same shape.
+  // Bucket is derived from status + due_date + who sent the latest message
+  // rather than a stored value, so it works the same way whether a row
+  // came from the "Dashboard Conversation" doctype or the legacy
+  // Notification Log fallback (see _format_conversation /
+  // _format_notification_log in notifications.py) - both already expose
+  // status/due_date/read_status/is_sent_by_me/reply_count in this same
+  // shape. Mirrors _kanban_bucket_for() in notifications.py so the sidebar
+  // badge counts match the board.
+  //
+  // No separate "Sent" column - sending something puts it straight into
+  // In Progress for you (you're now waiting on a reply), while it shows
+  // as New for whoever you sent it to. A reply from anyone promotes the
+  // card into In Progress/Past Due for everyone, since that's a sign it's
+  // actually moving rather than sitting untouched.
   function bucketFor(row) {
     if ((row.status || "Open") === "Archived") return "Archived";
 
-    // A reply means progress is actually being made on it - promote it
-    // into In Progress for everyone looking at it, including whoever
-    // originally sent it, instead of leaving it sitting untouched-looking
-    // in their own Sent column while the conversation moves on underneath.
-    if (Number(row.reply_count || 0) > 0) {
-      const dueDate = row.due_date || "";
+    const dueDate = row.due_date || "";
+
+    if (Number(row.reply_count || 0) > 0 || Number(row.is_sent_by_me || 0)) {
       return (dueDate && dueDate < todayIso()) ? "Past Due" : "In Progress";
     }
 
-    // Keep what you've sent to other people (and nobody's replied to yet)
-    // out of the lanes meant for tracking work coming AT you - they belong
-    // in their own column so they never get mixed in with New/In
-    // Progress/Past Due.
-    if (Number(row.is_sent_by_me || 0)) return "Sent";
-
-    const dueDate = row.due_date || "";
     if (!dueDate) return "New";
 
     return dueDate < todayIso() ? "Past Due" : "In Progress";
@@ -166,8 +165,8 @@
     const isArchived = bucket === "Archived";
     const isAwaitingResponse = Number(row.awaiting_response || 0);
 
-    // Which lane the card is in already says "Sent" - only call out the
-    // cards still waiting on a reply.
+    // In Progress already covers everything sent-and-not-yet-archived -
+    // only call out the cards still specifically waiting on a reply.
     const directionLabel = isAwaitingResponse ? "Waiting on Response" : "";
     const directionClass = "is-awaiting-response";
 
@@ -252,10 +251,6 @@
   // YYYY-MM-DD), then lets bucketFor() sort out which of those two columns
   // it actually lands in once that date is saved.
   function handleColumnDrop(name, bucket) {
-    // "Sent" isn't a settable state either - it's purely derived from who
-    // sent the notification, so a drop there is a no-op.
-    if (bucket === "Sent") return;
-
     if (bucket === "Archived") {
       toggleArchive(name, "archive");
       return;
