@@ -190,6 +190,10 @@ def _get_coach_options():
         if meta.has_field(fieldname):
             fields.append(fieldname)
 
+    has_colour = meta.has_field("colour")
+    if has_colour:
+        fields.append("colour")
+
     if meta.has_field("coach_name"):
         order_by = "coach_name asc, name asc"
     elif meta.has_field("name1"):
@@ -213,6 +217,7 @@ def _get_coach_options():
         {
             "value": row.get("name"),
             "label": _coach_label(row),
+            "colour": (row.get("colour") or "").strip() if has_colour else "",
         }
         for row in rows
     ]
@@ -566,6 +571,36 @@ def _get_allowed_clients_for_user():
     return sorted(client_names)
 
 
+def _linked_client_names_for_scope(is_franchisor_view, selected_coach, current_coach_name):
+    """
+    Coach.linked_client - the Client an "internal invoice" (office invoicing
+    a coach for their own fees) is raised against - isn't tied to
+    primary_coach/attending_coach at all (see _current_user_can_access_client()
+    above), so the ordinary Client filters below never surface it. A
+    franchisor with no coach selected gets every coach's; a franchisor with
+    one selected, or a coach viewing their own dashboard, gets just that
+    coach's own.
+    """
+    if not frappe.get_meta("Coach").has_field("linked_client"):
+        return []
+
+    if is_franchisor_view and not selected_coach:
+        return frappe.get_all(
+            "Coach",
+            filters={"linked_client": ["is", "set"]},
+            pluck="linked_client",
+            limit_page_length=5000,
+            ignore_permissions=True,
+        )
+
+    coach_name = selected_coach if is_franchisor_view else current_coach_name
+    if not coach_name:
+        return []
+
+    linked = frappe.db.get_value("Coach", coach_name, "linked_client")
+    return [linked] if linked else []
+
+
 def _get_clients_for_invoice_scope(current_coach, selected_coach=None, dashboard_type=None):
     if not current_coach:
         return []
@@ -575,11 +610,20 @@ def _get_clients_for_invoice_scope(current_coach, selected_coach=None, dashboard
 
     current_coach_name = current_coach.get("name")
     selected_coach = (selected_coach or "").strip()
+    is_franchisor_view = dashboard_type == FRANCHISOR_DASHBOARD and _is_franchisor_user()
 
-    if not selected_coach:
+    if is_franchisor_view and not selected_coach:
+        # A franchisor landing on invoices with no coach picked sees every
+        # coach's clients, not just their own (previously this fell through
+        # to the same {"primary_coach": current_coach_name} filter as a
+        # coach's own dashboard, which is why Ashley wasn't seeing Fiona's
+        # or Emily's invoices here at all).
+        filters = {}
+
+    elif not selected_coach:
         filters = {"primary_coach": current_coach_name}
 
-    elif dashboard_type == FRANCHISOR_DASHBOARD and _is_franchisor_user():
+    elif is_franchisor_view:
         filters = {"primary_coach": selected_coach}
 
     else:
@@ -597,7 +641,7 @@ def _get_clients_for_invoice_scope(current_coach, selected_coach=None, dashboard
     else:
         order_by = "name asc"
 
-    return frappe.get_all(
+    client_rows = frappe.get_all(
         "Client",
         filters=filters,
         fields=_get_client_fields(),
@@ -605,6 +649,22 @@ def _get_clients_for_invoice_scope(current_coach, selected_coach=None, dashboard
         limit_page_length=5000,
         ignore_permissions=True,
     )
+
+    linked_client_names = _linked_client_names_for_scope(is_franchisor_view, selected_coach, current_coach_name)
+    missing_names = [
+        name for name in linked_client_names
+        if name and name not in {row.get("name") for row in client_rows}
+    ]
+
+    if missing_names:
+        client_rows = client_rows + frappe.get_all(
+            "Client",
+            filters={"name": ["in", missing_names]},
+            fields=_get_client_fields(),
+            ignore_permissions=True,
+        )
+
+    return client_rows
 
 
 # =====================================================
