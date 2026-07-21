@@ -107,7 +107,16 @@
     var mapEl = el("clientLocationsMap");
     if (!mapEl) return null;
 
-    state.map = window.L.map(mapEl).setView([54.5, -3], 6);
+    // keyboard:false - Leaflet's keyboard-panning support puts a
+    // tabindex on the map container, which means a plain click to drag
+    // the map also gives it browser focus like any other focusable
+    // element - and the browser's default focus behaviour is to scroll
+    // that element into view, which is what was reading as "the map
+    // jumps to the top of the page" on every click. Nobody was using
+    // arrow-key panning; turning it off removes the tabindex and the
+    // focus-scroll along with it, without changing how dragging/zooming
+    // the map itself works.
+    state.map = window.L.map(mapEl, { keyboard: false }).setView([54.5, -3], 6);
 
     window.L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 18,
