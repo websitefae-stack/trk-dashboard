@@ -22,7 +22,7 @@ no manual step needed.
 import frappe
 
 
-def execute():
+def clear_wrong_internal_invoice_income_owner():
     if not frappe.db.exists("DocType", "Coach") or not frappe.db.exists("DocType", "Sales Invoice"):
         return
 
@@ -60,3 +60,7 @@ def execute():
                 frappe.log_error(frappe.get_traceback(), f"Clear Internal Invoice Income Owner - {name}")
 
     frappe.db.commit()
+
+
+def execute():
+    clear_wrong_internal_invoice_income_owner()

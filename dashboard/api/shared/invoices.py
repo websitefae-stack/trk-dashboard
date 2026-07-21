@@ -1622,6 +1622,24 @@ def _set_invoice_header_fields(doc, payload):
         doc.custom_created_by_coach = current_coach_name
 
     if meta.has_field("custom_income_owner_coach") and doc.custom_client:
+        if _is_coach_own_linked_client(doc.custom_client):
+            # An "internal invoice" against a coach's own linked_client
+            # (e.g. HQ invoicing them for their Franchise Fee) always
+            # belongs to HQ, full stop - whichever bank account is on it
+            # is just where the payment gets collected into, not a
+            # statement of whose income it is (unlike an ordinary client
+            # invoice, where a different coach's bank account genuinely
+            # does mean that coach is the one owed the money). Both the
+            # override and the fallback below would resolve to this same
+            # coach for their own linked_client either way (its own
+            # primary_coach IS that coach, and its default bank account
+            # naturally is too), which then hid it from the franchisor's
+            # Outstanding Internal Invoices oversight
+            # (custom_income_owner_coach set == "someone else's private
+            # business, not office's" there) - leaving it unset here is
+            # what that view correctly reads as "office/HQ".
+            return
+
         # An overridden bank account (e.g. Emily invoicing on SJ's behalf
         # with her own account) means the income belongs to whichever coach
         # owns that account, not the client's usual primary coach - it's
@@ -1633,19 +1651,10 @@ def _set_invoice_header_fields(doc, payload):
 
         if override_owner:
             doc.custom_income_owner_coach = override_owner
-        elif not _is_coach_own_linked_client(doc.custom_client):
+        else:
             client_primary = frappe.db.get_value("Client", doc.custom_client, "primary_coach")
             if client_primary:
                 doc.custom_income_owner_coach = client_primary
-        # else: an "internal invoice" against a coach's own linked_client
-        # (e.g. HQ invoicing them for their franchise fee) - that Client's
-        # own primary_coach is that same coach, so the fallback above would
-        # wrongly record the fee as belonging to the coach being invoiced
-        # rather than to HQ, which then hid it from the franchisor's
-        # Outstanding Internal Invoices oversight (custom_income_owner_coach
-        # set == "someone else's private business, not office's" there).
-        # Leaving it unset here correctly means "office/HQ", same as an
-        # ordinary bank-account invoice with no override.
 
 
 def _set_invoice_items(doc, items_payload):
