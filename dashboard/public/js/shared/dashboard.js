@@ -210,7 +210,7 @@
     if (!tbody) return;
 
     const showCoachColumn = dashboardType === "franchisor";
-    const colspan = showCoachColumn ? 6 : 5;
+    const colspan = showCoachColumn ? 7 : 6;
 
     if (!items || !items.length) {
       tbody.innerHTML = `
@@ -230,6 +230,7 @@
             </a>
           </td>
           ${showCoachColumn ? `<td>${escapeHtml(item.coach_label || "")}</td>` : ""}
+          <td>${escapeHtml(item.owed_to_label || "HQ")}</td>
           <td>${escapeHtml(formatDisplayDate(item.posting_date))}</td>
           <td>${escapeHtml(item.status || "")}</td>
           <td>${escapeHtml(formatMoney(item.outstanding_amount, item.currency))}</td>

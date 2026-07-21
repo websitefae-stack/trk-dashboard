@@ -1261,10 +1261,22 @@ def _get_outstanding_internal_invoices(dashboard_type, context, limit=8):
             frappe.db.get_value("Coach", coach_name, "coach_name") or coach_name
         ) if coach_name else ""
 
+        # Who the money is actually owed to - HQ/office by default (the
+        # ordinary case, e.g. a Franchise Fee), or a specific coach when
+        # custom_income_owner_coach names someone other than the coach
+        # being invoiced (a bank-account override, e.g. one coach invoicing
+        # on another's behalf into their own account).
+        income_owner = row.get("custom_income_owner_coach") if has_income_owner_field else ""
+        if income_owner and income_owner != coach_name:
+            owed_to_label = frappe.db.get_value("Coach", income_owner, "coach_name") or income_owner
+        else:
+            owed_to_label = "HQ"
+
         invoices.append({
             "name": row.get("name"),
             "coach": coach_name,
             "coach_label": coach_label,
+            "owed_to_label": owed_to_label,
             "posting_date": str(row.get("posting_date") or ""),
             "due_date": str(row.get("due_date") or ""),
             "status": row.get("status") or "",

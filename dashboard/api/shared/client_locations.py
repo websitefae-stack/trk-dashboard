@@ -191,4 +191,45 @@ def get_client_locations_report(coach=None):
         for coach_name, prefixes in territories.items()
     }
 
-    return {"rows": out, "territories": territories, "territory_boundaries": territory_boundaries}
+    territory_overlaps = _get_territory_overlaps(territory_boundaries)
+
+    return {
+        "rows": out,
+        "territories": territories,
+        "territory_boundaries": territory_boundaries,
+        "territory_overlaps": territory_overlaps,
+    }
+
+
+def _get_territory_overlaps(territory_boundaries):
+    """
+    Real postcode-shaped boundaries (unlike the old Voronoi approximation,
+    which always partitioned space so no two coaches' areas could ever
+    touch) can genuinely overlap on the map if two coaches' Territory
+    Postcode Areas fields both include the same district - a data problem
+    on their Coach records, not something to silently draw over. Returns
+    [{"district": "TW9", "coach_labels": ["Fiona ...", "Cara ..."]}, ...]
+    so office can see exactly which districts are double-claimed and by
+    whom, sorted for a stable display order.
+    """
+    coaches_by_district = {}
+
+    for coach_name, features in (territory_boundaries or {}).items():
+        for feature in features or []:
+            district = (feature.get("properties") or {}).get("name")
+            if not district:
+                continue
+            coaches_by_district.setdefault(district, set()).add(coach_name)
+
+    overlaps = []
+    for district, coach_names in coaches_by_district.items():
+        if len(coach_names) < 2:
+            continue
+
+        overlaps.append({
+            "district": district,
+            "coach_labels": sorted(get_coach_label(name) for name in coach_names),
+        })
+
+    overlaps.sort(key=lambda row: row["district"])
+    return overlaps
