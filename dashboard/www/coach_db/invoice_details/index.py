@@ -113,6 +113,12 @@ def get_context(context):
         doc = frappe.get_doc("Sales Invoice", requested_name)
         docname = doc.name
 
+    # See payment_utils.get_display_paid_amount(): doc.paid_amount is never
+    # populated by the Payment Entry reconciliation flow this dashboard
+    # uses, so the template's "Total Paid" / "Paid Amount" fields need this
+    # derived figure instead of the raw (always-zero) stored field.
+    doc.paid_amount = payment_utils.get_display_paid_amount(doc.grand_total, doc.outstanding_amount)
+
     resolved = invoice_api._resolve_invoice_context(doc.custom_client, doc.customer)
     client_defaults = _get_initial_client_defaults(doc)
 

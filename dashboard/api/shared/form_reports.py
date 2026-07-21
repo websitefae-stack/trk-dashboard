@@ -200,12 +200,31 @@ def get_intake_form_answers_for_question(question=None):
     return {"question": label, "rows": rows}
 
 
+def _is_form_restricted_to_franchisors(doctype):
+    """
+    True if a Form Visibility Rule (a self-service settings list office
+    maintains in Desk - see the Form Visibility Rule DocType) marks this
+    form "Franchisors Only". Guards for the rule DocType not existing yet
+    (pre-migration) by treating that as "no rules configured", the same
+    as every form not being listed in it at all.
+    """
+    if not frappe.db.exists("DocType", "Form Visibility Rule"):
+        return False
+
+    return frappe.db.get_value("Form Visibility Rule", doctype, "visibility") == "Franchisors Only"
+
+
 def _form_doctype_meta(doctype):
     """
     Validates that `doctype` is a real, non-child, non-single DocType in
     the Forms module before ever touching its data - the only thing a
     caller can pick is one of the names get_form_module_doctypes() itself
-    offered, never an arbitrary doctype name.
+    offered, never an arbitrary doctype name. Also independently enforces
+    Form Visibility Rule here (not just in get_form_module_doctypes()'s
+    picker) - every other function in this module (get_form_charts,
+    get_form_report, get_form_submission, etc.) routes through this, so a
+    coach can't bypass a "Franchisors Only" rule just by calling the API
+    directly with the doctype name the UI never offered them.
     """
     doctype = (doctype or "").strip()
     if not doctype:
@@ -215,6 +234,9 @@ def _form_doctype_meta(doctype):
 
     if not row or row.module != FORMS_MODULE or row.istable or row.issingle:
         frappe.throw(_("Unknown form."))
+
+    if _is_form_restricted_to_franchisors(doctype) and not is_franchisor_user():
+        frappe.throw(_("You do not have permission to view this form."), frappe.PermissionError)
 
     return frappe.get_meta(doctype)
 
@@ -447,6 +469,9 @@ def get_form_module_doctypes():
         fields=["name"],
         order_by="name asc",
     )
+
+    if not is_franchisor_user():
+        rows = [row for row in rows if not _is_form_restricted_to_franchisors(row.name)]
 
     return [{"value": row.name, "label": row.name} for row in rows]
 

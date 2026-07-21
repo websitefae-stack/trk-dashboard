@@ -860,7 +860,7 @@
         + "<td>" + escapeHtml(row.worker_label || "—") + "</td>"
         + "<td>" + escapeHtml(row.service_item || row.client_package || "—") + "</td>"
         + "<td>" + escapeHtml(row.qty_purchased) + "</td>"
-        + "<td>" + escapeHtml(row.qty_used) + "</td>"
+        + "<td>" + escapeHtml(row.date_issued || "—") + "</td>"
         + "<td>" + escapeHtml(row.qty_booked) + "</td>"
         + "<td><strong>" + escapeHtml(row.qty_available) + "</strong></td>"
         + "</tr>";
@@ -892,10 +892,205 @@
       { label: "Session Worker", value: function (r) { return r.worker_label || ""; } },
       { label: "Package", value: function (r) { return r.service_item || r.client_package || ""; } },
       { label: "Purchased", value: function (r) { return r.qty_purchased; } },
-      { label: "Used", value: function (r) { return r.qty_used; } },
+      { label: "Date Issued", value: function (r) { return r.date_issued || ""; } },
       { label: "Booked", value: function (r) { return r.qty_booked; } },
       { label: "Available", value: function (r) { return r.qty_available; } }
     ], openPacksState.rows);
+  }
+
+  var coachLogState = { mileage: [], training: [] };
+
+  function currentCoachLogFilter() {
+    var select = el("coachLogCoachSelect");
+    return select ? select.value : "";
+  }
+
+  function renderMileageLog(rows) {
+    var empty = el("mileageLogEmpty");
+    var results = el("mileageLogResults");
+    var body = el("mileageLogTableBody");
+    if (!empty || !results || !body) return;
+
+    coachLogState.mileage = rows || [];
+
+    if (!rows.length) {
+      empty.style.display = "";
+      results.style.display = "none";
+      return;
+    }
+
+    empty.style.display = "none";
+    results.style.display = "";
+
+    body.innerHTML = rows.map(function (row) {
+      return "<tr>"
+        + "<td>" + formatDate(row.log_date) + "</td>"
+        + "<td>" + escapeHtml(row.coach_label || "—") + "</td>"
+        + "<td>" + escapeHtml(row.purpose || "—") + "</td>"
+        + "<td>" + escapeHtml(row.miles) + "</td>"
+        + "<td>" + escapeHtml(row.notes || "—") + "</td>"
+        + "</tr>";
+    }).join("");
+  }
+
+  async function loadMileageLog() {
+    try {
+      var rows = await callApi("dashboard.api.shared.coach_logs.get_mileage_log", { coach: currentCoachLogFilter() });
+      renderMileageLog(rows);
+    } catch (error) {
+      console.error("Mileage log failed:", error);
+    }
+  }
+
+  async function addMileageLogEntry() {
+    var btn = el("addMileageLogBtn");
+    var purposeField = el("mileageLogPurpose");
+    var milesField = el("mileageLogMiles");
+    var dateField = el("mileageLogDate");
+    var notesField = el("mileageLogNotes");
+
+    var purpose = purposeField ? purposeField.value : "";
+    var miles = milesField ? milesField.value : "";
+
+    if (!purpose.trim()) { window.alert("Enter a purpose / journey."); return; }
+    if (!miles || Number(miles) <= 0) { window.alert("Enter miles."); return; }
+
+    if (btn) { btn.disabled = true; btn.textContent = "Adding..."; }
+
+    try {
+      await callApi("dashboard.api.shared.coach_logs.add_mileage_log", {
+        log_date: dateField ? dateField.value : "",
+        purpose: purpose,
+        miles: miles,
+        notes: notesField ? notesField.value : ""
+      });
+
+      if (purposeField) purposeField.value = "";
+      if (milesField) milesField.value = "";
+      if (dateField) dateField.value = "";
+      if (notesField) notesField.value = "";
+
+      await loadMileageLog();
+    } catch (error) {
+      window.alert(error.message || "Could not add mileage entry.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Add Entry"; }
+    }
+  }
+
+  function renderTrainingLog(rows) {
+    var empty = el("trainingLogEmpty");
+    var results = el("trainingLogResults");
+    var body = el("trainingLogTableBody");
+    if (!empty || !results || !body) return;
+
+    coachLogState.training = rows || [];
+
+    if (!rows.length) {
+      empty.style.display = "";
+      results.style.display = "none";
+      return;
+    }
+
+    empty.style.display = "none";
+    results.style.display = "";
+
+    body.innerHTML = rows.map(function (row) {
+      return "<tr>"
+        + "<td>" + formatDate(row.log_date) + "</td>"
+        + "<td>" + escapeHtml(row.coach_label || "—") + "</td>"
+        + "<td>" + escapeHtml(row.log_type || "—") + "</td>"
+        + "<td>" + escapeHtml(row.description || "—") + "</td>"
+        + "<td>" + escapeHtml(row.duration_hours || "—") + "</td>"
+        + "</tr>";
+    }).join("");
+  }
+
+  async function loadTrainingLog() {
+    try {
+      var rows = await callApi("dashboard.api.shared.coach_logs.get_training_log", { coach: currentCoachLogFilter() });
+      renderTrainingLog(rows);
+    } catch (error) {
+      console.error("Training log failed:", error);
+    }
+  }
+
+  async function addTrainingLogEntry() {
+    var btn = el("addTrainingLogBtn");
+    var typeField = el("trainingLogType");
+    var descriptionField = el("trainingLogDescription");
+    var durationField = el("trainingLogDuration");
+    var dateField = el("trainingLogDate");
+
+    var description = descriptionField ? descriptionField.value : "";
+
+    if (!description.trim()) { window.alert("Enter a description."); return; }
+
+    if (btn) { btn.disabled = true; btn.textContent = "Adding..."; }
+
+    try {
+      await callApi("dashboard.api.shared.coach_logs.add_training_log", {
+        log_date: dateField ? dateField.value : "",
+        log_type: typeField ? typeField.value : "",
+        description: description,
+        duration_hours: durationField ? durationField.value : ""
+      });
+
+      if (descriptionField) descriptionField.value = "";
+      if (durationField) durationField.value = "";
+      if (dateField) dateField.value = "";
+
+      await loadTrainingLog();
+    } catch (error) {
+      window.alert(error.message || "Could not add training/supervision entry.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Add Entry"; }
+    }
+  }
+
+  async function loadCoachLogCoachOptions() {
+    var row = el("coachLogCoachFilterRow");
+    var select = el("coachLogCoachSelect");
+    if (!select) return;
+
+    try {
+      var options = await callApi("dashboard.api.shared.coach_logs.get_coach_log_options", {});
+
+      if (options && options.length) {
+        options.forEach(function (opt) {
+          var optionEl = document.createElement("option");
+          optionEl.value = opt.value;
+          optionEl.textContent = opt.label;
+          select.appendChild(optionEl);
+        });
+
+        if (row) row.style.display = "";
+      }
+    } catch (error) {
+      console.error("Coach log options failed:", error);
+    }
+  }
+
+  function initCoachLogs() {
+    if (!el("mileageLogTableBody") && !el("trainingLogTableBody")) return;
+
+    var select = el("coachLogCoachSelect");
+    if (select) {
+      select.addEventListener("change", function () {
+        loadMileageLog();
+        loadTrainingLog();
+      });
+    }
+
+    var addMileageBtn = el("addMileageLogBtn");
+    if (addMileageBtn) addMileageBtn.addEventListener("click", addMileageLogEntry);
+
+    var addTrainingBtn = el("addTrainingLogBtn");
+    if (addTrainingBtn) addTrainingBtn.addEventListener("click", addTrainingLogEntry);
+
+    loadCoachLogCoachOptions();
+    loadMileageLog();
+    loadTrainingLog();
   }
 
   function initFormsReportPicker() {
@@ -980,6 +1175,7 @@
     if (exportPacksBtn) exportPacksBtn.addEventListener("click", exportOpenPacksReport);
 
     initFormsReportPicker();
+    initCoachLogs();
 
     var viewModeSelect = el("intakeFormViewMode");
     if (viewModeSelect) viewModeSelect.addEventListener("change", applyIntakeFormViewMode);

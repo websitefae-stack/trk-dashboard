@@ -521,11 +521,14 @@ def get_open_session_packs_report():
         row["client_label"] = build_display_name(client_row) if client_row else row.get("client")
         row["coach_label"] = get_coach_label(client_row.get("primary_coach") or client_row.get("attending_coach"))
         row["worker_label"] = get_session_worker_label(client_row.get("session_worker"))
+        row["date_issued"] = frappe.utils.formatdate(row.get("creation"), "dd-MM-yyyy") if row.get("creation") else ""
 
         row["qty_purchased"] = _whole(row.get("qty_purchased"))
         row["qty_booked"] = _whole(row.get("qty_booked"))
         row["qty_used"] = _whole(row.get("qty_used"))
         row["qty_available"] = _whole(row.get("qty_available"))
+
+    rows.sort(key=lambda row: (row.get("client_label") or "").lower())
 
     return rows
 

@@ -772,6 +772,175 @@
     }
   }
 
+  function startNoteEdit(card) {
+    if (!card || card.dataset.editing === "1") return;
+
+    const body = card.querySelector(".dashboard-note-card-body");
+    if (!body) return;
+
+    const currentText = body.textContent.trim();
+    card.dataset.originalBody = body.innerHTML;
+    card.dataset.editing = "1";
+
+    body.innerHTML =
+      "<div class=\"dashboard-detail-field\">" +
+        "<label>Date</label>" +
+        "<input type=\"date\" class=\"dashboard-input dashboard-note-edit-date\" value=\"" + escapeHtml(card.dataset.sessionDate || "") + "\">" +
+      "</div>" +
+      "<div class=\"dashboard-detail-field dashboard-detail-field-full\" style=\"margin-top:8px;\">" +
+        "<label>Note</label>" +
+        "<textarea class=\"dashboard-textarea dashboard-note-edit-text\"></textarea>" +
+      "</div>" +
+      "<div class=\"dashboard-detail-actions\" style=\"margin-top:10px;\">" +
+        "<button type=\"button\" class=\"dashboard-btn dashboard-btn-light dashboard-cancel-note-edit\">Cancel</button>" +
+        "<button type=\"button\" class=\"dashboard-btn dashboard-btn-primary dashboard-save-note-edit\">Save</button>" +
+      "</div>";
+
+    const textarea = body.querySelector(".dashboard-note-edit-text");
+    if (textarea) textarea.value = currentText === "—" ? "" : currentText;
+  }
+
+  function cancelNoteEdit(card) {
+    if (!card) return;
+
+    const body = card.querySelector(".dashboard-note-card-body");
+    if (!body || card.dataset.originalBody === undefined) return;
+
+    body.innerHTML = card.dataset.originalBody;
+    card.dataset.editing = "0";
+  }
+
+  async function saveNoteEdit(card) {
+    if (!card) return;
+
+    const body = card.querySelector(".dashboard-note-card-body");
+    const textarea = body && body.querySelector(".dashboard-note-edit-text");
+    const dateInput = body && body.querySelector(".dashboard-note-edit-date");
+
+    if (!textarea || !textarea.value.trim()) {
+      showError("Enter a note.");
+      return;
+    }
+
+    const saveBtn = body.querySelector(".dashboard-save-note-edit");
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving..."; }
+
+    try {
+      await apiPost("update_client_note", {
+        client_name: getClientName(),
+        note_name: card.dataset.noteName || "",
+        note_text: textarea.value.trim(),
+        session_date: dateInput ? dateInput.value : ""
+      });
+
+      showSuccess("Note updated");
+
+      if (roleConfig.role === "session_worker") {
+        loadSessionWorkerNotes();
+      } else {
+        window.location.reload();
+      }
+    } catch (error) {
+      showError(error.message || "Could not update note.");
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save"; }
+    }
+  }
+
+  function csvCell(value) {
+    const text = value === null || value === undefined ? "" : String(value);
+    return /[",\n]/.test(text) ? "\"" + text.replace(/"/g, "\"\"") + "\"" : text;
+  }
+
+  async function exportClientNotesCsv() {
+    const client = getClientName();
+    if (!client) return;
+
+    try {
+      const notes = await apiPost("get_client_notes", { client_name: client });
+
+      if (!notes || !notes.length) {
+        showError("No notes to export.");
+        return;
+      }
+
+      const lines = [["Date", "Type", "Coach", "Note"].map(csvCell).join(",")];
+
+      notes.forEach(function (note) {
+        lines.push([
+          note.session_date ? formatDate(note.session_date) : "",
+          note.session_type || "",
+          note.user_full_name || note.note_user_name || "",
+          note.notes || ""
+        ].map(csvCell).join(","));
+      });
+
+      const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "session-notes.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      showError(error.message || "Could not export notes.");
+    }
+  }
+
+  async function exportClientNotesPdf() {
+    const client = getClientName();
+    if (!client) return;
+
+    try {
+      const response = await fetch("/api/method/" + roleConfig.apiBase + ".export_client_notes_pdf", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Frappe-CSRF-Token": getCsrfToken()
+        },
+        body: JSON.stringify({ client_name: client })
+      });
+
+      if (!response.ok) throw new Error("Could not generate PDF.");
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "session-notes.pdf";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      showError(error.message || "Could not export notes to PDF.");
+    }
+  }
+
+  function initNoteActions() {
+    const container = el("clientNotesTableBody");
+    if (container) {
+      container.addEventListener("click", function (event) {
+        const editBtn = event.target.closest(".dashboard-edit-note-btn");
+        if (editBtn) { startNoteEdit(editBtn.closest(".dashboard-note-card")); return; }
+
+        const cancelBtn = event.target.closest(".dashboard-cancel-note-edit");
+        if (cancelBtn) { cancelNoteEdit(cancelBtn.closest(".dashboard-note-card")); return; }
+
+        const saveBtn = event.target.closest(".dashboard-save-note-edit");
+        if (saveBtn) { saveNoteEdit(saveBtn.closest(".dashboard-note-card")); return; }
+      });
+    }
+
+    const csvBtn = el("exportClientNotesCsv");
+    if (csvBtn) csvBtn.addEventListener("click", exportClientNotesCsv);
+
+    const pdfBtn = el("exportClientNotesPdf");
+    if (pdfBtn) pdfBtn.addEventListener("click", exportClientNotesPdf);
+  }
+
   function updateNoteDateDisplay() {
     const field = el("newClientNoteDate");
     const display = el("newClientNoteDateDisplay");
@@ -882,15 +1051,18 @@
 
       container.innerHTML = notes.map(function (row) {
         const attachment = row.attachement
-          ? "<a class=\"dashboard-note-card-attachment\" href=\"" + escapeHtml(row.attachement) + "\" target=\"_blank\" rel=\"noopener noreferrer\" title=\"View attachment\">📎</a>"
+          ? "<a class=\"dashboard-note-card-attachment\" style=\"margin-left:0;\" href=\"" + escapeHtml(row.attachement) + "\" target=\"_blank\" rel=\"noopener noreferrer\" title=\"View attachment\">📎</a>"
           : "";
 
         return (
-          "<div class=\"dashboard-note-card\">" +
+          "<div class=\"dashboard-note-card\" data-note-name=\"" + escapeHtml(row.name || "") + "\" data-session-date=\"" + escapeHtml(row.session_date || "") + "\">" +
             "<div class=\"dashboard-note-card-head\">" +
               "<span class=\"dashboard-note-card-date\">" + formatDate(row.note_date || row.session_date) + "</span>" +
               "<span class=\"dashboard-note-card-user\">" + escapeHtml(row.note_user_name || row.user_full_name || row.note_user || row.user || "—") + "</span>" +
-              attachment +
+              "<span style=\"margin-left:auto; display:flex; align-items:center; gap:8px;\">" +
+                attachment +
+                "<button type=\"button\" class=\"dashboard-link-btn dashboard-edit-note-btn\">Edit</button>" +
+              "</span>" +
             "</div>" +
             "<div class=\"dashboard-note-card-body\">" + escapeHtml(row.note_text || row.notes || "—") + "</div>" +
           "</div>"
@@ -1659,6 +1831,7 @@
     initInvoiceButton();
     initFileUpload();
     initAddNote();
+    initNoteActions();
     initLinkOptions();
     initPrimaryCoachDefaults();
     initFullNameBuilder();

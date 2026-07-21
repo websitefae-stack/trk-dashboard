@@ -1,0 +1,60 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:form_doctype",
+ "creation": "2026-07-20 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "form_doctype",
+  "visibility"
+ ],
+ "fields": [
+  {
+   "description": "One of the DocTypes in the site's \"Forms\" module (Desk-built feedback/survey forms). Only forms listed here with a non-default visibility are restricted - any form not listed keeps the normal behaviour (coaches see their own clients'/leads' submissions, franchisors see everyone's).",
+   "fieldname": "form_doctype",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Form",
+   "options": "DocType",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "Everyone",
+   "description": "Everyone: normal behaviour - coaches see their own clients'/leads' submissions, franchisors see all. Franchisors Only: hidden from every coach's Form Results picker entirely - only franchisor/office logins can see it.",
+   "fieldname": "visibility",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Who Can See This Form",
+   "options": "Everyone\nFranchisors Only",
+   "reqd": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-20 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "Form Visibility Rule",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
