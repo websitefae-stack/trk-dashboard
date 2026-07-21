@@ -41,7 +41,7 @@ def get_context(context):
         selected_coach = view_mode.get("view_coach_name")
         context.dashboard_user_name = context.coach_view_display_name
 
-        context.invoices = get_invoices_for_view_coach(
+        context.invoices, context.revenue_reconciliation = get_invoices_for_view_coach(
             selected_coach,
             context.coach_view_query,
         )
@@ -80,6 +80,7 @@ def get_context(context):
         context.to_date = data.get("to_date", "")
         context.status = data.get("status", "Outstanding")
         context.revenue_category = data.get("revenue_category", "")
+        context.revenue_reconciliation = data.get("revenue_reconciliation")
         context.coach_options = data.get("coach_options", [])
         context.selected_coach = data.get("selected_coach", "")
         context.current_coach = data.get("current_coach", "")
@@ -92,19 +93,24 @@ def get_invoices_for_view_coach(coach_name, coach_view_query=""):
     coach_name = (coach_name or "").strip()
 
     if not coach_name:
-        return []
+        return [], None
 
     client_rows = get_clients_for_view_coach(coach_name)
     client_names = [row.get("name") for row in client_rows if row.get("name")]
 
     if not client_names:
-        return []
+        return [], None
 
     filters = {
         "custom_client": ["in", client_names],
         "docstatus": ["!=", 2],
     }
-    invoice_api._apply_invoice_filter_args(filters, invoice_api._get_invoice_filter_args())
+    filter_args = invoice_api._get_invoice_filter_args()
+    invoice_api._apply_invoice_filter_args(filters, filter_args)
+
+    revenue_reconciliation = invoice_api._get_revenue_category_reconciliation(
+        filters, filter_args.get("revenue_category")
+    )
 
     invoice_rows = frappe.get_all(
         "Sales Invoice",
@@ -134,7 +140,7 @@ def get_invoices_for_view_coach(coach_name, coach_view_query=""):
 
         rows.append(row)
 
-    return rows
+    return rows, revenue_reconciliation
 
 
 def get_clients_for_view_coach(coach_name):

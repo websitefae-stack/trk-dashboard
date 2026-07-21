@@ -872,6 +872,59 @@ def _apply_revenue_category_filter(filters, revenue_category):
     return filters
 
 
+def _get_revenue_category_reconciliation(filters, revenue_category):
+    """
+    The dashboard's Kids/Teens/Uni/Schools/People/Client revenue figures
+    (dashboard.py's _get_invoice_revenue_breakdown) net travel line items
+    out of each invoice before summing, since travel is a pass-through
+    reimbursement rather than fee-eligible revenue. Simply adding up the
+    grand_total of every invoice shown on this filtered list will therefore
+    come out higher than the figure that was clicked to get here - not a
+    bug, but confusing without this to explain the gap. Returns None when
+    there's no category filter active (revenue_category == "" or
+    "travel") or nothing matches.
+    """
+    if not revenue_category or revenue_category == "travel":
+        return None
+
+    invoice_names = frappe.get_all(
+        "Sales Invoice",
+        filters=filters,
+        pluck="name",
+        limit_page_length=0,
+        ignore_permissions=True,
+    )
+
+    if not invoice_names:
+        return None
+
+    gross_total = 0.0
+    for row in frappe.get_all(
+        "Sales Invoice",
+        filters={"name": ["in", invoice_names]},
+        fields=["grand_total", "rounded_total"],
+        limit_page_length=0,
+        ignore_permissions=True,
+    ):
+        gross_total += flt(row.get("grand_total") or row.get("rounded_total") or 0)
+
+    travel_total = 0.0
+    for row in frappe.get_all(
+        "Sales Invoice Item",
+        filters={"parent": ["in", invoice_names], "item_code": TRAVEL_ITEM_CODE},
+        fields=["amount"],
+        limit_page_length=0,
+        ignore_permissions=True,
+    ):
+        travel_total += flt(row.get("amount") or 0)
+
+    return {
+        "gross_total": gross_total,
+        "travel_total": travel_total,
+        "net_total": gross_total - travel_total,
+    }
+
+
 def _get_invoices_for_clients(client_rows, dashboard_type, owner_coach_name=None):
     page_args = get_page_args()
     search = page_args["search"].lower()
@@ -896,6 +949,7 @@ def _get_invoices_for_clients(client_rows, dashboard_type, owner_coach_name=None
             "invoices": [],
             "pagination": make_pagination(0, page_args["page"], page_args["page_size"]),
             "search": page_args["search"],
+            "revenue_reconciliation": None,
             **filter_args,
         }
 
@@ -914,6 +968,10 @@ def _get_invoices_for_clients(client_rows, dashboard_type, owner_coach_name=None
 
     filters["docstatus"] = ["!=", 2]
     _apply_invoice_filter_args(filters, filter_args)
+
+    revenue_reconciliation = _get_revenue_category_reconciliation(
+        filters, filter_args.get("revenue_category")
+    )
 
     client_map = {row.get("name"): row for row in client_rows if row.get("name")}
 
@@ -965,6 +1023,7 @@ def _get_invoices_for_clients(client_rows, dashboard_type, owner_coach_name=None
             page_args["page_size"],
         ),
         "search": page_args["search"],
+        "revenue_reconciliation": revenue_reconciliation,
         **filter_args,
     }
 
@@ -1020,6 +1079,7 @@ def get_invoice_page_data(dashboard_type=None, selected_coach=None):
         "to_date": invoice_data.get("to_date", ""),
         "status": invoice_data.get("status", "Outstanding"),
         "revenue_category": invoice_data.get("revenue_category", ""),
+        "revenue_reconciliation": invoice_data.get("revenue_reconciliation"),
     }
 
 
