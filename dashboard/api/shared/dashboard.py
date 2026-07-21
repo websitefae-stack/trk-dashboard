@@ -1163,6 +1163,10 @@ def _get_outstanding_internal_invoices(dashboard_type, context, limit=8):
     office/bookkeeping view used to mark coaches' fee invoices paid, so it
     deliberately does NOT narrow to only the logged-in franchisor's own
     invoices the way revenue/fees/YTD income elsewhere on this page does.
+    It does, however, exclude invoices whose income belongs to another
+    coach rather than office (see custom_income_owner_coach below) - e.g.
+    Emily owing SJ directly is between the two of them, not the
+    franchisor's business.
     """
     if not _has_doctype("Coach") or not frappe.get_meta("Coach").has_field("linked_client"):
         return []
@@ -1193,6 +1197,17 @@ def _get_outstanding_internal_invoices(dashboard_type, context, limit=8):
     if not client_names:
         return []
 
+    invoice_meta = frappe.get_meta("Sales Invoice")
+    has_income_owner_field = invoice_meta.has_field("custom_income_owner_coach")
+    exclude_peer_invoices = dashboard_type == FRANCHISOR_DASHBOARD and has_income_owner_field
+
+    fetch_fields = [
+        "name", "custom_client", "posting_date", "due_date",
+        "status", "grand_total", "rounded_total", "outstanding_amount", "currency",
+    ]
+    if has_income_owner_field:
+        fetch_fields.append("custom_income_owner_coach")
+
     rows = frappe.get_all(
         "Sales Invoice",
         filters={
@@ -1200,14 +1215,24 @@ def _get_outstanding_internal_invoices(dashboard_type, context, limit=8):
             "docstatus": 1,
             "outstanding_amount": [">", 0],
         },
-        fields=[
-            "name", "custom_client", "posting_date", "due_date",
-            "status", "grand_total", "rounded_total", "outstanding_amount", "currency",
-        ],
+        fields=fetch_fields,
         order_by="posting_date desc",
-        limit_page_length=limit,
+        # Fetched uncapped when peer invoices need filtering out below, since
+        # limiting at the DB level first could hide office-owed rows behind
+        # a page of coach-to-coach ones - trimmed back to `limit` afterwards.
+        limit_page_length=2000 if exclude_peer_invoices else limit,
         ignore_permissions=True,
     )
+
+    if exclude_peer_invoices:
+        # An internal invoice's income can belong to a specific coach
+        # instead of office (e.g. Emily invoicing SJ's linked Client on her
+        # own behalf - see _set_invoice_defaults()'s custom_income_owner_coach
+        # logic). That's a private matter between those two coaches, not
+        # office's business, so the franchisor-wide "owed to office" view
+        # excludes anything that already has a coach attached as its income
+        # owner.
+        rows = [row for row in rows if not row.get("custom_income_owner_coach")][:limit]
 
     base_url = {
         COACH_DASHBOARD: "/coach_db/invoice_details",
