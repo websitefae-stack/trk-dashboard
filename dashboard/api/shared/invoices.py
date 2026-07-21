@@ -2341,3 +2341,76 @@ def allocate_invoice_payment(invoice_name=None, posting_date=None, amount=None, 
         "grand_total": invoice.grand_total,
     }
 
+
+# =====================================================
+# TEMPORARY DIAGNOSTIC - Outstanding Internal Invoices
+# =====================================================
+# Read-only. Lets a franchisor user see the raw state behind the
+# Outstanding Internal Invoices section without needing System Console
+# access, to track down why it's still showing empty. Safe to delete once
+# that's confirmed working - doesn't touch any data.
+
+@frappe.whitelist()
+def debug_internal_invoices():
+    _require_logged_in_user()
+
+    if not _is_franchisor_user():
+        frappe.throw(_("Franchisor access only."), frappe.PermissionError)
+
+    result = {}
+
+    coach = frappe.db.get_value("Coach", {"user": frappe.session.user}, "name") \
+        or frappe.db.get_value("Coach", {"coach_email": frappe.session.user}, "name")
+    result["logged_in_user"] = frappe.session.user
+    result["logged_in_user_coach"] = coach
+
+    has_linked_client_field = frappe.get_meta("Coach").has_field("linked_client")
+    has_income_owner_field = frappe.get_meta("Sales Invoice").has_field("custom_income_owner_coach")
+    result["coach_has_linked_client_field"] = has_linked_client_field
+    result["sales_invoice_has_income_owner_field"] = has_income_owner_field
+
+    coach_rows = []
+    if has_linked_client_field:
+        coach_rows = frappe.get_all(
+            "Coach",
+            filters={"linked_client": ["is", "set"]},
+            fields=["name", "coach_name", "linked_client"],
+        )
+    result["coaches_with_linked_client"] = [
+        {"coach": r.name, "coach_label": r.coach_name, "linked_client": r.linked_client}
+        for r in coach_rows
+    ]
+
+    linked_client_names = [r.linked_client for r in coach_rows if r.linked_client]
+    coach_by_client = {r.linked_client: r.name for r in coach_rows if r.linked_client}
+
+    invoices = []
+    if linked_client_names:
+        fields = ["name", "custom_client", "docstatus", "status", "outstanding_amount", "grand_total"]
+        if has_income_owner_field:
+            fields.append("custom_income_owner_coach")
+
+        rows = frappe.get_all(
+            "Sales Invoice",
+            filters={"custom_client": ["in", linked_client_names]},
+            fields=fields,
+            order_by="posting_date desc",
+            ignore_permissions=True,
+        )
+
+        for row in rows:
+            invoices.append({
+                "invoice": row.get("name"),
+                "owed_by_coach": coach_by_client.get(row.get("custom_client")),
+                "custom_client": row.get("custom_client"),
+                "docstatus": row.get("docstatus"),
+                "status": row.get("status"),
+                "outstanding_amount": row.get("outstanding_amount"),
+                "grand_total": row.get("grand_total"),
+                "custom_income_owner_coach": row.get("custom_income_owner_coach") if has_income_owner_field else None,
+            })
+
+    result["invoices_against_linked_clients"] = invoices
+
+    return result
+
