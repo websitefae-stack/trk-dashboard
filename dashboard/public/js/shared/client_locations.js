@@ -221,6 +221,51 @@
     return lower.concat(upper);
   }
 
+  function computeCentroid(points) {
+    if (!points.length) return null;
+    var sumLat = 0, sumLng = 0;
+    points.forEach(function (p) { sumLat += p[0]; sumLng += p[1]; });
+    return [sumLat / points.length, sumLng / points.length];
+  }
+
+  function boundsAroundPoints(points, padDegrees) {
+    var lats = points.map(function (p) { return p[0]; });
+    var lngs = points.map(function (p) { return p[1]; });
+    return [
+      Math.min.apply(null, lngs) - padDegrees,
+      Math.min.apply(null, lats) - padDegrees,
+      Math.max.apply(null, lngs) + padDegrees,
+      Math.max.apply(null, lats) + padDegrees
+    ];
+  }
+
+  function squaredDist(a, b) {
+    var dx = a[0] - b[0], dy = a[1] - b[1];
+    return dx * dx + dy * dy;
+  }
+
+  // Which of point i's Delaunay neighbours (if any) this Voronoi cell edge
+  // is shared with. A real shared edge sits exactly on the perpendicular
+  // bisector of i and that neighbour, so its midpoint is (to floating-point
+  // precision) equidistant from both - an edge produced by clipping the
+  // cell to the bounding box instead never is, for any neighbour, so this
+  // reliably tells the two apart without needing polygon-union geometry.
+  function edgeNeighbor(midpoint, seedXY, i, neighborIndexes) {
+    var di = squaredDist(midpoint, seedXY[i]);
+    var best = null;
+    var bestDiff = Infinity;
+
+    neighborIndexes.forEach(function (j) {
+      var diff = Math.abs(di - squaredDist(midpoint, seedXY[j]));
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = j;
+      }
+    });
+
+    return bestDiff < 1e-9 ? best : null;
+  }
+
   // postcodes.io's bulk lookup takes up to 100 postcodes per request - chunk
   // accordingly rather than assuming every report run stays under that.
   async function geocodePostcodes(postcodes) {
@@ -309,23 +354,61 @@
     }
   }
 
-  // Draws the coach's *assigned* Territory Postcode Areas as a thick red,
-  // filled, labelled outline - deliberately distinct from the thin,
-  // coach-coloured hull drawn around a coach's actual client points
-  // further down, since that one only shows where existing clients happen
-  // to be, not where the coach is meant to be covering. This is the one
-  // that answers "is this client out of area" against the area itself.
+  // Single-point-per-coach fallback (a plain circle) - only reached when
+  // there aren't enough territory points site-wide for a Voronoi diagram to
+  // mean anything (fewer than 2), or the d3-delaunay bundle didn't load.
+  function plotTerritoryBoundariesFallback(coachNames, centroidByPrefix, prefixesByCoach) {
+    coachNames.forEach(function (coachName) {
+      var label = state.coachLabelByName[coachName] || coachName;
+      var color = customCoachColor(coachName) || TERRITORY_BOUNDARY_COLOR;
+      var points = (prefixesByCoach[coachName] || [])
+        .map(function (prefix) { return centroidByPrefix[prefix]; })
+        .filter(Boolean);
+
+      if (!points.length) return;
+
+      var point = computeCentroid(points);
+      window.L.circle(point, {
+        radius: 3000,
+        color: color,
+        weight: 4,
+        opacity: 0.9,
+        fillOpacity: 0.18
+      })
+        .addTo(state.territoryLayer)
+        .bindPopup(escapeHtml(label) + "'s assigned area (approximate)");
+    });
+  }
+
+  // Draws each coach's *assigned* Territory Postcode Areas as a filled,
+  // labelled region in their own colour (see coachColor()/customCoachColor()).
+  //
+  // Rather than a convex hull around a handful of centre points (which can
+  // only ever bulge outward, never fit a real coastline or dip inward
+  // between two coaches - see the git history of this function for that
+  // earlier attempt), this tessellates a Voronoi diagram over every
+  // coach's postcode-area points *site-wide* and gives each coach the
+  // cells belonging to their own points. Two coaches' points always end up
+  // with a shared, gap-free border between their cells - exactly the
+  // "areas fit together like puzzle pieces" look a real postcode-boundary
+  // map (e.g. Vision's) has, without needing real GIS boundary data this
+  // app has no access to. It's still an approximation: a Voronoi cell is
+  // "closer to this point than any other claimed point", not the true
+  // legal shape of a postcode sector, and a sector nobody has claimed gets
+  // silently absorbed into whichever claimed neighbour is nearest.
   async function plotTerritoryBoundaries(territories) {
     var coachNames = Object.keys(territories || {});
     if (!coachNames.length) return;
 
     var prefixesByCoach = {};
     var allPrefixes = [];
+    var coachOfPrefix = {};
 
     coachNames.forEach(function (coachName) {
       var prefixes = Array.from(new Set((territories[coachName] || []).map(function (p) { return (p || "").trim().toUpperCase(); }).filter(Boolean)));
       prefixesByCoach[coachName] = prefixes;
       allPrefixes = allPrefixes.concat(prefixes);
+      prefixes.forEach(function (prefix) { coachOfPrefix[prefix] = coachName; });
     });
 
     var uniquePrefixes = Array.from(new Set(allPrefixes));
@@ -347,55 +430,93 @@
     var pointCoords = await geocodePostcodes(allSamples);
     var outcodeCoords = fallbackOutcodes.length ? await geocodeOutcodes(fallbackOutcodes) : {};
 
+    // One representative seed point per prefix - the centre of its
+    // sampled real postcodes (see autocompletePostcodes() above), or the
+    // plain district centre if none resolved.
+    var centroidByPrefix = {};
+    uniquePrefixes.forEach(function (prefix) {
+      var samples = samplesByPrefix[prefix] || [];
+      var points = samples.map(function (postcode) { return pointCoords[postcode.trim().toUpperCase()]; }).filter(Boolean);
+
+      if (points.length) {
+        centroidByPrefix[prefix] = computeCentroid(points);
+      } else if (outcodeCoords[territoryOutcode(prefix)]) {
+        centroidByPrefix[prefix] = outcodeCoords[territoryOutcode(prefix)];
+      }
+    });
+
+    var seeds = uniquePrefixes
+      .map(function (prefix) { return { coachName: coachOfPrefix[prefix], point: centroidByPrefix[prefix] }; })
+      .filter(function (s) { return !!s.point; });
+
+    if (seeds.length < 2 || !window.d3 || !window.d3.Delaunay) {
+      plotTerritoryBoundariesFallback(coachNames, centroidByPrefix, prefixesByCoach);
+      return;
+    }
+
+    // x/y here is lng/lat (Delaunay/Voronoi don't care about map
+    // projections, just relative position) - flipped back to Leaflet's
+    // [lat, lng] only when a ring/segment is actually drawn.
+    var seedXY = seeds.map(function (s) { return [s.point[1], s.point[0]]; });
+    var bounds = boundsAroundPoints(seeds.map(function (s) { return s.point; }), 0.08);
+
+    var delaunay = window.d3.Delaunay.from(seedXY);
+    var voronoi = delaunay.voronoi(bounds);
+
+    var cellIndexesByCoach = {};
+    seeds.forEach(function (seed, i) {
+      if (!cellIndexesByCoach[seed.coachName]) cellIndexesByCoach[seed.coachName] = [];
+      cellIndexesByCoach[seed.coachName].push(i);
+    });
+
     coachNames.forEach(function (coachName) {
+      var cellIndexes = cellIndexesByCoach[coachName];
+      if (!cellIndexes || !cellIndexes.length) return;
+
       var label = state.coachLabelByName[coachName] || coachName;
-      // The office's own Coach.colour when set, so each franchisee's area
-      // reads as theirs at a glance - otherwise the same plain red every
-      // territory used to be drawn in, as a clear "no colour set yet" cue.
       var color = customCoachColor(coachName) || TERRITORY_BOUNDARY_COLOR;
-      var points = [];
 
-      prefixesByCoach[coachName].forEach(function (prefix) {
-        var samples = samplesByPrefix[prefix] || [];
+      var fillRings = [];
+      var borderSegments = [];
 
-        if (samples.length) {
-          samples.forEach(function (postcode) {
-            var point = pointCoords[postcode.trim().toUpperCase()];
-            if (point) points.push(point);
-          });
-        } else {
-          var outcodePoint = outcodeCoords[territoryOutcode(prefix)];
-          if (outcodePoint) points.push(outcodePoint);
+      cellIndexes.forEach(function (i) {
+        var ring = voronoi.cellPolygon(i);
+        if (!ring || ring.length < 4) return;
+
+        fillRings.push(ring.map(function (p) { return [p[1], p[0]]; }));
+
+        var neighborIndexes = Array.from(delaunay.neighbors(i));
+
+        for (var e = 0; e < ring.length - 1; e++) {
+          var p1 = ring[e];
+          var p2 = ring[e + 1];
+          var midpoint = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
+          var neighborI = edgeNeighbor(midpoint, seedXY, i, neighborIndexes);
+
+          // Only skip drawing an edge that borders another cell BELONGING
+          // TO THE SAME COACH - everything else (a different coach, or no
+          // matching neighbour at all, i.e. the true outer edge of this
+          // coach's whole area) gets drawn.
+          if (neighborI !== null && seeds[neighborI].coachName === coachName) continue;
+
+          borderSegments.push([[p1[1], p1[0]], [p2[1], p2[0]]]);
         }
       });
 
-      if (points.length >= 3) {
-        var hull = convexHull(points);
-        window.L.polygon(hull, {
-          color: color,
-          weight: 4,
-          opacity: 0.9,
-          fillOpacity: 0.18,
-          lineJoin: "round"
-        })
-          .addTo(state.territoryLayer)
-          .bindPopup(escapeHtml(label) + "'s assigned area")
-          .bindTooltip(escapeHtml(label), { permanent: true, direction: "center", className: "trk-territory-label" });
-      } else if (points.length === 2) {
-        window.L.polyline(points, { color: color, weight: 4, opacity: 0.9 })
-          .addTo(state.territoryLayer)
-          .bindPopup(escapeHtml(label) + "'s assigned area");
-      } else if (points.length === 1) {
-        window.L.circle(points[0], {
-          radius: 3000,
-          color: color,
-          weight: 4,
-          opacity: 0.9,
-          fillOpacity: 0.18
-        })
-          .addTo(state.territoryLayer)
-          .bindPopup(escapeHtml(label) + "'s assigned area (approximate)");
-      }
+      if (!fillRings.length) return;
+
+      window.L.polygon(fillRings, {
+        stroke: false,
+        fillColor: color,
+        fillOpacity: 0.28
+      })
+        .addTo(state.territoryLayer)
+        .bindPopup(escapeHtml(label) + "'s assigned area")
+        .bindTooltip(escapeHtml(label), { permanent: true, direction: "center", className: "trk-territory-label" });
+
+      borderSegments.forEach(function (segment) {
+        window.L.polyline(segment, { color: color, weight: 3, opacity: 0.9 }).addTo(state.territoryLayer);
+      });
     });
   }
 
