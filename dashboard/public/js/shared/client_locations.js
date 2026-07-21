@@ -96,12 +96,6 @@
 
     state.map = window.L.map(mapEl).setView([54.5, -3], 6);
 
-    window.L.Icon.Default.mergeOptions({
-      iconUrl: "/assets/dashboard/vendor/leaflet/images/marker-icon.png",
-      iconRetinaUrl: "/assets/dashboard/vendor/leaflet/images/marker-icon-2x.png",
-      shadowUrl: "/assets/dashboard/vendor/leaflet/images/marker-shadow.png"
-    });
-
     window.L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 18,
       attribution: "&copy; OpenStreetMap contributors"
@@ -109,7 +103,53 @@
 
     state.markerLayer = window.L.layerGroup().addTo(state.map);
 
+    // Leaflet's zoom control and attribution links are <a href="#"> - it
+    // prevents their own default navigation internally, but belt-and-braces
+    // this stops ANY stray href="#" click inside the map (however it got
+    // there) from falling through to the browser's default "jump to top of
+    // page" behaviour for an empty-fragment link.
+    mapEl.addEventListener("click", function (event) {
+      var anchor = event.target.closest("a");
+      if (anchor && (anchor.getAttribute("href") === "#" || anchor.getAttribute("href") === "")) {
+        event.preventDefault();
+      }
+    }, true);
+
     return state.map;
+  }
+
+  // Small, high-contrast palette so each coach's pins are visually distinct
+  // on the map - deterministic (same coach always gets the same colour
+  // across report runs) via a simple string hash rather than assignment
+  // order, which would shuffle colours whenever the coach list changes.
+  var PIN_COLORS = [
+    "#E4572E", "#17BEBB", "#2E86AB", "#A23B72", "#F18F01",
+    "#6A994E", "#8338EC", "#D62839", "#3A86FF", "#B5838D"
+  ];
+
+  function colorForCoach(label) {
+    var text = label || "Unassigned";
+    var hash = 0;
+    for (var i = 0; i < text.length; i++) {
+      hash = (hash * 31 + text.charCodeAt(i)) & 0xffffffff;
+    }
+    return PIN_COLORS[Math.abs(hash) % PIN_COLORS.length];
+  }
+
+  function pinIcon(color) {
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="26" height="36" viewBox="0 0 26 36">'
+      + '<path d="M13 0C5.82 0 0 5.82 0 13c0 9.75 13 23 13 23s13-13.25 13-23C26 5.82 20.18 0 13 0z" '
+      + 'fill="' + color + '" stroke="#ffffff" stroke-width="1.5"/>'
+      + '<circle cx="13" cy="13" r="4.5" fill="#ffffff"/>'
+      + '</svg>';
+
+    return window.L.divIcon({
+      className: "trk-map-pin",
+      html: svg,
+      iconSize: [26, 36],
+      iconAnchor: [13, 34],
+      popupAnchor: [0, -30]
+    });
   }
 
   // postcodes.io's bulk lookup takes up to 100 postcodes per request - chunk
@@ -189,7 +229,7 @@
           return;
         }
 
-        window.L.marker(point)
+        window.L.marker(point, { icon: pinIcon(colorForCoach(row.coach_label)) })
           .addTo(state.markerLayer)
           .bindPopup(
             "<strong>" + escapeHtml(row.client_label || row.client) + "</strong><br>"
