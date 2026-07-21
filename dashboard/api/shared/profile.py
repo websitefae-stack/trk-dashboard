@@ -295,8 +295,19 @@ def update_my_profile(role):
         user_meta = frappe.get_meta("User")
 
         for fieldname in config["user_update_fields"]:
-            if frappe.form_dict.get(fieldname) is not None and user_meta.has_field(fieldname):
-                user_updates[fieldname] = frappe.form_dict.get(fieldname)
+            value = frappe.form_dict.get(fieldname)
+            if value is None or not user_meta.has_field(fieldname):
+                continue
+
+            # A blank Date/Datetime field (e.g. Date of Birth left empty)
+            # submits as "" - MySQL rejects that outright for a DATE/
+            # DATETIME column ("Incorrect date value"), it has to be NULL
+            # instead, unlike a blank text field which is happy with "".
+            field_df = user_meta.get_field(fieldname)
+            if value == "" and field_df and field_df.fieldtype in ("Date", "Datetime"):
+                value = None
+
+            user_updates[fieldname] = value
 
         if photo_url and user_meta.has_field("user_image"):
             user_updates["user_image"] = photo_url
