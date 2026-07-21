@@ -652,7 +652,13 @@
           );
         }
 
-        window.L.marker(point, { icon: pinIcon(color, flagged) })
+        // keyboard:false - same fix as the map container itself (see
+        // ensureMap()): Leaflet markers get their own separate tabindex
+        // for keyboard accessibility by default, so clicking a pin to
+        // open its popup was focusing it and the browser was scrolling
+        // that focused element into view - reading as "the page jumps"
+        // every time a pin is clicked.
+        window.L.marker(point, { icon: pinIcon(color, flagged), keyboard: false })
           .addTo(state.markerLayer)
           .bindPopup(popupLines.join("<br>"));
 
@@ -769,6 +775,32 @@
     }
   }
 
+  // Since coach territories are now real postcode shapes rather than a
+  // space-partitioning Voronoi diagram (which could never let two coaches'
+  // areas touch), two coaches whose Territory Postcode Areas both include
+  // the same district will genuinely overlap on the map - this makes that
+  // explicit instead of leaving it as a confusing patch of double-coloured
+  // map, so office knows exactly which Coach records to go fix.
+  function renderTerritoryOverlaps(overlaps) {
+    var box = el("clientLocationsTerritoryOverlaps");
+    if (!box) return;
+
+    if (!overlaps || !overlaps.length) {
+      box.style.display = "none";
+      box.innerHTML = "";
+      return;
+    }
+
+    var lines = overlaps.map(function (row) {
+      return "<strong>" + escapeHtml(row.district) + "</strong> is in both "
+        + row.coach_labels.map(escapeHtml).join(" and ") + "'s Territory Postcode Areas.";
+    });
+
+    box.innerHTML = "<strong>Overlapping territories - worth checking their Coach records:</strong><br>"
+      + lines.join("<br>");
+    box.style.display = "";
+  }
+
   async function runReport() {
     var btn = el("runClientLocationsReportBtn");
     var select = el("clientLocationsCoachSelect");
@@ -787,6 +819,8 @@
       state.rows = rows;
       state.territories = (payload && payload.territories) || {};
       state.territoryBoundaries = (payload && payload.territory_boundaries) || {};
+
+      renderTerritoryOverlaps((payload && payload.territory_overlaps) || []);
 
       if (!rows.length) {
         if (empty) { empty.style.display = ""; empty.textContent = "No clients with a postcode found."; }

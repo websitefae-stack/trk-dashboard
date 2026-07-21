@@ -282,6 +282,16 @@ def _get_bank_account_owner_coach(bank_account_name):
     return frappe.db.get_value("Coach", {"bank_account": bank_account_name}, "name") or ""
 
 
+def _is_coach_own_linked_client(client_name):
+    """True when `client_name` is some Coach's own Coach.linked_client - the
+    internal billing record used to invoice that coach directly (e.g. a
+    Franchise Fee), as opposed to an ordinary paying Client."""
+    if not client_name or not frappe.get_meta("Coach").has_field("linked_client"):
+        return False
+
+    return bool(frappe.db.exists("Coach", {"linked_client": client_name}))
+
+
 def _get_coach_company(coach_name):
     if not coach_name or not _has_doctype("Coach"):
         return ""
@@ -1048,7 +1058,17 @@ def get_invoice_page_data(dashboard_type=None, selected_coach=None):
     selected_coach = (selected_coach or "").strip()
     current_coach_name = (current_coach.get("name") or "").strip()
 
-    if selected_coach == current_coach_name:
+    # Only meaningful for a coach's own dashboard, where "selecting
+    # yourself" is the same as no selection at all - collapsing it to ""
+    # keeps _get_clients_for_invoice_scope() on its plain
+    # {"primary_coach": current_coach_name} branch. For a franchisor this
+    # would be actively wrong: their own dashboard revenue figures are
+    # scoped to their own coach identity (see dashboard.py's
+    # _get_invoice_client_names_for_dashboard), so the drill-down link
+    # explicitly selects that same coach by name - resetting it here would
+    # silently widen the list back out to every coach's invoices instead
+    # of matching the figure that was clicked.
+    if dashboard_type == COACH_DASHBOARD and selected_coach == current_coach_name:
         selected_coach = ""
 
     client_rows = _get_clients_for_invoice_scope(
@@ -1613,10 +1633,19 @@ def _set_invoice_header_fields(doc, payload):
 
         if override_owner:
             doc.custom_income_owner_coach = override_owner
-        else:
+        elif not _is_coach_own_linked_client(doc.custom_client):
             client_primary = frappe.db.get_value("Client", doc.custom_client, "primary_coach")
             if client_primary:
                 doc.custom_income_owner_coach = client_primary
+        # else: an "internal invoice" against a coach's own linked_client
+        # (e.g. HQ invoicing them for their franchise fee) - that Client's
+        # own primary_coach is that same coach, so the fallback above would
+        # wrongly record the fee as belonging to the coach being invoiced
+        # rather than to HQ, which then hid it from the franchisor's
+        # Outstanding Internal Invoices oversight (custom_income_owner_coach
+        # set == "someone else's private business, not office's" there).
+        # Leaving it unset here correctly means "office/HQ", same as an
+        # ordinary bank-account invoice with no override.
 
 
 def _set_invoice_items(doc, items_payload):
