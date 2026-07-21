@@ -1636,8 +1636,13 @@ def _set_invoice_header_fields(doc, payload):
             # naturally is too), which then hid it from the franchisor's
             # Outstanding Internal Invoices oversight
             # (custom_income_owner_coach set == "someone else's private
-            # business, not office's" there) - leaving it unset here is
-            # what that view correctly reads as "office/HQ".
+            # business, not office's" there) - explicitly force it blank
+            # here (not just "leave it alone") since this field has its
+            # own default value that Frappe applies before this code ever
+            # runs, which turned out to be a non-blank placeholder rather
+            # than "" - simply not touching it wasn't enough to stop that
+            # default winning.
+            doc.custom_income_owner_coach = ""
             return
 
         # An overridden bank account (e.g. Emily invoicing on SJ's behalf
