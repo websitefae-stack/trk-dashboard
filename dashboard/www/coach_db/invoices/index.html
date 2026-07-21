@@ -24,6 +24,18 @@
         </div>
       </div>
 
+      {% if revenue_category %}
+        {% set revenue_category_labels = {
+          "client": "Client Invoices revenue",
+          "travel": "Travel revenue",
+          "interbusiness": "Interbusiness revenue",
+        } %}
+        <div class="dashboard-card dashboard-revenue-filter-banner" style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px;">
+          <span>Showing invoices for <strong>{{ revenue_category_labels.get(revenue_category, revenue_category) }}</strong>{% if from_date and to_date %} between {{ frappe.utils.formatdate(from_date, "dd-MM-yyyy") }} and {{ frappe.utils.formatdate(to_date, "dd-MM-yyyy") }}{% endif %}.</span>
+          <a class="dashboard-btn dashboard-btn-light" href="{{ dashboard_base_path }}/invoices">Clear filter</a>
+        </div>
+      {% endif %}
+
       <div class="dashboard-card dashboard-filter-bar">
         <div class="dashboard-filter-field dashboard-filter-search">
           <label for="invoiceSearch">Search invoices</label>

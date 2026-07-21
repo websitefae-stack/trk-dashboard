@@ -370,9 +370,9 @@
   }
 
   // Turns a revenue figure into a link straight to the invoices that make
-  // it up - franchisor dashboard only (the element is a plain, non-linked
-  // <div>/<span> on the coach dashboard, which shares these element IDs
-  // but not this clickable behaviour).
+  // it up, on whichever dashboard is currently loaded - a no-op on any
+  // page where the element is a plain, non-linked <div>/<span> rather than
+  // an <a> (node.href stays undefined for those).
   function setRevenueLink(id, amount, fromDate, toDate, revenueCategory) {
     const node = el(id);
     if (!node) return;
@@ -387,7 +387,8 @@
     params.set("status", "");
     if (revenueCategory) params.set("revenue_category", revenueCategory);
 
-    node.href = "/franchisor_db/invoices?" + params.toString();
+    const basePath = getDashboardType() === "coach" ? "/coach_db" : "/franchisor_db";
+    node.href = basePath + "/invoices?" + params.toString();
   }
 
   function renderCoachFranchisorDashboard(payload) {
@@ -413,8 +414,8 @@
     setRevenueLink("dashboardRevenuePreviousTotal", payload.revenue_total_previous, prevFrom, prevTo, "");
     setRevenueLink("dashboardRevenueCurrentTotal", payload.revenue_total_current, currFrom, currTo, "");
 
-    setText("dashboardRevenuePreviousClient", formatMoney(payload.revenue_client_previous || 0, "GBP"));
-    setText("dashboardRevenueCurrentClient", formatMoney(payload.revenue_client_current || 0, "GBP"));
+    setRevenueLink("dashboardRevenuePreviousClient", payload.revenue_client_previous, prevFrom, prevTo, "client");
+    setRevenueLink("dashboardRevenueCurrentClient", payload.revenue_client_current, currFrom, currTo, "client");
 
     // Franchisor-only revenue breakdown rows - setRevenueLink()/setText()
     // no-op when the element isn't on the page, so this is harmless on the

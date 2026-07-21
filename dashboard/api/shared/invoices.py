@@ -760,6 +760,11 @@ _REVENUE_CATEGORY_CLIENT_TYPES = {
     "schools": {"School"},
     "people": {"Adult", "Company"},
     "interbusiness": {"Franchise"},
+    # The coach dashboard's revenue breakdown combines the three client-type
+    # buckets above into one "Client" figure (matches dashboard.py's
+    # client_total = kids_teens_uni_total + schools_total + people_total) -
+    # this is what its revenue drill-down link filters by.
+    "client": {"Kid", "Teen", "Uni Student", "School", "Adult", "Company"},
 }
 
 
