@@ -23,6 +23,30 @@
     .trk-territory-label::before {
       display: none;
     }
+
+    .trk-coach-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 16px;
+      margin: 10px 0 4px;
+    }
+
+    .trk-coach-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #434B49;
+    }
+
+    .trk-coach-swatch {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      border: 1px solid rgba(0,0,0,0.15);
+      flex-shrink: 0;
+    }
   </style>
 
   <div class="dashboard-detail-section-head">
@@ -34,9 +58,10 @@
     coach is working. Shows the client's own postcode and, where set, their Therapy Location's postcode.
     If a coach has Territory Postcode Areas set on their Coach record, clients outside that coach's own
     area - or inside another coach's - are flagged in red, and that coach's assigned area is outlined on
-    the map with a thick red line (an approximate boundary from the postcode areas themselves, not an
-    official postcode-area shape). A coach with no Territory Postcode Areas set instead gets a thin,
-    coach-coloured outline based on where their actual in-area clients happen to sit.
+    the map in their own colour (an approximate boundary from the postcode areas themselves, not an
+    official postcode-area shape; falls back to a plain thick red line until a colour is set on the Coach
+    record). A coach with no Territory Postcode Areas set instead gets a thin, colour-matched outline based
+    on where their actual in-area clients happen to sit.
   </p>
 
   <div class="trk-calendar-form-row">
@@ -47,6 +72,8 @@
       </select>
     </div>
   </div>
+
+  <div id="clientLocationsCoachLegend" class="trk-coach-legend"></div>
 
   <div class="dashboard-detail-actions" style="margin: 14px 0 18px;">
     <button type="button" class="dashboard-btn dashboard-btn-primary" id="runClientLocationsReportBtn">Run Report</button>

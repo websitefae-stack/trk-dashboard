@@ -72,7 +72,7 @@
     URL.revokeObjectURL(url);
   }
 
-  var state = { rows: [], territories: {}, coachLabelByName: {}, map: null, markerLayer: null, territoryLayer: null };
+  var state = { rows: [], territories: {}, coachLabelByName: {}, coachColorByName: {}, map: null, markerLayer: null, territoryLayer: null };
 
   var TERRITORY_BOUNDARY_COLOR = "#D7263D";
 
@@ -148,6 +148,20 @@
       hash = (hash * 31 + text.charCodeAt(i)) & 0xffffffff;
     }
     return PIN_COLORS[Math.abs(hash) % PIN_COLORS.length];
+  }
+
+  var HEX_COLOR_RE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+  function customCoachColor(coachName) {
+    var colour = state.coachColorByName[coachName];
+    return colour && HEX_COLOR_RE.test(colour) ? colour : "";
+  }
+
+  // The office-assigned Coach.colour when there is one (and it's a real hex
+  // colour, not whatever was typed into that field), otherwise the same
+  // deterministic hash-based colour pins/hulls have always used.
+  function coachColor(coachName, label) {
+    return customCoachColor(coachName) || colorForCoach(label || coachName);
   }
 
   var OUT_OF_AREA_COLOR = "#1a1a1a";
@@ -335,6 +349,10 @@
 
     coachNames.forEach(function (coachName) {
       var label = state.coachLabelByName[coachName] || coachName;
+      // The office's own Coach.colour when set, so each franchisee's area
+      // reads as theirs at a glance - otherwise the same plain red every
+      // territory used to be drawn in, as a clear "no colour set yet" cue.
+      var color = customCoachColor(coachName) || TERRITORY_BOUNDARY_COLOR;
       var points = [];
 
       prefixesByCoach[coachName].forEach(function (prefix) {
@@ -354,7 +372,7 @@
       if (points.length >= 3) {
         var hull = convexHull(points);
         window.L.polygon(hull, {
-          color: TERRITORY_BOUNDARY_COLOR,
+          color: color,
           weight: 4,
           opacity: 0.9,
           fillOpacity: 0.18,
@@ -364,13 +382,13 @@
           .bindPopup(escapeHtml(label) + "'s assigned area")
           .bindTooltip(escapeHtml(label), { permanent: true, direction: "center", className: "trk-territory-label" });
       } else if (points.length === 2) {
-        window.L.polyline(points, { color: TERRITORY_BOUNDARY_COLOR, weight: 4, opacity: 0.9 })
+        window.L.polyline(points, { color: color, weight: 4, opacity: 0.9 })
           .addTo(state.territoryLayer)
           .bindPopup(escapeHtml(label) + "'s assigned area");
       } else if (points.length === 1) {
         window.L.circle(points[0], {
           radius: 3000,
-          color: TERRITORY_BOUNDARY_COLOR,
+          color: color,
           weight: 4,
           opacity: 0.9,
           fillOpacity: 0.18
@@ -416,7 +434,7 @@
 
     rows.forEach(function (row) {
       var flagged = row.in_area === false;
-      var color = flagged ? OUT_OF_AREA_COLOR : colorForCoach(row.coach_label);
+      var color = flagged ? OUT_OF_AREA_COLOR : coachColor(row.coach, row.coach_label);
 
       [
         { postcode: row.client_postcode, label: "Home" },
@@ -454,38 +472,37 @@
         // Only in-area points contribute to a coach's territory outline -
         // an out-of-area client's point shouldn't stretch their own
         // coach's boundary out to cover them, that's the whole point of
-        // flagging it.
-        if (row.in_area !== false && row.coach_label) {
-          if (!pointsByCoach[row.coach_label]) pointsByCoach[row.coach_label] = [];
-          pointsByCoach[row.coach_label].push(point);
+        // flagging it. Keyed by coach docname (not label) so it lines up
+        // with state.coachColorByName/state.territories.
+        if (row.in_area !== false && row.coach) {
+          if (!pointsByCoach[row.coach]) {
+            pointsByCoach[row.coach] = { label: row.coach_label || row.coach, points: [] };
+          }
+          pointsByCoach[row.coach].points.push(point);
         }
       });
     });
 
     // A coach with an assigned Territory Postcode Areas boundary gets that
-    // one drawn instead (thick red, plotted below) - this thin coach-
-    // coloured hull is only a fallback for coaches nobody has set a
-    // territory for yet, where "where their clients happen to be" is all
-    // there is to go on.
-    var labelsWithTerritory = {};
-    Object.keys(state.territories || {}).forEach(function (coachName) {
-      labelsWithTerritory[state.coachLabelByName[coachName] || coachName] = true;
-    });
+    // one drawn instead (plotted below) - this thin coach-coloured hull is
+    // only a fallback for coaches nobody has set a territory for yet, where
+    // "where their clients happen to be" is all there is to go on.
+    var namesWithTerritory = state.territories || {};
 
-    Object.keys(pointsByCoach).forEach(function (coachLabel) {
-      if (labelsWithTerritory[coachLabel]) return;
+    Object.keys(pointsByCoach).forEach(function (coachName) {
+      if (namesWithTerritory[coachName]) return;
 
-      var pts = pointsByCoach[coachLabel];
-      if (pts.length < 3) return;
+      var entry = pointsByCoach[coachName];
+      if (entry.points.length < 3) return;
 
-      var hull = convexHull(pts);
+      var hull = convexHull(entry.points);
       window.L.polygon(hull, {
-        color: colorForCoach(coachLabel),
+        color: coachColor(coachName, entry.label),
         weight: 2,
         fillOpacity: 0.08
       })
         .addTo(state.territoryLayer)
-        .bindPopup(escapeHtml(coachLabel) + "'s area");
+        .bindPopup(escapeHtml(entry.label) + "'s area");
     });
 
     await plotTerritoryBoundaries(state.territories);
@@ -509,6 +526,36 @@
     setTimeout(function () { map.invalidateSize(); }, 0);
   }
 
+  // Native <select><option> elements can't render a colour swatch inside
+  // themselves in any browser - there's just no supported way to put a
+  // styled element inside an <option>. This legend is the workaround: the
+  // same colour used for that coach's pins/area on the map, shown next to
+  // their name outside the dropdown instead of unreachably inside it.
+  function renderCoachLegend() {
+    var legend = el("clientLocationsCoachLegend");
+    if (!legend) return;
+
+    var names = Object.keys(state.coachLabelByName).filter(function (name) {
+      return !!customCoachColor(name);
+    });
+
+    if (!names.length) {
+      legend.innerHTML = "";
+      return;
+    }
+
+    names.sort(function (a, b) {
+      return (state.coachLabelByName[a] || "").localeCompare(state.coachLabelByName[b] || "");
+    });
+
+    legend.innerHTML = names.map(function (name) {
+      return '<span class="trk-coach-legend-item">'
+        + '<span class="trk-coach-swatch" style="background:' + escapeHtml(customCoachColor(name)) + ';"></span>'
+        + escapeHtml(state.coachLabelByName[name] || name)
+        + "</span>";
+    }).join("");
+  }
+
   async function loadCoachOptions() {
     var select = el("clientLocationsCoachSelect");
 
@@ -517,6 +564,7 @@
 
       (options || []).forEach(function (opt) {
         state.coachLabelByName[opt.value] = opt.label;
+        if (opt.colour) state.coachColorByName[opt.value] = opt.colour;
 
         if (select) {
           var optionEl = document.createElement("option");
@@ -525,6 +573,8 @@
           select.appendChild(optionEl);
         }
       });
+
+      renderCoachLegend();
     } catch (error) {
       console.error("Coach options failed:", error);
     }

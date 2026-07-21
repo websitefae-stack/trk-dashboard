@@ -190,6 +190,10 @@ def _get_coach_options():
         if meta.has_field(fieldname):
             fields.append(fieldname)
 
+    has_colour = meta.has_field("colour")
+    if has_colour:
+        fields.append("colour")
+
     if meta.has_field("coach_name"):
         order_by = "coach_name asc, name asc"
     elif meta.has_field("name1"):
@@ -213,6 +217,7 @@ def _get_coach_options():
         {
             "value": row.get("name"),
             "label": _coach_label(row),
+            "colour": (row.get("colour") or "").strip() if has_colour else "",
         }
         for row in rows
     ]
