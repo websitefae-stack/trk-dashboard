@@ -74,12 +74,15 @@ LAYOUT = [
                     {"label": "Age", "candidates": ["age"]},
                     {"label": "Address", "candidates": ["address"]},
 
-                    # Label is overridden dynamically in build_field() below
-                    # based on the client's own client_type (Kid vs Teen) -
-                    # the label here is just a fallback.
-                    {"label": "Resilient Pack Sent", "candidates": ["custom_resilient_pack_sent", "trk_pack", "trt_pack"]},
                     {"label": "City", "candidates": ["city"]},
                     {"label": "Zip Code", "candidates": ["zip_code", "postcode", "postal_code"]},
+
+                    # Label is overridden dynamically in build_field() below
+                    # based on the client's own client_type (Kid vs Teen) -
+                    # the label here is just a fallback. Placed last so it
+                    # reads as a standalone tickbox after the address block,
+                    # not squeezed between Address and City.
+                    {"label": "Resilient Pack Sent", "candidates": ["custom_resilient_pack_sent", "trk_pack", "trt_pack"]},
                 ],
             },
             {
