@@ -15,6 +15,7 @@ from frappe import _
 from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user
 from dashboard.api.shared.client_details import field_meta_lookup, find_field
 from dashboard.api.shared.clients import get_coach_label, build_display_name
+from dashboard.api.shared.postcode_boundaries import get_territory_features
 
 _POSTCODE_FIELD_CFG = {"label": "Zip Code", "candidates": ["zip_code", "postcode", "postal_code"]}
 _THERAPY_LOCATION_FIELD_CFG = {"label": "Main Therapy Location", "candidates": ["main_therapy_location", "therapy_location"]}
@@ -185,4 +186,9 @@ def get_client_locations_report(coach=None):
 
     out.sort(key=lambda r: (r.get("client_label") or "").lower())
 
-    return {"rows": out, "territories": territories}
+    territory_boundaries = {
+        coach_name: get_territory_features(prefixes)
+        for coach_name, prefixes in territories.items()
+    }
+
+    return {"rows": out, "territories": territories, "territory_boundaries": territory_boundaries}
