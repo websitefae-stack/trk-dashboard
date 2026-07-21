@@ -1151,12 +1151,18 @@ def _get_outstanding_invoices(dashboard_type, context, limit=8):
 def _get_outstanding_internal_invoices(dashboard_type, context, limit=8):
     """
     Invoices raised against a Coach's own linked Client record (e.g. HQ
-    invoicing a coach for fees) that are still outstanding. On the coach
-    dashboard this is just their own. On franchisor it's scoped to whichever
-    coach the logged-in person actually is (e.g. Ashley only sees what
-    Ashley owes, Emily only what Emily owes) - falling back to every coach's
-    only for a login with no coach identity of its own (e.g. a pure office
-    account).
+    invoicing a coach for fees) that are still outstanding.
+
+    On the coach dashboard this is just their own - the invoices they
+    personally owe. Invoices owed *to* a coach live in the ordinary
+    Outstanding Invoices section instead, never here.
+
+    On the franchisor dashboard this always covers every coach with a
+    linked Client (every login sees the full "owed to office" picture,
+    including their own fees if they're also a coach) - this is the
+    office/bookkeeping view used to mark coaches' fee invoices paid, so it
+    deliberately does NOT narrow to only the logged-in franchisor's own
+    invoices the way revenue/fees/YTD income elsewhere on this page does.
     """
     if not _has_doctype("Coach") or not frappe.get_meta("Coach").has_field("linked_client"):
         return []
@@ -1170,20 +1176,14 @@ def _get_outstanding_internal_invoices(dashboard_type, context, limit=8):
         client_to_coach = {linked_client: coach_name} if linked_client else {}
 
     elif dashboard_type == FRANCHISOR_DASHBOARD:
-        coach_name = context.get("coach_name")
-
-        if coach_name:
-            linked_client = frappe.db.get_value("Coach", coach_name, "linked_client")
-            client_to_coach = {linked_client: coach_name} if linked_client else {}
-        else:
-            coach_rows = frappe.get_all(
-                "Coach",
-                filters={"linked_client": ["is", "set"]},
-                fields=["name", "linked_client"],
-                limit_page_length=1000,
-                ignore_permissions=True,
-            )
-            client_to_coach = {row.linked_client: row.name for row in coach_rows if row.linked_client}
+        coach_rows = frappe.get_all(
+            "Coach",
+            filters={"linked_client": ["is", "set"]},
+            fields=["name", "linked_client"],
+            limit_page_length=1000,
+            ignore_permissions=True,
+        )
+        client_to_coach = {row.linked_client: row.name for row in coach_rows if row.linked_client}
 
     else:
         return []
@@ -1716,7 +1716,9 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
         ),
 
         "outstanding_invoices": _get_outstanding_invoices(dashboard_type, context, limit=8),
-        "outstanding_internal_invoices": _get_outstanding_internal_invoices(dashboard_type, context, limit=5),
+        "outstanding_internal_invoices": _get_outstanding_internal_invoices(
+            dashboard_type, context, limit=5 if dashboard_type == COACH_DASHBOARD else 50
+        ),
 
         "clients_url": {
             COACH_DASHBOARD: "/coach_db/clients",
