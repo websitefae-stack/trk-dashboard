@@ -23,6 +23,7 @@ from dashboard.api.shared.calendar import _event_has_field, _get_client_display_
 from dashboard.api.shared.email_templates import plain_text_to_email_html
 
 PENDING_TIMEOUT_MINUTES = 10
+FOLLOWUP_GIVE_UP_HOURS = 24
 
 
 def _batch_needs_meet_link(created_events):
@@ -65,6 +66,41 @@ def _compose_multi_session_message(event_rows, client):
         + "\n".join(lines)
         + "\n\nPlease let us know if you have any questions or need to make any changes.\n\n"
         "The Resilient Office"
+    )
+
+    return subject, message
+
+
+def _compose_meet_link_followup_message(event_rows, client):
+    """
+    Short follow-up for a booking whose confirmation email already went out
+    saying "the online meeting link will follow separately" - only ever
+    called once the link has actually turned up, so this just delivers on
+    that promise instead of leaving the client to wonder.
+    """
+    lines = []
+
+    for row in event_rows:
+        meet_link = row.get("custom_google_meet_url") or row.get("google_meet_link") or ""
+        if not meet_link:
+            continue
+
+        start_dt = get_datetime(row.get("starts_on"))
+        lines.append(f"- {start_dt.strftime('%A %d %B %Y')} at {start_dt.strftime('%H:%M')} - join here: {meet_link}")
+
+    if not lines:
+        return None, None
+
+    contact_name = _get_client_display_name(client)
+    plural = len(lines) > 1
+
+    subject = "Your Google Meet link" + ("s" if plural else "")
+    message = (
+        f"Hi {contact_name},\n\n"
+        "As promised, here's the Google Meet link for your upcoming session"
+        + ("s" if plural else "") + ":\n\n"
+        + "\n".join(lines)
+        + "\n\nThe Resilient Office"
     )
 
     return subject, message
@@ -177,6 +213,80 @@ def send_pending_booking_confirmations():
         subject, message = _compose_multi_session_message(event_rows, leader.custom_client)
         _send_confirmation_email(leader.custom_confirmation_recipient, subject, message, leader.name)
 
-        frappe.db.set_value("Event", leader.name, "custom_confirmation_pending", 0, update_modified=False)
+        updates = {"custom_confirmation_pending": 0}
+
+        if still_waiting and _event_has_field("custom_confirmation_link_pending"):
+            # Timed out before the Meet link was ready - the email that just
+            # went out says "the link will follow separately", so remember
+            # to actually send that follow-up once the link exists instead
+            # of leaving it an empty promise (see
+            # send_pending_meet_link_followups() below).
+            updates["custom_confirmation_link_pending"] = 1
+
+        frappe.db.set_value("Event", leader.name, updates, update_modified=False)
+
+    frappe.db.commit()
+
+
+def send_pending_meet_link_followups():
+    """
+    Scheduled sweep (hooks.py, every 5 minutes) - for a booking confirmation
+    that already went out saying "the link will follow separately" (see
+    send_pending_booking_confirmations() above), sends a short follow-up
+    once the Google Meet link actually turns up. Gives up silently after
+    FOLLOWUP_GIVE_UP_HOURS if it never does - a sync that's been failing
+    that long needs a human to look at it, not more emails promising a link
+    that isn't coming.
+    """
+    if not _event_has_field("custom_confirmation_link_pending"):
+        return
+
+    leaders = frappe.get_all(
+        "Event",
+        filters={"custom_confirmation_link_pending": 1},
+        fields=["name", "custom_confirmation_recipient", "custom_confirmation_batch_events", "creation",
+                "custom_client"],
+    )
+
+    give_up_cutoff = add_to_date(now_datetime(), hours=-FOLLOWUP_GIVE_UP_HOURS)
+
+    for leader in leaders:
+        event_names = [n.strip() for n in (leader.custom_confirmation_batch_events or "").split(",") if n.strip()]
+
+        if not event_names or not leader.custom_confirmation_recipient:
+            frappe.db.set_value("Event", leader.name, "custom_confirmation_link_pending", 0, update_modified=False)
+            continue
+
+        fields = ["name", "starts_on", "location", "custom_google_meet_url"]
+        if _event_has_field("google_meet_link"):
+            fields.append("google_meet_link")
+
+        event_rows = frappe.get_all(
+            "Event",
+            filters={"name": ["in", event_names]},
+            fields=fields,
+            order_by="starts_on asc",
+        )
+
+        if not event_rows:
+            frappe.db.set_value("Event", leader.name, "custom_confirmation_link_pending", 0, update_modified=False)
+            continue
+
+        still_waiting = any(
+            "online" in (row.get("location") or "").lower() and not (row.get("custom_google_meet_url") or row.get("google_meet_link"))
+            for row in event_rows
+        )
+
+        if still_waiting:
+            if leader.creation > give_up_cutoff:
+                continue
+            frappe.db.set_value("Event", leader.name, "custom_confirmation_link_pending", 0, update_modified=False)
+            continue
+
+        subject, message = _compose_meet_link_followup_message(event_rows, leader.custom_client)
+        if subject:
+            _send_confirmation_email(leader.custom_confirmation_recipient, subject, message, leader.name)
+
+        frappe.db.set_value("Event", leader.name, "custom_confirmation_link_pending", 0, update_modified=False)
 
     frappe.db.commit()
