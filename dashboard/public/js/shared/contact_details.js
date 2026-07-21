@@ -144,7 +144,14 @@
   }
 
   function getStorageKey() {
-    return getScope() + "_contact_details_active_tab";
+    // Scoped per contact, not just per role - otherwise the last tab open
+    // on any contact got restored on the next different contact clicked
+    // through to, since sessionStorage just remembered "the last tab"
+    // globally. See the matching fix in client_details.js.
+    const contact = el("contactDocname") ? el("contactDocname").value : "";
+    const suffix = contact ? ":" + contact : "";
+
+    return getScope() + "_contact_details_active_tab" + suffix;
   }
 
   function initTabs() {

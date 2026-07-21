@@ -49,6 +49,16 @@
     return el("clientDocname") ? el("clientDocname").value : "";
   }
 
+  // Scoped per client, not just per role - otherwise the last tab you had
+  // open on ANY client (e.g. Billing) got restored on the next different
+  // client you opened too, since sessionStorage just remembered "the last
+  // tab" globally. Clicking through from the Clients/Contacts list should
+  // always land on Details for whichever client you actually clicked.
+  function tabStorageKey() {
+    var client = getClientName();
+    return client ? roleConfig.storageKey + ":" + client : roleConfig.storageKey;
+  }
+
   function getCsrfToken() {
     const hidden = el("csrfToken");
     if (hidden && hidden.value) return hidden.value;
@@ -136,7 +146,7 @@
     });
   
     try {
-      sessionStorage.setItem(roleConfig.storageKey, targetId);
+      sessionStorage.setItem(tabStorageKey(), targetId);
     } catch (error) {}
   
     if (targetId === "client-contacts-tab") loadSessionWorkerContacts();
@@ -169,7 +179,7 @@
     let savedTab = "";
   
     try {
-      savedTab = sessionStorage.getItem(roleConfig.storageKey) || "";
+      savedTab = sessionStorage.getItem(tabStorageKey()) || "";
     } catch (error) {
       savedTab = "";
     }

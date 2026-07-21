@@ -1740,7 +1740,12 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
             context,
         ),
 
-        "outstanding_invoices": _get_outstanding_invoices(dashboard_type, context, limit=8),
+        # A low preview cap here meant a client with more than one
+        # outstanding invoice could easily have their older one crowded out
+        # by other clients' more recent invoices, looking like only one
+        # existed at all. Raised well past what a small coaching business
+        # would realistically have outstanding at once.
+        "outstanding_invoices": _get_outstanding_invoices(dashboard_type, context, limit=100),
         "outstanding_internal_invoices": _get_outstanding_internal_invoices(
             dashboard_type, context, limit=5 if dashboard_type == COACH_DASHBOARD else 50
         ),

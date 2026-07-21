@@ -74,6 +74,10 @@ LAYOUT = [
                     {"label": "Age", "candidates": ["age"]},
                     {"label": "Address", "candidates": ["address"]},
 
+                    # Label is overridden dynamically in build_field() below
+                    # based on the client's own client_type (Kid vs Teen) -
+                    # the label here is just a fallback.
+                    {"label": "Resilient Pack Sent", "candidates": ["custom_resilient_pack_sent", "trk_pack", "trt_pack"]},
                     {"label": "City", "candidates": ["city"]},
                     {"label": "Zip Code", "candidates": ["zip_code", "postcode", "postal_code"]},
                 ],
@@ -192,9 +196,17 @@ def build_field(df, doc, config, is_new=False):
     else:
         read_only = 0 if force_editable else int(df.read_only or 0)
 
+    label = config.get("display_label") or df.label or df.fieldname.replace("_", " ").title()
+
+    # A client is always exactly one of Kid or Teen, never both, so one
+    # tickbox does the job of two - it just needs to read as whichever one
+    # actually applies to this record instead of a generic label.
+    if df.fieldname in ("custom_resilient_pack_sent", "trk_pack", "trt_pack"):
+        label = "The Resilient Teen Pack sent" if doc.get("client_type") == "Teen" else "The Resilient Kid Pack sent"
+
     return {
         "fieldname": df.fieldname,
-        "label": config.get("display_label") or df.label or df.fieldname.replace("_", " ").title(),
+        "label": label,
         "fieldtype": df.fieldtype,
         "options": df.options or "",
         "reqd": int(df.reqd or 0),

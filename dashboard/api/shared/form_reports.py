@@ -200,18 +200,25 @@ def get_intake_form_answers_for_question(question=None):
     return {"question": label, "rows": rows}
 
 
-def _is_form_restricted_to_franchisors(doctype):
+def _form_visibility(doctype):
     """
-    True if a Form Visibility Rule (a self-service settings list office
-    maintains in Desk - see the Form Visibility Rule DocType) marks this
-    form "Franchisors Only". Guards for the rule DocType not existing yet
-    (pre-migration) by treating that as "no rules configured", the same
-    as every form not being listed in it at all.
+    The Form Visibility Rule (a self-service settings list office
+    maintains in Desk) value for this form, or "Everyone" if it isn't
+    listed there at all - including when the rule DocType doesn't exist
+    yet (pre-migration), treated the same as "no rules configured".
     """
     if not frappe.db.exists("DocType", "Form Visibility Rule"):
-        return False
+        return "Everyone"
 
-    return frappe.db.get_value("Form Visibility Rule", doctype, "visibility") == "Franchisors Only"
+    return frappe.db.get_value("Form Visibility Rule", doctype, "visibility") or "Everyone"
+
+
+def _is_form_restricted_to_franchisors(doctype):
+    return _form_visibility(doctype) == "Franchisors Only"
+
+
+def _is_form_hidden(doctype):
+    return _form_visibility(doctype) == "Hidden"
 
 
 def _form_doctype_meta(doctype):
@@ -233,6 +240,9 @@ def _form_doctype_meta(doctype):
     row = frappe.db.get_value("DocType", doctype, ["module", "istable", "issingle"], as_dict=True)
 
     if not row or row.module != FORMS_MODULE or row.istable or row.issingle:
+        frappe.throw(_("Unknown form."))
+
+    if _is_form_hidden(doctype):
         frappe.throw(_("Unknown form."))
 
     if _is_form_restricted_to_franchisors(doctype) and not is_franchisor_user():
@@ -267,6 +277,11 @@ def _form_field_value(row, df):
 
     if df.fieldtype == "Check":
         return "Yes" if value else None
+    if df.fieldtype == "Rating":
+        if not value:
+            return None
+        stars = _rating_star_count(value, df)
+        return f"{stars} Star" + ("" if stars == 1 else "s")
     if df.fieldtype == "Date" and value:
         return frappe.utils.formatdate(value, "dd-MM-yyyy")
     if df.fieldtype == "Datetime" and value:
@@ -343,8 +358,18 @@ def _form_date_range_filters(from_date, to_date):
     }
 
 
-_CHART_CATEGORICAL_FIELDTYPES = {"Select", "Check"}
+_CHART_CATEGORICAL_FIELDTYPES = {"Select", "Check", "Rating"}
 _CHART_MAX_LINK_CATEGORIES = 12
+
+
+def _rating_star_count(value, df):
+    """
+    Rating fields store a 0-1 fraction of the field's configured max stars
+    (df.options holds that max, as a string - blank/invalid defaults to the
+    Frappe standard of 5). Converts back to a whole star count for display.
+    """
+    max_stars = int(df.options) if (df.options or "").strip().isdigit() else 5
+    return round(float(value or 0) * max_stars)
 
 
 def _chart_field_value(row, df):
@@ -361,6 +386,11 @@ def _chart_field_value(row, df):
 
     if df.fieldtype == "Check":
         return "Yes" if value else "No"
+    if df.fieldtype == "Rating":
+        if not value:
+            return None
+        stars = _rating_star_count(value, df)
+        return f"{stars} Star" + ("" if stars == 1 else "s")
     if df.fieldtype == "Date" and value:
         return frappe.utils.formatdate(value, "dd-MM-yyyy")
     if df.fieldtype == "Datetime" and value:
@@ -400,10 +430,23 @@ def _chart_bucket_for_field(df, doctype, filters):
     for value in values:
         counts[value] = counts.get(value, 0) + 1
 
+    if df.fieldtype == "Rating":
+        # Reads naturally as "1 star, 2 stars, ... 5 stars" left to right
+        # instead of jumbled by whichever count happens to be largest.
+        def _star_sort_key(item):
+            try:
+                return int(item[0].split(" ")[0])
+            except (ValueError, IndexError):
+                return 0
+
+        sorted_items = sorted(counts.items(), key=_star_sort_key)
+    else:
+        sorted_items = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)
+
     total = len(values)
     data = [
         {"label": label, "count": count, "percent": round(count * 100 / total, 1) if total else 0}
-        for label, count in sorted(counts.items(), key=lambda kv: kv[1], reverse=True)
+        for label, count in sorted_items
     ]
 
     return "chart", data
@@ -469,6 +512,8 @@ def get_form_module_doctypes():
         fields=["name"],
         order_by="name asc",
     )
+
+    rows = [row for row in rows if not _is_form_hidden(row.name)]
 
     if not is_franchisor_user():
         rows = [row for row in rows if not _is_form_restricted_to_franchisors(row.name)]
