@@ -72,18 +72,29 @@
     URL.revokeObjectURL(url);
   }
 
-  var state = { rows: [], map: null, markerLayer: null };
+  var state = { rows: [], territories: {}, map: null, markerLayer: null, territoryLayer: null };
+
+  function areaCheckLabel(row) {
+    if (row.in_area === true) return "In area";
+    if (row.in_area === false) {
+      return row.other_coach_label ? "In " + row.other_coach_label + "'s area" : "Out of area";
+    }
+    return "—";
+  }
 
   function renderTable(rows) {
     var body = el("clientLocationsTableBody");
     if (!body) return;
 
     body.innerHTML = rows.map(function (row) {
+      var flagged = row.in_area === false;
+
       return "<tr>"
         + "<td>" + escapeHtml(row.client_label || row.client) + "</td>"
         + "<td>" + escapeHtml(row.coach_label || "—") + "</td>"
         + "<td>" + escapeHtml(row.client_postcode || "—") + "</td>"
         + "<td>" + escapeHtml(row.therapy_postcode || "—") + "</td>"
+        + "<td" + (flagged ? ' style="color:#c0392b;font-weight:700;"' : "") + ">" + escapeHtml(areaCheckLabel(row)) + "</td>"
         + "</tr>";
     }).join("");
   }
@@ -102,6 +113,7 @@
     }).addTo(state.map);
 
     state.markerLayer = window.L.layerGroup().addTo(state.map);
+    state.territoryLayer = window.L.layerGroup().addTo(state.map);
 
     // Leaflet's zoom control and attribution links are <a href="#"> - it
     // prevents their own default navigation internally, but belt-and-braces
@@ -136,11 +148,17 @@
     return PIN_COLORS[Math.abs(hash) % PIN_COLORS.length];
   }
 
-  function pinIcon(color) {
+  var OUT_OF_AREA_COLOR = "#1a1a1a";
+
+  function pinIcon(color, flagged) {
+    var center = flagged
+      ? '<path d="M13 8.5v6M13 18.2v.1" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>'
+      : '<circle cx="13" cy="13" r="4.5" fill="#ffffff"/>';
+
     var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="26" height="36" viewBox="0 0 26 36">'
       + '<path d="M13 0C5.82 0 0 5.82 0 13c0 9.75 13 23 13 23s13-13.25 13-23C26 5.82 20.18 0 13 0z" '
       + 'fill="' + color + '" stroke="#ffffff" stroke-width="1.5"/>'
-      + '<circle cx="13" cy="13" r="4.5" fill="#ffffff"/>'
+      + center
       + '</svg>';
 
     return window.L.divIcon({
@@ -150,6 +168,41 @@
       iconAnchor: [13, 34],
       popupAnchor: [0, -30]
     });
+  }
+
+  // Andrew's monotone chain - a simple, dependency-free convex hull over
+  // [lat, lng] pairs treated as plain 2D coordinates. Fine as a visual
+  // "roughly this area" boundary at UK scale; not a geodesically precise
+  // shape, and not the real administrative postcode-area boundary (this
+  // app has no access to that boundary data) - just a hull around the
+  // coach's own actual client/therapy-location points.
+  function convexHull(points) {
+    var pts = points.slice().sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+    if (pts.length < 3) return pts;
+
+    function cross(o, a, b) {
+      return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    }
+
+    var lower = [];
+    for (var i = 0; i < pts.length; i++) {
+      while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], pts[i]) <= 0) {
+        lower.pop();
+      }
+      lower.push(pts[i]);
+    }
+
+    var upper = [];
+    for (var j = pts.length - 1; j >= 0; j--) {
+      while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], pts[j]) <= 0) {
+        upper.pop();
+      }
+      upper.push(pts[j]);
+    }
+
+    upper.pop();
+    lower.pop();
+    return lower.concat(upper);
   }
 
   // postcodes.io's bulk lookup takes up to 100 postcodes per request - chunk
@@ -195,6 +248,7 @@
     }
 
     state.markerLayer.clearLayers();
+    state.territoryLayer.clearLayers();
 
     var postcodes = [];
     rows.forEach(function (row) {
@@ -213,8 +267,12 @@
     var coords = await geocodePostcodes(postcodes);
     var bounds = [];
     var missed = 0;
+    var pointsByCoach = {};
 
     rows.forEach(function (row) {
+      var flagged = row.in_area === false;
+      var color = flagged ? OUT_OF_AREA_COLOR : colorForCoach(row.coach_label);
+
       [
         { postcode: row.client_postcode, label: "Home" },
         { postcode: row.therapy_postcode, label: "Therapy Location" }
@@ -229,16 +287,48 @@
           return;
         }
 
-        window.L.marker(point, { icon: pinIcon(colorForCoach(row.coach_label)) })
-          .addTo(state.markerLayer)
-          .bindPopup(
-            "<strong>" + escapeHtml(row.client_label || row.client) + "</strong><br>"
-            + escapeHtml(row.coach_label || "") + "<br>"
-            + escapeHtml(entry.label) + ": " + escapeHtml(entry.postcode)
+        var popupLines = [
+          "<strong>" + escapeHtml(row.client_label || row.client) + "</strong>",
+          escapeHtml(row.coach_label || ""),
+          escapeHtml(entry.label) + ": " + escapeHtml(entry.postcode)
+        ];
+
+        if (flagged) {
+          popupLines.push(
+            '<span style="color:#c0392b;font-weight:700;">'
+            + escapeHtml(areaCheckLabel(row)) + "</span>"
           );
+        }
+
+        window.L.marker(point, { icon: pinIcon(color, flagged) })
+          .addTo(state.markerLayer)
+          .bindPopup(popupLines.join("<br>"));
 
         bounds.push(point);
+
+        // Only in-area points contribute to a coach's territory outline -
+        // an out-of-area client's point shouldn't stretch their own
+        // coach's boundary out to cover them, that's the whole point of
+        // flagging it.
+        if (row.in_area !== false && row.coach_label) {
+          if (!pointsByCoach[row.coach_label]) pointsByCoach[row.coach_label] = [];
+          pointsByCoach[row.coach_label].push(point);
+        }
       });
+    });
+
+    Object.keys(pointsByCoach).forEach(function (coachLabel) {
+      var pts = pointsByCoach[coachLabel];
+      if (pts.length < 3) return;
+
+      var hull = convexHull(pts);
+      window.L.polygon(hull, {
+        color: colorForCoach(coachLabel),
+        weight: 2,
+        fillOpacity: 0.08
+      })
+        .addTo(state.territoryLayer)
+        .bindPopup(escapeHtml(coachLabel) + "'s area");
     });
 
     if (bounds.length) {
@@ -288,11 +378,13 @@
     if (btn) { btn.disabled = true; btn.textContent = "Running..."; }
 
     try {
-      var rows = await callApi("dashboard.api.shared.client_locations.get_client_locations_report", {
+      var payload = await callApi("dashboard.api.shared.client_locations.get_client_locations_report", {
         coach: select ? select.value : ""
       });
 
-      state.rows = rows || [];
+      var rows = (payload && payload.rows) || [];
+      state.rows = rows;
+      state.territories = (payload && payload.territories) || {};
 
       if (!rows.length) {
         if (empty) { empty.style.display = ""; empty.textContent = "No clients with a postcode found."; }
@@ -319,7 +411,8 @@
       { label: "Client", value: function (r) { return r.client_label || r.client; } },
       { label: "Coach", value: function (r) { return r.coach_label || ""; } },
       { label: "Client Postcode", value: function (r) { return r.client_postcode || ""; } },
-      { label: "Therapy Location Postcode", value: function (r) { return r.therapy_postcode || ""; } }
+      { label: "Therapy Location Postcode", value: function (r) { return r.therapy_postcode || ""; } },
+      { label: "Area Check", value: function (r) { return areaCheckLabel(r); } }
     ], state.rows);
   }
 
