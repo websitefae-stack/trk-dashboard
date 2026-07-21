@@ -251,8 +251,9 @@
   }
 
   // postcodes.io has no bulk endpoint for outward codes (only full
-  // postcodes), so these go one request per unique outcode - in practice a
-  // coach's territory list is a handful of entries, not hundreds.
+  // postcodes), so these go one request per unique outcode - only used now
+  // as a fallback (see plotTerritoryBoundaries) when a prefix's
+  // autocomplete search below comes back empty.
   async function geocodeOutcodes(outcodes) {
     var unique = Array.from(new Set(outcodes.filter(Boolean)));
     var results = {};
@@ -273,32 +274,82 @@
     return results;
   }
 
-  // Draws the coach's *assigned* Territory Postcode Areas as a thick red
-  // outline - deliberately distinct from the thin, coach-coloured hull
-  // drawn around a coach's actual client points further down, since that
-  // one only shows where existing clients happen to be, not where the
-  // coach is meant to be covering. This is the one that answers "is this
-  // client out of area" against the area itself.
+  // A single outward-code centre per prefix produces a boundary with only
+  // one point per prefix - a convex hull over 3-4 such points is a huge,
+  // gappy triangle, not something that reads as "this area". postcodes.io's
+  // autocomplete endpoint turns a prefix like "SK10 5" (or a bare "N1")
+  // into a handful of real postcodes that actually exist inside it, which
+  // geocode to points scattered across the real area instead of its centre
+  // alone - a hull over those hugs the actual shape far more closely and
+  // naturally joins up neighbouring prefixes into one connected outline.
+  async function autocompletePostcodes(prefix) {
+    try {
+      var response = await fetch(
+        "https://api.postcodes.io/postcodes/" + encodeURIComponent(prefix) + "/autocomplete?limit=10"
+      );
+      var data = await response.json();
+      return (data && data.result) || [];
+    } catch (error) {
+      console.error("Postcode autocomplete failed:", error);
+      return [];
+    }
+  }
+
+  // Draws the coach's *assigned* Territory Postcode Areas as a thick red,
+  // filled, labelled outline - deliberately distinct from the thin,
+  // coach-coloured hull drawn around a coach's actual client points
+  // further down, since that one only shows where existing clients happen
+  // to be, not where the coach is meant to be covering. This is the one
+  // that answers "is this client out of area" against the area itself.
   async function plotTerritoryBoundaries(territories) {
     var coachNames = Object.keys(territories || {});
     if (!coachNames.length) return;
 
-    var outcodesByCoach = {};
-    var allOutcodes = [];
+    var prefixesByCoach = {};
+    var allPrefixes = [];
 
     coachNames.forEach(function (coachName) {
-      var outcodes = Array.from(new Set((territories[coachName] || []).map(territoryOutcode).filter(Boolean)));
-      outcodesByCoach[coachName] = outcodes;
-      allOutcodes = allOutcodes.concat(outcodes);
+      var prefixes = Array.from(new Set((territories[coachName] || []).map(function (p) { return (p || "").trim().toUpperCase(); }).filter(Boolean)));
+      prefixesByCoach[coachName] = prefixes;
+      allPrefixes = allPrefixes.concat(prefixes);
     });
 
-    var coords = await geocodeOutcodes(allOutcodes);
+    var uniquePrefixes = Array.from(new Set(allPrefixes));
+
+    var samplesByPrefix = {};
+    await Promise.all(uniquePrefixes.map(async function (prefix) {
+      samplesByPrefix[prefix] = await autocompletePostcodes(prefix);
+    }));
+
+    var allSamples = [];
+    Object.keys(samplesByPrefix).forEach(function (prefix) {
+      allSamples = allSamples.concat(samplesByPrefix[prefix]);
+    });
+
+    var fallbackOutcodes = uniquePrefixes
+      .filter(function (prefix) { return !samplesByPrefix[prefix].length; })
+      .map(territoryOutcode);
+
+    var pointCoords = await geocodePostcodes(allSamples);
+    var outcodeCoords = fallbackOutcodes.length ? await geocodeOutcodes(fallbackOutcodes) : {};
 
     coachNames.forEach(function (coachName) {
       var label = state.coachLabelByName[coachName] || coachName;
-      var points = outcodesByCoach[coachName]
-        .map(function (outcode) { return coords[outcode]; })
-        .filter(Boolean);
+      var points = [];
+
+      prefixesByCoach[coachName].forEach(function (prefix) {
+        var samples = samplesByPrefix[prefix] || [];
+
+        if (samples.length) {
+          samples.forEach(function (postcode) {
+            var point = pointCoords[postcode.trim().toUpperCase()];
+            if (point) points.push(point);
+          });
+        } else {
+          var outcodePoint = outcodeCoords[territoryOutcode(prefix)];
+          if (outcodePoint) points.push(outcodePoint);
+        }
+      });
 
       if (points.length >= 3) {
         var hull = convexHull(points);
@@ -306,10 +357,12 @@
           color: TERRITORY_BOUNDARY_COLOR,
           weight: 4,
           opacity: 0.9,
-          fillOpacity: 0.04
+          fillOpacity: 0.18,
+          lineJoin: "round"
         })
           .addTo(state.territoryLayer)
-          .bindPopup(escapeHtml(label) + "'s assigned area");
+          .bindPopup(escapeHtml(label) + "'s assigned area")
+          .bindTooltip(escapeHtml(label), { permanent: true, direction: "center", className: "trk-territory-label" });
       } else if (points.length === 2) {
         window.L.polyline(points, { color: TERRITORY_BOUNDARY_COLOR, weight: 4, opacity: 0.9 })
           .addTo(state.territoryLayer)
@@ -320,7 +373,7 @@
           color: TERRITORY_BOUNDARY_COLOR,
           weight: 4,
           opacity: 0.9,
-          fillOpacity: 0.04
+          fillOpacity: 0.18
         })
           .addTo(state.territoryLayer)
           .bindPopup(escapeHtml(label) + "'s assigned area (approximate)");
