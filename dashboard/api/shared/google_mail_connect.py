@@ -18,7 +18,6 @@ from frappe import _
 
 from dashboard.api.shared.profile import get_profile_doc
 
-CONNECTED_APP_NAME = "Google Mail"
 EMAIL_ACCOUNT_DOCTYPE = "Email Account"
 
 NOT_CONFIGURED_MESSAGE = "Your email account has not yet been configured. Please contact the office."
@@ -91,7 +90,7 @@ def _ensure_email_account_ready(email_account_row, coach=None):
     if (email_account_row.auth_method or "") != "OAuth":
         frappe.throw(_(NOT_CONFIGURED_MESSAGE))
 
-    if (email_account_row.connected_app or "") != CONNECTED_APP_NAME:
+    if not (email_account_row.connected_app or "").strip():
         frappe.throw(_(NOT_CONFIGURED_MESSAGE))
 
     # Whichever address _get_email_account_row() actually matched this
@@ -170,8 +169,15 @@ def start_google_mail_connect(return_to=None):
     separator = "&" if "?" in success_path else "?"
     success_uri = frappe.utils.get_url(success_path) + separator + "google_mail=connected"
 
+    # The Email Account's own Connected App link, not a hardcoded name - a
+    # Link field's stored value is the linked doc's docname, which is not
+    # guaranteed to be the human-readable "Google Mail" label shown in
+    # Desk's dropdown (that's just whichever field the Connected App
+    # doctype uses as its title). Trusting the value office already picked
+    # on this record is both correct and lets a different coach be wired to
+    # a different Connected App without this code needing to change.
     try:
-        connected_app = frappe.get_doc("Connected App", CONNECTED_APP_NAME)
+        connected_app = frappe.get_doc("Connected App", email_account_row.connected_app)
     except frappe.DoesNotExistError:
         frappe.throw(_(NOT_CONFIGURED_MESSAGE))
 
@@ -205,7 +211,7 @@ def get_google_mail_status():
     if (
         not email_account_row
         or (email_account_row.auth_method or "") != "OAuth"
-        or (email_account_row.connected_app or "") != CONNECTED_APP_NAME
+        or not (email_account_row.connected_app or "").strip()
     ):
         return {
             "configured": False,
@@ -217,10 +223,13 @@ def get_google_mail_status():
     # Frappe core's own has_token() - a whitelisted function we call
     # directly in Python (not over HTTP), so this still never touches the
     # Desk permission layer. Returns a plain bool; it never returns the
-    # token itself.
+    # token itself. Keyed off this Email Account's own Connected App link
+    # (see start_google_mail_connect()'s comment) rather than a hardcoded
+    # name, so status stays in sync with whichever app the token was
+    # actually issued against.
     from frappe.integrations.doctype.connected_app.connected_app import has_token
 
-    connected = bool(has_token(CONNECTED_APP_NAME, frappe.session.user))
+    connected = bool(has_token(email_account_row.connected_app, frappe.session.user))
 
     return {
         "configured": True,

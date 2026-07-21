@@ -72,7 +72,9 @@
     URL.revokeObjectURL(url);
   }
 
-  var state = { rows: [], territories: {}, map: null, markerLayer: null, territoryLayer: null };
+  var state = { rows: [], territories: {}, coachLabelByName: {}, map: null, markerLayer: null, territoryLayer: null };
+
+  var TERRITORY_BOUNDARY_COLOR = "#D7263D";
 
   function areaCheckLabel(row) {
     if (row.in_area === true) return "In area";
@@ -236,6 +238,96 @@
     return results;
   }
 
+  // Territory Postcode Areas entries are outward-code prefixes, sometimes
+  // with a sector digit attached (e.g. "SK10 5", not just "SK10") - the
+  // sector digit isn't something postcodes.io's outcode endpoint
+  // understands, so this strips it back down to the plain outward code
+  // ("SK10") for geocoding. Good enough for a visual "roughly this area"
+  // boundary; not sector-precise.
+  function territoryOutcode(prefix) {
+    var trimmed = (prefix || "").trim().toUpperCase();
+    var spaceIdx = trimmed.indexOf(" ");
+    return spaceIdx === -1 ? trimmed : trimmed.slice(0, spaceIdx);
+  }
+
+  // postcodes.io has no bulk endpoint for outward codes (only full
+  // postcodes), so these go one request per unique outcode - in practice a
+  // coach's territory list is a handful of entries, not hundreds.
+  async function geocodeOutcodes(outcodes) {
+    var unique = Array.from(new Set(outcodes.filter(Boolean)));
+    var results = {};
+
+    await Promise.all(unique.map(async function (outcode) {
+      try {
+        var response = await fetch("https://api.postcodes.io/outcodes/" + encodeURIComponent(outcode));
+        var data = await response.json();
+
+        if (data && data.result && data.result.latitude != null && data.result.longitude != null) {
+          results[outcode] = [data.result.latitude, data.result.longitude];
+        }
+      } catch (error) {
+        console.error("Outcode lookup failed:", error);
+      }
+    }));
+
+    return results;
+  }
+
+  // Draws the coach's *assigned* Territory Postcode Areas as a thick red
+  // outline - deliberately distinct from the thin, coach-coloured hull
+  // drawn around a coach's actual client points further down, since that
+  // one only shows where existing clients happen to be, not where the
+  // coach is meant to be covering. This is the one that answers "is this
+  // client out of area" against the area itself.
+  async function plotTerritoryBoundaries(territories) {
+    var coachNames = Object.keys(territories || {});
+    if (!coachNames.length) return;
+
+    var outcodesByCoach = {};
+    var allOutcodes = [];
+
+    coachNames.forEach(function (coachName) {
+      var outcodes = Array.from(new Set((territories[coachName] || []).map(territoryOutcode).filter(Boolean)));
+      outcodesByCoach[coachName] = outcodes;
+      allOutcodes = allOutcodes.concat(outcodes);
+    });
+
+    var coords = await geocodeOutcodes(allOutcodes);
+
+    coachNames.forEach(function (coachName) {
+      var label = state.coachLabelByName[coachName] || coachName;
+      var points = outcodesByCoach[coachName]
+        .map(function (outcode) { return coords[outcode]; })
+        .filter(Boolean);
+
+      if (points.length >= 3) {
+        var hull = convexHull(points);
+        window.L.polygon(hull, {
+          color: TERRITORY_BOUNDARY_COLOR,
+          weight: 4,
+          opacity: 0.9,
+          fillOpacity: 0.04
+        })
+          .addTo(state.territoryLayer)
+          .bindPopup(escapeHtml(label) + "'s assigned area");
+      } else if (points.length === 2) {
+        window.L.polyline(points, { color: TERRITORY_BOUNDARY_COLOR, weight: 4, opacity: 0.9 })
+          .addTo(state.territoryLayer)
+          .bindPopup(escapeHtml(label) + "'s assigned area");
+      } else if (points.length === 1) {
+        window.L.circle(points[0], {
+          radius: 3000,
+          color: TERRITORY_BOUNDARY_COLOR,
+          weight: 4,
+          opacity: 0.9,
+          fillOpacity: 0.04
+        })
+          .addTo(state.territoryLayer)
+          .bindPopup(escapeHtml(label) + "'s assigned area (approximate)");
+      }
+    });
+  }
+
   async function plotMap(rows) {
     var map = ensureMap();
     var note = el("clientLocationsMapNote");
@@ -317,7 +409,19 @@
       });
     });
 
+    // A coach with an assigned Territory Postcode Areas boundary gets that
+    // one drawn instead (thick red, plotted below) - this thin coach-
+    // coloured hull is only a fallback for coaches nobody has set a
+    // territory for yet, where "where their clients happen to be" is all
+    // there is to go on.
+    var labelsWithTerritory = {};
+    Object.keys(state.territories || {}).forEach(function (coachName) {
+      labelsWithTerritory[state.coachLabelByName[coachName] || coachName] = true;
+    });
+
     Object.keys(pointsByCoach).forEach(function (coachLabel) {
+      if (labelsWithTerritory[coachLabel]) return;
+
       var pts = pointsByCoach[coachLabel];
       if (pts.length < 3) return;
 
@@ -330,6 +434,8 @@
         .addTo(state.territoryLayer)
         .bindPopup(escapeHtml(coachLabel) + "'s area");
     });
+
+    await plotTerritoryBoundaries(state.territories);
 
     if (bounds.length) {
       map.fitBounds(bounds, { padding: [30, 30] });
@@ -352,16 +458,19 @@
 
   async function loadCoachOptions() {
     var select = el("clientLocationsCoachSelect");
-    if (!select) return;
 
     try {
       var options = await callApi("dashboard.api.shared.coach_logs.get_coach_log_options", {});
 
       (options || []).forEach(function (opt) {
-        var optionEl = document.createElement("option");
-        optionEl.value = opt.value;
-        optionEl.textContent = opt.label;
-        select.appendChild(optionEl);
+        state.coachLabelByName[opt.value] = opt.label;
+
+        if (select) {
+          var optionEl = document.createElement("option");
+          optionEl.value = opt.value;
+          optionEl.textContent = opt.label;
+          select.appendChild(optionEl);
+        }
       });
     } catch (error) {
       console.error("Coach options failed:", error);

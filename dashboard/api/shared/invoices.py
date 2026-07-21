@@ -254,6 +254,7 @@ def _get_bank_account_options():
             "value": row.get("bank_account"),
             "label": _coach_label(row),
             "display_text": _bank_display_text(row.get("bank_account")),
+            "company": _get_coach_company(row.get("name")),
         }
         for row in rows
         if row.get("bank_account")
@@ -312,6 +313,7 @@ def _ensure_default_bank_account_option(options, default_bank_account):
         "value": default_bank_account,
         "label": label,
         "display_text": _bank_display_text(default_bank_account),
+        "company": _get_coach_company(owner_coach) if owner_coach else "",
     }]
 
 

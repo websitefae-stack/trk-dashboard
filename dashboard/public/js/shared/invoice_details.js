@@ -478,6 +478,7 @@
       option.value = row.value;
       option.textContent = row.label || row.value;
       option.dataset.displayText = row.display_text || "";
+      option.dataset.company = row.company || "";
       if (row.value === value) option.selected = true;
       select.appendChild(option);
     });
@@ -1248,6 +1249,14 @@
   el("invoice_bank_account_select")?.addEventListener("change", function () {
     const option = this.options[this.selectedIndex];
     updateReadOnlyText("invoice_bank_display", (option && option.dataset.displayText) || "");
+
+    // The Company field only used to update after the invoice was saved
+    // and the server recomputed it - picking a different coach's bank
+    // account here now shows that coach's own company immediately,
+    // instead of leaving the previous (often HQ's) company showing until
+    // save.
+    const company = option && option.dataset.company;
+    if (company) updateReadOnlyText("invoice_company", company);
   });
 
   await loadAllLinkOptions();

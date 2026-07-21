@@ -18,3 +18,4 @@ dashboard.patches.remove_coach_email_account_link_field
 dashboard.patches.add_confirmation_link_followup_field
 dashboard.patches.add_coach_territory_postcodes_field
 dashboard.patches.add_client_resilient_pack_sent_field
+dashboard.patches.update_booking_confirmation_meet_link_wording

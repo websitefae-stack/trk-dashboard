@@ -1166,7 +1166,10 @@ def _get_outstanding_internal_invoices(dashboard_type, context, limit=8):
     It does, however, exclude invoices whose income belongs to another
     coach rather than office (see custom_income_owner_coach below) - e.g.
     Emily owing SJ directly is between the two of them, not the
-    franchisor's business.
+    franchisor's business. The one exception: if the franchisor viewing
+    this is themselves the coach who owes it, it always shows regardless
+    of who the money is owed to - Ashley owing Emily is very much
+    Ashley's business, even though Emily owing Fiona wouldn't be.
     """
     if not _has_doctype("Coach") or not frappe.get_meta("Coach").has_field("linked_client"):
         return []
@@ -1231,8 +1234,19 @@ def _get_outstanding_internal_invoices(dashboard_type, context, limit=8):
         # logic). That's a private matter between those two coaches, not
         # office's business, so the franchisor-wide "owed to office" view
         # excludes anything that already has a coach attached as its income
-        # owner.
-        rows = [row for row in rows if not row.get("custom_income_owner_coach")][:limit]
+        # owner - UNLESS the viewing franchisor is themselves the coach who
+        # owes it, which always stays visible to them.
+        own_coach_name = context.get("coach_name")
+
+        def _keep(row):
+            income_owner = row.get("custom_income_owner_coach")
+            if not income_owner:
+                return True
+            if own_coach_name and client_to_coach.get(row.get("custom_client")) == own_coach_name:
+                return True
+            return False
+
+        rows = [row for row in rows if _keep(row)][:limit]
 
     base_url = {
         COACH_DASHBOARD: "/coach_db/invoice_details",
