@@ -979,6 +979,10 @@ def _format_notification_log(row):
     )
     awaiting_response = 1 if (is_sent_by_me and not has_reply_from_other and not archived) else 0
 
+    dashboard_base_url = _get_dashboard_base_url()
+    legacy_client = row.get("document_name") if row.get("document_type") == "Client" else ""
+    legacy_event = row.get("document_name") if row.get("document_type") == "Event" else ""
+
     return {
         "name": row.get("name"),
         "notification_type": row.get("subject") or row.get("type") or "Notification",
@@ -997,10 +1001,12 @@ def _format_notification_log(row):
         "due_date": str(due_date) if due_date else "",
         "is_archived": archived,
         "can_archive": 1,
-        "client": row.get("document_name") if row.get("document_type") == "Client" else "",
+        "client": legacy_client,
+        "client_link": f"{dashboard_base_url}/client_details?name={legacy_client}" if legacy_client else "",
         "coach": "",
         "session_worker": "",
-        "event": row.get("document_name") if row.get("document_type") == "Event" else "",
+        "event": legacy_event,
+        "event_link": f"{dashboard_base_url}/calendar_details?event={legacy_event}" if legacy_event else "",
         "client_package": "",
         "client_package_balance": "",
         "reference_doctype": row.get("document_type") or "",
@@ -1791,11 +1797,19 @@ def _kanban_bucket_for(row):
     Same New / In Progress / Past Due / Archived bucketing the Notifications
     Kanban board uses on the frontend (see bucketFor() in notifications.js) -
     kept in sync so the sidebar badge counts the same thing the board shows.
+    No separate "Sent" bucket - sending something puts it straight into In
+    Progress (you're now waiting on a reply), and any reply from anyone
+    promotes it to In Progress/Past Due for everyone, since that's a sign
+    it's actually moving rather than sitting untouched.
     """
     if (row.get("status") or "Open") == "Archived":
         return "Archived"
 
-    due_date = row.get("due_date")
+    due_date = row.get("due_date") or ""
+
+    if int(row.get("reply_count") or 0) > 0 or int(row.get("is_sent_by_me") or 0):
+        return "Past Due" if due_date and str(due_date) < nowdate() else "In Progress"
+
     if not due_date:
         return "New"
 
