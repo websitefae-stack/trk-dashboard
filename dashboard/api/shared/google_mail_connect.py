@@ -172,9 +172,12 @@ def _not_configured_diagnostic_message(coach):
     ).format(searched)
 
 
+SAFE_RETURN_TO_PREFIXES = ("/coach_db/", "/franchisor_db/")
+
+
 def _safe_return_to(return_to):
     return_to = (return_to or "").strip()
-    if return_to.startswith("/coach_db/"):
+    if return_to.startswith(SAFE_RETURN_TO_PREFIXES):
         return return_to
     return "/coach_db/profile"
 

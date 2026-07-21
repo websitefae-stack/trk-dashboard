@@ -69,7 +69,7 @@
           {% if profile_role in ["coach", "franchisor"] %}
             <button type="button" class="dashboard-tab-btn" data-tab="availability">Availability</button>
           {% endif %}
-          {% if profile_role == "coach" and not coach_is_view_mode %}
+          {% if profile_role in ["coach", "franchisor"] and not coach_is_view_mode %}
             <button type="button" class="dashboard-tab-btn" data-tab="email">Email</button>
           {% endif %}
         </div>
@@ -586,7 +586,7 @@
       </div>
       {% endif %}
 
-      {% if profile_role == "coach" and not coach_is_view_mode %}
+      {% if profile_role in ["coach", "franchisor"] and not coach_is_view_mode %}
       <!-- EMAIL TAB -->
       <div class="dashboard-tab-panel" data-tab-panel="email" style="display:none;">
         <div class="dashboard-card">
@@ -597,7 +597,7 @@
             </div>
           </div>
 
-          <div class="dashboard-detail-field dashboard-detail-field-full" id="googleMailConnectField" data-return-to="/coach_db/profile">
+          <div class="dashboard-detail-field dashboard-detail-field-full" id="googleMailConnectField" data-return-to="{{ dashboard_base_url }}/profile">
             <label>Google Email (for sending)</label>
             <div class="dashboard-html-block" id="googleMailConnectStatus">Checking status&hellip;</div>
           </div>
