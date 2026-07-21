@@ -3222,7 +3222,13 @@ def add_client_note(client=None, lead=None, event=None, session_date=None, sessi
     # the event's own Notes table instead of blocking it, the same shape
     # (date/user/notes/attachment) as Client/Lead notes.
     if not client and not lead and event:
-        event_doc = _get_event_doc(event)
+        # _get_event_doc() returns a plain dict (frappe.db.get_value(...,
+        # as_dict=True)) - fine for the .get() reads it's used for
+        # elsewhere, but .append()/.save() below need a real Document.
+        if not frappe.db.exists("Event", event):
+            frappe.throw(_("Session record not found."))
+
+        event_doc = frappe.get_doc("Event", event)
         parentfield = _get_event_notes_parentfield()
 
         if not parentfield:
