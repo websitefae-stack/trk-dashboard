@@ -1244,6 +1244,16 @@ def _get_outstanding_internal_invoices(dashboard_type, context, limit=8):
                 return True
             if own_coach_name and client_to_coach.get(row.get("custom_client")) == own_coach_name:
                 return True
+            # Only a genuine "this specific other coach is owed the money"
+            # claim - a real Coach record, different from whoever's being
+            # invoiced - counts as someone else's private business. This
+            # field has its own default value that can end up set to
+            # something that isn't a Coach at all (that's exactly what was
+            # silently hiding every internal invoice here before this
+            # check existed) - anything that isn't an actual Coach falls
+            # back to "office/HQ" rather than hiding the invoice.
+            if not frappe.db.exists("Coach", income_owner):
+                return True
             return False
 
         rows = [row for row in rows if _keep(row)][:limit]
@@ -1267,8 +1277,11 @@ def _get_outstanding_internal_invoices(dashboard_type, context, limit=8):
         # being invoiced (a bank-account override, e.g. one coach invoicing
         # on another's behalf into their own account).
         income_owner = row.get("custom_income_owner_coach") if has_income_owner_field else ""
-        if income_owner and income_owner != coach_name:
-            owed_to_label = frappe.db.get_value("Coach", income_owner, "coach_name") or income_owner
+        income_owner_coach_label = (
+            frappe.db.get_value("Coach", income_owner, "coach_name") if income_owner else None
+        )
+        if income_owner_coach_label and income_owner != coach_name:
+            owed_to_label = income_owner_coach_label
         else:
             owed_to_label = "HQ"
 
