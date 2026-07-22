@@ -90,5 +90,11 @@ scheduler_events = {
             "dashboard.api.shared.booking_confirmations.send_pending_booking_confirmations",
             "dashboard.api.shared.booking_confirmations.send_pending_meet_link_followups",
         ],
-    }
+    },
+    # Keeps every client's age-derived client_type (Kid/Teen/Uni Student/
+    # Adult) moving with their real age automatically, even if nobody ever
+    # reopens their record - see refresh_all_client_ages_and_types().
+    "daily": [
+        "dashboard.api.shared.client_details.refresh_all_client_ages_and_types",
+    ],
 }

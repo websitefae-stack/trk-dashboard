@@ -6,6 +6,7 @@ from dashboard.api.shared.permissions import (
     COACH_DOCTYPE,
     get_allowed_client_or_filters,
     get_client_permissions,
+    get_current_user_own_linked_client,
     ensure_client_access,
     ensure_logged_in,
 )
@@ -104,6 +105,7 @@ def get_clients():
     ensure_logged_in()
 
     or_filters = get_allowed_client_or_filters()
+    own_linked_client = get_current_user_own_linked_client()
 
     args = {
         "doctype": CLIENT_DOCTYPE,
@@ -114,6 +116,13 @@ def get_clients():
 
     if or_filters is not None:
         args["or_filters"] = or_filters
+
+    if own_linked_client:
+        # A coach's own linked_client (their internal billing record) is
+        # visible to every coach as a Franchise-type client so franchisees
+        # can invoice each other - but it isn't a client of theirs, so it
+        # shouldn't show up in their own Clients list.
+        args["filters"] = {"name": ["!=", own_linked_client]}
 
     clients = frappe.get_all(**args)
 
@@ -237,6 +246,14 @@ def get_paginated_clients():
 
     if not load_all_for_dashboard:
         _apply_client_filter_args(filters, filter_args)
+
+    own_linked_client = get_current_user_own_linked_client()
+    if own_linked_client:
+        # A coach's own linked_client (their internal billing record) is
+        # visible to every coach as a Franchise-type client so franchisees
+        # can invoice each other - but it isn't a client of theirs, so it
+        # shouldn't show up in their own Clients list.
+        filters.append(["name", "!=", own_linked_client])
 
     or_filters = get_allowed_client_or_filters()
 

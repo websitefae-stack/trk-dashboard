@@ -114,6 +114,27 @@ def get_current_user_dashboard_type():
 # Client access helpers
 # -------------------------------------------------------------------
 
+def get_current_user_own_linked_client():
+    """
+    The Client record that IS the current coach's own linked_client (their
+    internal billing record, e.g. what a Franchise Fee gets invoiced
+    against) - if any. Franchise-type clients are visible to every coach
+    (see get_allowed_client_or_filters() below) so franchisees can invoice
+    each other, but that same carve-out was letting a coach see their own
+    linked_client as an entry in their own Clients list, which isn't a
+    client at all from their point of view - this is used to exclude it
+    specifically, without hiding it from anyone else.
+    """
+    if get_current_user_dashboard_type() != "coach":
+        return None
+
+    coach_name = get_current_coach_name(optional=True)
+    if not coach_name:
+        return None
+
+    return frappe.db.get_value("Coach", coach_name, "linked_client") or None
+
+
 def get_allowed_client_or_filters():
     """
     Returns:
@@ -162,20 +183,26 @@ def get_allowed_client_names():
     ensure_logged_in()
 
     or_filters = get_allowed_client_or_filters()
+    own_linked_client = get_current_user_own_linked_client()
 
     if or_filters is None:
-        return frappe.get_all(
+        names = frappe.get_all(
             CLIENT_DOCTYPE,
             pluck="name",
             limit_page_length=5000,
         )
+    else:
+        names = frappe.get_all(
+            CLIENT_DOCTYPE,
+            or_filters=or_filters,
+            pluck="name",
+            limit_page_length=5000,
+        )
 
-    return frappe.get_all(
-        CLIENT_DOCTYPE,
-        or_filters=or_filters,
-        pluck="name",
-        limit_page_length=5000,
-    )
+    if own_linked_client:
+        names = [name for name in names if name != own_linked_client]
+
+    return names
 
 
 def _user_has_notification_linking_to_client(client_name):
