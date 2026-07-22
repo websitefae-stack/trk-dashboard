@@ -1294,6 +1294,15 @@ def get_client_type_from_age(age):
     return "Adult"
 
 
+# client_type values this function is allowed to (re)compute from age - a
+# blank value, or one it could plausibly have set itself before. Franchise
+# (and School/Company) aren't age brackets at all - they're a deliberate
+# administrative category (e.g. a Client record representing another
+# coach/HQ for cross-coach invoicing), so a franchisee's real date of
+# birth must never silently flip their record back to "Adult".
+_AGE_DERIVED_CLIENT_TYPES = {"", None, "Kid", "Teen", "Uni Student", "Adult"}
+
+
 def apply_age_and_client_type(doc):
     if not doc.meta.has_field("date_of_birth"):
         return
@@ -1310,8 +1319,46 @@ def apply_age_and_client_type(doc):
     if doc.meta.has_field("age"):
         doc.age = age
 
-    if doc.meta.has_field("client_type"):
+    if doc.meta.has_field("client_type") and doc.get("client_type") in _AGE_DERIVED_CLIENT_TYPES:
         doc.client_type = get_client_type_from_age(age)
+
+
+def refresh_all_client_ages_and_types():
+    """
+    apply_age_and_client_type() only runs when a Client record is actively
+    saved through code that calls it - a Kid who turns 12 (or 18, or 22)
+    without anyone ever reopening their record would stay "Kid" forever,
+    which is wrong in the other direction from the Franchise/School/
+    Company bug above: an age-derived type genuinely does need to keep
+    moving with real age, automatically, not just when someone happens to
+    edit something else on the record. Runs daily (see hooks.py) - age
+    brackets change at most once a year per client, so there's no need for
+    anything more frequent.
+    """
+    meta = frappe.get_meta("Client")
+    if not meta.has_field("date_of_birth") or not meta.has_field("client_type"):
+        return
+
+    rows = frappe.get_all(
+        "Client",
+        fields=["name", "date_of_birth", "client_type"],
+        filters={"date_of_birth": ["is", "set"]},
+    )
+
+    for row in rows:
+        if row.client_type not in _AGE_DERIVED_CLIENT_TYPES:
+            continue
+
+        correct_type = get_client_type_from_age(calculate_age_from_dob(row.date_of_birth))
+        if not correct_type or correct_type == row.client_type:
+            continue
+
+        try:
+            frappe.db.set_value("Client", row.name, "client_type", correct_type, update_modified=False)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"Refresh Client Age/Type - {row.name}")
+
+    frappe.db.commit()
 
 
 @frappe.whitelist()

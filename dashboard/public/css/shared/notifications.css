@@ -494,7 +494,8 @@
 }
 
 .dashboard-notif-column {
-  flex: 0 0 270px;
+  flex: 1 1 0;
+  min-width: 220px;
   display: flex;
   flex-direction: column;
   background: #F2F8F8;

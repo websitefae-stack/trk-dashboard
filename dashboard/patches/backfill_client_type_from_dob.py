@@ -12,7 +12,11 @@ no manual step needed.
 
 import frappe
 
-from dashboard.api.shared.client_details import calculate_age_from_dob, get_client_type_from_age
+from dashboard.api.shared.client_details import (
+    _AGE_DERIVED_CLIENT_TYPES,
+    calculate_age_from_dob,
+    get_client_type_from_age,
+)
 
 
 def execute():
@@ -30,6 +34,12 @@ def execute():
     )
 
     for row in rows:
+        # Franchise (and School/Company) aren't age brackets - a
+        # deliberately-set administrative category must never be
+        # overwritten just because a date of birth happens to be set.
+        if row.client_type not in _AGE_DERIVED_CLIENT_TYPES:
+            continue
+
         correct_type = get_client_type_from_age(calculate_age_from_dob(row.date_of_birth))
         if not correct_type or correct_type == row.client_type:
             continue
