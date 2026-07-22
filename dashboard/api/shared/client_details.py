@@ -1294,6 +1294,15 @@ def get_client_type_from_age(age):
     return "Adult"
 
 
+# client_type values this function is allowed to (re)compute from age - a
+# blank value, or one it could plausibly have set itself before. Franchise
+# (and School/Company) aren't age brackets at all - they're a deliberate
+# administrative category (e.g. a Client record representing another
+# coach/HQ for cross-coach invoicing), so a franchisee's real date of
+# birth must never silently flip their record back to "Adult".
+_AGE_DERIVED_CLIENT_TYPES = {"", None, "Kid", "Teen", "Uni Student", "Adult"}
+
+
 def apply_age_and_client_type(doc):
     if not doc.meta.has_field("date_of_birth"):
         return
@@ -1310,7 +1319,7 @@ def apply_age_and_client_type(doc):
     if doc.meta.has_field("age"):
         doc.age = age
 
-    if doc.meta.has_field("client_type"):
+    if doc.meta.has_field("client_type") and doc.get("client_type") in _AGE_DERIVED_CLIENT_TYPES:
         doc.client_type = get_client_type_from_age(age)
 
 
