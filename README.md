@@ -19,3 +19,5 @@ Last updated: 2026-06-30
 - Frappe Framework
 - ERPNext (if installed)
 -
+
+<!-- deploy trigger: 2026-07-22 -->
