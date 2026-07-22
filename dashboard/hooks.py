@@ -26,7 +26,7 @@ web_include_js = [
 ]
 
 website_context = {
-    "favicon": "/assets/dashboard/images/favicon.png",
+    "favicon": "/files/TRHub_Favicon.png",
     "splash_image": "/assets/dashboard/images/logo.png",
 }
 
@@ -76,6 +76,16 @@ doc_events = {
     "Intake Doctype": {
         "after_insert": "dashboard.api.shared.leads.sync_intake_doctype_submission",
         "on_update": "dashboard.api.shared.leads.sync_intake_doctype_submission",
+    },
+    # Bridges the webshop app's "Contact Us" enquiry (a plain core Lead)
+    # into this app's own Client Lead board and notifies Ashley/office -
+    # see webshop_lead_sync.py's module docstring for why this needs both
+    # hooks rather than just one.
+    "Lead": {
+        "after_insert": "dashboard.api.shared.webshop_lead_sync.sync_webshop_lead",
+    },
+    "Comment": {
+        "after_insert": "dashboard.api.shared.webshop_lead_sync.sync_webshop_lead_comment",
     },
 }
 
