@@ -1,0 +1,15 @@
+{
+  "name": "The Resilient Hub",
+  "short_name": "Resilient Hub",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0d5c63",
+  "icons": [
+    {
+      "src": "/files/TRHub_Favicon.png",
+      "sizes": "any",
+      "type": "image/png"
+    }
+  ]
+}

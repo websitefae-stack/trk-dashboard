@@ -26,7 +26,7 @@ web_include_js = [
 ]
 
 website_context = {
-    "favicon": "/assets/dashboard/images/favicon.png",
+    "favicon": "/files/TRHub_Favicon.png",
     "splash_image": "/assets/dashboard/images/logo.png",
 }
 
