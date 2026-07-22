@@ -10,6 +10,7 @@
   "source",
   "appointment_type",
   "coach",
+  "source_lead",
   "column_break_contact",
   "contact_name",
   "contact_email",
@@ -173,7 +174,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Source",
-   "options": "Coach Added\nCalendar Booking\nPublic Booking",
+   "options": "Coach Added\nCalendar Booking\nPublic Booking\nWebsite Enquiry",
    "default": "Coach Added"
   },
   {
@@ -190,6 +191,14 @@
    "in_standard_filter": 1,
    "label": "Coach",
    "options": "Coach"
+  },
+  {
+   "fieldname": "source_lead",
+   "fieldtype": "Link",
+   "label": "Website Lead",
+   "options": "Lead",
+   "read_only": 1,
+   "description": "The webshop/CRM Lead this enquiry was created from, if it came from the website's Contact Us form."
   },
   {
    "fieldname": "column_break_contact",
