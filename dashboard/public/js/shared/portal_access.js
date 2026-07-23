@@ -19,15 +19,33 @@
     var currentContact = null;
     var currentRowName = null;
 
-    function apiCall(method, args) {
-        return new Promise(function (resolve, reject) {
-            frappe.call({
-                method: "dashboard.api.shared.portal_access." + method,
-                args: args || {},
-                callback: function (r) { resolve(r.message); },
-                error: function (r) { reject(r); },
-            });
+    function getCsrfToken() {
+        var hidden = el("csrfToken");
+        if (hidden && hidden.value) return hidden.value;
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        return meta && meta.content ? meta.content : "";
+    }
+
+    async function apiCall(method, args) {
+        var response = await fetch("/api/method/dashboard.api.shared.portal_access." + method, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Frappe-CSRF-Token": getCsrfToken(),
+            },
+            body: JSON.stringify(args || {}),
         });
+        var data = {};
+        try {
+            data = await response.json();
+        } catch (error) {
+            throw new Error("Could not read server response.");
+        }
+        if (!response.ok || data.exc) {
+            throw new Error(data.message || "Request failed.");
+        }
+        return data.message;
     }
 
     function loadPortalAccess() {
@@ -43,23 +61,8 @@
                 if (row.contact) rowsByContact[row.contact] = row;
             });
 
-            renderRelationshipOptions((data && data.relationship_options) || []);
             renderStatuses(!!(data && data.can_manage));
         });
-    }
-
-    function renderRelationshipOptions(options) {
-        var select = el("portalAccessRelationship");
-        if (!select || select.dataset.populated) return;
-
-        options.forEach(function (option) {
-            var opt = document.createElement("option");
-            opt.value = option;
-            opt.textContent = option;
-            select.appendChild(opt);
-        });
-
-        select.dataset.populated = "1";
     }
 
     function permissionSummary(row) {
@@ -105,7 +108,10 @@
         el("portalAccessContactName").value = button.dataset.contactName || "";
         el("portalAccessEmail").value = button.dataset.email || "";
         el("portalAccessPhone").value = button.dataset.phone || "";
-        el("portalAccessRelationship").value = (row && row.relationship_type) || button.dataset.relationship || "";
+        var relationship = (row && row.relationship_type) || button.dataset.relationship || "";
+        el("portalAccessRelationship").value = relationship;
+        var relationshipDisplay = el("portalAccessRelationshipDisplay");
+        if (relationshipDisplay) relationshipDisplay.textContent = relationship || "—";
         el("portalAccessIsPrimary").checked = !!(row && row.is_primary_contact);
         el("portalAccessEnabled").checked = !!(row && row.portal_access_enabled);
         el("portalAccessNotify").checked = false;
