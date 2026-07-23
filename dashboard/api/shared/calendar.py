@@ -2036,7 +2036,7 @@ def get_booking_confirmation_email_defaults(event=None):
 
 
 @frappe.whitelist()
-def send_booking_confirmation_email(event=None, recipient=None, subject=None, message=None, cc=None, sender=None):
+def send_booking_confirmation_email(event=None, recipient=None, subject=None, message=None, cc=None, sender=None, reply_to=None):
     _require_logged_in_user()
 
     event = _coalesce_str("event", event)
@@ -2056,6 +2056,11 @@ def send_booking_confirmation_email(event=None, recipient=None, subject=None, me
     subject = (subject or "Your appointment is confirmed").strip()
     message = plain_text_to_email_html((message or "").strip())
 
+    # Default to whoever's actually sending this, not the shared outgoing
+    # account - otherwise every client reply lands in office's inbox
+    # regardless of which coach actually emailed them.
+    reply_to = (reply_to or "").strip() or frappe.session.user
+
     kwargs = {
         "recipients": [recipient],
         "subject": subject,
@@ -2063,6 +2068,7 @@ def send_booking_confirmation_email(event=None, recipient=None, subject=None, me
         "now": True,
         "reference_doctype": "Event",
         "reference_name": event,
+        "reply_to": reply_to,
     }
 
     cc_list = parse_email_list(cc)

@@ -572,7 +572,7 @@ def get_intake_email_defaults(name=None):
 
 
 @frappe.whitelist()
-def send_intake_form(name=None, subject=None, message=None, cc=None, sender=None):
+def send_intake_form(name=None, subject=None, message=None, cc=None, sender=None, reply_to=None):
     doc = ensure_lead_access(coalesce_str("name", name))
 
     if not doc.contact_email:
@@ -581,6 +581,11 @@ def send_intake_form(name=None, subject=None, message=None, cc=None, sender=None
     intake_url = _intake_url(doc.name)
     subject = (subject or "").strip()
     message = (message or "").strip()
+
+    # Default to whoever's actually sending this, not the shared outgoing
+    # account - otherwise every reply lands in office's inbox regardless
+    # of which coach actually emailed them.
+    reply_to = (reply_to or "").strip() or frappe.session.user
 
     try:
         if not subject or not message:
@@ -593,6 +598,7 @@ def send_intake_form(name=None, subject=None, message=None, cc=None, sender=None
             "subject": subject,
             "message": plain_text_to_email_html(message),
             "now": True,
+            "reply_to": reply_to,
         }
 
         cc_list = parse_email_list(cc)

@@ -2096,7 +2096,7 @@ def get_client_email_defaults(client_name=None, template_name=None):
 
 
 @frappe.whitelist()
-def send_client_email(client_name=None, recipient=None, subject=None, message=None, cc=None, sender=None):
+def send_client_email(client_name=None, recipient=None, subject=None, message=None, cc=None, sender=None, reply_to=None):
     """Sends the "Send Email" compose modal's contents - no PDF, no invoice involved."""
     _require_logged_in_user()
 
@@ -2115,11 +2115,17 @@ def send_client_email(client_name=None, recipient=None, subject=None, message=No
     subject = (subject or "Message").strip()
     message = plain_text_to_email_html((message or "").strip())
 
+    # Default to whoever's actually sending this, not the shared outgoing
+    # account - otherwise every client reply lands in office's inbox
+    # regardless of which coach actually emailed them.
+    reply_to = (reply_to or "").strip() or frappe.session.user
+
     kwargs = {
         "recipients": [recipient],
         "subject": subject,
         "message": message,
         "now": True,
+        "reply_to": reply_to,
     }
 
     cc_list = parse_email_list(cc)
@@ -2224,7 +2230,10 @@ def send_invoice_email(docname, recipient=None, reply_to=None, subject=None, mes
     message = (message or f"Please find attached invoice {doc.name}.").strip()
     message = plain_text_to_email_html(message)
 
-    reply_to = (reply_to or "").strip()
+    # Default to whoever's actually sending this, not the shared outgoing
+    # account - otherwise every client reply lands in office's inbox
+    # regardless of which coach actually emailed them.
+    reply_to = (reply_to or "").strip() or frappe.session.user
 
     attachments = [
         frappe.attach_print(
