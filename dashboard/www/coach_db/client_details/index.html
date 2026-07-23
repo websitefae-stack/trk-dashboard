@@ -322,6 +322,106 @@
                   </div>
                 </div>
 
+                <div class="dashboard-detail-section" id="portalAccessSection">
+                  <div class="dashboard-detail-section-head">
+                    <h2 class="dashboard-detail-section-title">Portal Access</h2>
+
+                    {% if not coach_is_view_mode %}
+                      <div class="dashboard-detail-actions">
+                        <button type="button" class="dashboard-btn dashboard-btn-primary" id="addPortalAccessBtn">
+                          Add Portal Access
+                        </button>
+                      </div>
+                    {% endif %}
+                  </div>
+
+                  <p class="dashboard-field-note">
+                    Controls who can log in to the client portal for this client, and exactly what they can see
+                    there (profile, appointments, invoices, courses, downloads, admin details) - separate from
+                    the Client Contacts list above, which is just the office's own contact directory.
+                  </p>
+
+                  <div class="dashboard-card" id="portalAccessFormPanel" style="display:none; margin-bottom:16px;">
+                    <div class="dashboard-detail-grid dashboard-detail-grid-2">
+                      <div class="dashboard-detail-field">
+                        <label>Relationship Type</label>
+                        <select class="dashboard-select" id="portalAccessRelationship">
+                          <option value="">Select</option>
+                        </select>
+                      </div>
+
+                      <div class="dashboard-detail-field">
+                        <label>Name</label>
+                        <input type="text" class="dashboard-input" id="portalAccessContactName">
+                      </div>
+
+                      <div class="dashboard-detail-field">
+                        <label>Email (used to log in)</label>
+                        <input type="email" class="dashboard-input" id="portalAccessEmail">
+                      </div>
+
+                      <div class="dashboard-detail-field">
+                        <label>Phone</label>
+                        <input type="text" class="dashboard-input" id="portalAccessPhone">
+                      </div>
+                    </div>
+
+                    <div class="dashboard-detail-grid dashboard-detail-grid-2" style="margin-top:12px;">
+                      <label class="dashboard-checkbox-label"><input type="checkbox" id="portalAccessIsPrimary"> Is Primary Contact</label>
+                      <label class="dashboard-checkbox-label"><input type="checkbox" id="portalAccessIsBilling"> Is Billing Contact</label>
+                    </div>
+
+                    <div style="margin-top:16px;">
+                      <label class="dashboard-checkbox-label">
+                        <input type="checkbox" id="portalAccessEnabled">
+                        <strong>Portal Access Enabled</strong> (must be ticked for this person to log in at all)
+                      </label>
+                    </div>
+
+                    <div style="margin-top:12px;">
+                      <h3 style="font-size:14px; margin-bottom:8px;">What they can see</h3>
+                      <div class="dashboard-detail-grid dashboard-detail-grid-2">
+                        <label class="dashboard-checkbox-label"><input type="checkbox" class="portal-access-permission" data-field="view_profile"> View Profile</label>
+                        <label class="dashboard-checkbox-label"><input type="checkbox" class="portal-access-permission" data-field="can_edit_profile"> Can Edit Profile</label>
+                        <label class="dashboard-checkbox-label"><input type="checkbox" class="portal-access-permission" data-field="can_view_appointments"> Can View Appointments</label>
+                        <label class="dashboard-checkbox-label"><input type="checkbox" class="portal-access-permission" data-field="can_view_invoices"> Can View Invoices</label>
+                        <label class="dashboard-checkbox-label"><input type="checkbox" class="portal-access-permission" data-field="can_pay_invoices"> Can Pay Invoices</label>
+                        <label class="dashboard-checkbox-label"><input type="checkbox" class="portal-access-permission" data-field="can_view_courses_and_products"> Can View Courses and Products</label>
+                        <label class="dashboard-checkbox-label"><input type="checkbox" class="portal-access-permission" data-field="can_view_downloads"> Can View Downloads</label>
+                        <label class="dashboard-checkbox-label"><input type="checkbox" class="portal-access-permission" data-field="can_view_admin_details"> Can View Admin Details</label>
+                        <label class="dashboard-checkbox-label"><input type="checkbox" class="portal-access-permission" data-field="can_monitor_courses"> Can Monitor Courses</label>
+                        <label class="dashboard-checkbox-label"><input type="checkbox" class="portal-access-permission" data-field="can_manage_staff_access"> Can Manage Staff Access</label>
+                        <label class="dashboard-checkbox-label"><input type="checkbox" class="portal-access-permission" data-field="can_view_sensitive_details"> Can View Sensitive Details</label>
+                      </div>
+                    </div>
+
+                    <div class="dashboard-detail-actions" style="margin-top:16px;">
+                      <button type="button" class="dashboard-btn dashboard-btn-secondary" id="cancelPortalAccess">Cancel</button>
+                      <button type="button" class="dashboard-btn dashboard-btn-primary" id="savePortalAccess">Save</button>
+                    </div>
+
+                    <div class="dashboard-help" id="portalAccessFormStatus"></div>
+                  </div>
+
+                  <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
+                    <table class="dashboard-table" id="portalAccessTable">
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Email</th>
+                          <th>Relationship</th>
+                          <th>Portal Access</th>
+                          <th>Permissions</th>
+                          <th class="dashboard-action-col">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody id="portalAccessTableBody">
+                        <tr><td colspan="6" class="dashboard-empty">Loading...</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
               {% elif tab.custom == "notes" %}
                 {% if not coach_is_view_mode %}
                   <div class="dashboard-detail-section">
