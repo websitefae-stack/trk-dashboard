@@ -8,15 +8,6 @@
         return input ? input.value : "";
     }
 
-    function escapeHtml(value) {
-        return String(value == null ? "" : value)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
-
     var PERMISSION_FIELDS = [
         "view_profile", "can_edit_profile", "can_view_appointments",
         "can_view_invoices", "can_pay_invoices", "can_view_courses_and_products",
@@ -24,8 +15,9 @@
         "can_manage_staff_access", "can_view_sensitive_details",
     ];
 
-    var editingRowName = null;
-    var lastRows = [];
+    var rowsByContact = {};
+    var currentContact = null;
+    var currentRowName = null;
 
     function apiCall(method, args) {
         return new Promise(function (resolve, reject) {
@@ -39,21 +31,20 @@
     }
 
     function loadPortalAccess() {
-        var tableBody = el("portalAccessTableBody");
-        if (!tableBody) return;
+        var manageButtons = document.querySelectorAll(".portal-access-manage-btn");
+        if (!manageButtons.length) return;
 
         var clientName = getClientName();
         if (!clientName) return;
 
         apiCall("get_portal_access_rows", { client_name: clientName }).then(function (data) {
-            lastRows = (data && data.rows) || [];
-            renderRelationshipOptions((data && data.relationship_options) || []);
-            renderRows(lastRows, !!(data && data.can_manage));
+            rowsByContact = {};
+            ((data && data.rows) || []).forEach(function (row) {
+                if (row.contact) rowsByContact[row.contact] = row;
+            });
 
-            var addBtn = el("addPortalAccessBtn");
-            if (addBtn) addBtn.style.display = (data && data.can_manage) ? "" : "none";
-        }).catch(function () {
-            tableBody.innerHTML = '<tr><td colspan="6" class="dashboard-empty">Unable to load portal access.</td></tr>';
+            renderRelationshipOptions((data && data.relationship_options) || []);
+            renderStatuses(!!(data && data.can_manage));
         });
     }
 
@@ -76,110 +67,95 @@
         return count + " of " + PERMISSION_FIELDS.length;
     }
 
-    function renderRows(rows, canManage) {
-        var tableBody = el("portalAccessTableBody");
-        if (!tableBody) return;
+    function renderStatuses(canManage) {
+        document.querySelectorAll(".portal-access-manage-btn").forEach(function (btn) {
+            var contact = btn.dataset.contact;
+            var row = contact ? rowsByContact[contact] : null;
+            var statusEl = document.querySelector('.portal-access-status[data-contact="' + contact + '"]');
 
-        if (!rows.length) {
-            tableBody.innerHTML = '<tr><td colspan="6" class="dashboard-empty">No portal access set up yet.</td></tr>';
-            return;
-        }
+            if (statusEl) {
+                if (row && row.portal_access_enabled) {
+                    statusEl.innerHTML = '<span class="dashboard-badge dashboard-status-active">Enabled</span> <span class="dashboard-field-note">(' + permissionSummary(row) + ')</span>';
+                } else if (row) {
+                    statusEl.innerHTML = '<span class="dashboard-badge">Disabled</span>';
+                } else {
+                    statusEl.innerHTML = '<span class="dashboard-empty">No access</span>';
+                }
+            }
 
-        tableBody.innerHTML = rows.map(function (row) {
-            var actions = canManage
-                ? '<button type="button" class="dashboard-link-btn portal-access-edit-btn" data-row="' + escapeHtml(row.name) + '">Edit</button> ' +
-                  '<button type="button" class="dashboard-link-btn portal-access-remove-btn" data-row="' + escapeHtml(row.name) + '">Remove</button>'
-                : "—";
-
-            return (
-                "<tr>" +
-                "<td>" + escapeHtml(row.contact_name || "—") + "</td>" +
-                "<td>" + escapeHtml(row.email_id || "—") + "</td>" +
-                "<td>" + escapeHtml(row.relationship_type || "—") + "</td>" +
-                "<td>" + (row.portal_access_enabled
-                    ? '<span class="dashboard-badge dashboard-status-active">Enabled</span>'
-                    : '<span class="dashboard-badge">Disabled</span>') + "</td>" +
-                "<td>" + permissionSummary(row) + "</td>" +
-                '<td class="dashboard-action-cell">' + actions + "</td>" +
-                "</tr>"
-            );
-        }).join("");
-
-        tableBody.querySelectorAll(".portal-access-edit-btn").forEach(function (btn) {
-            btn.addEventListener("click", function () {
-                var row = lastRows.find(function (r) { return r.name === btn.dataset.row; });
-                if (row) openForm(row);
-            });
-        });
-
-        tableBody.querySelectorAll(".portal-access-remove-btn").forEach(function (btn) {
-            btn.addEventListener("click", function () {
-                if (!window.confirm("Remove this person's portal access?")) return;
-
-                apiCall("remove_portal_access_row", {
-                    client_name: getClientName(),
-                    row_name: btn.dataset.row,
-                }).then(loadPortalAccess);
-            });
+            btn.style.display = canManage ? "" : "none";
+            btn.textContent = row ? "Manage" : "Grant Access";
         });
     }
 
-    function openForm(row) {
+    function openForm(button) {
         var panel = el("portalAccessFormPanel");
         if (!panel) return;
 
-        editingRowName = (row && row.name) || null;
+        currentContact = button.dataset.contact || "";
+        var row = currentContact ? rowsByContact[currentContact] : null;
+        currentRowName = (row && row.name) || null;
 
-        el("portalAccessContactName").value = (row && row.contact_name) || "";
-        el("portalAccessEmail").value = (row && row.email_id) || "";
-        el("portalAccessPhone").value = (row && row.phone) || "";
-        el("portalAccessRelationship").value = (row && row.relationship_type) || "";
+        var heading = el("portalAccessFormHeading");
+        if (heading) {
+            heading.textContent = "Managing portal access for " + (button.dataset.contactName || "this contact") +
+                (button.dataset.email ? " (" + button.dataset.email + ")" : "");
+        }
+
+        el("portalAccessContactName").value = button.dataset.contactName || "";
+        el("portalAccessEmail").value = button.dataset.email || "";
+        el("portalAccessPhone").value = button.dataset.phone || "";
+        el("portalAccessRelationship").value = (row && row.relationship_type) || button.dataset.relationship || "";
         el("portalAccessIsPrimary").checked = !!(row && row.is_primary_contact);
-        el("portalAccessIsBilling").checked = !!(row && row.is_billing_contact);
         el("portalAccessEnabled").checked = !!(row && row.portal_access_enabled);
+        el("portalAccessNotify").checked = false;
 
         document.querySelectorAll(".portal-access-permission").forEach(function (checkbox) {
             checkbox.checked = !!(row && row[checkbox.dataset.field]);
         });
 
+        var removeBtn = el("removePortalAccess");
+        if (removeBtn) removeBtn.style.display = row ? "" : "none";
+
         var status = el("portalAccessFormStatus");
         if (status) status.textContent = "";
 
         panel.style.display = "block";
+        panel.scrollIntoView({ behavior: "smooth", block: "center" });
     }
 
     function closeForm() {
         var panel = el("portalAccessFormPanel");
         if (panel) panel.style.display = "none";
-        editingRowName = null;
+        currentContact = null;
+        currentRowName = null;
     }
 
     function saveForm() {
         var clientName = getClientName();
         var status = el("portalAccessFormStatus");
+        var manageBtn = currentContact
+            ? document.querySelector('.portal-access-manage-btn[data-contact="' + currentContact + '"]')
+            : null;
 
         var payload = {
-            name: editingRowName,
             contact_name: el("portalAccessContactName").value,
             email_id: el("portalAccessEmail").value,
             phone: el("portalAccessPhone").value,
             relationship_type: el("portalAccessRelationship").value,
             is_primary_contact: el("portalAccessIsPrimary").checked ? 1 : 0,
-            is_billing_contact: el("portalAccessIsBilling").checked ? 1 : 0,
+            is_billing_contact: manageBtn && manageBtn.dataset.isBilling === "1" ? 1 : 0,
             portal_access_enabled: el("portalAccessEnabled").checked ? 1 : 0,
+            notify_by_email: el("portalAccessNotify").checked ? 1 : 0,
         };
 
         document.querySelectorAll(".portal-access-permission").forEach(function (checkbox) {
             payload[checkbox.dataset.field] = checkbox.checked ? 1 : 0;
         });
 
-        if (!payload.email_id) {
-            if (status) status.textContent = "Email is required so this person can log in.";
-            return;
-        }
-
         apiCall("save_portal_access_row", {
             client_name: clientName,
+            contact: currentContact || "",
             data: JSON.stringify(payload),
         }).then(function () {
             closeForm();
@@ -189,18 +165,36 @@
         });
     }
 
+    function removeAccess() {
+        if (!currentRowName) return;
+        if (!window.confirm("Remove this person's portal access? They will no longer be able to log in.")) return;
+
+        apiCall("remove_portal_access_row", {
+            client_name: getClientName(),
+            row_name: currentRowName,
+        }).then(function () {
+            closeForm();
+            loadPortalAccess();
+        });
+    }
+
     document.addEventListener("DOMContentLoaded", function () {
-        if (!el("portalAccessTableBody")) return;
+        if (!document.querySelector(".portal-access-manage-btn")) return;
 
         loadPortalAccess();
 
-        var addBtn = el("addPortalAccessBtn");
-        if (addBtn) addBtn.addEventListener("click", function () { openForm(null); });
+        document.body.addEventListener("click", function (e) {
+            var btn = e.target.closest(".portal-access-manage-btn");
+            if (btn) openForm(btn);
+        });
 
         var cancelBtn = el("cancelPortalAccess");
         if (cancelBtn) cancelBtn.addEventListener("click", closeForm);
 
         var saveBtn = el("savePortalAccess");
         if (saveBtn) saveBtn.addEventListener("click", saveForm);
+
+        var removeBtn = el("removePortalAccess");
+        if (removeBtn) removeBtn.addEventListener("click", removeAccess);
     });
 })();
