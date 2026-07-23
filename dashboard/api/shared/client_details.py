@@ -5,6 +5,7 @@ from frappe import _
 from dashboard.api.shared.permissions import (
     ensure_client_access,
     ensure_logged_in,
+    get_client_role,
     get_current_coach_name,
     is_franchisor_user,
 )
@@ -568,10 +569,30 @@ def get_client_contacts_for_context(doc, contact_detail_base_url="/coach_db/cont
 
 
 def get_session_notes(doc):
+    """
+    Notes are only visible to the franchisor and to whoever has a
+    legitimate coaching relationship to this client (primary coach,
+    attending coach, session worker) - nobody else. For a "Franchise"
+    type client (a coach's own internal billing record, visible to every
+    coach as a franchise_peer for cross-invoicing) that's too broad a
+    circle to share notes with, so those are restricted further to just
+    the author and the franchisor.
+    """
+    role = get_client_role(doc.name)
+    is_franchise_client = doc.get("client_type") == "Franchise"
+    current_user = frappe.session.user
+
     notes = []
 
     for row in doc.get("session_notes") or []:
         user = row.get("user") or row.get("owner") or row.get("created_by") or ""
+
+        if role != "franchisor":
+            if is_franchise_client:
+                if user != current_user:
+                    continue
+            elif role not in ("primary_coach", "attending_coach", "session_worker"):
+                continue
 
         notes.append(
             {
@@ -680,6 +701,7 @@ def link_existing_contact_to_client(client_name=None, contact_name=None, relatio
 @frappe.whitelist()
 def get_client_notes(client_name):
     require_logged_in_user()
+    ensure_client_access(client_name)
 
     if not client_name or not frappe.db.exists("Client", client_name):
         frappe.throw(_("Client not found."))

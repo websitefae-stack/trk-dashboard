@@ -297,6 +297,12 @@
         syncBookingFields();
       }
 
+      if (event.target && event.target.id === "trkCalendarTime") {
+        const currentType = getValue("trkCalendarType");
+        const newStartTime = event.target.value || "09:00";
+        setValue("trkCalendarEndTime", addMinutesToTimeString(newStartTime, DURATION_BY_TYPE[currentType] || 45));
+      }
+
       if (event.target && event.target.id === "trkCalendarRecurring") {
         syncBookingFields();
       }
