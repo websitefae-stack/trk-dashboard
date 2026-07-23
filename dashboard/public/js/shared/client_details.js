@@ -1491,12 +1491,21 @@
       const messageField = el("sendEmailMessage");
       const client = getClientName();
 
+      // "General" (blank) is a real choice, not just "nothing picked yet" -
+      // switching back to it clears the fields to type a one-off message,
+      // rather than leaving whatever the last-selected template filled in.
+      if (!templateSelect || !templateSelect.value) {
+        if (subjectField) subjectField.value = "";
+        if (messageField) messageField.value = "";
+        return;
+      }
+
       if (!client) return;
 
       try {
         const defaults = await apiPostRaw("dashboard.api.shared.invoices.get_client_email_defaults", {
           client_name: client,
-          template_name: templateSelect ? templateSelect.value : ""
+          template_name: templateSelect.value
         });
 
         if (subjectField && defaults && defaults.subject) subjectField.value = defaults.subject;
@@ -1542,14 +1551,17 @@
         }
 
         fillSelect(emailSelect, sendEmailState.emailOptions, sendEmailState.emailOptions.length ? "" : "No email on file");
-        fillSelect(templateSelect, sendEmailState.templateOptions, sendEmailState.templateOptions.length ? "" : "No templates");
+        fillSelect(templateSelect, sendEmailState.templateOptions, "General");
         fillSelect(senderSelect, senderOptions || [], "");
 
-        if (templateSelect && sendEmailState.templateOptions.length) {
-          templateSelect.value = sendEmailState.templateOptions[0].value;
-        }
-
-        await refreshSendEmailMessage();
+        // Starts blank on "General" every time, ready to type a one-off
+        // message - a template only fills anything in once deliberately
+        // picked from the dropdown (see refreshSendEmailMessage()'s
+        // "change" listener), never automatically on open.
+        const subjectField = el("sendEmailSubject");
+        const messageField = el("sendEmailMessage");
+        if (subjectField) subjectField.value = "";
+        if (messageField) messageField.value = "";
       } catch (error) {
         showError(error.message || "Could not load email details.");
       }
