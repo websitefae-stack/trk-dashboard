@@ -389,13 +389,25 @@ def get_contact_rows_for_clients(clients, scope="coach", ignore_permissions=True
 def get_allowed_clients(scope, coach_scope="my"):
     ensure_logged_in()
 
+    # Franchise-type clients represent coaches/HQ themselves (for cross-
+    # coach/HQ invoicing) and aren't assigned to any one coach or session
+    # worker - every coach/session worker needs to see them regardless
+    # (matching the same carve-out in permissions.py's
+    # get_allowed_client_or_filters()), otherwise a franchisee's own
+    # billing contact is invisible to everyone but whoever happens to be
+    # its primary/attending coach (usually nobody).
+
     if scope == "session_worker":
         session_worker = get_current_session_worker_name()
         if not session_worker:
             return []
         return frappe.get_all(
             CLIENT_DOCTYPE,
-            filters={"session_worker": session_worker},
+            filters=[
+                [CLIENT_DOCTYPE, "session_worker", "=", session_worker],
+                "or",
+                [CLIENT_DOCTYPE, "client_type", "=", "Franchise"],
+            ],
             fields=CLIENT_FIELDS,
             order_by="full_name asc, name1 asc, last_name asc",
             limit_page_length=5000,
@@ -411,6 +423,8 @@ def get_allowed_clients(scope, coach_scope="my"):
                 [CLIENT_DOCTYPE, "primary_coach", "=", coach],
                 "or",
                 [CLIENT_DOCTYPE, "attending_coach", "=", coach],
+                "or",
+                [CLIENT_DOCTYPE, "client_type", "=", "Franchise"],
             ],
             fields=CLIENT_FIELDS,
             order_by="full_name asc, name1 asc, last_name asc",
@@ -444,6 +458,8 @@ def get_allowed_clients(scope, coach_scope="my"):
                 [CLIENT_DOCTYPE, "primary_coach", "=", coach_name],
                 "or",
                 [CLIENT_DOCTYPE, "attending_coach", "=", coach_name],
+                "or",
+                [CLIENT_DOCTYPE, "client_type", "=", "Franchise"],
             ],
             fields=CLIENT_FIELDS,
             order_by="full_name asc, name1 asc, last_name asc",
