@@ -1,14 +1,18 @@
 """
 Manages Client Contact Link rows - the doctype the `client_portal` app
 reads to decide who can log in to the client portal for a given Client,
-and exactly what they're allowed to see there. This is intentionally
-separate from client_contacts (this app's own contact directory/billing-
-contact feature in contacts.py/contact_details.py) - a person can be a
-plain office contact without ever getting portal access, and vice versa.
+and exactly what they're allowed to see there.
 
-Nothing in this file is called by, or changes the behaviour of, any
-existing page - it's only used by the new Portal Access panel on the
-client details page.
+Portal Access is always attached to an *existing* Client Contact (a
+client_contacts row / Contact doctype) rather than being entered from
+scratch a second time - a person's name/email/phone only ever gets typed
+once, in the existing Add New Contact / Select Existing Contact flow. For
+an adult client's own self-access, add them as a contact with Relationship
+"Self" using their own email first, then grant portal access the same way.
+
+Nothing in this file changes the behaviour of client_contacts, Contact,
+or any other existing feature - it only reads/writes the separate
+Client Contact Link child table.
 """
 
 import frappe
@@ -86,6 +90,11 @@ def _ensure_can_manage_portal_access(client_name):
 
 @frappe.whitelist()
 def get_portal_access_rows(client_name):
+    """Keyed by `contact` docname client-side, so the Client Contacts
+    table can show each row's own portal-access status without a second
+    round trip.
+    """
+
     ensure_client_access(client_name)
 
     if not frappe.db.exists("DocType", LINK_DOCTYPE):
@@ -106,7 +115,13 @@ def get_portal_access_rows(client_name):
 
 
 @frappe.whitelist()
-def save_portal_access_row(client_name, data):
+def save_portal_access_row(client_name, contact, data):
+    """`contact` is an existing Contact docname already linked to this
+    client via client_contacts. Pass "" only when the person genuinely has
+    no Contact record on file - the client_portal app itself falls back to
+    matching by email_id alone in that case.
+    """
+
     _ensure_can_manage_portal_access(client_name)
 
     if not frappe.get_meta(CLIENT_DOCTYPE).has_field(LINK_PARENTFIELD):
@@ -116,26 +131,29 @@ def save_portal_access_row(client_name, data):
         data = frappe.parse_json(data)
 
     data = data or {}
+    contact = (contact or "").strip()
+    email = (data.get("email_id") or "").strip()
 
-    if not (data.get("email_id") or "").strip():
-        frappe.throw(_("Email is required so this person can log in to the portal."))
+    if not email:
+        frappe.throw(_("This contact has no email address on file, so they cannot be given portal access."))
 
     client = frappe.get_doc(CLIENT_DOCTYPE, client_name)
 
-    row_name = data.get("name")
     row = None
-
-    if row_name:
-        for existing in client.get(LINK_PARENTFIELD) or []:
-            if existing.name == row_name:
-                row = existing
-                break
+    for existing in client.get(LINK_PARENTFIELD) or []:
+        if contact and existing.contact == contact:
+            row = existing
+            break
+        if not contact and not existing.contact and existing.email_id == email:
+            row = existing
+            break
 
     if not row:
         row = client.append(LINK_PARENTFIELD, {})
 
+    row.contact = contact or ""
     row.contact_name = data.get("contact_name") or ""
-    row.email_id = data.get("email_id") or ""
+    row.email_id = email
     row.phone = data.get("phone") or ""
     row.relationship_type = data.get("relationship_type") or ""
     row.is_primary_contact = 1 if data.get("is_primary_contact") else 0
@@ -148,7 +166,15 @@ def save_portal_access_row(client_name, data):
     client.save(ignore_permissions=True)
     frappe.db.commit()
 
-    return {"success": True}
+    user_created = False
+
+    if row.portal_access_enabled:
+        user_created = _ensure_user_account(email, row.contact_name)
+
+    if data.get("notify_by_email"):
+        _send_portal_notification(email, row.contact_name, user_created)
+
+    return {"success": True, "user_created": user_created}
 
 
 @frappe.whitelist()
@@ -166,3 +192,57 @@ def remove_portal_access_row(client_name, row_name):
     frappe.db.commit()
 
     return {"success": True}
+
+
+def _ensure_user_account(email, full_name):
+    """Creates a Frappe User for this email if one doesn't exist yet, with
+    the password defaulted to their own email address so they can log in
+    immediately. Never resets the password of an account that already
+    exists, since they may have already changed it themselves.
+    """
+
+    if frappe.db.exists("User", email):
+        return False
+
+    user = frappe.new_doc("User")
+    user.email = email
+    user.first_name = (full_name or email.split("@")[0]).split(" ")[0]
+    user.full_name = full_name or email
+    user.send_welcome_email = 0
+    user.user_type = "Website User"
+    user.insert(ignore_permissions=True)
+
+    from frappe.utils.password import update_password
+    update_password(email, email)
+
+    frappe.db.commit()
+
+    return True
+
+
+def _send_portal_notification(email, full_name, user_created):
+    login_url = frappe.utils.get_url("/login")
+    greeting = f"Hi {full_name}," if full_name else "Hi,"
+
+    if user_created:
+        message = f"""
+            <p>{greeting}</p>
+            <p>You've been given access to the client portal.</p>
+            <p><a href="{login_url}">Log in here</a></p>
+            <p>Your username is your email address: <strong>{email}</strong></p>
+            <p>Your temporary password is your email address (the same as above). You can change this any time using "Forgot Password" on the login page.</p>
+        """
+    else:
+        message = f"""
+            <p>{greeting}</p>
+            <p>Your access to the client portal has been updated.</p>
+            <p><a href="{login_url}">Log in here</a></p>
+            <p>Use your existing password, or click "Forgot Password" on the login page if you need to reset it.</p>
+        """
+
+    frappe.sendmail(
+        recipients=[email],
+        subject="Your client portal access",
+        message=message,
+        now=True,
+    )
