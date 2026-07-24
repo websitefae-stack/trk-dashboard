@@ -486,6 +486,29 @@
                 </div>
 
               {% elif tab.custom == "appointments" %}
+                {% if is_franchise_client and supervision_target %}
+                  <div class="dashboard-detail-section supervision-booking-widget" data-supervision-coach="{{ supervision_target.coach }}">
+                    <div class="dashboard-detail-section-head">
+                      <h2 class="dashboard-detail-section-title">Book Supervision with {{ supervision_target.coach_name }}</h2>
+                    </div>
+
+                    <div class="dashboard-detail-grid dashboard-detail-grid-2">
+                      <div class="dashboard-detail-field">
+                        <label>Date</label>
+                        <input type="date" class="dashboard-input" data-supervision-date>
+                      </div>
+
+                      <div class="dashboard-detail-field" style="align-self:flex-end;">
+                        <button type="button" class="dashboard-btn dashboard-btn-light" data-supervision-check>Check Availability</button>
+                      </div>
+                    </div>
+
+                    <div data-supervision-slots style="margin-top:12px;"></div>
+
+                    <div class="dashboard-help" data-supervision-message style="display:none;"></div>
+                  </div>
+                {% endif %}
+
                 <div class="dashboard-detail-section">
                   <div class="dashboard-detail-section-head">
                     <h2 class="dashboard-detail-section-title">Session Pack Summary</h2>
