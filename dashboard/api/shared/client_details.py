@@ -16,6 +16,8 @@ from dashboard.api.shared.directory import (
     get_user_display_name,
 )
 
+from dashboard.api.shared.supervision_booking import get_coach_supervision_target
+
 
 TEXTAREA_TYPES = {"Text", "Small Text", "Long Text", "Code", "Text Editor"}
 
@@ -1749,6 +1751,8 @@ def get_client_context_data(client_name=None, is_new=False, base_url="/coach_db"
         "travel_charged": int(doc.get("travel_charged") or 0),
         "travel_miles_one_way": doc.get("travel_miles_one_way") or 0,
         "travel_charge_per_session": doc.get("travel_charge_per_session") or 0,
+        "is_franchise_client": doc.get("client_type") == "Franchise",
+        "supervision_target": get_coach_supervision_target() if is_existing_client else None,
     }
 
 

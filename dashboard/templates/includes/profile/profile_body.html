@@ -72,6 +72,9 @@
           {% if profile_role in ["coach", "franchisor"] and not coach_is_view_mode %}
             <button type="button" class="dashboard-tab-btn" data-tab="email">Google Connection</button>
           {% endif %}
+          {% if linked_coaches and not session_worker_is_view_mode %}
+            <button type="button" class="dashboard-tab-btn" data-tab="supervision">Supervision</button>
+          {% endif %}
         </div>
       </div>
 
@@ -614,6 +617,49 @@
           <div class="dashboard-detail-field dashboard-detail-field-full" id="googleCalendarConnectField" data-return-to="{{ dashboard_base_url }}/profile">
             <label>Google Calendar</label>
             <div class="dashboard-html-block" id="googleCalendarConnectStatus">Checking status&hellip;</div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if linked_coaches and not session_worker_is_view_mode %}
+      <div class="dashboard-tab-panel" data-tab-panel="supervision" style="display:none;">
+        <div class="dashboard-card">
+          <div class="dashboard-detail-section-head" style="margin-bottom:18px;">
+            <h3>Book Supervision</h3>
+          </div>
+
+          {% for coach in linked_coaches %}
+          <div class="dashboard-detail-section supervision-booking-widget" data-supervision-coach="{{ coach.coach }}" style="margin-bottom:18px;">
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">With {{ coach.coach_name }}</h2>
+            </div>
+
+            <div class="dashboard-detail-grid dashboard-detail-grid-2">
+              <div class="dashboard-detail-field">
+                <label>Date</label>
+                <input type="date" class="dashboard-input" data-supervision-date>
+              </div>
+
+              <div class="dashboard-detail-field" style="align-self:flex-end;">
+                <button type="button" class="dashboard-btn dashboard-btn-light" data-supervision-check>Check Availability</button>
+              </div>
+            </div>
+
+            <div data-supervision-slots style="margin-top:12px;"></div>
+
+            <div class="dashboard-help" data-supervision-message style="display:none;"></div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="dashboard-card" style="margin-top:18px;">
+          <div class="dashboard-detail-section-head" style="margin-bottom:18px;">
+            <h3>My Supervision Appointments</h3>
+          </div>
+
+          <div class="dashboard-table-wrap" id="supervisionAppointmentsWrap">
+            <p class="dashboard-empty">Loading…</p>
           </div>
         </div>
       </div>

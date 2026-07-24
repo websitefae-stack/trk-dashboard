@@ -73,9 +73,19 @@ def is_publicly_bookable(label):
     if not label:
         return False
 
+    label_lower = label.lower()
+
+    # Parent Check-In and Supervision must never be publicly bookable, full
+    # stop - not just as the pre-migration fallback default. Whatever
+    # custom_public_booking_enabled happens to be set to on their
+    # Appointment Template (e.g. left ticked from before this per-type
+    # config existed, or toggled by mistake) must never be able to put a
+    # staff-only appointment type on a coach's public profile page.
+    if any(fragment in label_lower for fragment in LEGACY_EXCLUDED_LABEL_FRAGMENTS):
+        return False
+
     if not _has_booking_config_fields():
-        label_lower = label.lower()
-        return not any(fragment in label_lower for fragment in LEGACY_EXCLUDED_LABEL_FRAGMENTS)
+        return True
 
     matches = get_matching_templates(label)
     return any(int(row.get("custom_public_booking_enabled") or 0) for row in matches)
