@@ -170,8 +170,15 @@
     const directionLabel = isAwaitingResponse ? "Waiting on Response" : "";
     const directionClass = "is-awaiting-response";
 
+    // Client-requested reschedules need to stand out from the rest of the
+    // inbox (Resilient Kid brand pink), since they're time-sensitive and
+    // easy to miss among routine notifications.
+    const rowType = row.conversation_type || row.notification_type || "";
+    const isRescheduleRequest = rowType === "Reschedule Request";
+    const cardClass = "dashboard-notif-card " + borderClassFor(bucket) + (isRescheduleRequest ? " dashboard-notif-card-reschedule" : "");
+
     return `
-      <div class="dashboard-notif-card ${borderClassFor(bucket)}" draggable="true" data-name="${escapeHtml(row.name)}" data-detail-url="${escapeHtml(getDetailUrl(row))}">
+      <div class="${cardClass}" draggable="true" data-name="${escapeHtml(row.name)}" data-detail-url="${escapeHtml(getDetailUrl(row))}">
         ${directionLabel ? `<div class="dashboard-notif-card-direction ${directionClass}">${escapeHtml(directionLabel)}</div>` : ""}
         <div class="dashboard-notif-card-heading">
           <h3 class="dashboard-notif-card-title">${escapeHtml(row.title || row.notification_type || "Notification")}</h3>
