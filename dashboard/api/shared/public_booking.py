@@ -28,6 +28,7 @@ from dashboard.api.shared.appointment_types import (
     get_matching_templates,
 )
 from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, BOOKING_CONFIRMATION_TEMPLATE
+from dashboard.api.shared.notifications import create_trk_notification
 
 SLOT_GRID_MINUTES = 30
 MAX_DAYS_AHEAD = 60
@@ -53,21 +54,28 @@ def _format_time_value(value):
     return str(value)
 
 
-def _get_template_names_for_type(appointment_type_label):
+def _get_template_names_for_type(appointment_type_label, require_public_bookable=True):
     """
     Case-insensitive "contains" match rather than an exact-name match - a
     template named e.g. "Initial Consultation (Online)" or lowercase
     "initial consultation" still gets picked up on both sides instead of
     the button silently doing nothing. Never returns a template that isn't
-    flagged for public booking (see appointment_types.is_publicly_bookable).
+    flagged for public booking (see appointment_types.is_publicly_bookable),
+    UNLESS require_public_bookable=False - only ever passed by the portal
+    self-booking functions further down, which are login-gated and hard-
+    restricted to PORTAL_BOOKABLE_TYPES rather than being reachable by a
+    guest with an arbitrary appointment_type string.
     """
-    if not appointment_type_label or not is_publicly_bookable(appointment_type_label):
+    if not appointment_type_label:
+        return set()
+
+    if require_public_bookable and not is_publicly_bookable(appointment_type_label):
         return set()
 
     return {row.get("name") for row in get_matching_templates(appointment_type_label)}
 
 
-def _get_coach_windows_for_date(coach, date_str, appointment_type):
+def _get_coach_windows_for_date(coach, date_str, appointment_type, require_public_bookable=True):
     if not frappe.db.exists("Coach", coach):
         return []
 
@@ -75,7 +83,7 @@ def _get_coach_windows_for_date(coach, date_str, appointment_type):
     if not coach_meta.has_field("appointment_types"):
         return []
 
-    template_names = _get_template_names_for_type(appointment_type)
+    template_names = _get_template_names_for_type(appointment_type, require_public_bookable=require_public_bookable)
     if not template_names:
         return []
 
@@ -130,12 +138,14 @@ def _get_coach_user(coach):
     return frappe.db.get_value("Coach", coach, "user") or frappe.db.get_value("Coach", coach, "coach_email")
 
 
-def _compute_available_slots(coach, date_str, appointment_type):
-    windows = _get_coach_windows_for_date(coach, date_str, appointment_type)
+def _compute_available_slots(coach, date_str, appointment_type, require_public_bookable=True, duration_minutes=None):
+    windows = _get_coach_windows_for_date(coach, date_str, appointment_type, require_public_bookable=require_public_bookable)
     if not windows:
         return []
 
-    duration_minutes = get_duration_minutes(appointment_type)
+    if duration_minutes is None:
+        duration_minutes = get_duration_minutes(appointment_type)
+
     coach_user = _get_coach_user(coach)
     booked = _get_coach_booked_windows(coach_user, date_str)
     now = now_datetime()
@@ -186,7 +196,7 @@ def get_available_slots(coach=None, date=None, appointment_type=None):
     return _compute_available_slots(coach, date, appointment_type)
 
 
-def _get_windows_by_weekday(coach, appointment_type):
+def _get_windows_by_weekday(coach, appointment_type, require_public_bookable=True):
     """Same as _get_coach_windows_for_date, but grouped by weekday and
     computed once - used by the month view so it doesn't reload the Coach
     doc once per day of the month."""
@@ -197,7 +207,7 @@ def _get_windows_by_weekday(coach, appointment_type):
     if not coach_meta.has_field("appointment_types"):
         return {}
 
-    template_names = _get_template_names_for_type(appointment_type)
+    template_names = _get_template_names_for_type(appointment_type, require_public_bookable=require_public_bookable)
     if not template_names:
         return {}
 
@@ -245,11 +255,16 @@ def get_available_dates(coach=None, year=None, month=None, appointment_type=None
     except Exception:
         return []
 
-    windows_by_weekday = _get_windows_by_weekday(coach, appointment_type)
+    return _compute_available_dates(coach, year, month, appointment_type)
+
+
+def _compute_available_dates(coach, year, month, appointment_type, require_public_bookable=True, duration_minutes=None):
+    windows_by_weekday = _get_windows_by_weekday(coach, appointment_type, require_public_bookable=require_public_bookable)
     if not any(windows_by_weekday.values()):
         return []
 
-    duration_minutes = get_duration_minutes(appointment_type)
+    if duration_minutes is None:
+        duration_minutes = get_duration_minutes(appointment_type)
 
     coach_user = _get_coach_user(coach)
     if not coach_user:
@@ -320,6 +335,245 @@ def get_available_dates(coach=None, year=None, month=None, appointment_type=None
                 break
 
     return available_dates
+
+
+# ─────────────────────────────────────────────────────────────
+# Client portal self-booking (Parent Check-In only)
+# ─────────────────────────────────────────────────────────────
+#
+# Reuses the exact slot-computation engine above (coach availability
+# windows minus existing bookings) but bypasses the is_publicly_bookable
+# gate, since Parent Check-In is deliberately excluded from the *public*
+# guest-facing booking page while still needing to be self-bookable by an
+# existing, logged-in client from their own client_portal. Every function
+# here requires login (no allow_guest) and hard-restricts appointment_type
+# to PORTAL_BOOKABLE_TYPES, so this "skip the public gate" path can never
+# be used to fetch availability or book other staff-only types
+# (Supervision etc.) by passing a different appointment_type string.
+# client_portal reaches these via a guarded frappe.get_attr lookup rather
+# than a hard import, same as it does for create_trk_notification - see
+# client_portal/api/appointments.py.
+
+PORTAL_BOOKABLE_TYPES = {"Parent Check-In"}
+PARENT_CHECKIN_ITEM_CODE = "PAR001"
+PARENT_CHECKIN_DURATION_MINUTES = 30
+
+
+def _ensure_logged_in_portal_user():
+    if frappe.session.user == "Guest":
+        frappe.throw(_("Login required."), frappe.PermissionError)
+
+
+def _ensure_portal_bookable_type(appointment_type):
+    if appointment_type not in PORTAL_BOOKABLE_TYPES:
+        frappe.throw(_("This appointment type cannot be self-booked from the client portal."))
+
+
+@frappe.whitelist()
+def get_portal_slots(coach=None, date=None, appointment_type=None):
+    _ensure_logged_in_portal_user()
+
+    coach = coalesce_str("coach", coach)
+    date = coalesce_str("date", date)
+    appointment_type = coalesce_str("appointment_type", appointment_type)
+
+    _ensure_portal_bookable_type(appointment_type)
+
+    if not coach or not date:
+        return []
+
+    try:
+        requested = getdate(date)
+    except Exception:
+        return []
+
+    if requested < getdate(now_datetime()) or (requested - getdate(now_datetime())).days > MAX_DAYS_AHEAD:
+        return []
+
+    return _compute_available_slots(
+        coach, date, appointment_type,
+        require_public_bookable=False,
+        duration_minutes=PARENT_CHECKIN_DURATION_MINUTES,
+    )
+
+
+@frappe.whitelist()
+def get_portal_dates(coach=None, year=None, month=None, appointment_type=None):
+    _ensure_logged_in_portal_user()
+
+    coach = coalesce_str("coach", coach)
+    year = coalesce_str("year", year)
+    month = coalesce_str("month", month)
+    appointment_type = coalesce_str("appointment_type", appointment_type)
+
+    _ensure_portal_bookable_type(appointment_type)
+
+    if not coach or not year or not month:
+        return []
+
+    try:
+        year = int(year)
+        month = int(month)
+    except Exception:
+        return []
+
+    return _compute_available_dates(
+        coach, year, month, appointment_type,
+        require_public_bookable=False,
+        duration_minutes=PARENT_CHECKIN_DURATION_MINUTES,
+    )
+
+
+def _find_parent_checkin_balance(client):
+    if not frappe.db.exists("DocType", "Client Package Balance"):
+        return None
+
+    rows = frappe.get_all(
+        "Client Package Balance",
+        filters={
+            "client": client,
+            "service_item": PARENT_CHECKIN_ITEM_CODE,
+            "status": "Active",
+        },
+        fields=["name", "qty_available"],
+        order_by="creation asc",
+        limit_page_length=50,
+    )
+
+    for row in rows:
+        try:
+            if float(row.get("qty_available") or 0) > 0:
+                return row.get("name")
+        except Exception:
+            continue
+
+    return None
+
+
+@frappe.whitelist()
+def create_portal_booking(client=None, coach=None, date=None, time=None, appointment_type=None):
+    """
+    Books a Parent Check-In directly onto the calendar for an existing
+    client, consuming one session from their Parent Check-In package
+    balance - the client-portal equivalent of submit_public_booking()
+    above, but for an existing Client rather than a new Lead, and gated on
+    login + a real, available session pack rather than being guest-facing.
+    Callers are expected to have already checked the requesting user has
+    can_book_appointments on this client (see client_portal.api.
+    appointments.book_parent_checkin) - this function still re-derives the
+    coach from the Client record and re-validates the slot itself rather
+    than trusting either from the caller.
+    """
+    _ensure_logged_in_portal_user()
+
+    client = coalesce_str("client", client)
+    coach = coalesce_str("coach", coach)
+    date = coalesce_str("date", date)
+    time = coalesce_str("time", time)
+    appointment_type = coalesce_str("appointment_type", appointment_type)
+
+    _ensure_portal_bookable_type(appointment_type)
+
+    if not client or not frappe.db.exists("Client", client):
+        frappe.throw(_("Client not found."))
+
+    actual_coach = frappe.db.get_value("Client", client, "primary_coach")
+    if not actual_coach or actual_coach != coach:
+        frappe.throw(_("This client's coach does not match."), frappe.PermissionError)
+
+    if not date or not time:
+        frappe.throw(_("Please select a date and time."))
+
+    balance_name = _find_parent_checkin_balance(client)
+    if not balance_name:
+        frappe.throw(_("This client has no available Parent Check-In sessions to book."))
+
+    if time not in _compute_available_slots(
+        coach, date, appointment_type,
+        require_public_bookable=False,
+        duration_minutes=PARENT_CHECKIN_DURATION_MINUTES,
+    ):
+        frappe.throw(_("Sorry, that time is no longer available. Please choose another slot."))
+
+    coach_user = _get_coach_user(coach)
+    if not coach_user:
+        frappe.throw(_("This coach is not available for booking right now."))
+
+    start_dt = get_datetime(f"{date} {time}:00")
+    end_dt = add_to_date(start_dt, minutes=PARENT_CHECKIN_DURATION_MINUTES)
+
+    # Final guard immediately before insert, to shrink the race window from
+    # "load slots -> submit" down to just this one query -> insert gap.
+    still_free = not frappe.get_all(
+        "Event",
+        filters=[
+            ["owner", "=", coach_user],
+            ["starts_on", "<", end_dt],
+            ["ends_on", ">", start_dt],
+        ],
+        limit_page_length=1,
+        ignore_permissions=True,
+    )
+
+    if not still_free:
+        frappe.throw(_("Sorry, that time was just booked by someone else. Please choose another slot."))
+
+    from dashboard.api.shared.calendar import _set_session_type, _event_has_field
+
+    client_full_name = frappe.db.get_value("Client", client, "full_name") or client
+
+    event = frappe.new_doc("Event")
+    event.owner = coach_user
+    event.subject = f"{client_full_name} - {appointment_type}"
+    event.starts_on = start_dt
+    event.ends_on = end_dt
+
+    if _event_has_field("event_type"):
+        event.event_type = "Private"
+
+    _set_session_type(event, appointment_type)
+
+    if _event_has_field("custom_client"):
+        event.custom_client = client
+
+    if _event_has_field("custom_coach"):
+        event.custom_coach = coach
+
+    if _event_has_field("custom_client_package_balance"):
+        event.custom_client_package_balance = balance_name
+
+    if _event_has_field("custom_billing_type"):
+        event.custom_billing_type = "Non-Billable"
+
+    if _event_has_field("custom_appointment_status"):
+        event.custom_appointment_status = "Scheduled"
+    elif _event_has_field("status"):
+        event.status = "Open"
+
+    if _event_has_field("description"):
+        event.description = "Booked by the client via the client portal."
+
+    event.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    # Best-effort side effect only - the booking itself already committed
+    # above, so a broken notification config must never make the booking
+    # appear to have failed.
+    try:
+        create_trk_notification(
+            recipient_user=coach_user,
+            notification_type="New Portal Booking",
+            message=f"{client_full_name} booked a Parent Check-In for {date} at {time} via the client portal.",
+            priority="Normal",
+            reference_doctype="Event",
+            reference_name=event.name,
+            client=client,
+            event=event.name,
+        )
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Portal Booking - Coach Notification Failed")
+
+    return {"ok": True, "event": event.name}
 
 
 @frappe.whitelist(allow_guest=True)
