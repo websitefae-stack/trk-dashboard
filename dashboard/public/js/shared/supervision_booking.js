@@ -101,7 +101,56 @@
         }
     }
 
+    function pad(value) {
+        return String(value).length < 2 ? "0" + value : String(value);
+    }
+
+    function formatDateTime(value) {
+        if (!value) return "-";
+        var date = new Date(String(value).replace(" ", "T"));
+        if (isNaN(date.getTime())) return String(value);
+        return pad(date.getDate()) + "-" + pad(date.getMonth() + 1) + "-" + date.getFullYear()
+            + " " + pad(date.getHours()) + ":" + pad(date.getMinutes());
+    }
+
+    function loadMySupervisionAppointments() {
+        var container = document.getElementById("supervisionAppointmentsWrap");
+        if (!container) return;
+
+        apiCall("get_my_supervision_appointments", {}).then(function (events) {
+            renderMySupervisionAppointments(events || []);
+        }).catch(function () {
+            container.innerHTML = '<p class="dashboard-empty">Unable to load your Supervision appointments.</p>';
+        });
+    }
+
+    function renderMySupervisionAppointments(events) {
+        var container = document.getElementById("supervisionAppointmentsWrap");
+        if (!container) return;
+
+        if (!events.length) {
+            container.innerHTML = '<p class="dashboard-empty">No Supervision appointments booked yet.</p>';
+            return;
+        }
+
+        var rows = events.map(function (event) {
+            var status = event.custom_appointment_status || event.status || "Not set";
+            return "<tr>"
+                + "<td>" + formatDateTime(event.starts_on) + "</td>"
+                + "<td>" + (event.coach_name || "Not set") + "</td>"
+                + "<td><span class=\"dashboard-badge " + (event.is_upcoming ? "dashboard-status-active" : "") + "\">" + (event.is_upcoming ? "Upcoming" : "Past") + "</span></td>"
+                + "<td>" + status + "</td>"
+                + "</tr>";
+        }).join("");
+
+        container.innerHTML = "<table class=\"dashboard-table\">"
+            + "<thead><tr><th>Date &amp; Time</th><th>Coach</th><th>When</th><th>Status</th></tr></thead>"
+            + "<tbody>" + rows + "</tbody>"
+            + "</table>";
+    }
+
     document.addEventListener("DOMContentLoaded", function () {
         document.querySelectorAll(".supervision-booking-widget").forEach(initWidget);
+        loadMySupervisionAppointments();
     });
 })();

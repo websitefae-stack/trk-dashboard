@@ -176,6 +176,11 @@ def book_supervision(coach=None, date=None, time=None):
     from dashboard.api.shared.calendar import _set_session_type, _event_has_field
 
     requester_name = _get_requester_display_name()
+    requester_session_worker = (
+        get_current_session_worker_name(optional=True)
+        if get_current_user_dashboard_type() == "session_worker"
+        else None
+    )
 
     event = frappe.new_doc("Event")
     event.owner = coach_user
@@ -190,6 +195,9 @@ def book_supervision(coach=None, date=None, time=None):
 
     if _event_has_field("custom_coach"):
         event.custom_coach = coach
+
+    if requester_session_worker and _event_has_field("custom_session_worker"):
+        event.custom_session_worker = requester_session_worker
 
     if _event_has_field("custom_appointment_status"):
         event.custom_appointment_status = "Scheduled"
@@ -219,3 +227,62 @@ def book_supervision(coach=None, date=None, time=None):
         frappe.log_error(frappe.get_traceback(), "Supervision Booking - Notification Failed")
 
     return {"ok": True, "event": event.name}
+
+
+@frappe.whitelist()
+def get_my_supervision_appointments():
+    """A session worker's own booked Supervision sessions, across every
+    coach they've booked with. Events are Private and owned by the
+    supervising coach, not the session worker, so this reads with
+    ignore_permissions=True - safe here because the filter is hard-scoped
+    to custom_session_worker == this session worker's own name, never
+    anyone else's.
+    """
+    ensure_logged_in()
+
+    session_worker_name = get_current_session_worker_name(optional=True)
+    if not session_worker_name:
+        frappe.throw(_("No Session Worker profile is linked to your user."), frappe.PermissionError)
+
+    meta = frappe.get_meta("Event")
+
+    if not meta.has_field("custom_session_worker"):
+        return []
+
+    filters = {"custom_session_worker": session_worker_name}
+
+    if meta.has_field("custom_session_type"):
+        filters["custom_session_type"] = SUPERVISION_TYPE_LABEL
+    elif meta.has_field("custom_appointment_type"):
+        filters["custom_appointment_type"] = SUPERVISION_TYPE_LABEL
+
+    fields = ["name", "subject", "starts_on", "ends_on", "status"]
+
+    if meta.has_field("custom_appointment_status"):
+        fields.append("custom_appointment_status")
+
+    if meta.has_field("custom_coach"):
+        fields.append("custom_coach")
+
+    events = frappe.get_all(
+        "Event",
+        filters=filters,
+        fields=fields,
+        order_by="starts_on desc",
+        limit_page_length=200,
+        ignore_permissions=True,
+    )
+
+    now = frappe.utils.now_datetime()
+    coach_display_names = {}
+
+    for event in events:
+        event["is_upcoming"] = bool(event.get("starts_on") and event["starts_on"] >= now)
+
+        coach = event.get("custom_coach")
+        if coach:
+            if coach not in coach_display_names:
+                coach_display_names[coach] = frappe.db.get_value("Coach", coach, "coach_name") or coach
+            event["coach_name"] = coach_display_names[coach]
+
+    return events
