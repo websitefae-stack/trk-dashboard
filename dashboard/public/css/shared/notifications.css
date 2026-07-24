@@ -961,6 +961,15 @@
   border: 2px solid #007274 !important;
 }
 
+/* Client-requested reschedules (see notifications.js renderCard) - the
+   Resilient Kid brand's pink/red accent (#E94763, same as .dashboard-btn-pink
+   in buttons.css) at a lighter tint so it stands out from routine cards
+   without being illegible as a full-card background. */
+.dashboard-notif-card-reschedule {
+  background: #FDE7EC !important;
+  border: 2px solid #E94763 !important;
+}
+
 .dashboard-page-actions {
   display: flex;
   align-items: center;

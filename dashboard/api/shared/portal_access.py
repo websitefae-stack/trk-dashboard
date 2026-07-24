@@ -28,6 +28,7 @@ PERMISSION_FIELDS = [
     "view_profile",
     "can_edit_profile",
     "can_view_appointments",
+    "can_book_appointments",
     "can_view_invoices",
     "can_pay_invoices",
     "can_view_courses_and_products",
