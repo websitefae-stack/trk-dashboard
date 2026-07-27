@@ -234,11 +234,12 @@
    "label": "Requires Renewal"
   },
   {
+   "default": "No Renewal",
    "depends_on": "eval:doc.requires_renewal==1",
    "fieldname": "renewal_frequency",
    "fieldtype": "Select",
    "label": "Renewal Frequency",
-   "options": "Monthly\nQuarterly\nEvery 6 Months\nAnnually\nEvery 2 Years\nEvery 3 Years"
+   "options": "No Renewal\nMonthly\nQuarterly\nEvery 6 Months\nAnnually\nEvery 2 Years\nEvery 3 Years"
   },
   {
    "depends_on": "eval:doc.document_purpose==\"Internal Compliance\" || doc.document_purpose==\"Both\"",
