@@ -11,8 +11,9 @@ def get_context(context):
     redirect_if_wrong_dashboard("franchisor")
 
     requirement_name = (frappe.form_dict.get("name") or "").strip()
+    practice_document_name = (frappe.form_dict.get("practice_document") or "").strip()
 
-    if not requirement_name:
+    if not requirement_name and not practice_document_name:
         frappe.local.flags.redirect_location = "/franchisor_db/documents"
         raise frappe.Redirect
 
@@ -20,4 +21,5 @@ def get_context(context):
     context.page_title = "Document"
     context.active_page = "documents"
     context.requirement_name = requirement_name
+    context.practice_document_name = practice_document_name
     context.dashboard_user_name = frappe.get_cached_value("User", frappe.session.user, "full_name") or frappe.session.user

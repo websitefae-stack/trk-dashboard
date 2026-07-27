@@ -104,8 +104,14 @@
   // -------------------------------------------------------------------
 
   function renderDocumentRow(row) {
-    var statusClass = STATUS_CLASS[row.status] || "";
-    var viewUrl = dashboardBase() + "/document_view?name=" + encodeURIComponent(row.name);
+    var isResource = row.kind === "resource";
+    var viewUrl = isResource
+      ? dashboardBase() + "/document_view?practice_document=" + encodeURIComponent(row.name)
+      : dashboardBase() + "/document_view?name=" + encodeURIComponent(row.name);
+
+    var statusCell = isResource
+      ? '<span class="dashboard-badge">Resource</span>'
+      : '<span class="dashboard-badge ' + (STATUS_CLASS[row.status] || "") + '">' + escapeHtml(row.status) + "</span>";
 
     return (
       "<tr>" +
@@ -119,7 +125,7 @@
           "</div>" +
         "</td>" +
         "<td>" + (row.due_date ? escapeHtml(formatDate(row.due_date)) : "&mdash;") + "</td>" +
-        '<td><span class="dashboard-badge ' + statusClass + '">' + escapeHtml(row.status) + "</span></td>" +
+        "<td>" + statusCell + "</td>" +
         '<td class="dashboard-text-right"><a class="dashboard-btn dashboard-btn-primary" href="' + viewUrl + '">Open</a></td>' +
       "</tr>"
     );
@@ -222,6 +228,11 @@
   function getRequirementName() {
     var page = el("documentViewPage");
     return page ? page.dataset.requirementName : "";
+  }
+
+  function getPracticeDocumentName() {
+    var page = el("documentViewPage");
+    return page ? page.dataset.practiceDocument : "";
   }
 
   function showDocError(message) {
@@ -371,12 +382,20 @@
       button.textContent = "Allocating...";
 
       try {
-        await apiPost(API + ".allocate_document_to_client", {
-          requirement_name: getRequirementName(),
+        var requirementName = getRequirementName();
+        var payload = {
           client: client,
           recipient_type: recipientType,
           message: message
-        });
+        };
+
+        if (requirementName) {
+          payload.requirement_name = requirementName;
+        } else {
+          payload.practice_document = getPracticeDocumentName();
+        }
+
+        await apiPost(API + ".allocate_document_to_client", payload);
 
         if (successBox) {
           successBox.textContent = "Allocated to client.";
@@ -391,12 +410,12 @@
     });
   }
 
-  function renderDocumentView(data) {
+  function renderDocumentView(data, isResource) {
     setText("docTitle", data.document_title);
     setText("docCode", data.document_code);
     setText("docVersion", data.document_version);
     setText("docType", data.document_type);
-    setText("docStatus", data.status);
+    setText("docStatus", isResource ? "Resource" : data.status);
 
     var dueWrap = el("docDueWrap");
     if (data.due_date && dueWrap) {
@@ -411,7 +430,9 @@
 
     var openBtn = el("docOpenFileBtn");
     var embed = el("docFileEmbed");
-    var fileUrl = "/api/method/" + API + ".get_my_document_file?requirement_name=" + encodeURIComponent(data.name);
+    var fileUrl = isResource
+      ? "/api/method/" + API + ".get_resource_document_file?practice_document=" + encodeURIComponent(data.name)
+      : "/api/method/" + API + ".get_my_document_file?requirement_name=" + encodeURIComponent(data.name);
 
     if (data.document_file) {
       if (openBtn) openBtn.href = fileUrl;
@@ -456,8 +477,11 @@
   }
 
   async function loadDocumentView() {
-    var name = getRequirementName();
-    if (!name) return;
+    var requirementName = getRequirementName();
+    var practiceDocumentName = getPracticeDocumentName();
+    var isResource = !requirementName && !!practiceDocumentName;
+
+    if (!requirementName && !practiceDocumentName) return;
 
     el("documentViewLoading").style.display = "block";
     clearDocError();
@@ -465,7 +489,9 @@
 
     var data;
     try {
-      data = await apiGet(API + ".get_my_document_requirement", { requirement_name: name });
+      data = isResource
+        ? await apiGet(API + ".get_resource_document", { practice_document: practiceDocumentName })
+        : await apiGet(API + ".get_my_document_requirement", { requirement_name: requirementName });
     } catch (error) {
       el("documentViewLoading").style.display = "none";
       showDocError(error.message || "You do not have permission to access this document.");
@@ -475,7 +501,7 @@
     el("documentViewLoading").style.display = "none";
     el("documentViewContent").style.display = "block";
 
-    renderDocumentView(data);
+    renderDocumentView(data, isResource);
   }
 
   async function submitCompletion(payload) {

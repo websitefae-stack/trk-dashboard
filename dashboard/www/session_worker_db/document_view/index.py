@@ -17,8 +17,9 @@ def get_context(context):
     )
 
     requirement_name = (frappe.form_dict.get("name") or "").strip()
+    practice_document_name = (frappe.form_dict.get("practice_document") or "").strip()
 
-    if not requirement_name:
+    if not requirement_name and not practice_document_name:
         frappe.local.flags.redirect_location = "/session_worker_db/documents"
         raise frappe.Redirect
 
@@ -26,6 +27,7 @@ def get_context(context):
     context.page_title = "Document"
     context.active_page = "documents"
     context.requirement_name = requirement_name
+    context.practice_document_name = practice_document_name
 
     context.session_worker_view_mode = view_mode
     context.session_worker_view_query = view_mode.get("query_string") or ""

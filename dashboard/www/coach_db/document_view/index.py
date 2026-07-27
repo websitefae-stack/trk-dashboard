@@ -21,8 +21,9 @@ def get_context(context):
         redirect_if_wrong_dashboard("coach")
 
     requirement_name = (frappe.form_dict.get("name") or "").strip()
+    practice_document_name = (frappe.form_dict.get("practice_document") or "").strip()
 
-    if not requirement_name:
+    if not requirement_name and not practice_document_name:
         frappe.local.flags.redirect_location = "/coach_db/documents"
         raise frappe.Redirect
 
@@ -31,6 +32,7 @@ def get_context(context):
     context.active_page = "documents"
     context.dashboard_notifications_url = "/coach_db/notifications" + (view_mode.get("query_string") or "")
     context.requirement_name = requirement_name
+    context.practice_document_name = practice_document_name
 
     context.coach_view_mode = view_mode
     context.coach_view_query = view_mode.get("query_string") or ""

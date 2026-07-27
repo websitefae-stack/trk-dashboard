@@ -30,6 +30,53 @@ def _document_type_options():
 	return [option.strip() for option in options.split("\n") if option.strip()]
 
 
+def _can_user_see_resource(document, user=None):
+	"""
+	document is a dict with at least resource_availability + name.
+	"All Coaches" means every logged-in dashboard user; "Selected Coaches"
+	is gated by a Practice Document Coach row naming this user, matching
+	Practice Document's own "Available to Coaches" field description.
+	"""
+	user = user or frappe.session.user
+
+	if document.get("resource_availability") != "Selected Coaches":
+		return True
+
+	return bool(frappe.db.exists(
+		"Practice Document Coach",
+		{
+			"parent": document.get("name"),
+			"parenttype": PRACTICE_DOCUMENT_DOCTYPE,
+			"user": user,
+			"can_share": 1,
+		},
+	))
+
+
+def _get_visible_resource_documents(user=None):
+	"""
+	Published Practice Documents whose purpose includes Client Resource -
+	these never get a Coach Document Requirement (see "Create assignments
+	when published": only Internal Compliance/Both create one), so this is
+	the only way the Documents page can ever show them.
+	"""
+	rows = frappe.get_all(
+		PRACTICE_DOCUMENT_DOCTYPE,
+		filters={
+			"status": "Published",
+			"document_purpose": ["in", ("Client Resource", "Both")],
+		},
+		fields=[
+			"name", "document_title", "document_code", "version",
+			"document_type", "mandatory", "resource_availability", "document_file",
+		],
+		order_by="modified desc",
+		ignore_permissions=True,
+	)
+
+	return [row for row in rows if _can_user_see_resource(row, user=user)]
+
+
 @frappe.whitelist()
 def get_my_documents_by_type():
 	ensure_logged_in()
@@ -52,10 +99,79 @@ def get_my_documents_by_type():
 	documents.setdefault("Other", [])
 
 	for row in rows:
+		row["kind"] = "requirement"
+		key = row.document_type if row.document_type in documents else "Other"
+		documents[key].append(row)
+
+	for row in _get_visible_resource_documents(user=user):
+		row["kind"] = "resource"
+		row["document_version"] = row.get("version")
 		key = row.document_type if row.document_type in documents else "Other"
 		documents[key].append(row)
 
 	return {"types": types, "documents": documents}
+
+
+@frappe.whitelist()
+def get_resource_document(practice_document):
+	"""
+	The "Open Document" view for a pure Client Resource document (never
+	has a Coach Document Requirement, so nothing to read/acknowledge/sign -
+	only summary/text/file and, when eligible, Allocate to Client).
+	"""
+	ensure_logged_in()
+
+	if not practice_document or not frappe.db.exists(PRACTICE_DOCUMENT_DOCTYPE, practice_document):
+		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
+
+	source = frappe.get_doc(PRACTICE_DOCUMENT_DOCTYPE, practice_document)
+
+	if source.status != "Published" or source.document_purpose not in ("Client Resource", "Both"):
+		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
+
+	if not _can_user_see_resource(source.as_dict()) and not _is_admin(frappe.session.user):
+		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
+
+	return {
+		"name": source.name,
+		"document_title": source.document_title,
+		"document_code": source.document_code,
+		"document_version": source.version,
+		"document_type": source.document_type,
+		"mandatory": source.mandatory,
+		"document_file": source.document_file,
+		"summary": source.summary,
+		"document_text": source.document_text,
+		"can_allocate_to_client": True,
+	}
+
+
+@frappe.whitelist()
+def get_resource_document_file(practice_document):
+	"""Same private-attachment proxy as get_my_document_file(), scoped by resource visibility instead of requirement ownership."""
+	ensure_logged_in()
+
+	if not practice_document or not frappe.db.exists(PRACTICE_DOCUMENT_DOCTYPE, practice_document):
+		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
+
+	source = frappe.get_doc(PRACTICE_DOCUMENT_DOCTYPE, practice_document)
+
+	if source.status != "Published" or source.document_purpose not in ("Client Resource", "Both"):
+		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
+
+	if not _can_user_see_resource(source.as_dict()) and not _is_admin(frappe.session.user):
+		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
+
+	if not source.document_file:
+		frappe.throw("No file is attached to this document.")
+
+	from frappe.utils.file_manager import get_file
+
+	fname, fcontent = get_file(source.document_file)
+
+	frappe.local.response.filename = fname
+	frappe.local.response.filecontent = fcontent
+	frappe.local.response.type = "download"
 
 
 @frappe.whitelist()
@@ -205,15 +321,38 @@ def get_allocation_target_clients():
 
 
 @frappe.whitelist()
-def allocate_document_to_client(requirement_name, client, recipient_type, message=None):
+def allocate_document_to_client(requirement_name=None, practice_document=None, client=None, recipient_type=None, message=None):
 	"""
-	Records that a coach has decided to share this document with a
-	client - creates a Client Document Share row (Prepared) for whoever
-	handles delivery to pick up. Does not itself send anything.
+	Records that a coach/franchisor/session worker has decided to share
+	this document with a client - creates a Client Document Share row
+	(Prepared) for whoever handles delivery to pick up. Does not itself
+	send anything. Works from either an owned Coach Document Requirement
+	(Internal Compliance/Both documents someone was assigned) or directly
+	from a Practice Document (pure Client Resource documents, which never
+	get a requirement row at all).
 	"""
-	requirement = _get_owned_requirement(requirement_name)
+	if requirement_name:
+		requirement = _get_owned_requirement(requirement_name)
+		practice_document_name = requirement.practice_document
+		document_title = requirement.document_title
+		document_code = requirement.document_code
+		document_version = requirement.document_version
+		client_action_required = requirement.required_action
+		coach = requirement.coach
+		session_worker = requirement.session_worker
+	elif practice_document:
+		source_data = get_resource_document(practice_document)
+		practice_document_name = source_data["name"]
+		document_title = source_data["document_title"]
+		document_code = source_data["document_code"]
+		document_version = source_data["document_version"]
+		client_action_required = frappe.db.get_value(PRACTICE_DOCUMENT_DOCTYPE, practice_document_name, "client_action_required")
+		coach = frappe.db.get_value("Coach", {"user": frappe.session.user}, "name")
+		session_worker = frappe.db.get_value("Session Worker", {"user": frappe.session.user}, "name")
+	else:
+		frappe.throw("A document is required.")
 
-	document_purpose = frappe.db.get_value(PRACTICE_DOCUMENT_DOCTYPE, requirement.practice_document, "document_purpose")
+	document_purpose = frappe.db.get_value(PRACTICE_DOCUMENT_DOCTYPE, practice_document_name, "document_purpose")
 
 	if document_purpose not in ("Client Resource", "Both"):
 		frappe.throw("This document is not available to share with clients.")
@@ -228,16 +367,16 @@ def allocate_document_to_client(requirement_name, client, recipient_type, messag
 		frappe.throw("Choose a recipient type.")
 
 	share = frappe.new_doc(CLIENT_DOCUMENT_SHARE_DOCTYPE)
-	share.practice_document = requirement.practice_document
-	share.document_title = requirement.document_title
-	share.document_code = requirement.document_code
-	share.document_version = requirement.document_version
-	share.client_action_required = requirement.required_action
+	share.practice_document = practice_document_name
+	share.document_title = document_title
+	share.document_code = document_code
+	share.document_version = document_version
+	share.client_action_required = client_action_required
 
 	share.shared_by = frappe.session.user
 	share.shared_on = now_datetime()
-	share.coach = requirement.coach
-	share.session_worker = requirement.session_worker
+	share.coach = coach
+	share.session_worker = session_worker
 
 	share.client = client
 	share.recipient_type = recipient_type
