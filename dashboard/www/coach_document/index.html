@@ -1,0 +1,125 @@
+{% if dashboard_type == "coach" %}
+  {% include "dashboard/templates/includes/head/coach_head.html" %}
+{% elif dashboard_type == "franchisor" %}
+  {% include "dashboard/templates/includes/head/franchisor_head.html" %}
+{% else %}
+  {% include "dashboard/templates/includes/head/session_worker_head.html" %}
+{% endif %}
+
+<div class="dashboard-page" id="coachDocumentPage" data-dashboard-type="{{ dashboard_type }}" data-requirement-name="{{ requirement_name }}">
+  {% if dashboard_type == "coach" %}
+    {% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
+  {% elif dashboard_type == "franchisor" %}
+    {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+  {% else %}
+    {% include "dashboard/templates/includes/sidebar/session_worker_sidebar.html" %}
+  {% endif %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <a href="/coach-documents" class="dashboard-link-btn">&larr; Back to My Documents</a>
+        </div>
+      </div>
+
+      <div id="coachDocumentLoading" class="dashboard-empty">Loading document...</div>
+      <div id="coachDocumentError" class="dashboard-doc-error" style="display:none;"></div>
+
+      <div id="coachDocumentContent" style="display:none;">
+
+        <div class="dashboard-card dashboard-doc-detail-header">
+          <h1 class="dashboard-page-title" id="docTitle">—</h1>
+
+          <div class="dashboard-doc-detail-meta">
+            <span>Code: <strong id="docCode">—</strong></span>
+            <span>Version: <strong id="docVersion">—</strong></span>
+            <span>Type: <strong id="docType">—</strong></span>
+            <span>Status: <strong id="docStatus">—</strong></span>
+            <span id="docDueWrap">Due: <strong id="docDue">—</strong></span>
+            <span id="docMandatoryBadge" class="dashboard-doc-card-mandatory" style="display:none;">Mandatory</span>
+          </div>
+        </div>
+
+        <div class="dashboard-card" style="margin-top:16px;">
+          <div class="dashboard-doc-detail-file-actions" id="docFileActions" style="display:none;">
+            <a id="docOpenFileBtn" class="dashboard-btn dashboard-btn-primary" href="#" target="_blank" rel="noopener noreferrer">Open Document</a>
+          </div>
+
+          <iframe id="docFileEmbed" class="dashboard-doc-detail-embed" style="display:none;" title="Document preview"></iframe>
+
+          <div id="docSummaryWrap" style="display:none;">
+            <h3>Summary</h3>
+            <p id="docSummary" class="dashboard-doc-detail-text"></p>
+          </div>
+
+          <div id="docTextWrap" style="display:none;">
+            <h3>Document</h3>
+            <div id="docText" class="dashboard-doc-detail-text"></div>
+          </div>
+        </div>
+
+        <!-- Read Only -->
+        <div class="dashboard-card dashboard-doc-completion-section" id="docActionReadOnly" style="display:none;">
+          <div class="dashboard-doc-checkbox-row">
+            <input type="checkbox" id="docReadConfirmed">
+            <label for="docReadConfirmed">I have read this document</label>
+          </div>
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="docSubmitReadOnly">Confirm and Submit</button>
+        </div>
+
+        <!-- Acknowledge -->
+        <div class="dashboard-card dashboard-doc-completion-section" id="docActionAcknowledge" style="display:none;">
+          <div class="dashboard-doc-declaration" id="docAcknowledgementDeclaration"></div>
+          <div class="dashboard-doc-checkbox-row">
+            <input type="checkbox" id="docAcknowledgementConfirmed">
+            <label for="docAcknowledgementConfirmed">I confirm this acknowledgement</label>
+          </div>
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="docSubmitAcknowledge">Acknowledge and Submit</button>
+        </div>
+
+        <!-- Sign -->
+        <div class="dashboard-card dashboard-doc-completion-section" id="docActionSign" style="display:none;">
+          <div class="dashboard-doc-declaration" id="docSignatureDeclaration"></div>
+
+          <div class="dashboard-detail-field" style="margin-bottom:14px;">
+            <label for="docTypedFullName">Typed Full Name</label>
+            <input type="text" id="docTypedFullName" class="dashboard-input" placeholder="Your full name">
+          </div>
+
+          <div class="dashboard-doc-signature-pad-wrap">
+            <label>Signature</label>
+            <canvas id="docSignaturePad" class="dashboard-doc-signature-pad"></canvas>
+            <button type="button" class="dashboard-btn dashboard-btn-light dashboard-doc-signature-clear" id="docSignatureClear">Clear Signature</button>
+          </div>
+
+          <div class="dashboard-doc-checkbox-row">
+            <input type="checkbox" id="docSignatureConfirmed">
+            <label for="docSignatureConfirmed">I confirm this declaration</label>
+          </div>
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="docSubmitSign">Sign and Submit</button>
+        </div>
+
+        <!-- Completed -->
+        <div class="dashboard-doc-success-panel" id="docSuccessPanel" style="display:none;">
+          <div class="dashboard-doc-success-panel-title">Completed</div>
+          <div class="dashboard-doc-success-panel-row" id="docSuccessCompletedOn"></div>
+          <div class="dashboard-doc-success-panel-row" id="docSuccessCompletedBy"></div>
+          <div class="dashboard-doc-success-panel-row" id="docSuccessReference"></div>
+          <div class="dashboard-doc-success-panel-row" id="docSuccessReadOn" style="display:none;"></div>
+          <div class="dashboard-doc-success-panel-row" id="docSuccessAcknowledgedOn" style="display:none;"></div>
+          <div class="dashboard-doc-success-panel-row" id="docSuccessSignedOn" style="display:none;"></div>
+          <div id="docSuccessSignatureWrap" style="display:none;">
+            <div class="dashboard-doc-success-panel-row">Signed by:</div>
+            <img id="docSuccessSignatureImg" class="dashboard-doc-success-signature" alt="Signature">
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>

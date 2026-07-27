@@ -102,6 +102,37 @@
     }
   }
 
+  async function loadMyDocumentsBadges() {
+    const badges = qsa(".js-mydocs-badge");
+
+    if (!badges.length) return;
+
+    try {
+      const data = await callApi(
+        "dashboard.api.shared.compliance.get_my_document_summary",
+        {}
+      );
+
+      if (!data) return;
+
+      const outstandingCount = Number(data.outstanding || 0);
+
+      badges.forEach(function (badge) {
+        if (outstandingCount > 0) {
+          badge.style.display = "inline-flex";
+          badge.textContent = outstandingCount;
+          return;
+        }
+
+        badge.textContent = "0";
+        badge.style.display = "none";
+      });
+
+    } catch (error) {
+      console.error("My Documents badge error", error);
+    }
+  }
+
   async function logout() {
     try {
       await fetch("/api/method/logout", {
@@ -151,6 +182,7 @@
   function init() {
     bindSidebarEvents();
     loadNotificationBadges();
+    loadMyDocumentsBadges();
   }
 
   if (document.readyState === "loading") {

@@ -76,7 +76,13 @@
             <span class="dashboard-nav-icon">⚙️</span>
             <span>Profile</span>
         </a>
-                
+
+        <a href="/coach-documents" class="dashboard-nav-mydocs-link {% if active_page == 'my_documents' %}is-active{% endif %}">
+            <span class="dashboard-nav-icon">📄</span>
+            <span>My Documents</span>
+            <span class="dashboard-notification-badge js-mydocs-badge" style="display:none;">0</span>
+        </a>
+
         <button type="button" id="dashboardLogoutBtn" class="dashboard-sidebar-logout">
             <span class="dashboard-nav-icon">⎋</span>
             <span>Log Out</span>
