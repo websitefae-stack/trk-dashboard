@@ -33,6 +33,7 @@ from dashboard.api.shared.permissions import (
 )
 from dashboard.api.shared.public_booking import (
     MAX_DAYS_AHEAD,
+    _compute_available_dates,
     _compute_available_slots,
     _get_coach_user,
 )
@@ -132,6 +133,26 @@ def get_supervision_slots(coach=None, date=None):
         return []
 
     return _compute_available_slots(coach, date, SUPERVISION_TYPE_LABEL, require_public_bookable=False)
+
+
+@frappe.whitelist()
+def get_supervision_dates(coach=None, year=None, month=None):
+    coach = coalesce_str("coach", coach)
+    year = coalesce_str("year", year)
+    month = coalesce_str("month", month)
+
+    _ensure_requester_can_book_with(coach)
+
+    if not coach or not year or not month:
+        return []
+
+    try:
+        year = int(year)
+        month = int(month)
+    except Exception:
+        return []
+
+    return _compute_available_dates(coach, year, month, SUPERVISION_TYPE_LABEL, require_public_bookable=False)
 
 
 @frappe.whitelist()
