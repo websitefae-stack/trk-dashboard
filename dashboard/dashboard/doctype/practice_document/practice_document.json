@@ -78,7 +78,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Document Type",
-   "options": "Policy\nProcedure\nGuidance\nForm\nTemplate\nAgreement\nTraining\nOther",
+   "options": "Policy\nProcedure\nGuidance\nPractice Manual\nForm\nTemplate\nAgreement\nTraining\nOther",
    "reqd": 1
   },
   {

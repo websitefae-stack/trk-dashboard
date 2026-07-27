@@ -69,6 +69,11 @@
             <span>Reports</span>
         </a>
 
+        <a href="/session_worker_db/documents{{ session_worker_view_query or '' }}" class="{% if active_page == 'documents' %}is-active{% endif %}">
+            <span class="dashboard-nav-icon">📄</span>
+            <span>Documents</span>
+        </a>
+
         {% if session_worker_is_view_mode %}
             <a href="{{ session_worker_view_return_to }}" class="dashboard-sidebar-logout">
                 <span class="dashboard-nav-icon">↩</span>

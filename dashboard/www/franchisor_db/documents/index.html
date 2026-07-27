@@ -1,0 +1,24 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page" id="documentsPage">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Documents</h1>
+          <p class="dashboard-page-subtitle">Policies, procedures, guidance and other documents assigned to you</p>
+        </div>
+      </div>
+
+      <div class="dashboard-tabs" id="documentTypeTabs" role="tablist"></div>
+
+      <div id="documentTypePanels"></div>
+
+    </div>
+  </div>
+</div>

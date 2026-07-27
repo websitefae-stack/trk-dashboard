@@ -74,6 +74,11 @@
             <span>Reports</span>
         </a>
 
+        <a href="/coach_db/documents{{ coach_view_query or '' }}" class="{% if active_page == 'documents' %}is-active{% endif %}">
+            <span class="dashboard-nav-icon">📄</span>
+            <span>Documents</span>
+        </a>
+
         <a href="/coach_db/profile{{ coach_view_query or '' }}" class="{% if active_page == 'profile' %}is-active{% endif %}">
             <span class="dashboard-nav-icon">⚙️</span>
             <span>Profile</span>

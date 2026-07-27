@@ -17,6 +17,7 @@ web_include_css = [
     "/assets/dashboard/css/shared/badges.css",
     "/assets/dashboard/css/shared/details.css",
     "/assets/dashboard/css/shared/notifications.css",
+    "/assets/dashboard/css/shared/practice_documents.css",
     "/assets/dashboard/css/shared/mobile.css",
 ]
 
@@ -86,6 +87,14 @@ doc_events = {
     },
     "Comment": {
         "after_insert": "dashboard.api.shared.webshop_lead_sync.sync_webshop_lead_comment",
+    },
+    # Notifies whoever a document was just allocated to. The requirement
+    # itself is created/validated entirely by the user's own "Prepare
+    # coach document requirement" Server Script (Before Insert) - this
+    # only runs after that succeeds, so it never affects whether the
+    # requirement is created.
+    "Coach Document Requirement": {
+        "after_insert": "dashboard.api.shared.practice_documents.notify_requirement_assigned",
     },
 }
 
