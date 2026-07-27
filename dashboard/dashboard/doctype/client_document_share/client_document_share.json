@@ -1,0 +1,374 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "autoincrement",
+ "creation": "2026-07-27 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "sharing_details_section",
+  "practice_document",
+  "document_title",
+  "document_code",
+  "document_version",
+  "client_action_required",
+  "sharing_details_column",
+  "shared_by",
+  "shared_on",
+  "coach",
+  "session_worker",
+  "client_recipient_section",
+  "client",
+  "recipient_type",
+  "recipient_contact",
+  "recipient_name",
+  "recipient_email",
+  "recipient_user",
+  "delivery_section",
+  "delivery_method",
+  "coach_message",
+  "status",
+  "sent_on",
+  "viewed_on",
+  "completed_on",
+  "failed_on",
+  "failure_message",
+  "secure_access_section",
+  "access_token",
+  "link_expires_on",
+  "link_revoked",
+  "revoked_on",
+  "revoked_by",
+  "access_count",
+  "last_accessed_on",
+  "client_response_section",
+  "client_acknowledged",
+  "client_typed_name",
+  "client_signature",
+  "client_response_on",
+  "completion_record_pdf",
+  "completion_reference",
+  "audit_section",
+  "created_from_dashboard",
+  "last_email_sent_on",
+  "email_send_count"
+ ],
+ "fields": [
+  {
+   "fieldname": "sharing_details_section",
+   "fieldtype": "Section Break",
+   "label": "Sharing Details"
+  },
+  {
+   "fieldname": "practice_document",
+   "fieldtype": "Link",
+   "label": "Practice Document",
+   "options": "Practice Document",
+   "read_only": 1
+  },
+  {
+   "fieldname": "document_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Document Title",
+   "read_only": 1
+  },
+  {
+   "fieldname": "document_code",
+   "fieldtype": "Data",
+   "label": "Document Code",
+   "read_only": 1
+  },
+  {
+   "fieldname": "document_version",
+   "fieldtype": "Data",
+   "label": "Document Version",
+   "read_only": 1
+  },
+  {
+   "fieldname": "client_action_required",
+   "fieldtype": "Data",
+   "label": "Client Action Required",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sharing_details_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "shared_by",
+   "fieldtype": "Link",
+   "label": "Shared By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "shared_on",
+   "fieldtype": "Datetime",
+   "label": "Shared On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "coach",
+   "fieldtype": "Link",
+   "label": "Coach",
+   "options": "Coach",
+   "read_only": 1
+  },
+  {
+   "fieldname": "session_worker",
+   "fieldtype": "Link",
+   "label": "Session Worker",
+   "options": "Session Worker",
+   "read_only": 1
+  },
+  {
+   "fieldname": "client_recipient_section",
+   "fieldtype": "Section Break",
+   "label": "Client and Recipient"
+  },
+  {
+   "fieldname": "client",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Client",
+   "options": "Client",
+   "reqd": 1
+  },
+  {
+   "fieldname": "recipient_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Recipient Type",
+   "options": "Parent or Guardian\nAdult Client\nBilling Contact\nSchool Contact\nCompany Contact\nOther Authorised Contact",
+   "reqd": 1
+  },
+  {
+   "fieldname": "recipient_contact",
+   "fieldtype": "Link",
+   "label": "Recipient Contact",
+   "options": "Contact"
+  },
+  {
+   "fieldname": "recipient_name",
+   "fieldtype": "Data",
+   "label": "Recipient Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "recipient_email",
+   "fieldtype": "Data",
+   "label": "Recipient Email",
+   "read_only": 1
+  },
+  {
+   "fieldname": "recipient_user",
+   "fieldtype": "Link",
+   "label": "Recipient User",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "delivery_section",
+   "fieldtype": "Section Break",
+   "label": "Delivery Details"
+  },
+  {
+   "fieldname": "delivery_method",
+   "fieldtype": "Select",
+   "label": "Delivery Method",
+   "options": "Secure Portal Link\nEmail Attachment\nDownload",
+   "reqd": 1
+  },
+  {
+   "fieldname": "coach_message",
+   "fieldtype": "Small Text",
+   "label": "Coach Message"
+  },
+  {
+   "default": "Prepared",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Prepared\nSent\nViewed\nCompleted\nFailed\nRevoked\nExpired",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sent_on",
+   "fieldtype": "Datetime",
+   "label": "Sent On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "viewed_on",
+   "fieldtype": "Datetime",
+   "label": "Viewed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completed_on",
+   "fieldtype": "Datetime",
+   "label": "Completed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "failed_on",
+   "fieldtype": "Datetime",
+   "label": "Failed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "failure_message",
+   "fieldtype": "Small Text",
+   "label": "Failure Message",
+   "read_only": 1
+  },
+  {
+   "fieldname": "secure_access_section",
+   "fieldtype": "Section Break",
+   "hidden": 1,
+   "label": "Secure Access"
+  },
+  {
+   "fieldname": "access_token",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Access Token",
+   "read_only": 1
+  },
+  {
+   "fieldname": "link_expires_on",
+   "fieldtype": "Datetime",
+   "label": "Link Expires On",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "link_revoked",
+   "fieldtype": "Check",
+   "label": "Link Revoked",
+   "read_only": 1
+  },
+  {
+   "fieldname": "revoked_on",
+   "fieldtype": "Datetime",
+   "label": "Revoked On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "revoked_by",
+   "fieldtype": "Link",
+   "label": "Revoked By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "access_count",
+   "fieldtype": "Int",
+   "label": "Access Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_accessed_on",
+   "fieldtype": "Datetime",
+   "label": "Last Accessed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "client_response_section",
+   "fieldtype": "Section Break",
+   "label": "Client Response"
+  },
+  {
+   "fieldname": "client_acknowledged",
+   "fieldtype": "Check",
+   "label": "Client Acknowledged",
+   "read_only": 1
+  },
+  {
+   "fieldname": "client_typed_name",
+   "fieldtype": "Data",
+   "label": "Client Typed Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "client_signature",
+   "fieldtype": "Signature",
+   "label": "Client Signature",
+   "read_only": 1
+  },
+  {
+   "fieldname": "client_response_on",
+   "fieldtype": "Datetime",
+   "label": "Client Response On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completion_record_pdf",
+   "fieldtype": "Attach",
+   "label": "Completion Record PDF",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completion_reference",
+   "fieldtype": "Data",
+   "label": "Completion Reference",
+   "read_only": 1
+  },
+  {
+   "fieldname": "audit_section",
+   "fieldtype": "Section Break",
+   "label": "Audit"
+  },
+  {
+   "default": "1",
+   "fieldname": "created_from_dashboard",
+   "fieldtype": "Check",
+   "label": "Created From Dashboard",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_email_sent_on",
+   "fieldtype": "Datetime",
+   "label": "Last Email Sent On",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "email_send_count",
+   "fieldtype": "Int",
+   "label": "Email Send Count",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-27 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "Client Document Share",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "document_title",
+ "track_changes": 1
+}

@@ -1,0 +1,368 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "autoincrement",
+ "creation": "2026-07-27 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "document_details_section",
+  "document_title",
+  "document_code",
+  "document_type",
+  "version",
+  "status",
+  "document_details_column",
+  "mandatory",
+  "document_file",
+  "category",
+  "document_use_section",
+  "document_purpose",
+  "shareable_with",
+  "sharing_method",
+  "client_action_required",
+  "sharing_instructions",
+  "resource_availability",
+  "available_to_coaches",
+  "document_content_section",
+  "summary",
+  "document_text",
+  "change_summary",
+  "publication_section",
+  "published_date",
+  "review_date",
+  "previous_version",
+  "publication_column",
+  "reacknowledgement_required",
+  "requires_renewal",
+  "renewal_frequency",
+  "completion_requirements_section",
+  "required_action",
+  "completion_days",
+  "acknowledgement_statement",
+  "signature_statement",
+  "applies_to_section",
+  "all_coaches",
+  "all_session_workers",
+  "all_franchisees",
+  "all_office_staff",
+  "selected_people_or_roles",
+  "selected_assignments",
+  "responsibility_section",
+  "document_owner",
+  "published_by",
+  "published_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "document_details_section",
+   "fieldtype": "Section Break",
+   "label": "Document Details"
+  },
+  {
+   "fieldname": "document_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Document Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "document_code",
+   "fieldtype": "Data",
+   "label": "Document Code",
+   "read_only": 1
+  },
+  {
+   "fieldname": "document_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Document Type",
+   "options": "Policy\nProcedure\nGuidance\nForm\nTemplate\nAgreement\nTraining\nOther",
+   "reqd": 1
+  },
+  {
+   "default": "1.0",
+   "fieldname": "version",
+   "fieldtype": "Data",
+   "label": "Version",
+   "reqd": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Draft\nPublished\nSuperseded\nArchived",
+   "reqd": 1
+  },
+  {
+   "fieldname": "document_details_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "mandatory",
+   "fieldtype": "Check",
+   "label": "Mandatory"
+  },
+  {
+   "fieldname": "document_file",
+   "fieldtype": "Attach",
+   "label": "Document File"
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Table",
+   "label": "Category",
+   "options": "Practice Document Category Assignment"
+  },
+  {
+   "fieldname": "document_use_section",
+   "fieldtype": "Section Break",
+   "label": "Document Use"
+  },
+  {
+   "default": "Internal Compliance",
+   "fieldname": "document_purpose",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Document Purpose",
+   "options": "Internal Compliance\nClient Resource\nBoth",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.document_purpose==\"Client Resource\" || doc.document_purpose==\"Both\"",
+   "fieldname": "shareable_with",
+   "fieldtype": "Select",
+   "label": "Shareable With",
+   "options": "Parents and Guardians\nAdult Clients\nYoung People\nSchools\nCompanies\nAny Client Contact"
+  },
+  {
+   "default": "Secure Portal Link",
+   "depends_on": "eval:doc.document_purpose==\"Client Resource\" || doc.document_purpose==\"Both\"",
+   "fieldname": "sharing_method",
+   "fieldtype": "Select",
+   "label": "Sharing Method",
+   "options": "Secure Portal Link\nEmail Attachment\nDownload Only"
+  },
+  {
+   "default": "View Only",
+   "depends_on": "eval:doc.document_purpose==\"Client Resource\" || doc.document_purpose==\"Both\"",
+   "fieldname": "client_action_required",
+   "fieldtype": "Select",
+   "label": "Client Action Required",
+   "options": "View Only\nAcknowledge\nSign\nComplete and Return"
+  },
+  {
+   "depends_on": "eval:doc.document_purpose==\"Client Resource\" || doc.document_purpose==\"Both\"",
+   "fieldname": "sharing_instructions",
+   "fieldtype": "Small Text",
+   "label": "Sharing Instructions"
+  },
+  {
+   "default": "All Coaches",
+   "depends_on": "eval:doc.document_purpose==\"Client Resource\" || doc.document_purpose==\"Both\"",
+   "fieldname": "resource_availability",
+   "fieldtype": "Select",
+   "label": "Resource Availability",
+   "options": "All Coaches\nSelected Coaches"
+  },
+  {
+   "depends_on": "eval:(doc.document_purpose==\"Client Resource\" || doc.document_purpose==\"Both\") && doc.resource_availability==\"Selected Coaches\"",
+   "fieldname": "available_to_coaches",
+   "fieldtype": "Table",
+   "label": "Available to Coaches",
+   "options": "Practice Document Coach"
+  },
+  {
+   "fieldname": "document_content_section",
+   "fieldtype": "Section Break",
+   "label": "Document Content"
+  },
+  {
+   "fieldname": "summary",
+   "fieldtype": "Small Text",
+   "label": "Summary"
+  },
+  {
+   "fieldname": "document_text",
+   "fieldtype": "Text Editor",
+   "label": "Document Text"
+  },
+  {
+   "fieldname": "change_summary",
+   "fieldtype": "Small Text",
+   "label": "Change Summary"
+  },
+  {
+   "fieldname": "publication_section",
+   "fieldtype": "Section Break",
+   "label": "Publication and Review"
+  },
+  {
+   "fieldname": "published_date",
+   "fieldtype": "Date",
+   "label": "Published Date"
+  },
+  {
+   "fieldname": "review_date",
+   "fieldtype": "Date",
+   "label": "Review Date"
+  },
+  {
+   "fieldname": "previous_version",
+   "fieldtype": "Link",
+   "label": "Previous Version",
+   "options": "Practice Document"
+  },
+  {
+   "fieldname": "publication_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "reacknowledgement_required",
+   "fieldtype": "Check",
+   "label": "Re-Acknowledgement Required"
+  },
+  {
+   "default": "0",
+   "fieldname": "requires_renewal",
+   "fieldtype": "Check",
+   "label": "Requires Renewal"
+  },
+  {
+   "depends_on": "eval:doc.requires_renewal==1",
+   "fieldname": "renewal_frequency",
+   "fieldtype": "Select",
+   "label": "Renewal Frequency",
+   "options": "Monthly\nQuarterly\nEvery 6 Months\nAnnually\nEvery 2 Years\nEvery 3 Years"
+  },
+  {
+   "depends_on": "eval:doc.document_purpose==\"Internal Compliance\" || doc.document_purpose==\"Both\"",
+   "fieldname": "completion_requirements_section",
+   "fieldtype": "Section Break",
+   "label": "Completion Requirements"
+  },
+  {
+   "fieldname": "required_action",
+   "fieldtype": "Select",
+   "label": "Required Action",
+   "options": "Read Only\nAcknowledge\nSign"
+  },
+  {
+   "default": "14",
+   "fieldname": "completion_days",
+   "fieldtype": "Int",
+   "label": "Completion Deadline (days)"
+  },
+  {
+   "depends_on": "eval:(doc.document_purpose==\"Internal Compliance\" || doc.document_purpose==\"Both\") && doc.required_action==\"Acknowledge\"",
+   "fieldname": "acknowledgement_statement",
+   "fieldtype": "Small Text",
+   "label": "Acknowledgement Statement"
+  },
+  {
+   "depends_on": "eval:(doc.document_purpose==\"Internal Compliance\" || doc.document_purpose==\"Both\") && doc.required_action==\"Sign\"",
+   "fieldname": "signature_statement",
+   "fieldtype": "Small Text",
+   "label": "Signature Statement"
+  },
+  {
+   "depends_on": "eval:doc.document_purpose==\"Internal Compliance\" || doc.document_purpose==\"Both\"",
+   "fieldname": "applies_to_section",
+   "fieldtype": "Section Break",
+   "label": "Applies To"
+  },
+  {
+   "default": "0",
+   "fieldname": "all_coaches",
+   "fieldtype": "Check",
+   "label": "All Coaches"
+  },
+  {
+   "default": "0",
+   "fieldname": "all_session_workers",
+   "fieldtype": "Check",
+   "label": "All Session Workers"
+  },
+  {
+   "default": "0",
+   "fieldname": "all_franchisees",
+   "fieldtype": "Check",
+   "label": "All Franchisees"
+  },
+  {
+   "default": "0",
+   "fieldname": "all_office_staff",
+   "fieldtype": "Check",
+   "label": "All Office Staff"
+  },
+  {
+   "default": "0",
+   "fieldname": "selected_people_or_roles",
+   "fieldtype": "Check",
+   "label": "Selected People or Roles"
+  },
+  {
+   "depends_on": "eval:(doc.document_purpose==\"Internal Compliance\" || doc.document_purpose==\"Both\") && doc.selected_people_or_roles==1",
+   "fieldname": "selected_assignments",
+   "fieldtype": "Table",
+   "label": "Selected Assignments",
+   "options": "Practice Document Assignment"
+  },
+  {
+   "fieldname": "responsibility_section",
+   "fieldtype": "Section Break",
+   "label": "Responsibility"
+  },
+  {
+   "fieldname": "document_owner",
+   "fieldtype": "Link",
+   "label": "Document Owner",
+   "options": "User"
+  },
+  {
+   "fieldname": "published_by",
+   "fieldtype": "Link",
+   "label": "Published By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "published_on",
+   "fieldtype": "Datetime",
+   "label": "Published On",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-27 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "Practice Document",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
