@@ -1,0 +1,43 @@
+{% include "dashboard/templates/includes/head/shared_head.html" %}
+<link rel="stylesheet" href="/assets/dashboard/css/shared/client_document_portal.css">
+
+<div class="client-document-portal">
+  <div class="client-document-portal-card">
+
+    {% if link_error %}
+      <h1 class="client-document-portal-title">This link isn't available</h1>
+      <p class="client-document-portal-text">{{ link_error }}</p>
+      <p class="client-document-portal-text">If you believe this is a mistake, please contact the coach who shared this document with you.</p>
+    {% else %}
+      <h1 class="client-document-portal-title">{{ shared_document.document_title }}</h1>
+
+      <p class="client-document-portal-meta">
+        {{ shared_document.document_code }}{% if shared_document.version %} · v{{ shared_document.version }}{% endif %}
+      </p>
+
+      {% if shared_document.recipient_name %}
+        <p class="client-document-portal-text">Hi {{ shared_document.recipient_name }},</p>
+      {% endif %}
+
+      {% if shared_document.summary %}
+        <p class="client-document-portal-text">{{ shared_document.summary }}</p>
+      {% endif %}
+
+      {% if shared_document.sharing_instructions %}
+        <div class="client-document-portal-notice">{{ shared_document.sharing_instructions }}</div>
+      {% endif %}
+
+      <div id="clientDocumentActionArea"
+        data-token="{{ shared_document.token }}"
+        data-action-required="{{ shared_document.client_action_required }}"
+        data-has-file="{{ 1 if shared_document.has_file else 0 }}"
+        data-already-completed="{{ 1 if shared_document.status == 'Completed' else 0 }}"
+      >
+        <!-- Populated by client_document_portal.js -->
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+
+<script src="/assets/dashboard/js/shared/client_document_portal.js"></script>
