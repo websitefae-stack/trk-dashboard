@@ -1,0 +1,119 @@
+<div id="documentViewLoading" class="dashboard-empty">Loading document...</div>
+<div id="documentViewError" class="dashboard-doc-error" style="display:none;"></div>
+
+<div id="documentViewContent" style="display:none;">
+
+  <div class="dashboard-card">
+    <h1 class="dashboard-page-title" id="docTitle">&mdash;</h1>
+
+    <div class="dashboard-doc-detail-meta">
+      <span>Code: <strong id="docCode">&mdash;</strong></span>
+      <span>Version: <strong id="docVersion">&mdash;</strong></span>
+      <span>Type: <strong id="docType">&mdash;</strong></span>
+      <span>Status: <strong id="docStatus">&mdash;</strong></span>
+      <span id="docDueWrap" style="display:none;">Due: <strong id="docDue">&mdash;</strong></span>
+      <span id="docMandatoryBadge" class="dashboard-badge" style="display:none;">Mandatory</span>
+    </div>
+  </div>
+
+  <div class="dashboard-card" style="margin-top:16px;">
+    <div class="dashboard-doc-detail-file-actions">
+      <a id="docOpenFileBtn" class="dashboard-btn dashboard-btn-primary" href="#" target="_blank" rel="noopener noreferrer">Open Document</a>
+    </div>
+
+    <iframe id="docFileEmbed" class="dashboard-doc-detail-embed" style="display:none;" title="Document preview"></iframe>
+
+    <div id="docSummaryWrap" style="display:none;">
+      <h3>Summary</h3>
+      <p id="docSummary" class="dashboard-doc-detail-text"></p>
+    </div>
+
+    <div id="docTextWrap" style="display:none;">
+      <h3>Document</h3>
+      <div id="docText" class="dashboard-doc-detail-text"></div>
+    </div>
+  </div>
+
+  <!-- Read Only -->
+  <div class="dashboard-card dashboard-doc-completion-section" id="docActionReadOnly" style="display:none;">
+    <div class="dashboard-doc-checkbox-row">
+      <input type="checkbox" id="docReadConfirmed">
+      <label for="docReadConfirmed">I have read this document</label>
+    </div>
+    <button type="button" class="dashboard-btn dashboard-btn-primary" id="docSubmitReadOnly">Confirm and Submit</button>
+  </div>
+
+  <!-- Acknowledge -->
+  <div class="dashboard-card dashboard-doc-completion-section" id="docActionAcknowledge" style="display:none;">
+    <div class="dashboard-doc-declaration" id="docAcknowledgementDeclaration"></div>
+    <div class="dashboard-doc-checkbox-row">
+      <input type="checkbox" id="docAcknowledgementConfirmed">
+      <label for="docAcknowledgementConfirmed">I confirm this acknowledgement</label>
+    </div>
+    <button type="button" class="dashboard-btn dashboard-btn-primary" id="docSubmitAcknowledge">Acknowledge and Submit</button>
+  </div>
+
+  <!-- Sign -->
+  <div class="dashboard-card dashboard-doc-completion-section" id="docActionSign" style="display:none;">
+    <div class="dashboard-doc-declaration" id="docSignatureDeclaration"></div>
+
+    <div class="dashboard-detail-field" style="margin-bottom:14px;">
+      <label for="docTypedFullName">Typed Full Name</label>
+      <input type="text" id="docTypedFullName" class="dashboard-input" placeholder="Your full name">
+    </div>
+
+    <div class="dashboard-doc-signature-pad-wrap">
+      <label>Signature</label>
+      <canvas id="docSignaturePad" class="dashboard-doc-signature-pad"></canvas>
+      <button type="button" class="dashboard-btn dashboard-btn-light dashboard-doc-signature-clear" id="docSignatureClear">Clear Signature</button>
+    </div>
+
+    <div class="dashboard-doc-checkbox-row">
+      <input type="checkbox" id="docSignatureConfirmed">
+      <label for="docSignatureConfirmed">I confirm this declaration</label>
+    </div>
+    <button type="button" class="dashboard-btn dashboard-btn-primary" id="docSubmitSign">Sign and Submit</button>
+  </div>
+
+  <!-- Completed -->
+  <div class="dashboard-card dashboard-doc-success-panel" id="docSuccessPanel" style="display:none;">
+    <div class="dashboard-doc-success-panel-title">Completed</div>
+    <div class="dashboard-doc-success-panel-row" id="docSuccessCompletedOn"></div>
+    <div class="dashboard-doc-success-panel-row" id="docSuccessReference"></div>
+  </div>
+
+  <!-- Allocate to client -->
+  <div class="dashboard-card" id="docAllocateSection" style="display:none;">
+    <h3>Allocate to a Client</h3>
+    <p class="dashboard-page-subtitle">Share this document with one of your clients.</p>
+
+    <div class="dashboard-detail-field" style="margin-bottom:14px;">
+      <label for="docAllocateClient">Client</label>
+      <select id="docAllocateClient" class="dashboard-select">
+        <option value="">Loading clients...</option>
+      </select>
+    </div>
+
+    <div class="dashboard-detail-field" style="margin-bottom:14px;">
+      <label for="docAllocateRecipientType">Recipient Type</label>
+      <select id="docAllocateRecipientType" class="dashboard-select">
+        <option value="">Select...</option>
+        <option value="Parent or Guardian">Parent or Guardian</option>
+        <option value="Adult Client">Adult Client</option>
+        <option value="Billing Contact">Billing Contact</option>
+        <option value="School Contact">School Contact</option>
+        <option value="Company Contact">Company Contact</option>
+        <option value="Other Authorised Contact">Other Authorised Contact</option>
+      </select>
+    </div>
+
+    <div class="dashboard-detail-field" style="margin-bottom:14px;">
+      <label for="docAllocateMessage">Message (optional)</label>
+      <textarea id="docAllocateMessage" class="dashboard-textarea" rows="3"></textarea>
+    </div>
+
+    <button type="button" class="dashboard-btn dashboard-btn-primary" id="docAllocateSubmit">Allocate to Client</button>
+    <div id="docAllocateSuccess" class="dashboard-empty" style="display:none;"></div>
+  </div>
+
+</div>
