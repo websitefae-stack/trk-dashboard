@@ -112,3 +112,18 @@
   background: rgba(131, 152, 152, 0.16);
   color: #839898;
 }
+
+.doc-status-Pending {
+  background: rgba(255, 132, 56, 0.15);
+  color: #FF8438;
+}
+
+.doc-status-Acknowledged {
+  background: rgba(58, 125, 190, 0.15);
+  color: #3A7DBE;
+}
+
+.doc-status-Completed {
+  background: rgba(37, 141, 59, 0.12);
+  color: #258D3B;
+}

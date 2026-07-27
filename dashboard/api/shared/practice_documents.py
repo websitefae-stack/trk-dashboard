@@ -230,3 +230,164 @@ def get_practice_document_file(practice_document_name):
 	frappe.local.response.filename = fname
 	frappe.local.response.filecontent = fcontent
 	frappe.local.response.type = "download"
+
+
+# ---------------------------------------------------------------------------
+# "My Documents" (coach-facing compliance view)
+# ---------------------------------------------------------------------------
+
+STATUS_ORDER = ["Pending", "Acknowledged", "Completed"]
+
+
+def _get_owned_requirement(requirement_name):
+	ensure_logged_in()
+
+	if not requirement_name or not frappe.db.exists(COACH_DOCUMENT_REQUIREMENT_DOCTYPE, requirement_name):
+		frappe.throw(_("You do not have permission to access this document."), frappe.PermissionError)
+
+	requirement = frappe.get_doc(COACH_DOCUMENT_REQUIREMENT_DOCTYPE, requirement_name)
+
+	if is_office_user():
+		return requirement
+
+	coach_name = get_current_coach_name(optional=True)
+
+	if not coach_name or requirement.coach != coach_name:
+		frappe.throw(_("You do not have permission to access this document."), frappe.PermissionError)
+
+	return requirement
+
+
+@frappe.whitelist()
+def get_my_document_requirements():
+	ensure_logged_in()
+
+	coach_name = get_current_coach_name(optional=True)
+	if not coach_name:
+		return []
+
+	rows = frappe.get_all(
+		COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
+		filters={"coach": coach_name},
+		fields=[
+			"name", "practice_document", "document_title", "document_code",
+			"document_version", "mandatory", "status", "assigned_on", "completed_on",
+		],
+		order_by="assigned_on desc",
+		ignore_permissions=True,
+	)
+
+	practice_document_names = list({row.practice_document for row in rows if row.practice_document})
+	details_by_name = {}
+
+	if practice_document_names:
+		for pd in frappe.get_all(
+			PRACTICE_DOCUMENT_DOCTYPE,
+			filters={"name": ["in", practice_document_names]},
+			fields=["name", "attached_file", "summary", "category", "document_type"],
+			ignore_permissions=True,
+		):
+			details_by_name[pd.name] = pd
+
+	for row in rows:
+		details = details_by_name.get(row.practice_document) or {}
+		row["has_file"] = bool(details.get("attached_file"))
+		row["summary"] = details.get("summary")
+		row["document_type"] = details.get("document_type")
+		row["categories"] = _split_categories(details.get("category"))
+
+	return rows
+
+
+@frappe.whitelist()
+def get_my_document_summary():
+	"""
+	Powers the "My Documents" card on /coach_db and its sidebar badge -
+	mirrors get_client_resources_summary()'s shape/purpose but for the
+	coach's own Coach Document Requirements rather than the shared library.
+	Returns all zeros for anyone who isn't a coach (franchisor/session
+	worker dashboards never show this card, but the sidebar badge loader
+	runs on every page and should just quietly do nothing for them).
+	"""
+	ensure_logged_in()
+
+	coach_name = get_current_coach_name(optional=True)
+
+	if not coach_name:
+		return {"outstanding": 0, "completed": 0, "total": 0, "recent_outstanding": []}
+
+	rows = frappe.get_all(
+		COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
+		filters={"coach": coach_name},
+		fields=["name", "document_title", "status"],
+		order_by="assigned_on desc",
+		ignore_permissions=True,
+	)
+
+	outstanding = [row for row in rows if row.status != "Completed"]
+	completed = [row for row in rows if row.status == "Completed"]
+
+	return {
+		"outstanding": len(outstanding),
+		"completed": len(completed),
+		"total": len(rows),
+		"recent_outstanding": [
+			{"name": row.name, "document_title": row.document_title}
+			for row in outstanding[:5]
+		],
+	}
+
+
+@frappe.whitelist()
+def get_my_document_file(requirement_name):
+	"""
+	Same private-attachment proxy technique as get_practice_document_file(),
+	scoped by ownership of the Coach Document Requirement instead of Client
+	Resources library visibility.
+	"""
+	requirement = _get_owned_requirement(requirement_name)
+
+	if not requirement.practice_document:
+		frappe.throw(_("No document is attached."))
+
+	attached_file = frappe.db.get_value(PRACTICE_DOCUMENT_DOCTYPE, requirement.practice_document, "attached_file")
+
+	if not attached_file:
+		frappe.throw(_("No file is attached to this document."))
+
+	from frappe.utils.file_manager import get_file
+
+	fname, fcontent = get_file(attached_file)
+
+	frappe.local.response.filename = fname
+	frappe.local.response.filecontent = fcontent
+	frappe.local.response.type = "download"
+
+
+@frappe.whitelist()
+def update_my_document_status(requirement_name, status):
+	"""
+	Moves a Coach Document Requirement forward through Pending ->
+	Acknowledged -> Completed - never backward, never skipping past
+	Completed. Uses requirement.save(), never frappe.db.set_value, so the
+	doctype's own validate() (coach_document_requirement.py) is what sets
+	completed_on - this never re-implements that.
+	"""
+	requirement = _get_owned_requirement(requirement_name)
+
+	if status not in ("Acknowledged", "Completed"):
+		frappe.throw(_("Invalid status."))
+
+	if requirement.status == "Completed":
+		frappe.throw(_("This document has already been completed."))
+
+	current_index = STATUS_ORDER.index(requirement.status) if requirement.status in STATUS_ORDER else 0
+
+	if STATUS_ORDER.index(status) <= current_index:
+		frappe.throw(_("This document is already at or past that status."))
+
+	requirement.status = status
+	requirement.save(ignore_permissions=True)
+	frappe.db.commit()
+
+	return {"ok": True, "status": requirement.status, "completed_on": requirement.completed_on}

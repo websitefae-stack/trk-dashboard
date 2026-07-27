@@ -79,6 +79,12 @@
             <span>Profile</span>
         </a>
 
+        <a href="/coach_db/coach-documents{{ coach_view_query or '' }}" class="dashboard-nav-mydocs-link {% if active_page == 'my_documents' %}is-active{% endif %}">
+            <span class="dashboard-nav-icon">📄</span>
+            <span>My Documents</span>
+            <span class="dashboard-notification-badge js-mydocs-badge" style="display:none;">0</span>
+        </a>
+
         {% if coach_is_view_mode %}
             <a href="{{ coach_view_return_to }}" class="dashboard-sidebar-logout">
                 <span class="dashboard-nav-icon">↩</span>

@@ -1,0 +1,62 @@
+{% include "dashboard/templates/includes/head/coach_head.html" %}
+<link rel="stylesheet" href="/assets/dashboard/css/shared/client_resources.css">
+
+<div
+  class="dashboard-page"
+  id="coachDocumentsPage"
+  data-dashboard-type="coach"
+  data-view-mode="{{ coach_is_view_mode or 0 }}"
+  data-view-as="{{ coach_view_coach_name or '' }}"
+  data-viewer="franchisor"
+>
+  {% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      {% if coach_is_view_mode %}
+        <div style="background:#ac455c; color:#ffffff; border-radius:14px; padding:16px 18px; margin-bottom:18px;">
+          <strong>Viewing Coach:</strong>
+          {{ coach_view_display_name }}
+
+          <div style="margin-top:12px;">
+            <a href="{{ coach_view_return_to }}" class="dashboard-btn dashboard-btn-secondary">
+              Back to Coaches
+            </a>
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">My Documents</h1>
+          <p class="dashboard-page-subtitle">Practice documents assigned to you to read and acknowledge or complete</p>
+        </div>
+      </div>
+
+      <div class="dashboard-summary-grid" id="coachDocumentsSummaryGrid">
+        <div class="dashboard-summary-card">
+          <div class="dashboard-summary-label">Outstanding</div>
+          <div class="dashboard-summary-value" id="coachDocumentsOutstanding">—</div>
+        </div>
+
+        <div class="dashboard-summary-card">
+          <div class="dashboard-summary-label">Completed</div>
+          <div class="dashboard-summary-value" id="coachDocumentsCompleted">—</div>
+        </div>
+
+        <div class="dashboard-summary-card">
+          <div class="dashboard-summary-label">Total Assigned</div>
+          <div class="dashboard-summary-value" id="coachDocumentsTotal">—</div>
+        </div>
+      </div>
+
+      <div class="client-resource-grid" id="coachDocumentsGrid">
+        <div class="dashboard-empty">Loading documents...</div>
+      </div>
+
+    </div>
+  </div>
+</div>

@@ -21,7 +21,7 @@ web_include_css = [
 ]
 
 web_include_js = [
-    "/assets/dashboard/js/shared/dashboard_sidebar.js?v=3",
+    "/assets/dashboard/js/shared/dashboard_sidebar.js?v=4",
     "/assets/dashboard/js/shared/pagination.js",
 ]
 

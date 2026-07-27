@@ -65,6 +65,16 @@ def _get_template_names_for_type(appointment_type_label, require_public_bookable
     self-booking functions further down, which are login-gated and hard-
     restricted to PORTAL_BOOKABLE_TYPES rather than being reachable by a
     guest with an arbitrary appointment_type string.
+
+    Staff-only types like Parent Check-In and Supervision were never
+    publicly bookable, so nobody ever needed to create a matching
+    Appointment Template record for them - get_matching_templates()
+    legitimately returns nothing for them. Coach.appointment_types rows
+    still use the plain label as their own appointment_name though, so
+    when require_public_bookable=False, the label itself is added as a
+    fallback match - the public path never does this, since that gating
+    depends entirely on a real Appointment Template's
+    custom_public_booking_enabled flag.
     """
     if not appointment_type_label:
         return set()
@@ -72,7 +82,12 @@ def _get_template_names_for_type(appointment_type_label, require_public_bookable
     if require_public_bookable and not is_publicly_bookable(appointment_type_label):
         return set()
 
-    return {row.get("name") for row in get_matching_templates(appointment_type_label)}
+    matches = {row.get("name") for row in get_matching_templates(appointment_type_label)}
+
+    if not require_public_bookable:
+        matches.add(appointment_type_label)
+
+    return matches
 
 
 def _get_coach_windows_for_date(coach, date_str, appointment_type, require_public_bookable=True):
