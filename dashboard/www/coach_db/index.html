@@ -161,6 +161,39 @@
             <div class="dashboard-birthdays-title">🎂 Upcoming Birthdays</div>
             <div class="dashboard-birthdays-list" id="dashboardBirthdaysList"></div>
           </div>
+
+          <div class="dashboard-card dashboard-resources-card" id="dashboardClientResourcesCard">
+            <div class="dashboard-resources-header">
+              <div class="dashboard-birthdays-title">Client Resources</div>
+              <a class="dashboard-btn dashboard-btn-light" href="/coach_db/coach-client-resources{{ coach_view_query or '' }}">Browse Client Resources</a>
+            </div>
+
+            <div class="dashboard-resources-count">
+              <span class="dashboard-summary-value" id="dashboardResourcesCount">—</span>
+              <span class="dashboard-summary-label">available resources</span>
+            </div>
+
+            <div class="dashboard-resources-categories" id="dashboardResourcesCategories"></div>
+
+            <div class="dashboard-resources-recent" id="dashboardResourcesRecent"></div>
+          </div>
+
+          <div class="dashboard-card dashboard-resources-card" id="dashboardMyDocumentsCard">
+            <div class="dashboard-resources-header">
+              <div class="dashboard-birthdays-title">
+                My Documents
+                <span class="dashboard-notification-badge" id="myDocumentsBadge" style="display:none;">0</span>
+              </div>
+              <a class="dashboard-btn dashboard-btn-light" href="/coach_db/coach-documents{{ coach_view_query or '' }}">View My Documents</a>
+            </div>
+
+            <div class="dashboard-resources-count">
+              <span class="dashboard-summary-value" id="myDocumentsOutstanding">—</span>
+              <span class="dashboard-summary-label">to complete</span>
+            </div>
+
+            <div class="dashboard-resources-recent" id="myDocumentsRecent"></div>
+          </div>
         </div>
       </div>
 
@@ -247,8 +280,6 @@
           </table>
         </div>
       </div>
-
-      {% include "dashboard/templates/includes/compliance/my_documents_card.html" %}
 
     </div>
   </div>

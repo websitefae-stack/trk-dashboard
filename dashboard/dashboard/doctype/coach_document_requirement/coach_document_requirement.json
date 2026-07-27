@@ -1,137 +1,49 @@
 {
  "actions": [],
  "allow_rename": 0,
- "autoname": "CDR-.#####",
+ "autoname": "hash",
  "creation": "2026-07-27 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "person_type",
-  "coach",
-  "session_worker",
-  "user",
-  "column_break_assign",
-  "assigned_by",
-  "assigned_date",
-  "due_date",
-  "section_break_snapshot",
   "practice_document",
+  "coach",
+  "column_break_doc",
   "document_title",
   "document_code",
   "document_version",
-  "document_type",
-  "column_break_snapshot",
   "mandatory",
-  "required_action",
-  "category",
-  "document_file",
   "section_break_status",
   "status",
+  "assigned_on",
   "column_break_status",
-  "first_viewed_on",
-  "last_viewed_on",
-  "view_count",
-  "section_break_completion",
-  "completed_on",
-  "completed_by",
-  "superseded_by",
-  "column_break_completion",
-  "completion_record_pdf",
-  "completion_reference",
-  "section_break_read",
-  "read_confirmed",
-  "read_confirmed_on",
-  "section_break_ack",
-  "acknowledgement_declaration",
-  "acknowledgement_confirmed",
-  "acknowledged_on",
-  "section_break_sign",
-  "signature_declaration",
-  "typed_full_name",
-  "signature",
-  "signature_confirmed",
-  "signed_on",
-  "section_break_notify",
-  "assignment_notification_sent",
-  "assignment_notification_sent_on"
+  "completed_on"
  ],
  "fields": [
   {
-   "fieldname": "person_type",
-   "fieldtype": "Select",
+   "fieldname": "practice_document",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Person Type",
-   "options": "Coach\nSession Worker\nFranchisor",
-   "read_only": 1,
+   "label": "Practice Document",
+   "options": "Practice Document",
    "reqd": 1
   },
   {
    "fieldname": "coach",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Coach",
    "options": "Coach",
-   "read_only": 1
-  },
-  {
-   "fieldname": "session_worker",
-   "fieldtype": "Link",
-   "in_standard_filter": 1,
-   "label": "Session Worker",
-   "options": "Session Worker",
-   "read_only": 1
-  },
-  {
-   "fieldname": "user",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "User",
-   "options": "User",
-   "read_only": 1,
    "reqd": 1
   },
   {
-   "fieldname": "column_break_assign",
+   "fieldname": "column_break_doc",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "assigned_by",
-   "fieldtype": "Link",
-   "label": "Assigned By",
-   "options": "User",
-   "read_only": 1
-  },
-  {
-   "fieldname": "assigned_date",
-   "fieldtype": "Date",
-   "label": "Assigned Date",
-   "read_only": 1
-  },
-  {
-   "fieldname": "due_date",
-   "fieldtype": "Date",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Due Date",
-   "read_only": 1
-  },
-  {
-   "fieldname": "section_break_snapshot",
-   "fieldtype": "Section Break",
-   "label": "Document Snapshot"
-  },
-  {
-   "fieldname": "practice_document",
-   "fieldtype": "Link",
-   "in_standard_filter": 1,
-   "label": "Practice Document",
-   "options": "Practice Document",
-   "read_only": 1,
-   "reqd": 1
-  },
-  {
+   "description": "Copied from the Practice Document at assignment/update time, so this still reads correctly even if the Practice Document is later archived or renamed.",
    "fieldname": "document_title",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -141,7 +53,6 @@
   {
    "fieldname": "document_code",
    "fieldtype": "Data",
-   "in_standard_filter": 1,
    "label": "Document Code",
    "read_only": 1
   },
@@ -152,16 +63,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "document_type",
-   "fieldtype": "Data",
-   "label": "Document Type",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_snapshot",
-   "fieldtype": "Column Break"
-  },
-  {
    "default": "0",
    "fieldname": "mandatory",
    "fieldtype": "Check",
@@ -169,217 +70,45 @@
    "read_only": 1
   },
   {
-   "fieldname": "required_action",
-   "fieldtype": "Data",
-   "label": "Required Action",
-   "read_only": 1
-  },
-  {
-   "fieldname": "category",
-   "fieldtype": "Table",
-   "label": "Category",
-   "options": "Compliance Category",
-   "read_only": 1
-  },
-  {
-   "fieldname": "document_file",
-   "fieldtype": "Attach",
-   "label": "Document File",
-   "read_only": 1
-  },
-  {
    "fieldname": "section_break_status",
-   "fieldtype": "Section Break",
-   "label": "Status"
+   "fieldtype": "Section Break"
   },
   {
-   "default": "Not Viewed",
+   "default": "Pending",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Not Viewed\nViewed\nIn Progress\nCompleted\nOverdue\nSuperseded",
-   "read_only": 1,
+   "options": "Pending\nAcknowledged\nCompleted",
    "reqd": 1
+  },
+  {
+   "fieldname": "assigned_on",
+   "fieldtype": "Datetime",
+   "label": "Assigned On",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_status",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "first_viewed_on",
-   "fieldtype": "Datetime",
-   "label": "First Viewed On",
-   "read_only": 1
-  },
-  {
-   "fieldname": "last_viewed_on",
-   "fieldtype": "Datetime",
-   "label": "Last Viewed On",
-   "read_only": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "view_count",
-   "fieldtype": "Int",
-   "label": "View Count",
-   "read_only": 1
-  },
-  {
-   "fieldname": "section_break_completion",
-   "fieldtype": "Section Break",
-   "label": "Completion Record"
-  },
-  {
    "fieldname": "completed_on",
    "fieldtype": "Datetime",
-   "label": "Completed On",
-   "read_only": 1
-  },
-  {
-   "fieldname": "completed_by",
-   "fieldtype": "Link",
-   "label": "Completed By",
-   "options": "User",
-   "read_only": 1
-  },
-  {
-   "fieldname": "superseded_by",
-   "fieldtype": "Link",
-   "label": "Superseded By",
-   "options": "Coach Document Requirement",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_completion",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "completion_record_pdf",
-   "fieldtype": "Attach",
-   "label": "Completion Record PDF",
-   "read_only": 1
-  },
-  {
-   "fieldname": "completion_reference",
-   "fieldtype": "Data",
-   "label": "Completion Reference",
-   "read_only": 1
-  },
-  {
-   "collapsible": 1,
-   "depends_on": "eval:doc.required_action==\"Read Only\"",
-   "fieldname": "section_break_read",
-   "fieldtype": "Section Break",
-   "label": "Read Only"
-  },
-  {
-   "default": "0",
-   "fieldname": "read_confirmed",
-   "fieldtype": "Check",
-   "label": "I Have Read This Document"
-  },
-  {
-   "fieldname": "read_confirmed_on",
-   "fieldtype": "Datetime",
-   "label": "Read Confirmed On",
-   "read_only": 1
-  },
-  {
-   "collapsible": 1,
-   "depends_on": "eval:doc.required_action==\"Acknowledge\"",
-   "fieldname": "section_break_ack",
-   "fieldtype": "Section Break",
-   "label": "Acknowledge"
-  },
-  {
-   "fieldname": "acknowledgement_declaration",
-   "fieldtype": "Small Text",
-   "label": "Acknowledgement Declaration",
-   "read_only": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "acknowledgement_confirmed",
-   "fieldtype": "Check",
-   "label": "I Confirm This Acknowledgement"
-  },
-  {
-   "fieldname": "acknowledged_on",
-   "fieldtype": "Datetime",
-   "label": "Acknowledged On",
-   "read_only": 1
-  },
-  {
-   "collapsible": 1,
-   "depends_on": "eval:doc.required_action==\"Sign\"",
-   "fieldname": "section_break_sign",
-   "fieldtype": "Section Break",
-   "label": "Sign"
-  },
-  {
-   "fieldname": "signature_declaration",
-   "fieldtype": "Small Text",
-   "label": "Signature Declaration",
-   "read_only": 1
-  },
-  {
-   "fieldname": "typed_full_name",
-   "fieldtype": "Data",
-   "label": "Typed Full Name"
-  },
-  {
-   "fieldname": "signature",
-   "fieldtype": "Signature",
-   "label": "Signature"
-  },
-  {
-   "default": "0",
-   "fieldname": "signature_confirmed",
-   "fieldtype": "Check",
-   "label": "I Confirm This Declaration"
-  },
-  {
-   "fieldname": "signed_on",
-   "fieldtype": "Datetime",
-   "label": "Signed On",
-   "read_only": 1
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "section_break_notify",
-   "fieldtype": "Section Break",
-   "label": "Notification"
-  },
-  {
-   "default": "0",
-   "fieldname": "assignment_notification_sent",
-   "fieldtype": "Check",
-   "hidden": 1,
-   "label": "Assignment Notification Sent",
-   "read_only": 1
-  },
-  {
-   "fieldname": "assignment_notification_sent_on",
-   "fieldtype": "Datetime",
-   "hidden": 1,
-   "label": "Assignment Notification Sent On",
-   "read_only": 1
+   "label": "Completed On"
   }
  ],
  "index_web_pages_for_search": 1,
- "is_submittable": 1,
  "links": [],
  "modified": "2026-07-27 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Dashboard",
  "name": "Coach Document Requirement",
+ "naming_rule": "Random",
  "owner": "Administrator",
  "permissions": [
   {
-   "amend": 1,
-   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -389,13 +118,7 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
-   "submit": 1,
    "write": 1
-  },
-  {
-   "read": 1,
-   "role": "All",
-   "submit": 1
   }
  ],
  "sort_field": "modified",

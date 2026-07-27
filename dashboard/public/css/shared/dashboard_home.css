@@ -72,6 +72,57 @@
   font-size: 12px;
 }
 
+.dashboard-resources-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dashboard-resources-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dashboard-resources-count {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.dashboard-resources-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dashboard-resources-categories:empty,
+.dashboard-resources-recent:empty {
+  display: none;
+}
+
+.dashboard-resources-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dashboard-resources-recent-row {
+  font-size: 13px;
+  color: #434B49;
+}
+
+.dashboard-resources-recent-row a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.dashboard-resources-recent-row a:hover {
+  text-decoration: underline;
+}
+
 /* =========================================================
    REVENUE + BUSINESS OVERVIEW ROW
 ========================================================= */

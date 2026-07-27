@@ -109,7 +109,7 @@
 
     try {
       const data = await callApi(
-        "dashboard.api.shared.compliance.get_my_document_summary",
+        "dashboard.api.shared.practice_documents.get_my_document_summary",
         {}
       );
 

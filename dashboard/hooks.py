@@ -17,7 +17,6 @@ web_include_css = [
     "/assets/dashboard/css/shared/badges.css",
     "/assets/dashboard/css/shared/details.css",
     "/assets/dashboard/css/shared/notifications.css",
-    "/assets/dashboard/css/shared/compliance.css",
     "/assets/dashboard/css/shared/mobile.css",
 ]
 
@@ -31,12 +30,12 @@ website_context = {
     "splash_image": "/assets/dashboard/images/logo.png",
 }
 
-# Folder names underneath www/ have to be valid Python module names
-# (coach_documents, coach_document), so these rules just give the "My
-# Documents" pages the hyphenated URLs the feature was specced with.
 website_route_rules = [
-    {"from_route": "/coach-documents", "to_route": "coach_documents"},
-    {"from_route": "/coach-document/<name>", "to_route": "coach_document"},
+    # /client-document/<token> - the guest-facing secure portal link a
+    # client's recipient opens from a Client Document Share email. The
+    # token is a path segment (not a query string) so it never leaks the
+    # document name, client name, or recipient email into the URL itself.
+    {"from_route": "/client-document/<token>", "to_route": "client_document"},
 ]
 
 fixtures = []
@@ -94,25 +93,6 @@ doc_events = {
     "Comment": {
         "after_insert": "dashboard.api.shared.webshop_lead_sync.sync_webshop_lead_comment",
     },
-    # "My Documents" compliance assignment notification - see
-    # dashboard.api.shared.compliance's module docstring. Only ever queues
-    # a background job here; the actual email/in-app send happens there.
-    "Coach Document Requirement": {
-        "after_insert": "dashboard.api.shared.compliance.on_requirement_created",
-    },
-}
-
-# Coach Document Requirement has no dedicated Frappe Role (coaches,
-# session workers and franchisors all reach it as the built-in "All"
-# role - see coach_document_requirement.json) - these two hooks are what
-# actually restrict every user to their own records, both in the Desk
-# list view and for any individual document access.
-permission_query_conditions = {
-    "Coach Document Requirement": "dashboard.api.shared.compliance.get_permission_query_conditions",
-}
-
-has_permission = {
-    "Coach Document Requirement": "dashboard.api.shared.compliance.has_permission",
 }
 
 # Safety net for the pending-booking queue (see pending_bookings.py) - picks
@@ -132,6 +112,5 @@ scheduler_events = {
     # reopens their record - see refresh_all_client_ages_and_types().
     "daily": [
         "dashboard.api.shared.client_details.refresh_all_client_ages_and_types",
-        "dashboard.api.shared.compliance.mark_overdue_requirements",
     ],
 }

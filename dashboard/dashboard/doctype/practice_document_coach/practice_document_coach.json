@@ -6,14 +6,15 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "category_name"
+  "coach"
  ],
  "fields": [
   {
-   "fieldname": "category_name",
-   "fieldtype": "Data",
+   "fieldname": "coach",
+   "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Category",
+   "label": "Coach",
+   "options": "Coach",
    "reqd": 1
   }
  ],
@@ -23,7 +24,7 @@
  "modified": "2026-07-27 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Dashboard",
- "name": "Compliance Category",
+ "name": "Practice Document Coach",
  "owner": "Administrator",
  "permissions": [],
  "sort_field": "modified",
