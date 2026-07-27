@@ -30,7 +30,13 @@ website_context = {
     "splash_image": "/assets/dashboard/images/logo.png",
 }
 
-website_route_rules = []
+website_route_rules = [
+    # /client-document/<token> - the guest-facing secure portal link a
+    # client's recipient opens from a Client Document Share email. The
+    # token is a path segment (not a query string) so it never leaks the
+    # document name, client name, or recipient email into the URL itself.
+    {"from_route": "/client-document/<token>", "to_route": "client_document"},
+]
 
 fixtures = []
 
