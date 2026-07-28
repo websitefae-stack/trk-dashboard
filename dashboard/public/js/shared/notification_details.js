@@ -296,6 +296,16 @@
     if (archiveBtn) {
       archiveBtn.style.display = Number(data.can_archive || 0) ? "" : "none";
     }
+
+    const openDocumentBtn = el("notificationOpenDocumentBtn");
+    if (openDocumentBtn) {
+      if (data.reference_link) {
+        openDocumentBtn.href = data.reference_link;
+        openDocumentBtn.style.display = "";
+      } else {
+        openDocumentBtn.style.display = "none";
+      }
+    }
   }
 
   function renderRecipients(recipients) {

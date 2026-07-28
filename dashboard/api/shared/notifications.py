@@ -600,6 +600,9 @@ def _get_reference_link(reference_doctype, reference_name, dashboard_base_url=""
     if reference_doctype == "Event":
         return f"{dashboard_base_url}/calendar_details?event={reference_name}" if dashboard_base_url else ""
 
+    if reference_doctype == "Coach Document Requirement":
+        return f"{dashboard_base_url}/document_view?name={reference_name}" if dashboard_base_url else ""
+
     return ""
 
 

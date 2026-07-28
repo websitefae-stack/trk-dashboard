@@ -390,15 +390,32 @@ def allocate_document_to_client(requirement_name=None, practice_document=None, c
 	return {"ok": True, "name": share.name}
 
 
+# Only these actually need someone to go and DO something - a "Read Only"
+# document is just a file sitting in the library for people to open if/when
+# they need it, so it doesn't belong in the notifications inbox at all.
+REQUIRED_ACTION_NOTIFICATION_TYPE = {
+	"Acknowledge": "Task",
+	"Sign": "Approval Request",
+}
+
+
 def notify_requirement_assigned(doc, method=None):
 	if not doc.user:
+		return
+
+	notification_type = REQUIRED_ACTION_NOTIFICATION_TYPE.get(doc.required_action)
+
+	if not notification_type:
 		return
 
 	try:
 		create_trk_notification(
 			recipient_user=doc.user,
-			notification_type="Task",
-			message="A new document has been assigned to you: {0}".format(doc.document_title or doc.practice_document),
+			notification_type=notification_type,
+			message="A new document needs your {0}: {1}".format(
+				"signature" if doc.required_action == "Sign" else "acknowledgement",
+				doc.document_title or doc.practice_document,
+			),
 			priority="High" if doc.mandatory else "Normal",
 			reference_doctype=COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
 			reference_name=doc.name,
