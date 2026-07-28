@@ -734,5 +734,9 @@ def coach_has_secret_key(coach_name):
             "__Auth",
             {"doctype": "Coach", "name": coach_name, "fieldname": "secret_key"},
             "password",
+            # __Auth is a raw internal table, not a real DocType - it has no
+            # "creation" column, so get_value's default order_by (which
+            # assumes one) must be disabled explicitly.
+            order_by=None,
         )
     )
