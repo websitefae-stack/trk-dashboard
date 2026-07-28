@@ -396,6 +396,7 @@
   }
 
   function initStripeSettingsForm() {
+    const config = getProfileConfig();
     const form = el("stripeSettingsForm");
     const message = el("stripeSettingsMessage");
 
@@ -430,29 +431,26 @@
         const paymentsEnabledField = el("stripe_payments_enabled");
         const targetCoach = form.getAttribute("data-target-coach") || "";
 
-        const payload = {
-          payment_gateway_name: formData.get("payment_gateway_name"),
-          publishable_key: formData.get("publishable_key"),
-          default_payment_request_message: formData.get("default_payment_request_message"),
-          payments_enabled: paymentsEnabledField && paymentsEnabledField.checked ? 1 : 0
-        };
-
-        const secretKey = (formData.get("secret_key") || "").trim();
-
-        // Never send a blank secret_key - the backend also guards against
-        // this, but omitting it entirely here means an accidental browser
-        // autofill of an empty value can't even reach the request.
-        if (secretKey) {
-          payload.secret_key = secretKey;
-        }
+        formData.append("role", config.role);
+        formData.set("payments_enabled", paymentsEnabledField && paymentsEnabledField.checked ? "1" : "0");
 
         if (targetCoach) {
-          payload.coach = targetCoach;
+          formData.append("coach", targetCoach);
         }
 
-        const result = await postJson(
-          "dashboard.api.shared.profile.update_coach_stripe_settings",
-          payload
+        // Never send a blank secret_key - this is the same existing,
+        // reused update_my_profile endpoint the Personal Info tab uses, and
+        // the backend also guards against a blank value overwriting the
+        // stored key, but omitting the field entirely here means an empty
+        // value (including from an accidental browser autofill) can't even
+        // reach the request.
+        if (!(formData.get("secret_key") || "").trim()) {
+          formData.delete("secret_key");
+        }
+
+        const result = await postForm(
+          "dashboard.api.shared.profile.update_my_profile",
+          formData
         );
 
         if (message) {
