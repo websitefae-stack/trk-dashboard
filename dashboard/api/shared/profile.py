@@ -3,6 +3,7 @@ from frappe import _
 from werkzeug.utils import secure_filename
 
 from dashboard.api.shared.notifications import send_dashboard_notification
+from dashboard.api.shared.permissions import ensure_franchisor_can_access_coach
 
 
 CHANGE_REQUEST_DOCTYPE = "Change Request"
@@ -41,6 +42,10 @@ ROLE_PROFILE_CONFIG = {
             "facebook_url",
             "instagram_url",
             "linkedin_url",
+            "payment_gateway_name",
+            "publishable_key",
+            "default_payment_request_message",
+            "payments_enabled",
         ],
         "user_update_fields": [
             "first_name",
@@ -87,6 +92,10 @@ ROLE_PROFILE_CONFIG = {
             "facebook_url",
             "instagram_url",
             "linkedin_url",
+            "payment_gateway_name",
+            "publishable_key",
+            "default_payment_request_message",
+            "payments_enabled",
         ],
         "user_update_fields": [
             "first_name",
@@ -261,16 +270,80 @@ def get_profile_context(role):
     }
 
 
+# Stripe fields are their own logically independent sub-section of the
+# profile (own required-field rules, and a Password field that must never
+# be blanked by an untouched/omitted submission) - kept out of the plain
+# editable_fields loop below so an ordinary Personal Info save can never
+# accidentally validate or overwrite them.
+STRIPE_SETTINGS_FIELDS = (
+    "payment_gateway_name",
+    "publishable_key",
+    "secret_key",
+    "default_payment_request_message",
+    "payments_enabled",
+)
+
+
 @frappe.whitelist()
-def update_my_profile(role):
+def update_my_profile(role, coach=None):
     ensure_logged_in()
 
     config = get_role_config(role)
-    profile_doc = get_profile_doc(role)
 
+    coach = (coach or "").strip()
+
+    if coach:
+        # A franchisor managing a different coach's record (e.g. that
+        # coach's Stripe settings) - permission-checked the same way the
+        # rest of the franchisor dashboard already checks coach access.
+        profile_doc = ensure_franchisor_can_access_coach(coach)
+    else:
+        profile_doc = get_profile_doc(role)
+
+    # Only the Stripe section's own form ever submits these fieldnames, so
+    # this is true precisely when that section is being saved.
+    touching_stripe_settings = any(
+        fieldname in frappe.form_dict for fieldname in STRIPE_SETTINGS_FIELDS
+    )
+
+    if touching_stripe_settings and profile_doc.meta.has_field("secret_key"):
+        payment_gateway_name = (frappe.form_dict.get("payment_gateway_name") or "").strip()
+        publishable_key = (frappe.form_dict.get("publishable_key") or "").strip()
+        secret_key = (frappe.form_dict.get("secret_key") or "").strip()
+
+        if not payment_gateway_name:
+            frappe.throw(_("Please enter the payment gateway name."))
+
+        if not publishable_key:
+            frappe.throw(_("Please enter the publishable key."))
+
+        if not coach_has_secret_key(profile_doc.name) and not secret_key:
+            frappe.throw(_("Please enter the secret key."))
+
+        if not profile_doc.get("company"):
+            frappe.throw(
+                _("Please select the coach’s company in Billing and Banking before connecting Stripe.")
+            )
+
+    # Only ever set a field that was actually part of this submission - the
+    # Personal Info, Stripe, etc. sections are separate <form> elements that
+    # each submit only their own fields, so blind-setting every configured
+    # fieldname from frappe.form_dict.get() (which is None when absent)
+    # would silently blank out whichever section's fields weren't submitted.
     for fieldname in config["editable_fields"]:
-        if profile_doc.meta.has_field(fieldname):
+        if fieldname == "secret_key":
+            continue
+
+        if fieldname in frappe.form_dict and profile_doc.meta.has_field(fieldname):
             profile_doc.set(fieldname, frappe.form_dict.get(fieldname))
+
+    # Secret Key is a Password field - only ever assign it when a new,
+    # non-blank value was actually entered, so leaving it blank (the normal
+    # case once a key is already stored) can never wipe the existing key.
+    if touching_stripe_settings and profile_doc.meta.has_field("secret_key"):
+        secret_key = (frappe.form_dict.get("secret_key") or "").strip()
+        if secret_key:
+            profile_doc.secret_key = secret_key
 
     photo_url = _save_optional_file(
         "photo",
@@ -317,10 +390,30 @@ def update_my_profile(role):
 
     frappe.db.commit()
 
-    return {
+    result = {
         "ok": 1,
-        "message": "Profile updated.",
+        "message": (
+            _("Stripe payment settings saved successfully.")
+            if touching_stripe_settings
+            else _("Profile updated.")
+        ),
     }
+
+    if touching_stripe_settings:
+        # The "Sync Coach Stripe Settings" After Save Server Script (event:
+        # DocType Coach, After Save) has already run as part of save() above
+        # - reload from the DB so the values it wrote are what gets sent
+        # back, not this function's own pre-script in-memory copy.
+        profile_doc.reload()
+
+        result.update({
+            "stripe_connected": profile_doc.get("stripe_connected") or 0,
+            "stripe_settings": profile_doc.get("stripe_settings") or "",
+            "payment_gateway_account": profile_doc.get("payment_gateway_account") or "",
+            "has_secret_key": coach_has_secret_key(profile_doc.name),
+        })
+
+    return result
 
 
 @frappe.whitelist()
@@ -625,3 +718,21 @@ def _save_optional_file(fieldname, attached_to_doctype, attached_to_name):
     file_doc.save(ignore_permissions=True)
 
     return file_doc.file_url
+
+
+def coach_has_secret_key(coach_name):
+    """
+    Checks whether a Stripe secret key is already stored for this Coach
+    without ever decrypting it - Password fieldtype values live in __Auth,
+    so this only reads whether a (still-encrypted) entry exists. Not a
+    whitelisted endpoint - a plain helper used by page context (index.py)
+    and by update_my_profile's own validation, same as the other private
+    helpers in this file.
+    """
+    return bool(
+        frappe.db.get_value(
+            "__Auth",
+            {"doctype": "Coach", "name": coach_name, "fieldname": "secret_key"},
+            "password",
+        )
+    )
