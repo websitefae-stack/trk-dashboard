@@ -544,25 +544,6 @@
                   <span class="dashboard-help" id="stripeSettingsMessage"></span>
                 </div>
               </form>
-
-              <div class="dashboard-detail-section" style="margin-top:24px;">
-                <div class="dashboard-detail-grid dashboard-detail-grid-2">
-                  <div class="dashboard-detail-field">
-                    <label>Coach Company</label>
-                    <input class="dashboard-input" value="{{ coach.company or '' }}" readonly>
-                  </div>
-
-                  <div class="dashboard-detail-field">
-                    <label>Stripe Settings</label>
-                    <input class="dashboard-input" value="{{ coach.stripe_settings or '—' }}" readonly>
-                  </div>
-
-                  <div class="dashboard-detail-field">
-                    <label>Payment Gateway Account</label>
-                    <input class="dashboard-input" value="{{ coach.payment_gateway_account or '—' }}" readonly>
-                  </div>
-                </div>
-              </div>
             </div>
           {% endif %}
 
