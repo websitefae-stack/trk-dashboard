@@ -397,7 +397,7 @@ def notify_requirement_assigned(doc, method=None):
 	try:
 		create_trk_notification(
 			recipient_user=doc.user,
-			notification_type="Document Assigned",
+			notification_type="Task",
 			message="A new document has been assigned to you: {0}".format(doc.document_title or doc.practice_document),
 			priority="High" if doc.mandatory else "Normal",
 			reference_doctype=COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
