@@ -3,6 +3,10 @@ from frappe import _
 from werkzeug.utils import secure_filename
 
 from dashboard.api.shared.notifications import send_dashboard_notification
+from dashboard.api.shared.permissions import (
+    ensure_franchisor_can_access_coach,
+    get_current_coach,
+)
 
 
 CHANGE_REQUEST_DOCTYPE = "Change Request"
@@ -625,3 +629,95 @@ def _save_optional_file(fieldname, attached_to_doctype, attached_to_name):
     file_doc.save(ignore_permissions=True)
 
     return file_doc.file_url
+
+
+def coach_has_secret_key(coach_name):
+    """
+    Checks whether a Stripe secret key is already stored for this Coach
+    without ever decrypting it - Password fieldtype values live in __Auth,
+    so this only reads whether a (still-encrypted) entry exists.
+    """
+    return bool(
+        frappe.db.get_value(
+            "__Auth",
+            {"doctype": "Coach", "name": coach_name, "fieldname": "secret_key"},
+            "password",
+        )
+    )
+
+
+@frappe.whitelist()
+def update_coach_stripe_settings(
+    payment_gateway_name=None,
+    publishable_key=None,
+    secret_key=None,
+    default_payment_request_message=None,
+    payments_enabled=None,
+    coach=None,
+):
+    """
+    Saves Stripe fields on the Coach doctype only. The existing
+    "Sync Coach Stripe Settings" After Save Server Script does everything
+    else (creating/linking Stripe Settings, Payment Gateway, and Payment
+    Gateway Account, and ticking stripe_connected) - this never calls
+    Stripe or touches those records directly.
+    """
+    ensure_logged_in()
+
+    coach = (coach or "").strip()
+
+    if coach:
+        # Franchisor managing another coach's Stripe settings.
+        coach_doc = ensure_franchisor_can_access_coach(coach)
+    else:
+        # Coach (or a franchisor who is also a coach) managing their own record.
+        coach_doc = get_current_coach()
+
+    if not coach_doc.meta.has_field("secret_key"):
+        frappe.throw(_("Stripe settings are not available on this record."))
+
+    payment_gateway_name = (payment_gateway_name or "").strip()
+    publishable_key = (publishable_key or "").strip()
+    secret_key = (secret_key or "").strip()
+    default_payment_request_message = default_payment_request_message or ""
+
+    if not payment_gateway_name:
+        frappe.throw(_("Please enter the payment gateway name."))
+
+    if not publishable_key:
+        frappe.throw(_("Please enter the publishable key."))
+
+    if not coach_has_secret_key(coach_doc.name) and not secret_key:
+        frappe.throw(_("Please enter the secret key."))
+
+    if not coach_doc.get("company"):
+        frappe.throw(
+            _("Please select the coach’s company in Billing and Banking before connecting Stripe.")
+        )
+
+    coach_doc.payment_gateway_name = payment_gateway_name
+    coach_doc.publishable_key = publishable_key
+    coach_doc.default_payment_request_message = default_payment_request_message
+    coach_doc.payments_enabled = 1 if frappe.utils.cint(payments_enabled) else 0
+
+    # Only ever set a new secret key when one was actually entered - a blank
+    # submission must never overwrite what's already stored.
+    if secret_key:
+        coach_doc.secret_key = secret_key
+
+    coach_doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    # Re-fetch after save so stripe_connected / stripe_settings /
+    # payment_gateway_account reflect whatever the After Save Server Script
+    # just wrote, rather than this function's own pre-script in-memory values.
+    coach_doc.reload()
+
+    return {
+        "ok": 1,
+        "message": _("Stripe payment settings saved successfully."),
+        "stripe_connected": coach_doc.get("stripe_connected") or 0,
+        "stripe_settings": coach_doc.get("stripe_settings") or "",
+        "payment_gateway_account": coach_doc.get("payment_gateway_account") or "",
+        "has_secret_key": coach_has_secret_key(coach_doc.name),
+    }

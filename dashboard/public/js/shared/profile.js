@@ -395,6 +395,86 @@
     });
   }
 
+  function initStripeSettingsForm() {
+    const form = el("stripeSettingsForm");
+    const message = el("stripeSettingsMessage");
+
+    if (!form || form.dataset.stripeFormBound === "1") {
+      return;
+    }
+
+    form.dataset.stripeFormBound = "1";
+
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault();
+
+      if (form.getAttribute("data-has-company") !== "1") {
+        if (message) {
+          message.textContent = "Please select the coach’s company in Billing and Banking before connecting Stripe.";
+        }
+        return;
+      }
+
+      const submitBtn = form.querySelector('button[type="submit"]');
+
+      if (message) {
+        message.textContent = "Saving...";
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+      }
+
+      try {
+        const formData = new FormData(form);
+        const paymentsEnabledField = el("stripe_payments_enabled");
+        const targetCoach = form.getAttribute("data-target-coach") || "";
+
+        const payload = {
+          payment_gateway_name: formData.get("payment_gateway_name"),
+          publishable_key: formData.get("publishable_key"),
+          default_payment_request_message: formData.get("default_payment_request_message"),
+          payments_enabled: paymentsEnabledField && paymentsEnabledField.checked ? 1 : 0
+        };
+
+        const secretKey = (formData.get("secret_key") || "").trim();
+
+        // Never send a blank secret_key - the backend also guards against
+        // this, but omitting it entirely here means an accidental browser
+        // autofill of an empty value can't even reach the request.
+        if (secretKey) {
+          payload.secret_key = secretKey;
+        }
+
+        if (targetCoach) {
+          payload.coach = targetCoach;
+        }
+
+        const result = await postJson(
+          "dashboard.api.shared.profile.update_coach_stripe_settings",
+          payload
+        );
+
+        if (message) {
+          message.textContent = result.message || "Stripe payment settings saved successfully.";
+        }
+
+        setTimeout(function () {
+          window.location.reload();
+        }, 800);
+
+      } catch (error) {
+        if (message) {
+          message.textContent = error.message || "Could not save Stripe payment settings.";
+        }
+
+        if (submitBtn) {
+          submitBtn.disabled = false;
+        }
+      }
+    });
+  }
+
   function initLegalForms() {
     const config = getProfileConfig();
 
@@ -496,6 +576,7 @@
     initShortBioCounter();
     initBankingDetailsForm();
     initBankingChangeRequest();
+    initStripeSettingsForm();
     initLegalForms();
     initLegalToggleButtons();
   }

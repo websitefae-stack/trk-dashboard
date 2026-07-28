@@ -6,6 +6,7 @@ from dashboard.api.shared.profile import (
     get_profile_context,
     get_profile_display_name,
     get_franchisor_name,
+    coach_has_secret_key,
 )
 
 
@@ -43,3 +44,5 @@ def get_context(context):
     context.dbs_update_service_rows = profile_context["dbs_update_service_rows"]
     context.insurance_rows = profile_context["insurance_rows"]
     context.indemnity_rows = profile_context["indemnity_rows"]
+
+    context.has_secret_key = coach_has_secret_key(coach.name)

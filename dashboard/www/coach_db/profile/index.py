@@ -5,6 +5,7 @@ from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
 from dashboard.api.shared.profile import (
     get_profile_context,
     get_profile_display_name,
+    coach_has_secret_key,
 )
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 
@@ -58,6 +59,8 @@ def get_context(context):
         context.insurance_rows = coach.get("insurance") or []
         context.indemnity_rows = coach.get("indemnity") or []
 
+        context.has_secret_key = coach_has_secret_key(coach.name)
+
     else:
         redirect_if_wrong_dashboard("coach")
 
@@ -77,3 +80,5 @@ def get_context(context):
         context.dbs_update_service_rows = profile_context["dbs_update_service_rows"]
         context.insurance_rows = profile_context["insurance_rows"]
         context.indemnity_rows = profile_context["indemnity_rows"]
+
+        context.has_secret_key = coach_has_secret_key(coach.name)

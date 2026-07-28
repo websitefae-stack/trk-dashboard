@@ -441,6 +441,142 @@
             <div class="dashboard-empty">No bank account linked.</div>
           {% endif %}
 
+          {% if profile_role in ["coach", "franchisor"] %}
+            <div class="dashboard-detail-section" style="margin-top:24px;" id="stripeSettingsSection">
+              <div class="dashboard-detail-section-head" style="margin-bottom:18px;">
+                <div>
+                  <h3>Stripe Payment Settings</h3>
+                  <p class="dashboard-page-subtitle">Connect Stripe so this coach can take online client payments.</p>
+                </div>
+              </div>
+
+              <div class="dashboard-notice" style="margin-bottom:16px;">
+                Saving these details will connect Stripe to the company selected in your Banking and Billing settings.
+              </div>
+
+              {% if not coach.company %}
+                <div class="dashboard-empty" style="margin:16px 0;">
+                  Please select the coach’s company in Billing and Banking before connecting Stripe.
+                </div>
+              {% endif %}
+
+              <form
+                id="stripeSettingsForm"
+                data-target-coach="{{ coach.name if coach_is_view_mode else '' }}"
+                data-has-company="{{ 1 if coach.company else 0 }}"
+                style="margin-top:16px;"
+              >
+                <div class="dashboard-detail-grid dashboard-detail-grid-2">
+
+                  <div class="dashboard-detail-field">
+                    <label for="stripe_payment_gateway_name">Payment Gateway Name</label>
+                    <input
+                      class="dashboard-input"
+                      id="stripe_payment_gateway_name"
+                      name="payment_gateway_name"
+                      value="{{ coach.payment_gateway_name or '' }}"
+                      required
+                    >
+                    <small>Use your name followed by Stripe Integration, for example: Ashley Stripe Integration.</small>
+                  </div>
+
+                  <div class="dashboard-detail-field dashboard-detail-field-checkbox">
+                    <label>
+                      <input type="checkbox" id="stripe_payments_enabled" {% if coach.payments_enabled %}checked{% endif %}>
+                      Payments Enabled
+                    </label>
+                    <small>Allow this Stripe account to be used for client payments.</small>
+                  </div>
+
+                  <div class="dashboard-detail-field">
+                    <label for="stripe_publishable_key">Publishable Key</label>
+                    <input
+                      class="dashboard-input"
+                      id="stripe_publishable_key"
+                      name="publishable_key"
+                      value="{{ coach.publishable_key or '' }}"
+                      required
+                    >
+                    <small>Enter the Stripe publishable or application key supplied by Stripe.</small>
+                  </div>
+
+                  <div class="dashboard-detail-field">
+                    <label for="stripe_secret_key">Secret Key</label>
+                    <input
+                      class="dashboard-input"
+                      type="password"
+                      id="stripe_secret_key"
+                      name="secret_key"
+                      autocomplete="new-password"
+                      placeholder="{% if has_secret_key %}••••••••{% else %}Enter your Stripe secret key{% endif %}"
+                      {% if not has_secret_key %}required{% endif %}
+                    >
+                    {% if has_secret_key %}
+                      <small>A secret key is already saved. Leave this field blank to keep the existing key.</small>
+                    {% else %}
+                      <small>Enter the Stripe secret key supplied by Stripe. It is stored securely and never shown again.</small>
+                    {% endif %}
+                  </div>
+
+                  <div class="dashboard-detail-field dashboard-detail-field-full">
+                    <label for="stripe_default_payment_request_message">Default Payment Request Message</label>
+                    <textarea
+                      class="dashboard-textarea"
+                      id="stripe_default_payment_request_message"
+                      name="default_payment_request_message"
+                      rows="4"
+                    >{{ coach.default_payment_request_message or '' }}</textarea>
+                    <small>You can use the placeholders doc.company, doc.grand_total and payment_url - these are filled in automatically when a payment request is sent.</small>
+                  </div>
+
+                </div>
+
+                <div class="dashboard-detail-actions" style="margin-top:20px;">
+                  <button
+                    class="dashboard-btn dashboard-btn-primary"
+                    type="submit"
+                    {% if not coach.company %}disabled{% endif %}
+                  >
+                    Save Stripe Payment Settings
+                  </button>
+                  <span class="dashboard-help" id="stripeSettingsMessage"></span>
+                </div>
+              </form>
+
+              <div class="dashboard-detail-section" style="margin-top:24px;">
+                <h4>Connection Status</h4>
+                <div class="dashboard-detail-grid dashboard-detail-grid-2">
+                  <div class="dashboard-detail-field">
+                    <label>Stripe Connected</label>
+                    <div>
+                      <span
+                        class="dashboard-status-pill {% if coach.stripe_connected %}dashboard-status-active{% else %}dashboard-status-archived{% endif %}"
+                        id="stripeConnectedStatus"
+                      >
+                        {{ "Stripe Connected" if coach.stripe_connected else "Stripe Not Connected" }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="dashboard-detail-field">
+                    <label>Coach Company</label>
+                    <input class="dashboard-input" value="{{ coach.company or '' }}" readonly>
+                  </div>
+
+                  <div class="dashboard-detail-field">
+                    <label>Stripe Settings</label>
+                    <input class="dashboard-input" value="{{ coach.stripe_settings or '—' }}" readonly>
+                  </div>
+
+                  <div class="dashboard-detail-field">
+                    <label>Payment Gateway Account</label>
+                    <input class="dashboard-input" value="{{ coach.payment_gateway_account or '—' }}" readonly>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% endif %}
+
           {% if can_request_banking_change %}
             <div class="dashboard-detail-section" style="margin-top:24px;">
               <div class="dashboard-detail-section-head">
