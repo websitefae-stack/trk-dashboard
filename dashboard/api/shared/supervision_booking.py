@@ -237,7 +237,7 @@ def book_supervision(coach=None, date=None, time=None):
     try:
         create_trk_notification(
             recipient_user=coach_user,
-            notification_type="New Supervision Booking",
+            notification_type="Task",
             message=f"{requester_name} booked Supervision with you for {date} at {time}.",
             priority="Normal",
             reference_doctype="Event",

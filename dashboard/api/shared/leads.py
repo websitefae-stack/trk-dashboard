@@ -645,7 +645,7 @@ def _notify_intake_completed(doc):
         try:
             create_trk_notification(
                 recipient_user=coach_user,
-                notification_type="Intake Form Completed",
+                notification_type="Client Request",
                 message=notification_message,
                 priority="High",
                 reference_doctype=LEAD_DOCTYPE,
@@ -675,7 +675,7 @@ def _notify_intake_completed(doc):
         try:
             create_trk_notification(
                 recipient_user=admin_user,
-                notification_type="Intake Form Completed",
+                notification_type="Client Request",
                 message=notification_message,
                 priority="High",
                 reference_doctype=LEAD_DOCTYPE,

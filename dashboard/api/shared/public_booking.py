@@ -577,7 +577,7 @@ def create_portal_booking(client=None, coach=None, date=None, time=None, appoint
     try:
         create_trk_notification(
             recipient_user=coach_user,
-            notification_type="New Portal Booking",
+            notification_type="Client Request",
             message=f"{client_full_name} booked a Parent Check-In for {date} at {time} via the client portal.",
             priority="Normal",
             reference_doctype="Event",
@@ -729,7 +729,7 @@ def submit_public_booking(
     try:
         create_trk_notification(
             recipient_user=coach_user,
-            notification_type="New Public Booking",
+            notification_type="Client Request",
             message=f"{contact_name} booked {appointment_type} for {date} at {time} via your public profile.",
             priority="High",
             reference_doctype=LEAD_DOCTYPE,

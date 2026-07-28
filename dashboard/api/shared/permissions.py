@@ -586,7 +586,7 @@ def notify_franchisors_of_expired_legal(doc, dashboard_type, expired_items):
     for user in FRANCHISOR_USERS:
         create_trk_notification(
             recipient_user=user,
-            notification_type="Expired Legal Documents",
+            notification_type="Task",
             message=message,
             priority="High",
             reference_doctype=doc.doctype,
