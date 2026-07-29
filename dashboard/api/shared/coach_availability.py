@@ -11,6 +11,22 @@ from frappe import _
 from dashboard.api.shared.permissions import ensure_logged_in, get_current_coach_name
 from dashboard.api.shared.utils import coalesce_str, coalesce_raw
 from dashboard.api.shared.appointment_types import is_publicly_bookable
+from dashboard.api.shared.public_booking import PORTAL_BOOKABLE_TYPES
+from dashboard.api.shared.supervision_booking import SUPERVISION_TYPE_LABEL
+
+# Parent Check-In and Supervision are deliberately excluded from
+# is_publicly_bookable() - they must never appear on a coach's public
+# guest-facing booking page - and neither has a real "Appointment
+# Template" record (never needed one, since they're never publicly
+# bookable). But a coach still has to set their own weekly availability
+# for them, since that's exactly what the client-portal/staff self-booking
+# slot lookups (public_booking.get_portal_slots,
+# supervision_booking.get_supervision_slots) read - without an option for
+# these here, a coach has no way to ever add a Coach.appointment_types row
+# for them, so those bookings can never show any available times. Uses
+# the exact literal labels those functions match appointment_name against
+# (require_public_bookable=False's fallback), not template docnames.
+STAFF_ONLY_APPOINTMENT_LABELS = sorted(set(PORTAL_BOOKABLE_TYPES) | {SUPERVISION_TYPE_LABEL})
 
 DAY_NAMES = [
     "Monday", "Tuesday", "Wednesday", "Thursday",
@@ -64,30 +80,37 @@ def _get_template_label(template_name, label_cache):
 def get_appointment_template_options():
     ensure_logged_in()
 
-    if not frappe.db.exists("DocType", "Appointment Template"):
-        return []
-
-    meta = frappe.get_meta("Appointment Template")
-    label_field = None
-    for fieldname in ["appointment_type", "title", "template_name"]:
-        if meta.has_field(fieldname):
-            label_field = fieldname
-            break
-
-    fields = ["name"]
-    if label_field:
-        fields.append(label_field)
-
-    rows = frappe.get_all("Appointment Template", fields=fields, order_by="name asc", limit_page_length=200)
-
     options = []
-    for row in rows:
-        label = (row.get(label_field) if label_field else None) or row.get("name")
+    existing_labels = set()
 
-        if not is_publicly_bookable(label):
+    if frappe.db.exists("DocType", "Appointment Template"):
+        meta = frappe.get_meta("Appointment Template")
+        label_field = None
+        for fieldname in ["appointment_type", "title", "template_name"]:
+            if meta.has_field(fieldname):
+                label_field = fieldname
+                break
+
+        fields = ["name"]
+        if label_field:
+            fields.append(label_field)
+
+        rows = frappe.get_all("Appointment Template", fields=fields, order_by="name asc", limit_page_length=200)
+
+        for row in rows:
+            label = (row.get(label_field) if label_field else None) or row.get("name")
+
+            if not is_publicly_bookable(label):
+                continue
+
+            options.append({"value": row.get("name"), "label": label})
+            existing_labels.add(label.lower())
+
+    for label in STAFF_ONLY_APPOINTMENT_LABELS:
+        if label.lower() in existing_labels:
             continue
 
-        options.append({"value": row.get("name"), "label": label})
+        options.append({"value": label, "label": label})
 
     return options
 
