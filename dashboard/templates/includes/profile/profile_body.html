@@ -447,6 +447,10 @@
                 <div>
                   <h3>Stripe Payment Settings</h3>
                 </div>
+
+                <button type="button" class="dashboard-btn dashboard-btn-light" id="stripeSettingsEditBtn">
+                  Edit Settings
+                </button>
               </div>
 
               {% if not coach.company %}
@@ -466,10 +470,11 @@
                   <div class="dashboard-detail-field">
                     <label for="stripe_payment_gateway_name">Payment Gateway Name</label>
                     <input
-                      class="dashboard-input"
+                      class="dashboard-input js-stripe-editable"
                       id="stripe_payment_gateway_name"
                       name="payment_gateway_name"
                       value="{{ coach.payment_gateway_name or '' }}"
+                      readonly
                       required
                     >
                     <small>Use your name followed by Stripe Integration, for example: Ashley Stripe Integration.</small>
@@ -477,7 +482,7 @@
 
                   <div class="dashboard-detail-field dashboard-detail-field-checkbox">
                     <label>
-                      <input type="checkbox" id="stripe_payments_enabled" {% if coach.payments_enabled %}checked{% endif %}>
+                      <input type="checkbox" class="js-stripe-editable" id="stripe_payments_enabled" disabled {% if coach.payments_enabled %}checked{% endif %}>
                       Payments Enabled
                     </label>
                     <small>Allow this Stripe account to be used for client payments.</small>
@@ -495,10 +500,11 @@
                   <div class="dashboard-detail-field">
                     <label for="stripe_publishable_key">Publishable Key</label>
                     <input
-                      class="dashboard-input"
+                      class="dashboard-input js-stripe-editable"
                       id="stripe_publishable_key"
                       name="publishable_key"
                       value="{{ coach.publishable_key or '' }}"
+                      readonly
                       required
                     >
                     <small>Enter the Stripe publishable or application key.</small>
@@ -507,12 +513,13 @@
                   <div class="dashboard-detail-field">
                     <label for="stripe_secret_key">Secret Key</label>
                     <input
-                      class="dashboard-input"
+                      class="dashboard-input js-stripe-editable"
                       type="password"
                       id="stripe_secret_key"
                       name="secret_key"
                       autocomplete="new-password"
                       placeholder="{% if has_secret_key %}••••••••{% else %}Enter your Stripe secret key{% endif %}"
+                      readonly
                       {% if not has_secret_key %}required{% endif %}
                     >
                     {% if has_secret_key %}
@@ -524,16 +531,17 @@
 
                   <div class="dashboard-detail-field dashboard-detail-field-full">
                     <textarea
-                      class="dashboard-textarea"
+                      class="dashboard-textarea js-stripe-editable"
                       id="stripe_default_payment_request_message"
                       name="default_payment_request_message"
                       rows="4"
+                      readonly
                     >{{ coach.default_payment_request_message or '' }}</textarea>
                   </div>
 
                 </div>
 
-                <div class="dashboard-detail-actions" style="margin-top:20px;">
+                <div class="dashboard-detail-actions js-stripe-save-actions" style="margin-top:20px; display:none;">
                   <button
                     class="dashboard-btn dashboard-btn-primary"
                     type="submit"
@@ -541,6 +549,7 @@
                   >
                     Save Stripe Payment Settings
                   </button>
+                  <button class="dashboard-btn dashboard-btn-light" type="button" id="stripeSettingsCancelBtn">Cancel</button>
                   <span class="dashboard-help" id="stripeSettingsMessage"></span>
                 </div>
               </form>

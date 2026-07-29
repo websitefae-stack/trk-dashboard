@@ -395,16 +395,52 @@
     });
   }
 
+  function setStripeEditMode(isEditing) {
+    document.querySelectorAll(".js-stripe-editable").forEach(function (field) {
+      if (field.tagName === "INPUT" && field.type === "checkbox") {
+        field.disabled = !isEditing;
+      } else {
+        field.readOnly = !isEditing;
+      }
+    });
+
+    const actions = document.querySelector(".js-stripe-save-actions");
+    if (actions) {
+      actions.style.display = isEditing ? "" : "none";
+    }
+
+    const editBtn = el("stripeSettingsEditBtn");
+    if (editBtn) {
+      editBtn.style.display = isEditing ? "none" : "";
+    }
+  }
+
   function initStripeSettingsForm() {
     const config = getProfileConfig();
     const form = el("stripeSettingsForm");
     const message = el("stripeSettingsMessage");
+    const editBtn = el("stripeSettingsEditBtn");
+    const cancelBtn = el("stripeSettingsCancelBtn");
 
     if (!form || form.dataset.stripeFormBound === "1") {
       return;
     }
 
     form.dataset.stripeFormBound = "1";
+
+    setStripeEditMode(false);
+
+    if (editBtn) {
+      editBtn.addEventListener("click", function () {
+        setStripeEditMode(true);
+      });
+    }
+
+    if (cancelBtn) {
+      cancelBtn.addEventListener("click", function () {
+        window.location.reload();
+      });
+    }
 
     form.addEventListener("submit", async function (event) {
       event.preventDefault();
