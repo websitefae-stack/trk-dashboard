@@ -26,3 +26,4 @@ dashboard.patches.restore_franchise_client_type_for_linked_clients
 dashboard.patches.create_practice_document_sequence
 dashboard.patches.fix_document_assigned_notifications
 dashboard.patches.add_visit_client_link_to_event
+dashboard.patches.add_supervision_to_session_type_options
