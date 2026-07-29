@@ -1017,9 +1017,13 @@
         + '</div>';
     }
 
+    const clientSessionValue = event.client_name
+      ? '<a href="' + escapeHtml(getClientDetailsUrl(event.client_name)) + '">' + escapeHtml(event.client_display_name || event.title || "Session") + '</a>'
+      : escapeHtml(event.title || "Session");
+
     body.innerHTML =
       '<div class="trk-calendar-form-row">'
-        + '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Client / Session</div><div class="trk-calendar-detail-value">' + escapeHtml(event.title || "Session") + '</div></div>'
+        + '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Client / Session</div><div class="trk-calendar-detail-value">' + clientSessionValue + '</div></div>'
         + '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Status</div><div class="trk-calendar-detail-value"><span class="dashboard-badge ' + getBadgeClass(event.ui_status) + '">' + escapeHtml(event.ui_status || "Booked") + '</span></div></div>'
       + '</div>'
 
@@ -1070,6 +1074,22 @@
     const params = new URLSearchParams(window.location.search);
     params.set("event", eventName || "");
     return "/session_worker_db/calendar_details?" + params.toString();
+  }
+
+  function getClientDetailsUrl(clientName) {
+    const viewMode = getViewModeParams();
+
+    if (state.dashboardType === "franchisor") {
+      return "/franchisor_db/client_details?name=" + encodeURIComponent(clientName || "");
+    }
+
+    const params = new URLSearchParams();
+    params.set("name", clientName || "");
+    if (viewMode.viewAs) params.set("view_as", viewMode.viewAs);
+    if (viewMode.viewer) params.set("viewer", viewMode.viewer);
+
+    const base = state.dashboardType === "coach" ? "/coach_db" : "/session_worker_db";
+    return base + "/client_details?" + params.toString();
   }
 
   function renderDetailsEmptyState() {
@@ -1599,8 +1619,23 @@
     var linkClientSelect = document.getElementById("trkEditClient");
 
     if (event.needs_linking && linkingRow && linkClientSelect) {
-      var options = '<option value="">— Select client —</option>';
-      state.clients.forEach(function (c) {
+      // School Visit/Company Meeting are never in state.clients (see
+      // create_booking()'s SCHOOL_LINKED_TYPES) - they're booked against a
+      // school/company instead, so the recovery dropdown here has to offer
+      // the same list the booking form itself would for this type.
+      var isSchoolLinked = SCHOOL_LINKED_TYPES.indexOf(event.type) !== -1;
+      var isCompanyType = event.type === "Company Meeting" || event.type === "Company Session";
+      var linkOptions = isSchoolLinked ? (isCompanyType ? state.companies : state.schools) : state.clients;
+      var noun = isSchoolLinked ? (isCompanyType ? "company" : "school") : "client";
+
+      var linkLabel = document.querySelector('label[for="trkEditClient"]');
+      if (linkLabel) {
+        linkLabel.innerHTML = noun.charAt(0).toUpperCase() + noun.slice(1)
+          + ' <span style="color:#f59e0b;font-size:11px;">— not yet linked</span>';
+      }
+
+      var options = '<option value="">— Select ' + noun + ' —</option>';
+      linkOptions.forEach(function (c) {
         options += '<option value="' + escapeHtml(c.value || "") + '">' + escapeHtml(c.label || c.value || "") + '</option>';
       });
       linkClientSelect.innerHTML = options;

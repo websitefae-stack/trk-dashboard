@@ -294,8 +294,33 @@
     }
   }
 
+  function getClientDetailsUrl(clientName) {
+    const viewMode = getViewModeParams();
+
+    if (state.dashboardType === "franchisor") {
+      return "/franchisor_db/client_details?name=" + encodeURIComponent(clientName || "");
+    }
+
+    const params = new URLSearchParams();
+    params.set("name", clientName || "");
+    if (viewMode.viewAs) params.set("view_as", viewMode.viewAs);
+    if (viewMode.viewer) params.set("viewer", viewMode.viewer);
+
+    const base = state.dashboardType === "coach" ? "/coach_db" : "/session_worker_db";
+    return base + "/client_details?" + params.toString();
+  }
+
   function renderDetails(data) {
-    setHtml("trkDetailClient", escapeHtml(data.client_label || data.client_name || "—"));
+    if (data.client_name) {
+      setHtml(
+        "trkDetailClient",
+        '<a href="' + escapeHtml(getClientDetailsUrl(data.client_name)) + '">'
+          + escapeHtml(data.client_label || data.client_name)
+          + '</a>'
+      );
+    } else {
+      setHtml("trkDetailClient", escapeHtml(data.client_label || "—"));
+    }
     setHtml("trkDetailType", escapeHtml(data.appointment_type || "—"));
     setHtml("trkDetailStatus", badge(data.ui_status || data.status || "Booked"));
     setHtml("trkDetailWorker", escapeHtml(data.worker_label || "—"));
