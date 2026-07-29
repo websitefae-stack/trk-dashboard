@@ -152,6 +152,17 @@ def _get_client_display_name(client_name):
     return _get_client_display_from_row(row) if row else client_name
 
 
+def _get_display_client(row_or_doc):
+    """
+    The client a calendar item should be shown/emailed/linked against -
+    custom_client if set, otherwise custom_visit_client (School Visit/
+    Company Meeting - see create_booking()'s SCHOOL_LINKED_TYPES comment).
+    Never use this for permission or billing checks - those must stay
+    keyed on custom_client alone.
+    """
+    return (row_or_doc.get("custom_client") or row_or_doc.get("custom_visit_client") or "").strip()
+
+
 def _get_client_rows_all(limit=5000):
     if not frappe.db.exists("DocType", "Client"):
         return []
@@ -778,6 +789,9 @@ def _get_event_fields():
         "custom_booking_warning",
         "google_meet_link",
     ]
+
+    if _event_has_field("custom_visit_client"):
+        fields.append("custom_visit_client")
 
     if _event_has_field("custom_session_type"):
         fields.append("custom_session_type")
@@ -1544,9 +1558,9 @@ def _get_event_rows_for_dashboard(dashboard_type, range_start_date, range_end_da
         return [], {}
 
     client_names = sorted({
-        row.get("custom_client")
+        _get_display_client(row)
         for row in rows
-        if row.get("custom_client")
+        if _get_display_client(row)
     })
 
     if client_names:
@@ -1569,14 +1583,22 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
     end_dt = get_datetime(row.get("ends_on")) if row.get("ends_on") else None
     custom_client = row.get("custom_client")
     client_row = client_map.get(custom_client) if client_map else None
+    # Display/email/linking should also resolve School Visit/Company
+    # Meeting's school via custom_visit_client - permission checks below
+    # stay keyed on custom_client alone, see _get_display_client().
+    display_client = _get_display_client(row)
 
     # Frappe's own built-in Google Calendar integration independently pulls
     # the same pushed appointment back in as a second, blank Event once it
     # appears on the coach's Google Calendar. That shadow copy has no
     # custom_client and none of the session data - it's pure sync noise
     # sitting on top of the real, fully-populated native booking, so it
-    # must never be shown as its own calendar entry.
-    if row.get("google_calendar_event_id") and not custom_client:
+    # must never be shown as its own calendar entry. Checked against
+    # display_client (not just custom_client) so a real School Visit/
+    # Company Meeting - which only ever has custom_visit_client, never
+    # custom_client - isn't mistaken for one of these blank duplicates
+    # and hidden once it's synced to Google Calendar.
+    if row.get("google_calendar_event_id") and not display_client:
         return None
 
     is_private_for_viewing_coach = False
@@ -1632,9 +1654,9 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
     session_type = _get_effective_session_type(row)
     title = row.get("subject") or "Session"
 
-    if custom_client:
+    if display_client:
         try:
-            title = _get_client_display_name(custom_client) + " - " + session_type
+            title = _get_client_display_name(display_client) + " - " + session_type
         except Exception:
             pass
 
@@ -1655,8 +1677,8 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
         "id": row.get("name"),
         "name": row.get("name"),
         "title": title,
-        "client_display_name": _get_client_display_name(custom_client) if custom_client else "",
-        "client_name": custom_client or "",
+        "client_display_name": _get_client_display_name(display_client) if display_client else "",
+        "client_name": display_client or "",
         "date": start_dt.strftime("%Y-%m-%d"),
         "start_time": start_dt.strftime("%H:%M"),
         "end_time": end_dt.strftime("%H:%M") if end_dt else start_dt.strftime("%H:%M"),
@@ -1679,7 +1701,7 @@ def _build_event_response(row, dashboard_type, selected_calendar_for, context, c
         "google_meet_link": row.get("custom_google_meet_url") or row.get("google_meet_link") or "",
         "needs_linking": bool(
             (row.get("google_calendar_event_id") or row.get("custom_google_event_id"))
-            and not custom_client
+            and not display_client
         ),
         "is_private": 0,
     }
@@ -1889,7 +1911,11 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
     event_doc = _get_event_doc(event_name)
     client = (event_doc.get("custom_client") or "").strip()
     client_row = _get_client_row(client)
-    lead = _get_lead_for_event(event_doc) if not client else None
+    # Display/notes/email should also resolve School Visit/Company
+    # Meeting's school via custom_visit_client - the permission checks
+    # just below stay keyed on custom_client (client) alone.
+    display_client = _get_display_client(event_doc)
+    lead = _get_lead_for_event(event_doc) if not display_client else None
 
     if dashboard_type == SESSION_WORKER_DASHBOARD:
         if client and not _client_belongs_to_session_worker(client, context):
@@ -1921,8 +1947,8 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
 
     return {
         "name": event_doc.get("name"),
-        "client_name": client,
-        "client_label": _get_client_display_name(client) if client else event_doc.get("subject") or "Session",
+        "client_name": display_client,
+        "client_label": _get_client_display_name(display_client) if display_client else event_doc.get("subject") or "Session",
         "lead_name": lead or "",
         "lead_label": lead_label,
         "appointment_type": session_type,
@@ -1938,7 +1964,7 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
         "travel_charged": 1 if int(event_doc.get("custom_travel_charged") or 0) else 0,
         "travel_miles_one_way": float(event_doc.get("custom_travel_miles_one_way") or 0),
         "total_travel_miles": float(event_doc.get("custom_total_travel_miles") or 0),
-        "client_notes": _get_notes_for_parent("Client", client) if client else (
+        "client_notes": _get_notes_for_parent("Client", display_client) if display_client else (
             _get_lead_notes(lead) if lead else _get_event_notes(event_name)
         ),
         "session_number": int(event_doc.get("custom_session_number") or 0),
@@ -2010,7 +2036,7 @@ def get_booking_confirmation_email_defaults(event=None):
         frappe.throw(_("Event is required."))
 
     event_doc = _get_event_doc(event)
-    client = (event_doc.get("custom_client") or "").strip()
+    client = _get_display_client(event_doc)
 
     if not client:
         frappe.throw(_("This appointment has no client linked, so there's no one to email."))
@@ -2048,7 +2074,7 @@ def send_booking_confirmation_email(event=None, recipient=None, subject=None, me
         frappe.throw(_("Recipient email is required."))
 
     event_doc = _get_event_doc(event)
-    client = (event_doc.get("custom_client") or "").strip()
+    client = _get_display_client(event_doc)
 
     if not client:
         frappe.throw(_("This appointment has no client linked, so there's no one to email."))
@@ -2558,6 +2584,15 @@ def _create_booking_impl(
         if appointment_type in PACK_LINKED_SCHOOL_TYPES and school and _event_has_field("custom_client"):
             event.custom_client = school
 
+        # custom_visit_client is set for every SCHOOL_LINKED_TYPES booking
+        # (including School Session/Company Session, redundantly alongside
+        # custom_client above) - a single consistent field calendar.py can
+        # read "which client is this calendar item about" from for display,
+        # email and linking purposes, without ever touching custom_client
+        # for School Visit/Company Meeting (see comment above).
+        if appointment_type in SCHOOL_LINKED_TYPES and school and _event_has_field("custom_visit_client"):
+            event.custom_visit_client = school
+
         _set_session_type(event, appointment_type)
 
         if _event_has_field("custom_billing_type"):
@@ -3000,8 +3035,17 @@ def update_session(
     travel_charged = _coalesce_raw("travel_charged", travel_charged)
     link_client = _coalesce_str("link_client", link_client)
 
-    if link_client and not client and _event_has_field("custom_client"):
-        if frappe.db.exists("Client", link_client):
+    if link_client and not client and frappe.db.exists("Client", link_client):
+        # School Visit/Company Meeting must never get custom_client set
+        # (see create_booking()'s SCHOOL_LINKED_TYPES comment) - link them
+        # via custom_visit_client instead, same as a fresh booking would.
+        if (
+            appointment_type in SCHOOL_LINKED_TYPES
+            and appointment_type not in PACK_LINKED_SCHOOL_TYPES
+            and _event_has_field("custom_visit_client")
+        ):
+            event_doc.custom_visit_client = link_client
+        elif _event_has_field("custom_client"):
             event_doc.custom_client = link_client
             client = link_client
             client_row = _get_client_row(client)
