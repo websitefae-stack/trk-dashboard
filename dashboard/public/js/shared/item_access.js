@@ -8,6 +8,8 @@
   const state = {
     items: [],
     coaches: [],
+    brandFields: [],
+    // grantsByItem[item][company] = { access: bool, showOnSite: bool }
     grantsByItem: {}
   };
 
@@ -52,7 +54,94 @@
     banner.style.color = isError ? "#C01C3E" : "#258D3B";
   }
 
-  function renderHead() {
+  function filteredItems(filterText) {
+    if (!filterText) return state.items;
+    const needle = filterText.toLowerCase();
+    return state.items.filter(function (item) {
+      return item.label.toLowerCase().indexOf(needle) !== -1;
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // Item Brands table
+  // ---------------------------------------------------------------
+
+  function renderBrandsHead() {
+    const head = el("itemBrandsTableHead");
+    if (!head) return;
+
+    let html = "<tr><th>Item</th>";
+    state.brandFields.forEach(function (brand) {
+      html += "<th>" + escapeHtml(brand.label) + "</th>";
+    });
+    head.innerHTML = html + "</tr>";
+  }
+
+  function renderBrandsBody(filterText) {
+    const body = el("itemBrandsTableBody");
+    if (!body) return;
+
+    const rows = filteredItems(filterText);
+
+    if (!rows.length) {
+      const colspan = state.brandFields.length + 1;
+      body.innerHTML = '<tr><td colspan="' + colspan + '" class="dashboard-empty">No items found.</td></tr>';
+      return;
+    }
+
+    body.innerHTML = rows.map(function (item) {
+      const cells = state.brandFields.map(function (brand) {
+        const checked = item.brands && item.brands[brand.fieldname] ? "checked" : "";
+        return '<td style="text-align:center;">'
+          + '<input type="checkbox" data-brand-toggle data-item="' + escapeHtml(item.name) + '" data-brand-field="' + escapeHtml(brand.fieldname) + '" ' + checked + '>'
+          + '</td>';
+      }).join("");
+
+      return '<tr><td>' + escapeHtml(item.label) + '</td>' + cells + '</tr>';
+    }).join("");
+
+    body.querySelectorAll("[data-brand-toggle]").forEach(function (checkbox) {
+      checkbox.addEventListener("change", function () {
+        toggleBrand(checkbox);
+      });
+    });
+  }
+
+  async function toggleBrand(checkbox) {
+    const itemCode = checkbox.dataset.item;
+    const brandField = checkbox.dataset.brandField;
+    const enabled = checkbox.checked;
+
+    checkbox.disabled = true;
+    showMessage("Saving...");
+
+    try {
+      await apiPost(`${SHARED_API}.set_item_brand`, {
+        item_code: itemCode,
+        brand_field: brandField,
+        enabled: enabled ? 1 : 0
+      });
+
+      const item = state.items.find(function (i) { return i.name === itemCode; });
+      if (item) {
+        item.brands = item.brands || {};
+        item.brands[brandField] = enabled;
+      }
+
+      showMessage("Saved.");
+    } catch (error) {
+      checkbox.checked = !enabled;
+      showMessage(error.message || "Could not save this change.", true);
+    } finally {
+      checkbox.disabled = false;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Item Access (+ Show on site) table
+  // ---------------------------------------------------------------
+
+  function renderAccessHead() {
     const head = el("itemAccessTableHead");
     if (!head) return;
 
@@ -60,68 +149,100 @@
     state.coaches.forEach(function (coach) {
       html += "<th>" + escapeHtml(coach.label) + "</th>";
     });
-    html += "</tr>";
-
-    head.innerHTML = html;
+    head.innerHTML = html + "</tr>";
   }
 
-  function renderBody(filterText) {
+  function accessCellHtml(item, coach) {
+    const grant = (state.grantsByItem[item.name] || {})[coach.company] || { access: false, showOnSite: false };
+
+    return '<td>'
+      + '<label style="display:flex;align-items:center;gap:6px;white-space:nowrap;">'
+      + '<input type="checkbox" data-access-toggle data-item="' + escapeHtml(item.name) + '" data-coach="' + escapeHtml(coach.name) + '" ' + (grant.access ? "checked" : "") + '>'
+      + ' Access'
+      + '</label>'
+      + '<label style="display:flex;align-items:center;gap:6px;white-space:nowrap;margin-top:4px;">'
+      + '<input type="checkbox" data-show-on-site-toggle data-item="' + escapeHtml(item.name) + '" data-coach="' + escapeHtml(coach.name) + '" '
+      + (grant.showOnSite ? "checked" : "") + (grant.access ? "" : " disabled") + '>'
+      + ' Show on site'
+      + '</label>'
+      + '</td>';
+  }
+
+  function renderAccessBody(filterText) {
     const body = el("itemAccessTableBody");
     if (!body) return;
 
-    const filtered = state.items.filter(function (item) {
-      if (!filterText) return true;
-      return item.label.toLowerCase().indexOf(filterText.toLowerCase()) !== -1;
-    });
+    const rows = filteredItems(filterText);
 
-    if (!filtered.length) {
+    if (!rows.length) {
       const colspan = state.coaches.length + 1;
       body.innerHTML = '<tr><td colspan="' + colspan + '" class="dashboard-empty">No items found.</td></tr>';
       return;
     }
 
-    body.innerHTML = filtered.map(function (item) {
-      const grantedCompanies = state.grantsByItem[item.name] || {};
-
+    body.innerHTML = rows.map(function (item) {
       const cells = state.coaches.map(function (coach) {
-        const checked = grantedCompanies[coach.company] ? "checked" : "";
-        return '<td style="text-align:center;">'
-          + '<input type="checkbox" data-item-access-toggle data-item="' + escapeHtml(item.name) + '" data-coach="' + escapeHtml(coach.name) + '" ' + checked + '>'
-          + '</td>';
+        return accessCellHtml(item, coach);
       }).join("");
 
       return '<tr><td>' + escapeHtml(item.label) + '</td>' + cells + '</tr>';
     }).join("");
 
-    body.querySelectorAll("[data-item-access-toggle]").forEach(function (checkbox) {
+    body.querySelectorAll("[data-access-toggle]").forEach(function (checkbox) {
       checkbox.addEventListener("change", function () {
         toggleAccess(checkbox);
       });
     });
+
+    body.querySelectorAll("[data-show-on-site-toggle]").forEach(function (checkbox) {
+      checkbox.addEventListener("change", function () {
+        toggleShowOnSite(checkbox);
+      });
+    });
+  }
+
+  function getGrant(itemCode, company) {
+    state.grantsByItem[itemCode] = state.grantsByItem[itemCode] || {};
+    state.grantsByItem[itemCode][company] = state.grantsByItem[itemCode][company] || { access: false, showOnSite: false };
+    return state.grantsByItem[itemCode][company];
+  }
+
+  function findCoach(coachName) {
+    return state.coaches.find(function (c) { return c.name === coachName; });
   }
 
   async function toggleAccess(checkbox) {
     const itemCode = checkbox.dataset.item;
-    const coach = checkbox.dataset.coach;
+    const coachName = checkbox.dataset.coach;
     const granted = checkbox.checked;
+    const coach = findCoach(coachName);
 
     checkbox.disabled = true;
     showMessage("Saving...");
 
+    // The matching "Show on site" checkbox lives in the same cell -
+    // removing Access clears and disables it immediately client-side too,
+    // since the backend deletes the whole Item Default row (and
+    // custom_show_on_site along with it) the moment access is revoked.
+    const cell = checkbox.closest("td");
+    const showOnSiteCheckbox = cell ? cell.querySelector("[data-show-on-site-toggle]") : null;
+
     try {
       await apiPost(`${SHARED_API}.set_item_access`, {
         item_code: itemCode,
-        coach: coach,
+        coach: coachName,
         granted: granted ? 1 : 0
       });
 
-      state.grantsByItem[itemCode] = state.grantsByItem[itemCode] || {};
+      if (coach) {
+        const grant = getGrant(itemCode, coach.company);
+        grant.access = granted;
+        if (!granted) grant.showOnSite = false;
+      }
 
-      const coachRow = state.coaches.find(function (c) { return c.name === coach; });
-      const company = coachRow ? coachRow.company : "";
-
-      if (company) {
-        state.grantsByItem[itemCode][company] = granted;
+      if (showOnSiteCheckbox) {
+        showOnSiteCheckbox.disabled = !granted;
+        if (!granted) showOnSiteCheckbox.checked = false;
       }
 
       showMessage(granted ? "Access granted." : "Access removed.");
@@ -133,28 +254,73 @@
     }
   }
 
-  async function loadGrid() {
-    const body = el("itemAccessTableBody");
-    if (!body) return;
+  async function toggleShowOnSite(checkbox) {
+    const itemCode = checkbox.dataset.item;
+    const coachName = checkbox.dataset.coach;
+    const showOnSite = checkbox.checked;
+    const coach = findCoach(coachName);
 
-    body.innerHTML = '<tr><td class="dashboard-empty">Loading…</td></tr>';
+    checkbox.disabled = true;
+    showMessage("Saving...");
+
+    try {
+      await apiPost(`${SHARED_API}.set_item_show_on_site`, {
+        item_code: itemCode,
+        coach: coachName,
+        show_on_site: showOnSite ? 1 : 0
+      });
+
+      if (coach) {
+        getGrant(itemCode, coach.company).showOnSite = showOnSite;
+      }
+
+      showMessage(showOnSite ? "Now showing on their profile." : "No longer shown on their profile.");
+    } catch (error) {
+      checkbox.checked = !showOnSite;
+      showMessage(error.message || "Could not save this change.", true);
+    } finally {
+      checkbox.disabled = false;
+    }
+  }
+
+  // ---------------------------------------------------------------
+
+  function renderAll(filterText) {
+    renderBrandsHead();
+    renderBrandsBody(filterText);
+    renderAccessHead();
+    renderAccessBody(filterText);
+  }
+
+  async function loadGrid() {
+    const brandsBody = el("itemBrandsTableBody");
+    const accessBody = el("itemAccessTableBody");
+    if (!accessBody) return;
+
+    accessBody.innerHTML = '<tr><td class="dashboard-empty">Loading…</td></tr>';
+    if (brandsBody) brandsBody.innerHTML = '<tr><td class="dashboard-empty">Loading…</td></tr>';
 
     try {
       const result = await apiPost(`${SHARED_API}.get_item_access_grid`, {});
 
       state.items = result.items || [];
       state.coaches = result.coaches || [];
+      state.brandFields = result.brand_fields || [];
 
       state.grantsByItem = {};
       (result.grants || []).forEach(function (grant) {
         state.grantsByItem[grant.item] = state.grantsByItem[grant.item] || {};
-        state.grantsByItem[grant.item][grant.company] = true;
+        state.grantsByItem[grant.item][grant.company] = {
+          access: true,
+          showOnSite: !!grant.show_on_site
+        };
       });
 
-      renderHead();
-      renderBody(el("itemAccessSearch") ? el("itemAccessSearch").value : "");
+      renderAll(el("itemAccessSearch") ? el("itemAccessSearch").value : "");
     } catch (error) {
-      body.innerHTML = '<tr><td class="dashboard-empty">' + escapeHtml(error.message || "Could not load items.") + '</td></tr>';
+      const message = escapeHtml(error.message || "Could not load items.");
+      accessBody.innerHTML = '<tr><td class="dashboard-empty">' + message + '</td></tr>';
+      if (brandsBody) brandsBody.innerHTML = '<tr><td class="dashboard-empty">' + message + '</td></tr>';
     }
   }
 
@@ -166,7 +332,7 @@
     const search = el("itemAccessSearch");
     if (search) {
       search.addEventListener("input", Dashboard.debounce(function () {
-        renderBody(search.value);
+        renderAll(search.value);
       }, 200));
     }
   }
