@@ -1406,9 +1406,36 @@ def get_link_options(doctype, txt=None, limit_page_length=200):
         ]
 
     if doctype == "Item":
+        item_filters = [["name", "like", f"%{txt}%"]] if txt else []
+
+        # A coach can only offer items whose Item Defaults (Stock > Item >
+        # Defaults tab) list their own company - if their company isn't
+        # linked to a given service there at all, it must never show up as
+        # something they can add to an invoice. Franchisor/office users see
+        # every item regardless, same as every other coach-vs-franchisor
+        # scoping in this file.
+        if not _is_franchisor_user():
+            coach = _get_current_coach()
+            coach_company = (coach.get("company") if coach else "") or ""
+
+            if not coach_company:
+                return []
+
+            linked_item_codes = frappe.get_all(
+                "Item Default",
+                filters={"company": coach_company},
+                pluck="parent",
+                limit_page_length=5000,
+            )
+
+            if not linked_item_codes:
+                return []
+
+            item_filters.append(["name", "in", linked_item_codes])
+
         rows = frappe.get_all(
             "Item",
-            filters=filters,
+            filters=item_filters,
             fields=["name", "item_name", "description", "stock_uom"],
             order_by="name asc",
             limit_page_length=limit_page_length,
