@@ -1,0 +1,69 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Item Access</h1>
+          <p class="dashboard-page-subtitle">Tick a box to let a coach add that item/service to an invoice. Unticking removes their access immediately.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-card" style="margin-bottom:20px;">
+        <div class="dashboard-detail-section-head" style="margin-bottom:12px;">
+          <div>
+            <h3>Item Brands</h3>
+            <p class="dashboard-page-subtitle">Which public website(s) each item/service is relevant to at all. A coach's own "Show on site" tick below only has an effect on a brand ticked here.</p>
+          </div>
+        </div>
+
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table dashboard-table-compact" id="itemBrandsTable">
+            <thead id="itemBrandsTableHead">
+              <tr><th>Item</th></tr>
+            </thead>
+            <tbody id="itemBrandsTableBody">
+              <tr><td class="dashboard-empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-detail-section-head" style="margin-bottom:12px;">
+          <div>
+            <h3>Item Access</h3>
+            <p class="dashboard-page-subtitle">
+              <strong>Access</strong> lets a coach add this item to an invoice. <strong>Show on site</strong> also lists it as a service on their public profile page(s) - only available once Access is ticked, and it's cleared automatically if Access is removed.
+            </p>
+          </div>
+        </div>
+
+        <div class="dashboard-detail-grid dashboard-detail-grid-2" style="margin-bottom:18px;">
+          <div class="dashboard-detail-field">
+            <label for="itemAccessSearch">Search Items</label>
+            <input type="text" class="dashboard-input" id="itemAccessSearch" placeholder="Search by item name">
+          </div>
+        </div>
+
+        <div class="dashboard-help" id="itemAccessMessage"></div>
+
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table dashboard-table-compact" id="itemAccessTable">
+            <thead id="itemAccessTableHead">
+              <tr><th>Item</th></tr>
+            </thead>
+            <tbody id="itemAccessTableBody">
+              <tr><td class="dashboard-empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
