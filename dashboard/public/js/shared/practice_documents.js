@@ -240,6 +240,15 @@
     if (box) {
       box.textContent = message;
       box.style.display = "block";
+
+      // documentViewError sits at the very top of the page, above the
+      // document title/summary/text - on anything but a short document,
+      // that's well off-screen from the completion buttons further down.
+      // Without this, a validation failure (blank name, empty signature,
+      // unticked confirmation) or a failed submission looks exactly like
+      // "nothing happened" - the message did appear, just somewhere the
+      // person clicking Submit was never going to see it.
+      box.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }
 
