@@ -96,12 +96,10 @@ doc_events = {
     "Coach Document Requirement": {
         "after_insert": "dashboard.api.shared.practice_documents.notify_requirement_assigned",
     },
-    # Keeps a Practice Document's coach access in sync with its Linked
-    # Items no matter how it was edited - the dashboard's own Workshop
-    # Resources tab (item_access.set_workshop_resource_items) already
-    # does this on every save it makes, but editing Linked Items straight
-    # in the Frappe Desk bypasses that entirely, so this is what catches
-    # that case. See item_access.sync_practice_document_resource_access.
+    # Keeps a Practice Document's coach access (and Resource Availability/
+    # Document Purpose) in sync with its Linked Items, which are managed
+    # directly on the document in the Frappe Desk. See
+    # item_access.sync_practice_document_resource_access.
     "Practice Document": {
         "on_update": "dashboard.api.shared.item_access.sync_practice_document_resource_access",
     },
