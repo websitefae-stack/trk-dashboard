@@ -133,6 +133,7 @@ LAYOUT = [
     },
     {"tab": "Contacts", "custom": "contacts"},
     {"tab": "Notes", "custom": "notes"},
+    {"tab": "Reports", "custom": "reports"},
     {"tab": "Appointments", "custom": "appointments"},
     {"tab": "Billing", "custom": "billing"},
     {"tab": "Files", "custom": "files"},
