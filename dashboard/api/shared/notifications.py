@@ -1831,15 +1831,23 @@ def get_dashboard_notification_summary():
     for row in notifications:
         bucket = _kanban_bucket_for(row)
 
-        # The badge is meant to flag what actually needs attention - a
-        # notification sitting in "In Progress" already has a future due
-        # date and someone's on it, so it isn't counted here even if
-        # nobody has opened it yet.
-        if bucket in ["New", "Past Due"]:
-            unread_count += 1
+        if bucket == "Archived":
+            continue
 
-        if bucket != "Archived":
-            open_count += 1
+        open_count += 1
+
+        # New/Past Due are unread by definition. An "In Progress" row can
+        # be unread too, though - that's exactly what happens the moment
+        # someone replies (see _kanban_bucket_for(): any reply immediately
+        # promotes the bucket to In Progress/Past Due), which used to mean
+        # a reply nobody has actually opened yet stopped lighting up the
+        # bell the instant it arrived, on the assumption that "In
+        # Progress" always means someone's already on it. read_status is
+        # the real, per-recipient signal for that (see
+        # _format_conversation()/_format_notification_log()), so it's
+        # checked here instead of trusting the bucket alone.
+        if bucket in ["New", "Past Due"] or row.get("read_status") == "Unread":
+            unread_count += 1
 
     latest = notifications[:5]
 
