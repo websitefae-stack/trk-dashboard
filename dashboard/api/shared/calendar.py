@@ -3009,6 +3009,7 @@ def update_session(
     travel_charged=None,
     dashboard_type=None,
     link_client=None,
+    notes=None,
 ):
     _require_logged_in_user()
 
@@ -3085,7 +3086,17 @@ def update_session(
 
     if _event_has_field("location"):
         event_doc.location = location
-    
+
+    # Checked against None rather than run through coalesce_str() - this
+    # needs to tell "notes wasn't sent at all" (e.g. calendar_details.js's
+    # own call to update_session(), which doesn't have a notes field yet)
+    # apart from "notes was sent as an empty string" (the edit modal's own
+    # textarea, deliberately cleared) - coalescing the two would silently
+    # wipe out an existing note every time the session was edited from a
+    # caller that simply doesn't know about notes yet.
+    if notes is not None and _event_has_field("description"):
+        event_doc.description = notes
+
     if _event_has_field("custom_therapy_location") and client:
         client_doc = frappe.get_doc("Client", client)
     

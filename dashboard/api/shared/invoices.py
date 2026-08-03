@@ -254,12 +254,19 @@ def _get_bank_account_options():
         ignore_permissions=True,
     )
 
+    # So the invoice-as-who-you-are-yourself modal (see
+    # invoice_details.js's openIncomeOwnerModal) can label the
+    # currently-logged-in coach's own option "(you)" instead of just their
+    # name, the same way any other coach would be labelled.
+    current_coach_name = _get_current_coach_name()
+
     return [
         {
             "value": row.get("bank_account"),
             "label": _coach_label(row),
             "display_text": _bank_display_text(row.get("bank_account")),
             "company": _get_coach_company(row.get("name")),
+            "is_self": row.get("name") == current_coach_name,
         }
         for row in rows
         if row.get("bank_account")
@@ -322,13 +329,20 @@ def _ensure_default_bank_account_option(options, default_bank_account):
         return options
 
     owner_coach = _get_bank_account_owner_coach(default_bank_account)
-    label = _coach_label_from_name(owner_coach) if owner_coach else _bank_display_text(default_bank_account) or default_bank_account
+    # Not tied to any Coach - this is the office's own account, not a
+    # specific coach's, so it gets a plain "HQ" label here instead of a
+    # dump of raw bank details (which is all _bank_display_text() has to
+    # offer) - this is exactly what the invoice-as-who modal shows when no
+    # override has been picked yet, so it needs to read like an actual
+    # choice, not a wall of numbers.
+    label = _coach_label_from_name(owner_coach) if owner_coach else "HQ"
 
     return options + [{
         "value": default_bank_account,
         "label": label,
         "display_text": _bank_display_text(default_bank_account),
         "company": _get_coach_company(owner_coach) if owner_coach else "",
+        "is_self": bool(owner_coach) and owner_coach == _get_current_coach_name(),
     }]
 
 
@@ -1606,6 +1620,11 @@ def _set_invoice_header_fields(doc, payload):
     if doc.customer:
         doc.customer_name = _customer_display_name(doc.customer)
 
+    # Set inside the custom_bank_account block below, and reused further
+    # down for custom_income_owner_coach - both need to agree on exactly
+    # the same coach, so this is computed once rather than twice.
+    bank_owner_coach = ""
+
     if doc.meta.has_field("custom_bank_account"):
         submitted_bank_account = (payload.get("bank_account") or "").strip()
 
@@ -1622,6 +1641,21 @@ def _set_invoice_header_fields(doc, payload):
         if doc.custom_bank_account:
             bank_owner_coach = _get_bank_account_owner_coach(doc.custom_bank_account)
             bank_owner_company = _get_coach_company(bank_owner_coach) if bank_owner_coach else ""
+
+            if bank_owner_coach and not bank_owner_company:
+                # custom_income_owner_coach below is about to be set to this
+                # same coach regardless of whether this throws - letting the
+                # save go through here would leave company silently on
+                # whatever the client's own default was (almost always HQ)
+                # while income_owner_coach says a different coach entirely,
+                # which is exactly the "invoice says Emily but company says
+                # HQ" mismatch this whole flow exists to prevent. Failing
+                # loudly here instead of silently keeping the wrong company
+                # is what actually makes the invoice-as-who choice binding.
+                frappe.throw(_(
+                    "{0} doesn't have a company set on their Coach record, so this invoice can't be "
+                    "linked to their business. Add one to their Coach record first, then try again."
+                ).format(_coach_label_from_name(bank_owner_coach)))
 
             if bank_owner_company:
                 doc.company = bank_owner_company
@@ -1677,9 +1711,7 @@ def _set_invoice_header_fields(doc, payload):
         # owns that account, not the client's usual primary coach - it's
         # Emily's business, so it needs to show up on Emily's dashboard and
         # be recorded as hers, not SJ's.
-        override_owner = ""
-        if doc.meta.has_field("custom_bank_account") and doc.get("custom_bank_account"):
-            override_owner = _get_bank_account_owner_coach(doc.custom_bank_account)
+        override_owner = bank_owner_coach
 
         if override_owner:
             doc.custom_income_owner_coach = override_owner

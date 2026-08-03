@@ -1049,6 +1049,7 @@
               + getBookingWarningDetailHtml(event)
               + '<div class="trk-calendar-detail-group"><div class="trk-calendar-detail-label">Location</div><div class="trk-calendar-detail-value">' + escapeHtml(event.location || "Not set") + '</div></div>'
               + getGoogleMeetLinkDetailHtml(event)
+              + getNotesDetailHtml(event)
             )
       )
       + actions;
@@ -1444,7 +1445,8 @@
       billing_type: billingType,
       travel_charged: travelCharged,
       location: location,
-      link_client: linkClient
+      link_client: linkClient,
+      notes: getValue("trkEditNotes") || ""
     }).then(function () {
       setButtonLoading("trkCalendarEditSaveBtn", false, "Save Changes");
       closeEditModal();
@@ -1614,6 +1616,7 @@
     setValue("trkEditTravelCharged", String(Number(event.travel_charged || 0)));
     setValue("trkEditTravelChargedSingle", String(Number(event.travel_charged || 0)));
     applyLocationToEditForm(event.location || "");
+    setValue("trkEditNotes", event.notes || "");
 
     var linkingRow = document.getElementById("trkEditLinkingRow");
     var linkClientSelect = document.getElementById("trkEditClient");
@@ -2443,6 +2446,19 @@
       + '<a href="' + escapeHtml(event.google_meet_link) + '" target="_blank" rel="noopener">'
       + escapeHtml(event.google_meet_link)
       + '</a></div></div>';
+  }
+
+  // event.notes is Event.description - a plain note on the appointment
+  // itself (set from the booking form's "Booking Notes" field, or the
+  // edit modal's own "Notes" field), never tied to a client - this is
+  // what a Personal appointment's note shows up as here, since it has no
+  // client to attach a Client Note (see "Add Note"/trkCalendarNoteModal,
+  // which explicitly requires event.client_name) to in the first place.
+  function getNotesDetailHtml(event) {
+    if (!event || !event.notes) return "";
+    return '<div class="trk-calendar-detail-group">'
+      + '<div class="trk-calendar-detail-label">Notes</div>'
+      + '<div class="trk-calendar-detail-value" style="white-space:pre-wrap;">' + escapeHtml(event.notes) + '</div></div>';
   }
 
   function getWeekStart(date) {
