@@ -26,6 +26,7 @@
   "sharing_instructions",
   "resource_availability",
   "available_to_coaches",
+  "linked_items",
   "document_content_section",
   "summary",
   "document_text",
@@ -176,6 +177,13 @@
    "fieldtype": "Table",
    "label": "Available to Coaches",
    "options": "Practice Document Coach"
+  },
+  {
+   "description": "Which Item(s)/workshop(s) this document is a resource for. Managed from the franchisor dashboard's Documents → Workshop Resources tab, which grants/revokes coaches here automatically to match Item Access - a coach keeps access as long as they have Item Access to at least one item linked here. Only takes effect once Resource Availability above is set to \"Selected Coaches\".",
+   "fieldname": "linked_items",
+   "fieldtype": "Table",
+   "label": "Linked Items",
+   "options": "Practice Document Item"
   },
   {
    "fieldname": "document_content_section",

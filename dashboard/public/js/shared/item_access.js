@@ -70,7 +70,7 @@
     const head = el("itemBrandsTableHead");
     if (!head) return;
 
-    let html = "<tr><th>Item</th>";
+    let html = '<tr><th class="item-access-name-col">Item</th>';
     state.brandFields.forEach(function (brand) {
       html += "<th>" + escapeHtml(brand.label) + "</th>";
     });
@@ -97,7 +97,7 @@
           + '</td>';
       }).join("");
 
-      return '<tr><td>' + escapeHtml(item.label) + '</td>' + cells + '</tr>';
+      return '<tr><td class="item-access-name-col">' + escapeHtml(item.label) + '</td>' + cells + '</tr>';
     }).join("");
 
     body.querySelectorAll("[data-brand-toggle]").forEach(function (checkbox) {
@@ -145,7 +145,7 @@
     const head = el("itemAccessTableHead");
     if (!head) return;
 
-    let html = "<tr><th>Item</th>";
+    let html = '<tr><th class="item-access-name-col">Item</th>';
     state.coaches.forEach(function (coach) {
       html += "<th>" + escapeHtml(coach.label) + "</th>";
     });
@@ -185,7 +185,13 @@
         return accessCellHtml(item, coach);
       }).join("");
 
-      return '<tr><td>' + escapeHtml(item.label) + '</td>' + cells + '</tr>';
+      const nameCell = '<td class="item-access-name-col">'
+        + '<div>' + escapeHtml(item.label) + '</div>'
+        + '<button type="button" class="dashboard-btn dashboard-btn-light" style="margin-top:6px;font-size:11px;padding:4px 8px;white-space:nowrap;" '
+        + 'data-grant-all data-item="' + escapeHtml(item.name) + '">Give access to all coaches</button>'
+        + '</td>';
+
+      return '<tr>' + nameCell + cells + '</tr>';
     }).join("");
 
     body.querySelectorAll("[data-access-toggle]").forEach(function (checkbox) {
@@ -197,6 +203,12 @@
     body.querySelectorAll("[data-show-on-site-toggle]").forEach(function (checkbox) {
       checkbox.addEventListener("change", function () {
         toggleShowOnSite(checkbox);
+      });
+    });
+
+    body.querySelectorAll("[data-grant-all]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        grantAllForItem(button);
       });
     });
   }
@@ -283,6 +295,38 @@
     }
   }
 
+  async function grantAllForItem(button) {
+    const itemCode = button.dataset.item;
+    const item = state.items.find(function (i) { return i.name === itemCode; });
+    const itemLabel = item ? item.label : itemCode;
+
+    if (!window.confirm('Give every coach Access and Show on site for "' + itemLabel + '"? This will not remove access anyone already has, and can be individually undone afterwards.')) {
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Granting...";
+    showMessage("Granting access to all coaches...");
+
+    try {
+      const result = await apiPost(`${SHARED_API}.grant_item_access_to_all_coaches`, {
+        item_code: itemCode,
+        show_on_site: 1
+      });
+
+      showMessage(
+        (result.granted || 0) + " coach(es) granted access and show on site."
+        + (result.skipped && result.skipped.length ? " " + result.skipped.length + " skipped (no company set)." : "")
+      );
+
+      await loadGrid();
+    } catch (error) {
+      showMessage(error.message || "Could not grant access to all coaches.", true);
+      button.disabled = false;
+      button.textContent = "Give access to all coaches";
+    }
+  }
+
   // ---------------------------------------------------------------
 
   function renderAll(filterText) {
@@ -324,9 +368,29 @@
     }
   }
 
+  function initTabs() {
+    const tabsWrap = el("itemAccessTabs");
+    if (!tabsWrap) return;
+
+    tabsWrap.querySelectorAll(".dashboard-tab-btn[data-tab-target]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        tabsWrap.querySelectorAll(".dashboard-tab-btn").forEach(function (btn) {
+          btn.classList.toggle("is-active", btn === button);
+        });
+
+        document.querySelectorAll(".dashboard-tab-panel").forEach(function (panel) {
+          const isActive = panel.id === button.dataset.tabTarget;
+          panel.classList.toggle("is-active", isActive);
+          panel.style.display = isActive ? "block" : "none";
+        });
+      });
+    });
+  }
+
   function init() {
     if (!el("itemAccessTableBody")) return;
 
+    initTabs();
     loadGrid();
 
     const search = el("itemAccessSearch");
