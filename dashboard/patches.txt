@@ -28,3 +28,4 @@ dashboard.patches.fix_document_assigned_notifications
 dashboard.patches.add_visit_client_link_to_event
 dashboard.patches.add_supervision_to_session_type_options
 dashboard.patches.add_item_show_on_site_and_brand_fields
+dashboard.patches.resync_practice_document_resource_access
