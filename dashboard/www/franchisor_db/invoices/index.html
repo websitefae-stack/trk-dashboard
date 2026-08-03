@@ -11,7 +11,7 @@
         <div>
           <h1 class="dashboard-page-title">Invoices</h1>
           <p class="dashboard-page-subtitle">
-            Showing invoices for {{ current_coach_label }}{% if current_company %} · {{ current_company }}{% endif %}
+            Showing invoices for {{ selected_coach_label or current_coach_label }}{% if selected_company %} · {{ selected_company }}{% endif %}
           </p>
         </div>
 
@@ -50,10 +50,10 @@
         <div class="dashboard-filter-field">
           <label for="invoiceCoachSelector">View coach invoices</label>
           <select class="dashboard-select" id="invoiceCoachSelector" data-current-coach="{{ current_coach }}">
-            <option value="{{ current_coach }}" {% if not selected_coach %}selected{% endif %}>
+            <option value="{{ current_coach }}" {% if not selected_coach or selected_coach == current_coach %}selected{% endif %}>
               {{ current_coach_label }}
             </option>
-        
+
             {% for coach in coach_options %}
               {% if coach.value != current_coach %}
                 <option value="{{ coach.value }}" {% if selected_coach == coach.value %}selected{% endif %}>
@@ -61,6 +61,11 @@
                 </option>
               {% endif %}
             {% endfor %}
+
+            {# Deliberate choice, not the default - see ALL_COACHES_VALUE in invoices.py. #}
+            <option value="__all_coaches__" {% if selected_coach == "__all_coaches__" %}selected{% endif %}>
+              All Coaches
+            </option>
           </select>
         </div>
 

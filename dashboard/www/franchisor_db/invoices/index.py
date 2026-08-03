@@ -31,5 +31,7 @@ def get_context(context):
     context.current_coach = data.get("current_coach", "")
     context.current_coach_label = data.get("current_coach_label", "")
     context.current_company = data.get("current_company", "")
+    context.selected_coach_label = data.get("selected_coach_label", "")
+    context.selected_company = data.get("selected_company", "")
     context.is_franchisor = 1
     context.dashboard_base_path = "/franchisor_db"
