@@ -149,6 +149,7 @@
 
     const statusEl = el("statementStatus");
     const previewBox = el("statementPreview");
+    const previewWrap = el("statementPreviewWrap");
     const recipientSelect = el("statementRecipient");
     const senderSelect = el("statementSender");
     const subjectField = el("statementSubject");
@@ -156,10 +157,8 @@
     const ccField = el("statementCc");
 
     if (statusEl) statusEl.textContent = "Loading...";
-    if (previewBox) {
-      previewBox.hidden = true;
-      previewBox.innerHTML = "";
-    }
+    if (previewWrap) previewWrap.hidden = true;
+    if (previewBox) previewBox.innerHTML = "";
     if (recipientSelect) recipientSelect.innerHTML = '<option value="">Loading...</option>';
     if (subjectField) subjectField.value = "";
     if (messageField) messageField.value = "";
@@ -221,11 +220,12 @@
   }
 
   async function previewStatementEmail() {
-    const messageField = el("statementMessage");
+    const client = getInvoiceClientName();
     const previewBox = el("statementPreview");
+    const previewWrap = el("statementPreviewWrap");
     const previewBtn = el("previewStatementEmail");
 
-    if (!messageField || !previewBox) return;
+    if (!client || !previewBox) return;
 
     if (previewBtn) {
       previewBtn.disabled = true;
@@ -233,13 +233,13 @@
     }
 
     try {
-      const result = await apiPost("dashboard.api.shared.email_templates.preview_email_html", {
-        message: messageField.value
+      const result = await apiPost(SHARED_API + ".get_client_statement_preview", {
+        client_name: client
       });
 
       const data = result.message || result || {};
       previewBox.innerHTML = data.html || "";
-      previewBox.hidden = false;
+      if (previewWrap) previewWrap.hidden = false;
     } catch (error) {
       showError(error.message || "Could not build a preview.");
     } finally {
@@ -277,7 +277,7 @@
     if (statusEl) statusEl.textContent = "";
 
     try {
-      await apiPost(SHARED_API + ".send_client_email", {
+      await apiPost(SHARED_API + ".send_client_statement_email", {
         client_name: client,
         recipient: recipient,
         subject: subject,

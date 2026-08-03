@@ -15,51 +15,8 @@
         </div>
       </div>
 
-      <div class="dashboard-tabs" id="documentSectionTabs" role="tablist">
-        <button type="button" class="dashboard-tab-btn is-active" data-section-target="myDocumentsSection">My Documents</button>
-        <button type="button" class="dashboard-tab-btn" data-section-target="workshopResourcesSection">Workshop Resources</button>
-      </div>
-
-      <div id="myDocumentsSection">
-        <div class="dashboard-tabs" id="documentTypeTabs" role="tablist"></div>
-        <div id="documentTypePanels"></div>
-      </div>
-
-      <div id="workshopResourcesSection" style="display:none;">
-        <div class="dashboard-card">
-          <div class="dashboard-detail-section-head" style="margin-bottom:12px;">
-            <div>
-              <h3>Workshop Resources</h3>
-              <p class="dashboard-page-subtitle">
-                Which item(s)/workshop(s) each document is linked to - manage the links themselves on the document in the Frappe Desk. A coach automatically gets (or loses) access to a document here the moment their <a href="/franchisor_db/item_access">Item Access</a> to any linked item changes - they keep it as long as they have access to at least one item a document is linked to.
-              </p>
-            </div>
-          </div>
-
-          <div class="dashboard-detail-grid dashboard-detail-grid-2" style="margin-bottom:18px;">
-            <div class="dashboard-detail-field">
-              <label for="workshopResourcesSearch">Search</label>
-              <input type="text" class="dashboard-input" id="workshopResourcesSearch" placeholder="Search by document or item name">
-            </div>
-          </div>
-
-          <div class="dashboard-table-wrap">
-            <table class="dashboard-table" id="workshopResourcesTable">
-              <thead>
-                <tr>
-                  <th>Document</th>
-                  <th>Type</th>
-                  <th>Resource Availability</th>
-                  <th>Linked Items</th>
-                </tr>
-              </thead>
-              <tbody id="workshopResourcesTableBody">
-                <tr><td colspan="4" class="dashboard-empty">Loading…</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      <div class="dashboard-tabs" id="documentTypeTabs" role="tablist"></div>
+      <div id="documentTypePanels"></div>
 
     </div>
   </div>

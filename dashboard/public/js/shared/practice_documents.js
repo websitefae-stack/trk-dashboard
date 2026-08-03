@@ -109,9 +109,19 @@
       ? dashboardBase() + "/document_view?practice_document=" + encodeURIComponent(row.name)
       : dashboardBase() + "/document_view?name=" + encodeURIComponent(row.name);
 
-    var statusCell = isResource
-      ? '<span class="dashboard-badge">Resource</span>'
-      : '<span class="dashboard-badge ' + (STATUS_CLASS[row.status] || "") + '">' + escapeHtml(row.status) + "</span>";
+    var statusCell;
+
+    if (isResource && row.document_type === "Workshop Resource") {
+      var linkedItems = row.linked_items || [];
+      statusCell = '<span class="dashboard-badge">Workshop</span>' +
+        (linkedItems.length
+          ? '<div class="dashboard-doc-list-meta">' + escapeHtml(linkedItems.join(", ")) + '</div>'
+          : '<div class="dashboard-doc-list-meta">Not linked to any item yet.</div>');
+    } else if (isResource) {
+      statusCell = '<span class="dashboard-badge">Resource</span>';
+    } else {
+      statusCell = '<span class="dashboard-badge ' + (STATUS_CLASS[row.status] || "") + '">' + escapeHtml(row.status) + "</span>";
+    }
 
     return (
       "<tr>" +

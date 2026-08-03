@@ -1236,12 +1236,15 @@
   gap: 6px;
   margin-top: 10px;
   padding: 6px 12px;
+  border: 0;
   border-radius: 999px;
   background: #EAF6F5;
   color: #007274;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
+  cursor: pointer;
 }
 
 .notification-feed-attachment:hover {

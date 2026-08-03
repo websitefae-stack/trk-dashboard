@@ -26,6 +26,21 @@
   vertical-align: middle;
 }
 
+.dashboard-doc-list-table th:nth-child(2),
+.dashboard-doc-list-table td:nth-child(2) {
+  width: 140px;
+}
+
+.dashboard-doc-list-table th:nth-child(3),
+.dashboard-doc-list-table td:nth-child(3) {
+  width: 260px;
+}
+
+.dashboard-doc-list-table th:last-child,
+.dashboard-doc-list-table td:last-child {
+  width: 120px;
+}
+
 .dashboard-doc-list-title {
   color: #434B49;
   font-weight: 700;
