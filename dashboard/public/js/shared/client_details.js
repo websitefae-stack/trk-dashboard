@@ -1648,129 +1648,6 @@
       if (submitBtn) submitBtn.addEventListener("click", sendClientGenericEmail);
     }
 
-    async function openSendStatementModal() {
-      const modal = el("sendStatementModal");
-      const client = getClientName();
-
-      if (!modal || !client) return;
-
-      modal.classList.add("show");
-
-      const statusEl = el("sendStatementStatus");
-      if (statusEl) statusEl.textContent = "";
-
-      const emailSelect = el("sendStatementEmail");
-      const subjectField = el("sendStatementSubject");
-      const messageField = el("sendStatementMessage");
-      const senderSelect = el("sendStatementSender");
-      const ccField = el("sendStatementCc");
-
-      if (emailSelect) emailSelect.innerHTML = '<option value="">Loading...</option>';
-      if (subjectField) subjectField.value = "";
-      if (messageField) messageField.value = "";
-      if (ccField) ccField.value = "";
-
-      try {
-        const [emailOptions, senderOptions, statementDefaults] = await Promise.all([
-          apiPostRaw("dashboard.api.shared.invoices.get_client_email_options", { client_name: client }),
-          apiPostRaw("dashboard.api.shared.email_templates.get_email_sender_options", {}),
-          apiPostRaw("dashboard.api.shared.invoices.get_client_statement_email_defaults", { client_name: client })
-        ]);
-
-        const options = emailOptions || [];
-
-        if (!options.length && statusEl) {
-          statusEl.textContent = "This client has no email address on file.";
-        }
-
-        fillSelect(emailSelect, options, options.length ? "" : "No email on file");
-        fillSelect(senderSelect, senderOptions || [], "");
-
-        if (subjectField && statementDefaults && statementDefaults.subject) subjectField.value = statementDefaults.subject;
-        if (messageField && statementDefaults && statementDefaults.message) messageField.value = statementDefaults.message;
-      } catch (error) {
-        showError(error.message || "Could not load statement details.");
-      }
-    }
-
-    function closeSendStatementModal() {
-      const modal = el("sendStatementModal");
-      if (modal) modal.classList.remove("show");
-    }
-
-    async function sendClientStatement() {
-      const emailSelect = el("sendStatementEmail");
-      const subjectField = el("sendStatementSubject");
-      const messageField = el("sendStatementMessage");
-      const senderSelect = el("sendStatementSender");
-      const ccField = el("sendStatementCc");
-      const statusEl = el("sendStatementStatus");
-      const sendBtn = el("sendStatementSubmit");
-      const client = getClientName();
-
-      const recipient = emailSelect ? emailSelect.value : "";
-      const subject = subjectField ? subjectField.value.trim() : "";
-      const message = messageField ? messageField.value.trim() : "";
-
-      if (!recipient) {
-        showError("Select an email address to send to.");
-        return;
-      }
-
-      if (sendBtn) {
-        sendBtn.disabled = true;
-        sendBtn.textContent = "Sending...";
-      }
-
-      if (statusEl) statusEl.textContent = "";
-
-      try {
-        await apiPostRaw("dashboard.api.shared.invoices.send_client_email", {
-          client_name: client,
-          recipient: recipient,
-          subject: subject,
-          message: message,
-          sender: senderSelect ? senderSelect.value : "",
-          cc: ccField ? ccField.value.trim() : ""
-        });
-
-        showSuccess("Statement sent");
-        closeSendStatementModal();
-      } catch (error) {
-        showError(error.message || "Could not send the statement.");
-      } finally {
-        if (sendBtn) {
-          sendBtn.disabled = false;
-          sendBtn.textContent = "Send";
-        }
-      }
-    }
-
-    function initSendStatementModal() {
-      const openBtn = el("sendClientStatementBtn");
-
-      if (!roleConfig.canInvoice) {
-        if (openBtn) openBtn.style.display = "none";
-        return;
-      }
-
-      if (openBtn) {
-        openBtn.addEventListener("click", function (event) {
-          event.preventDefault();
-          openSendStatementModal();
-        });
-      }
-
-      const closeBtn = el("sendStatementModalClose");
-      if (closeBtn) closeBtn.addEventListener("click", closeSendStatementModal);
-
-      const cancelBtn = el("sendStatementCancel");
-      if (cancelBtn) cancelBtn.addEventListener("click", closeSendStatementModal);
-
-      const submitBtn = el("sendStatementSubmit");
-      if (submitBtn) submitBtn.addEventListener("click", sendClientStatement);
-    }
-
     // -----------------------------------------------------------------
     // Reports
     // -----------------------------------------------------------------
@@ -2346,7 +2223,6 @@
     initBillingContactButtons();
     initTherapyLocationModal();
     initSendEmailModal();
-    initSendStatementModal();
     initClientReports();
     initDiagnosisRows();
     initSaveBeforeNewContactLinks();

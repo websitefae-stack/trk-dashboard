@@ -637,12 +637,6 @@
                 <div class="dashboard-detail-section">
                   <div class="dashboard-detail-section-head">
                     <h2 class="dashboard-detail-section-title">Invoices</h2>
-
-                    <div class="dashboard-detail-actions">
-                      <button type="button" class="dashboard-btn dashboard-btn-light" id="sendClientStatementBtn">
-                        Send Statement
-                      </button>
-                    </div>
                   </div>
 
                   <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
@@ -1038,61 +1032,6 @@
         </button>
 
         <button type="button" class="dashboard-btn dashboard-btn-pink" id="sendEmailSubmit">
-          Send
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <div class="trk-calendar-modal-backdrop" id="sendStatementModal">
-    <div class="trk-calendar-modal">
-      <div class="trk-calendar-modal-head">
-        <h3>Send Statement</h3>
-
-        <button type="button" class="trk-calendar-icon-btn" id="sendStatementModalClose">
-          ✕
-        </button>
-      </div>
-
-      <div class="trk-calendar-modal-body">
-        <p class="dashboard-page-subtitle" style="margin-top:0;">
-          A summary of this client's currently outstanding invoices, with a running total - not their full invoice history.
-        </p>
-
-        <div class="trk-calendar-field">
-          <label for="sendStatementEmail">Send To</label>
-          <select id="sendStatementEmail" class="dashboard-select"></select>
-        </div>
-
-        <div class="trk-calendar-field">
-          <label for="sendStatementSender">From</label>
-          <select id="sendStatementSender" class="dashboard-select"></select>
-        </div>
-
-        <div class="trk-calendar-field">
-          <label for="sendStatementCc">Cc</label>
-          <input type="text" id="sendStatementCc" class="dashboard-input" placeholder="Optional, comma separated">
-        </div>
-
-        <div class="trk-calendar-field">
-          <label for="sendStatementSubject">Subject</label>
-          <input type="text" id="sendStatementSubject" class="dashboard-input">
-        </div>
-
-        <div class="trk-calendar-field">
-          <label for="sendStatementMessage">Message</label>
-          <textarea id="sendStatementMessage" class="dashboard-textarea" rows="10"></textarea>
-        </div>
-
-        <div class="dashboard-help" id="sendStatementStatus"></div>
-      </div>
-
-      <div class="trk-calendar-modal-foot">
-        <button type="button" class="dashboard-btn dashboard-btn-light" id="sendStatementCancel">
-          Cancel
-        </button>
-
-        <button type="button" class="dashboard-btn dashboard-btn-pink" id="sendStatementSubmit">
           Send
         </button>
       </div>

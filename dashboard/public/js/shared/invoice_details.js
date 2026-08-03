@@ -127,6 +127,177 @@
     }
   }
 
+  function closeStatementModal() {
+    const modal = el("invoiceStatementModal");
+    if (modal) {
+      modal.hidden = true;
+      modal.style.display = "none";
+    }
+  }
+
+  function getInvoiceClientName() {
+    return el("invoice_custom_client")?.value || "";
+  }
+
+  async function openStatementModal() {
+    const client = getInvoiceClientName();
+
+    if (!client) {
+      showError("This invoice has no client linked yet.");
+      return;
+    }
+
+    const statusEl = el("statementStatus");
+    const previewBox = el("statementPreview");
+    const recipientSelect = el("statementRecipient");
+    const senderSelect = el("statementSender");
+    const subjectField = el("statementSubject");
+    const messageField = el("statementMessage");
+    const ccField = el("statementCc");
+
+    if (statusEl) statusEl.textContent = "Loading...";
+    if (previewBox) {
+      previewBox.hidden = true;
+      previewBox.innerHTML = "";
+    }
+    if (recipientSelect) recipientSelect.innerHTML = '<option value="">Loading...</option>';
+    if (subjectField) subjectField.value = "";
+    if (messageField) messageField.value = "";
+    if (ccField) ccField.value = "";
+
+    const modal = el("invoiceStatementModal");
+    if (modal) {
+      modal.hidden = false;
+      modal.style.display = "flex";
+    }
+
+    try {
+      const [emailOptionsResult, senderOptionsResult, defaultsResult] = await Promise.all([
+        apiPost(SHARED_API + ".get_client_email_options", { client_name: client }),
+        apiPost("dashboard.api.shared.email_templates.get_email_sender_options", {}),
+        apiPost(SHARED_API + ".get_client_statement_email_defaults", { client_name: client })
+      ]);
+
+      const emailOptions = emailOptionsResult.message || emailOptionsResult || [];
+      const senderOptions = senderOptionsResult.message || senderOptionsResult || [];
+      const defaults = defaultsResult.message || defaultsResult || {};
+
+      if (recipientSelect) {
+        recipientSelect.innerHTML = "";
+
+        if (!emailOptions.length) {
+          const opt = document.createElement("option");
+          opt.value = "";
+          opt.textContent = "No email on file";
+          recipientSelect.appendChild(opt);
+        } else {
+          emailOptions.forEach((opt) => {
+            const option = document.createElement("option");
+            option.value = opt.value;
+            option.textContent = opt.label;
+            recipientSelect.appendChild(option);
+          });
+        }
+      }
+
+      if (senderSelect) {
+        senderSelect.innerHTML = "";
+        senderOptions.forEach((opt) => {
+          const option = document.createElement("option");
+          option.value = opt.value;
+          option.textContent = opt.label;
+          senderSelect.appendChild(option);
+        });
+      }
+
+      if (subjectField) subjectField.value = defaults.subject || "";
+      if (messageField) messageField.value = defaults.message || "";
+      if (statusEl) statusEl.textContent = "";
+    } catch (error) {
+      if (statusEl) statusEl.textContent = "";
+      showError(error.message || "Could not load statement details.");
+      closeStatementModal();
+    }
+  }
+
+  async function previewStatementEmail() {
+    const messageField = el("statementMessage");
+    const previewBox = el("statementPreview");
+    const previewBtn = el("previewStatementEmail");
+
+    if (!messageField || !previewBox) return;
+
+    if (previewBtn) {
+      previewBtn.disabled = true;
+      previewBtn.textContent = "Loading...";
+    }
+
+    try {
+      const result = await apiPost("dashboard.api.shared.email_templates.preview_email_html", {
+        message: messageField.value
+      });
+
+      const data = result.message || result || {};
+      previewBox.innerHTML = data.html || "";
+      previewBox.hidden = false;
+    } catch (error) {
+      showError(error.message || "Could not build a preview.");
+    } finally {
+      if (previewBtn) {
+        previewBtn.disabled = false;
+        previewBtn.textContent = "Preview";
+      }
+    }
+  }
+
+  async function sendStatementEmail() {
+    const client = getInvoiceClientName();
+    const recipientSelect = el("statementRecipient");
+    const senderSelect = el("statementSender");
+    const subjectField = el("statementSubject");
+    const messageField = el("statementMessage");
+    const ccField = el("statementCc");
+    const statusEl = el("statementStatus");
+    const sendBtn = el("sendStatementEmail");
+
+    const recipient = recipientSelect ? recipientSelect.value : "";
+    const subject = subjectField ? subjectField.value.trim() : "";
+    const message = messageField ? messageField.value.trim() : "";
+
+    if (!recipient) {
+      showError("Select an email address to send to.");
+      return;
+    }
+
+    if (sendBtn) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = "Sending...";
+    }
+
+    if (statusEl) statusEl.textContent = "";
+
+    try {
+      await apiPost(SHARED_API + ".send_client_email", {
+        client_name: client,
+        recipient: recipient,
+        subject: subject,
+        message: message,
+        sender: senderSelect ? senderSelect.value : "",
+        cc: ccField ? ccField.value.trim() : ""
+      });
+
+      showSuccess("Statement sent");
+      closeStatementModal();
+    } catch (error) {
+      showError(error.message || "Could not send the statement.");
+    } finally {
+      if (sendBtn) {
+        sendBtn.disabled = false;
+        sendBtn.textContent = "Send Statement";
+      }
+    }
+  }
+
   async function loadEmailSenderOptions() {
     const select = el("emailSender");
     if (!select) return;
@@ -1288,6 +1459,7 @@
   if (!isDetailPage()) return;
 
   closeEmailModal();
+  closeStatementModal();
   closePaymentModal();
   closeIncomeOwnerModal();
 
@@ -1331,6 +1503,26 @@
   el("sendInvoiceEmail")?.addEventListener("click", function (event) {
     event.preventDefault();
     sendEmail();
+  });
+
+  el("openStatementModal")?.addEventListener("click", function (event) {
+    event.preventDefault();
+    openStatementModal();
+  });
+
+  el("closeInvoiceStatementModal")?.addEventListener("click", function (event) {
+    event.preventDefault();
+    closeStatementModal();
+  });
+
+  el("previewStatementEmail")?.addEventListener("click", function (event) {
+    event.preventDefault();
+    previewStatementEmail();
+  });
+
+  el("sendStatementEmail")?.addEventListener("click", function (event) {
+    event.preventDefault();
+    sendStatementEmail();
   });
 
   el("saveInvoiceDraft")?.addEventListener("click", function (event) {
@@ -1401,6 +1593,10 @@
 
   if (new URLSearchParams(window.location.search).get("email") === "1") {
     await openEmailModal();
+  }
+
+  if (new URLSearchParams(window.location.search).get("statement") === "1") {
+    await openStatementModal();
   }
 }
 
