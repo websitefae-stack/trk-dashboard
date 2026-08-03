@@ -391,6 +391,24 @@ def _resync_practice_document_coaches(practice_document_name):
         return
 
     linked_item_codes = _get_linked_item_codes(practice_document_name)
+
+    # A document with any Linked Items has to actually be gated by them -
+    # Resource Availability defaults to "All Coaches" (its field default,
+    # applied whether the document was created here or straight in the
+    # Frappe Desk), and forgetting to flip that separately would otherwise
+    # leave it visible to every coach regardless of what's linked, which
+    # is exactly the opposite of the point of linking it to specific
+    # items in the first place. Only ever pushes towards "Selected
+    # Coaches" - a document with no linked items keeps whatever Resource
+    # Availability it already had.
+    if linked_item_codes and frappe.get_meta(PRACTICE_DOCUMENT_DOCTYPE).has_field("resource_availability"):
+        current_availability = frappe.db.get_value(PRACTICE_DOCUMENT_DOCTYPE, practice_document_name, "resource_availability")
+        if current_availability != "Selected Coaches":
+            frappe.db.set_value(
+                PRACTICE_DOCUMENT_DOCTYPE, practice_document_name, "resource_availability", "Selected Coaches",
+                update_modified=False,
+            )
+
     target_coach_names = _get_coach_names_with_access_to_items(linked_item_codes)
 
     existing_rows = frappe.get_all(
@@ -446,6 +464,24 @@ def _resync_practice_document_coaches(practice_document_name):
 def _resync_resource_access_for_item(item_code):
     for practice_document_name in _get_documents_linked_to_item(item_code):
         _resync_practice_document_coaches(practice_document_name)
+
+
+def sync_practice_document_resource_access(doc, method=None):
+    """
+    Practice Document.on_update hook (see hooks.py's doc_events) - a
+    document's Linked Items can just as easily be edited straight in the
+    Frappe Desk as through the dashboard's Workshop Resources tab
+    (set_workshop_resource_items), which never touches the Desk at all -
+    without this, a Linked Items change made there would silently leave
+    Resource Availability and the coach list stale until someone happened
+    to re-save it from the dashboard side. Runs on every save regardless
+    of whether Linked Items actually changed (there's no reliable "did
+    this field change" signal available from a plain on_update hook, and
+    resyncing is cheap and idempotent) - deliberately not skipped just
+    because Linked Items is now empty, since clearing it out is exactly
+    when any previously auto-granted coach rows need removing too.
+    """
+    _resync_practice_document_coaches(doc.name)
 
 
 @frappe.whitelist()
