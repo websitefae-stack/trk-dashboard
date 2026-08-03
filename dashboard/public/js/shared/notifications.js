@@ -182,7 +182,10 @@
         ${directionLabel ? `<div class="dashboard-notif-card-direction ${directionClass}">${escapeHtml(directionLabel)}</div>` : ""}
         <div class="dashboard-notif-card-heading">
           <h3 class="dashboard-notif-card-title">${escapeHtml(row.title || row.notification_type || "Notification")}</h3>
-          <span class="dashboard-priority-pill priority-${priorityClass}">${escapeHtml(row.priority || "Normal")}</span>
+          <span class="dashboard-notif-card-badges">
+            ${readStatus === "Unread" ? '<span class="dashboard-notif-card-unread-dot" title="New reply - not yet read"></span>' : ""}
+            <span class="dashboard-priority-pill priority-${priorityClass}">${escapeHtml(row.priority || "Normal")}</span>
+          </span>
         </div>
         <div class="dashboard-notif-card-message">${escapeHtml(row.message || "")}</div>
         <div class="dashboard-notif-card-meta">

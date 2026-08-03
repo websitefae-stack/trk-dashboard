@@ -44,13 +44,6 @@
     return data.message || {};
   }
 
-  function showMessage(message, isError) {
-    const banner = el("workshopResourcesMessage");
-    if (!banner) return;
-    banner.textContent = message || "";
-    banner.style.color = isError ? "#C01C3E" : "#258D3B";
-  }
-
   function itemLabel(itemCode) {
     const item = state.items.find(function (i) { return i.name === itemCode; });
     return item ? item.label : itemCode;
@@ -60,30 +53,18 @@
     const linkedItems = document_.linked_items || [];
 
     if (!linkedItems.length) {
-      return '<div class="dashboard-field-hint" style="margin-bottom:6px;">Not linked to any item yet.</div>';
+      return '<span class="dashboard-field-hint">Not linked to any item yet.</span>';
     }
 
-    const labels = linkedItems.map(itemLabel).join(", ");
-    return '<div style="margin-bottom:6px;"><strong>Linked to:</strong> ' + escapeHtml(labels) + '</div>';
+    return escapeHtml(linkedItems.map(itemLabel).join(", "));
   }
 
   function renderRow(document_) {
-    const options = state.items.map(function (item) {
-      const selected = (document_.linked_items || []).indexOf(item.name) !== -1 ? "selected" : "";
-      return '<option value="' + escapeHtml(item.name) + '" ' + selected + '>' + escapeHtml(item.label) + '</option>';
-    }).join("");
-
     return '<tr>'
       + '<td>' + escapeHtml(document_.label) + '</td>'
       + '<td>' + escapeHtml(document_.document_type) + '</td>'
       + '<td>' + escapeHtml(document_.resource_availability || "—") + '</td>'
-      + '<td>'
-        + linkedItemsSummary(document_)
-        + '<select multiple size="4" class="dashboard-select" style="min-width:260px;" data-linked-items data-document="' + escapeHtml(document_.name) + '">'
-          + options
-        + '</select>'
-        + '<div class="dashboard-field-hint">Ctrl/Cmd-click to select more than one. Saves automatically.</div>'
-      + '</td>'
+      + '<td>' + linkedItemsSummary(document_) + '</td>'
       + '</tr>';
   }
 
@@ -113,38 +94,6 @@
     }
 
     body.innerHTML = rows.map(renderRow).join("");
-
-    body.querySelectorAll("[data-linked-items]").forEach(function (select) {
-      select.addEventListener("change", function () {
-        saveLinkedItems(select);
-      });
-    });
-  }
-
-  async function saveLinkedItems(select) {
-    const documentName = select.dataset.document;
-    const selectedItemCodes = Array.from(select.selectedOptions).map(function (option) {
-      return option.value;
-    });
-
-    select.disabled = true;
-    showMessage("Saving...");
-
-    try {
-      await apiPost(`${API}.set_workshop_resource_items`, {
-        practice_document: documentName,
-        item_codes: selectedItemCodes
-      });
-
-      const document_ = state.documents.find(function (d) { return d.name === documentName; });
-      if (document_) document_.linked_items = selectedItemCodes;
-
-      showMessage("Saved - coach access to this document has been updated to match.");
-      renderTable(el("workshopResourcesSearch") ? el("workshopResourcesSearch").value : "");
-    } catch (error) {
-      showMessage(error.message || "Could not save this change.", true);
-      select.disabled = false;
-    }
   }
 
   async function loadWorkshopResources() {

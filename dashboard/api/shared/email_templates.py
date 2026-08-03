@@ -177,3 +177,15 @@ def plain_text_to_email_html(message):
     return "<p>" + "</p><p>".join(
         line.strip() for line in message.splitlines() if line.strip()
     ) + "</p>"
+
+
+@frappe.whitelist()
+def preview_email_html(message=None):
+    """
+    Lets any compose modal (invoice email, statement, report, generic
+    client email) show exactly what plain_text_to_email_html() will
+    actually send, before anyone clicks Send - calling the real function
+    here rather than approximating it client-side guarantees the preview
+    can never drift out of sync with what actually gets emailed.
+    """
+    return {"html": plain_text_to_email_html(message or "")}

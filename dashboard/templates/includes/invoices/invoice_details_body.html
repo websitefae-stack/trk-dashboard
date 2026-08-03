@@ -146,6 +146,16 @@
       margin-top: 16px;
     }
 
+    .invoice-statement-preview {
+      margin-top: 16px;
+      padding: 16px;
+      border: 1px solid #E2E8E7;
+      border-radius: 12px;
+      background: #F7FAF9;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
     .invoice-income-owner-choice {
       display: block;
       width: 100%;
@@ -214,6 +224,10 @@
 
       <button type="button" class="dashboard-btn dashboard-btn-primary" id="openAllocatePayment" style="display:none;">
         Allocate Payment
+      </button>
+
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="openStatementModal" {% if not doc.custom_client %}style="display:none;"{% endif %}>
+        Email Statement
       </button>
 
       <button type="button" class="dashboard-btn dashboard-btn-light" id="saveInvoiceDraft" {% if doc.docstatus != 0 %}style="display:none;"{% endif %}>
@@ -536,6 +550,55 @@ I hope you’re doing well.</textarea>
     <div class="invoice-modal-actions">
       <button type="button" class="dashboard-btn dashboard-btn-light" id="closeInvoiceEmailModal">Cancel</button>
       <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendInvoiceEmail">Send Email</button>
+    </div>
+  </div>
+</div>
+
+<div class="invoice-modal-backdrop" id="invoiceStatementModal" hidden style="display:none;">
+  <div class="invoice-modal-card">
+    <div class="dashboard-detail-section-head">
+      <h2 class="dashboard-detail-section-title">Email Statement</h2>
+    </div>
+
+    <p class="dashboard-page-subtitle" style="margin: 0 0 12px;">
+      Sends this client a summary of all their currently outstanding invoices, not just this one.
+    </p>
+
+    <div class="dashboard-detail-grid dashboard-detail-grid-2">
+      <div class="dashboard-detail-field">
+        <label for="statementRecipient">Send To</label>
+        <select id="statementRecipient" class="dashboard-input"></select>
+      </div>
+
+      <div class="dashboard-detail-field">
+        <label for="statementSender">From</label>
+        <select id="statementSender" class="dashboard-input"></select>
+      </div>
+
+      <div class="dashboard-detail-field dashboard-detail-field-full">
+        <label for="statementCc">Cc</label>
+        <input type="text" id="statementCc" class="dashboard-input" placeholder="Optional, comma separated">
+      </div>
+
+      <div class="dashboard-detail-field dashboard-detail-field-full">
+        <label for="statementSubject">Subject</label>
+        <input type="text" id="statementSubject" class="dashboard-input">
+      </div>
+
+      <div class="dashboard-detail-field dashboard-detail-field-full">
+        <label for="statementMessage">Message</label>
+        <textarea id="statementMessage" class="dashboard-textarea" rows="8"></textarea>
+      </div>
+    </div>
+
+    <p class="dashboard-page-subtitle" id="statementStatus" style="margin-top: 12px;"></p>
+
+    <div class="invoice-statement-preview" id="statementPreview" hidden></div>
+
+    <div class="invoice-modal-actions">
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="closeInvoiceStatementModal">Cancel</button>
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="previewStatementEmail">Preview</button>
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendStatementEmail">Send Statement</button>
     </div>
   </div>
 </div>

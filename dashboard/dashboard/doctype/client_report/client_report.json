@@ -1,0 +1,145 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 0,
+ "autoname": "autoincrement",
+ "creation": "2026-08-05 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "report_details_section",
+  "client",
+  "title",
+  "report_date",
+  "coach",
+  "report_details_column",
+  "created_by_user",
+  "content_section",
+  "content",
+  "sharing_section",
+  "show_on_portal",
+  "shared_on_portal_on",
+  "sharing_column",
+  "last_emailed_on",
+  "email_send_count"
+ ],
+ "fields": [
+  {
+   "fieldname": "report_details_section",
+   "fieldtype": "Section Break",
+   "label": "Report Details"
+  },
+  {
+   "fieldname": "client",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Client",
+   "options": "Client",
+   "reqd": 1
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "report_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Report Date"
+  },
+  {
+   "fieldname": "coach",
+   "fieldtype": "Link",
+   "label": "Coach",
+   "options": "Coach"
+  },
+  {
+   "fieldname": "report_details_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "created_by_user",
+   "fieldtype": "Link",
+   "label": "Created By User",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "content_section",
+   "fieldtype": "Section Break",
+   "label": "Report Content"
+  },
+  {
+   "fieldname": "content",
+   "fieldtype": "Text Editor",
+   "label": "Content"
+  },
+  {
+   "fieldname": "sharing_section",
+   "fieldtype": "Section Break",
+   "label": "Sharing"
+  },
+  {
+   "default": "0",
+   "description": "Shows this report in the client's own Client Portal account the moment this is ticked - unticking removes it from the portal immediately.",
+   "fieldname": "show_on_portal",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Show on Portal"
+  },
+  {
+   "fieldname": "shared_on_portal_on",
+   "fieldtype": "Datetime",
+   "label": "First Shared to Portal On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sharing_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_emailed_on",
+   "fieldtype": "Datetime",
+   "label": "Last Emailed On",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "email_send_count",
+   "fieldtype": "Int",
+   "label": "Email Send Count",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-05 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "Client Report",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

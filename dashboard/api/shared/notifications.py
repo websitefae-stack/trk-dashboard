@@ -1423,6 +1423,52 @@ def get_notification_detail(name=None, view_as=None, viewer=None):
 
 
 @frappe.whitelist()
+def get_notification_attachment(name=None, attachment=None):
+    """
+    Reply/message attachments are uploaded private (is_private=1) with no
+    attached_to_doctype, so Frappe's own file permission check only ever
+    lets the uploader (or a System Manager) view them directly - anyone
+    else clicking the link got a permission error, even other coaches who
+    can plainly see the rest of the conversation. This proxies the
+    download after checking the same notification/conversation access as
+    the rest of this module, same pattern as get_resource_document_file()
+    in practice_documents.py.
+    """
+    ensure_logged_in()
+
+    name = _coalesce_str("name", name)
+    attachment = _coalesce_str("attachment", attachment)
+
+    if not name or not attachment:
+        frappe.throw(_("Attachment not found."))
+
+    doc = ensure_notification_access(name)
+
+    if doc.doctype == CONVERSATION_DOCTYPE:
+        valid_attachments = set(frappe.get_all(
+            MESSAGE_DOCTYPE,
+            filters={"conversation": doc.name},
+            pluck="attachment",
+            ignore_permissions=True,
+        ))
+    else:
+        valid_attachments = {
+            row.get("attachment") for row in (doc.get("custom_replies") or []) if row.get("attachment")
+        }
+
+    if attachment not in valid_attachments:
+        frappe.throw(_("You do not have permission to access this attachment."), frappe.PermissionError)
+
+    from frappe.utils.file_manager import get_file
+
+    fname, fcontent = get_file(attachment)
+
+    frappe.local.response.filename = fname
+    frappe.local.response.filecontent = fcontent
+    frappe.local.response.type = "download"
+
+
+@frappe.whitelist()
 def mark_notification_read(name):
     doc = ensure_notification_access(name)
 

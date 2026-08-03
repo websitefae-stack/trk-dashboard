@@ -17,6 +17,14 @@ FRANCHISOR_USERS = [
 COACH_DASHBOARD = "coach"
 FRANCHISOR_DASHBOARD = "franchisor"
 
+# Sentinel the franchisor's "View coach invoices" dropdown sends to mean
+# "every coach, not just me" - has to be deliberately chosen (see
+# get_invoice_page_data), rather than just leaving nothing selected,
+# since a franchisor landing on Invoices with no coach param at all used
+# to silently default to seeing every coach's invoices even though the
+# dropdown itself displayed their own name as selected.
+ALL_COACHES_VALUE = "__all_coaches__"
+
 TRAVEL_ITEM_CODE = "TRA002"
 TRAVEL_RATE_PER_MILE = 0.55
 FREE_MILES_ONE_WAY = 10
@@ -601,14 +609,15 @@ def _linked_client_names_for_scope(is_franchisor_view, selected_coach, current_c
     a coach for their own fees) is raised against - isn't tied to
     primary_coach/attending_coach at all (see _current_user_can_access_client()
     above), so the ordinary Client filters below never surface it. A
-    franchisor with no coach selected gets every coach's; a franchisor with
-    one selected, or a coach viewing their own dashboard, gets just that
-    coach's own.
+    franchisor who has deliberately picked "All Coaches" gets every
+    coach's; a franchisor viewing one specific coach (their own, by
+    default, or one picked from the dropdown), or a coach viewing their
+    own dashboard, gets just that coach's own.
     """
     if not frappe.get_meta("Coach").has_field("linked_client"):
         return []
 
-    if is_franchisor_view and not selected_coach:
+    if is_franchisor_view and selected_coach == ALL_COACHES_VALUE:
         return frappe.get_all(
             "Coach",
             filters={"linked_client": ["is", "set"]},
@@ -636,12 +645,14 @@ def _get_clients_for_invoice_scope(current_coach, selected_coach=None, dashboard
     selected_coach = (selected_coach or "").strip()
     is_franchisor_view = dashboard_type == FRANCHISOR_DASHBOARD and _is_franchisor_user()
 
-    if is_franchisor_view and not selected_coach:
-        # A franchisor landing on invoices with no coach picked sees every
-        # coach's clients, not just their own (previously this fell through
-        # to the same {"primary_coach": current_coach_name} filter as a
-        # coach's own dashboard, which is why Ashley wasn't seeing Fiona's
-        # or Emily's invoices here at all).
+    if is_franchisor_view and selected_coach == ALL_COACHES_VALUE:
+        # Deliberately chosen from the dropdown - every coach's clients,
+        # not just the franchisor's own. Landing on Invoices with nothing
+        # picked no longer lands here (see get_invoice_page_data, which
+        # defaults selected_coach to the franchisor's own coach identity
+        # instead) - a franchisor used to see every coach's invoices the
+        # moment they opened the page, even though the dropdown itself
+        # displayed their own name as selected.
         filters = {}
 
     elif not selected_coach:
@@ -1085,6 +1096,15 @@ def get_invoice_page_data(dashboard_type=None, selected_coach=None):
     if dashboard_type == COACH_DASHBOARD and selected_coach == current_coach_name:
         selected_coach = ""
 
+    # A franchisor landing on Invoices with nothing picked defaults to
+    # their own coach identity, same as a coach's own dashboard - seeing
+    # every coach's invoices is now something a franchisor has to choose
+    # deliberately (the dropdown's "All Coaches" option, ALL_COACHES_VALUE)
+    # rather than the default the moment nothing's been selected yet, even
+    # though the dropdown itself displays their own name as selected.
+    if dashboard_type == FRANCHISOR_DASHBOARD and not selected_coach:
+        selected_coach = current_coach_name
+
     client_rows = _get_clients_for_invoice_scope(
         current_coach=current_coach,
         selected_coach=selected_coach,
@@ -1092,11 +1112,28 @@ def get_invoice_page_data(dashboard_type=None, selected_coach=None):
     )
 
     owner_coach_name = ""
-    if dashboard_type == COACH_DASHBOARD:
-        owner_coach_name = selected_coach or current_coach_name
+    if selected_coach == ALL_COACHES_VALUE:
+        owner_coach_name = ""
+    elif selected_coach:
+        owner_coach_name = selected_coach
+    elif dashboard_type == COACH_DASHBOARD:
+        owner_coach_name = current_coach_name
 
     invoice_data = _get_invoices_for_clients(client_rows, dashboard_type, owner_coach_name=owner_coach_name)
     invoices = invoice_data.get("invoices", [])
+
+    # The page subtitle needs to say who's actually being shown, not just
+    # the logged-in franchisor's own name regardless of what's picked -
+    # that was the same misleading-default problem as the dropdown itself.
+    if selected_coach == ALL_COACHES_VALUE:
+        selected_coach_label = "All Coaches"
+        selected_company = ""
+    elif selected_coach and selected_coach != current_coach_name:
+        selected_coach_label = _coach_label_from_name(selected_coach)
+        selected_company = _get_coach_company(selected_coach)
+    else:
+        selected_coach_label = _coach_label(current_coach)
+        selected_company = current_coach.get("company") or ""
 
     return {
         "dashboard_type": dashboard_type,
@@ -1104,6 +1141,8 @@ def get_invoice_page_data(dashboard_type=None, selected_coach=None):
         "current_coach_label": _coach_label(current_coach),
         "current_company": current_coach.get("company") or "",
         "selected_coach": selected_coach,
+        "selected_coach_label": selected_coach_label,
+        "selected_company": selected_company,
         "is_franchisor": 1 if _is_franchisor_user() else 0,
         "coach_options": _get_coach_options(),
         "invoices": invoices,

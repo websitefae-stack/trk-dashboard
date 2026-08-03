@@ -1648,69 +1648,296 @@
       if (submitBtn) submitBtn.addEventListener("click", sendClientGenericEmail);
     }
 
-    async function openSendStatementModal() {
-      const modal = el("sendStatementModal");
+    // -----------------------------------------------------------------
+    // Reports
+    // -----------------------------------------------------------------
+
+    const reportsState = { reports: [] };
+
+    function formatReportDate(value) {
+      if (!value) return "—";
+      const date = new Date(String(value).slice(0, 10) + "T00:00:00");
+      if (isNaN(date.getTime())) return String(value);
+      return date.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
+    }
+
+    function formatReportDateTime(value) {
+      if (!value) return "—";
+      const date = new Date(value);
+      if (isNaN(date.getTime())) return String(value);
+      return date.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+        + " " + date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function showReportsMessage(message, isError) {
+      const banner = el("clientReportsMessage");
+      if (!banner) return;
+      banner.textContent = message || "";
+      banner.style.color = isError ? "#C01C3E" : "#258D3B";
+    }
+
+    function renderReportsTable() {
+      const body = el("clientReportsTableBody");
+      if (!body) return;
+
+      if (!reportsState.reports.length) {
+        body.innerHTML = '<tr><td colspan="6" class="dashboard-empty">No reports found.</td></tr>';
+        return;
+      }
+
+      body.innerHTML = reportsState.reports.map(function (report) {
+        return '<tr>'
+          + '<td>' + escapeHtml(report.title || "—") + '</td>'
+          + '<td>' + escapeHtml(formatReportDate(report.report_date)) + '</td>'
+          + '<td>' + escapeHtml(report.coach_label || "—") + '</td>'
+          + '<td>'
+            + '<label style="display:flex;align-items:center;gap:6px;white-space:nowrap;">'
+            + '<input type="checkbox" data-report-portal-toggle data-name="' + escapeHtml(report.name) + '" ' + (report.show_on_portal ? "checked" : "") + '>'
+            + ' On Portal'
+            + '</label>'
+          + '</td>'
+          + '<td>' + escapeHtml(formatReportDateTime(report.last_emailed_on)) + '</td>'
+          + '<td class="dashboard-action-cell">'
+            + '<button type="button" class="dashboard-link-btn" data-report-edit data-name="' + escapeHtml(report.name) + '">Edit</button>'
+            + '<button type="button" class="dashboard-link-btn" data-report-email data-name="' + escapeHtml(report.name) + '">Email</button>'
+            + '<button type="button" class="dashboard-link-btn" data-report-delete data-name="' + escapeHtml(report.name) + '">Delete</button>'
+          + '</td>'
+          + '</tr>';
+      }).join("");
+
+      body.querySelectorAll("[data-report-portal-toggle]").forEach(function (checkbox) {
+        checkbox.addEventListener("change", function () {
+          toggleReportShowOnPortal(checkbox);
+        });
+      });
+
+      body.querySelectorAll("[data-report-edit]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          openClientReportModal(button.dataset.name);
+        });
+      });
+
+      body.querySelectorAll("[data-report-email]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          openSendReportEmailModal(button.dataset.name);
+        });
+      });
+
+      body.querySelectorAll("[data-report-delete]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          deleteClientReport(button.dataset.name);
+        });
+      });
+    }
+
+    async function loadClientReports() {
+      const body = el("clientReportsTableBody");
       const client = getClientName();
+      if (!body || !client) return;
 
-      if (!modal || !client) return;
-
-      modal.classList.add("show");
-
-      const statusEl = el("sendStatementStatus");
-      if (statusEl) statusEl.textContent = "";
-
-      const emailSelect = el("sendStatementEmail");
-      const subjectField = el("sendStatementSubject");
-      const messageField = el("sendStatementMessage");
-      const senderSelect = el("sendStatementSender");
-      const ccField = el("sendStatementCc");
-
-      if (emailSelect) emailSelect.innerHTML = '<option value="">Loading...</option>';
-      if (subjectField) subjectField.value = "";
-      if (messageField) messageField.value = "";
-      if (ccField) ccField.value = "";
+      body.innerHTML = '<tr><td colspan="6" class="dashboard-empty">Loading…</td></tr>';
 
       try {
-        const [emailOptions, senderOptions, statementDefaults] = await Promise.all([
-          apiPostRaw("dashboard.api.shared.invoices.get_client_email_options", { client_name: client }),
-          apiPostRaw("dashboard.api.shared.email_templates.get_email_sender_options", {}),
-          apiPostRaw("dashboard.api.shared.invoices.get_client_statement_email_defaults", { client_name: client })
-        ]);
-
-        const options = emailOptions || [];
-
-        if (!options.length && statusEl) {
-          statusEl.textContent = "This client has no email address on file.";
-        }
-
-        fillSelect(emailSelect, options, options.length ? "" : "No email on file");
-        fillSelect(senderSelect, senderOptions || [], "");
-
-        if (subjectField && statementDefaults && statementDefaults.subject) subjectField.value = statementDefaults.subject;
-        if (messageField && statementDefaults && statementDefaults.message) messageField.value = statementDefaults.message;
+        reportsState.reports = await apiPostRaw("dashboard.api.shared.client_reports.get_client_reports", { client_name: client }) || [];
+        renderReportsTable();
       } catch (error) {
-        showError(error.message || "Could not load statement details.");
+        body.innerHTML = '<tr><td colspan="6" class="dashboard-empty">' + escapeHtml(error.message || "Could not load reports.") + '</td></tr>';
       }
     }
 
-    function closeSendStatementModal() {
-      const modal = el("sendStatementModal");
+    async function toggleReportShowOnPortal(checkbox) {
+      const name = checkbox.dataset.name;
+      const showOnPortal = checkbox.checked;
+
+      checkbox.disabled = true;
+      showReportsMessage("Saving...");
+
+      try {
+        await apiPostRaw("dashboard.api.shared.client_reports.set_report_show_on_portal", {
+          name: name,
+          show_on_portal: showOnPortal ? 1 : 0
+        });
+
+        const report = reportsState.reports.find(function (r) { return r.name === name; });
+        if (report) report.show_on_portal = showOnPortal ? 1 : 0;
+
+        showReportsMessage(showOnPortal ? "Now showing on the client's portal." : "No longer shown on the client's portal.");
+      } catch (error) {
+        checkbox.checked = !showOnPortal;
+        showReportsMessage(error.message || "Could not save this change.", true);
+      } finally {
+        checkbox.disabled = false;
+      }
+    }
+
+    async function deleteClientReport(name) {
+      if (!window.confirm("Delete this report? This cannot be undone.")) return;
+
+      showReportsMessage("Deleting...");
+
+      try {
+        await apiPostRaw("dashboard.api.shared.client_reports.delete_client_report", { name: name });
+        showReportsMessage("Report deleted.");
+        await loadClientReports();
+      } catch (error) {
+        showReportsMessage(error.message || "Could not delete this report.", true);
+      }
+    }
+
+    async function openClientReportModal(name) {
+      const modal = el("clientReportModal");
+      if (!modal) return;
+
+      const titleField = el("clientReportModalTitle");
+      const nameField = el("clientReportName");
+      const reportTitleField = el("clientReportTitle");
+      const dateField = el("clientReportDate");
+      const contentField = el("clientReportContent");
+      const portalField = el("clientReportShowOnPortal");
+      const statusEl = el("clientReportModalStatus");
+
+      if (statusEl) statusEl.textContent = "";
+      if (nameField) nameField.value = name || "";
+
+      if (name) {
+        if (titleField) titleField.textContent = "Edit Report";
+
+        try {
+          const report = await apiPostRaw("dashboard.api.shared.client_reports.get_client_report", { name: name });
+          if (reportTitleField) reportTitleField.value = report.title || "";
+          if (dateField) dateField.value = report.report_date || "";
+          if (contentField) contentField.value = report.content || "";
+          if (portalField) portalField.checked = !!report.show_on_portal;
+        } catch (error) {
+          showError(error.message || "Could not load this report.");
+          return;
+        }
+      } else {
+        if (titleField) titleField.textContent = "Add Report";
+        if (reportTitleField) reportTitleField.value = "";
+        if (dateField) dateField.value = new Date().toISOString().slice(0, 10);
+        if (contentField) contentField.value = "";
+        if (portalField) portalField.checked = false;
+      }
+
+      modal.classList.add("show");
+    }
+
+    function closeClientReportModal() {
+      const modal = el("clientReportModal");
       if (modal) modal.classList.remove("show");
     }
 
-    async function sendClientStatement() {
-      const emailSelect = el("sendStatementEmail");
-      const subjectField = el("sendStatementSubject");
-      const messageField = el("sendStatementMessage");
-      const senderSelect = el("sendStatementSender");
-      const ccField = el("sendStatementCc");
-      const statusEl = el("sendStatementStatus");
-      const sendBtn = el("sendStatementSubmit");
+    async function saveClientReport() {
       const client = getClientName();
+      const name = el("clientReportName") ? el("clientReportName").value : "";
+      const title = el("clientReportTitle") ? el("clientReportTitle").value.trim() : "";
+      const reportDate = el("clientReportDate") ? el("clientReportDate").value : "";
+      const content = el("clientReportContent") ? el("clientReportContent").value : "";
+      const showOnPortal = el("clientReportShowOnPortal") ? el("clientReportShowOnPortal").checked : false;
+      const statusEl = el("clientReportModalStatus");
+      const saveBtn = el("clientReportSave");
+
+      if (!title) {
+        if (statusEl) statusEl.textContent = "Title is required.";
+        return;
+      }
+
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Saving...";
+      }
+
+      try {
+        const result = await apiPostRaw("dashboard.api.shared.client_reports.save_client_report", {
+          name: name || undefined,
+          client_name: client,
+          title: title,
+          report_date: reportDate,
+          content: content
+        });
+
+        // Show on Portal is its own toggle (set_report_show_on_portal) so
+        // its "first shared on" timestamp is only ever set from there,
+        // not silently on every plain content edit - applied here too so
+        // the modal's own checkbox still takes effect on save.
+        if (result && result.name) {
+          await apiPostRaw("dashboard.api.shared.client_reports.set_report_show_on_portal", {
+            name: result.name,
+            show_on_portal: showOnPortal ? 1 : 0
+          });
+        }
+
+        closeClientReportModal();
+        showReportsMessage("Report saved.");
+        await loadClientReports();
+      } catch (error) {
+        if (statusEl) statusEl.textContent = error.message || "Could not save this report.";
+      } finally {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Save";
+        }
+      }
+    }
+
+    async function openSendReportEmailModal(name) {
+      const modal = el("sendReportEmailModal");
+      if (!modal) return;
+
+      modal.classList.add("show");
+
+      const nameField = el("sendReportEmailName");
+      const emailSelect = el("sendReportEmailTo");
+      const senderSelect = el("sendReportEmailSender");
+      const subjectField = el("sendReportEmailSubject");
+      const messageField = el("sendReportEmailMessage");
+      const ccField = el("sendReportEmailCc");
+      const statusEl = el("sendReportEmailStatus");
+
+      if (statusEl) statusEl.textContent = "";
+      if (nameField) nameField.value = name || "";
+      if (ccField) ccField.value = "";
+      if (emailSelect) emailSelect.innerHTML = '<option value="">Loading...</option>';
+
+      try {
+        const [defaults, senderOptions] = await Promise.all([
+          apiPostRaw("dashboard.api.shared.client_reports.get_report_email_defaults", { name: name }),
+          apiPostRaw("dashboard.api.shared.email_templates.get_email_sender_options", {})
+        ]);
+
+        const emailOptions = (defaults && defaults.email_options) || [];
+
+        if (!emailOptions.length && statusEl) {
+          statusEl.textContent = "This client has no email address on file.";
+        }
+
+        fillSelect(emailSelect, emailOptions, emailOptions.length ? "" : "No email on file");
+        fillSelect(senderSelect, senderOptions || [], "");
+
+        if (subjectField) subjectField.value = (defaults && defaults.subject) || "";
+        if (messageField) messageField.value = (defaults && defaults.message) || "";
+      } catch (error) {
+        showError(error.message || "Could not load report email details.");
+      }
+    }
+
+    function closeSendReportEmailModal() {
+      const modal = el("sendReportEmailModal");
+      if (modal) modal.classList.remove("show");
+    }
+
+    async function sendReportEmail() {
+      const name = el("sendReportEmailName") ? el("sendReportEmailName").value : "";
+      const emailSelect = el("sendReportEmailTo");
+      const subjectField = el("sendReportEmailSubject");
+      const messageField = el("sendReportEmailMessage");
+      const senderSelect = el("sendReportEmailSender");
+      const ccField = el("sendReportEmailCc");
+      const statusEl = el("sendReportEmailStatus");
+      const sendBtn = el("sendReportEmailSubmit");
 
       const recipient = emailSelect ? emailSelect.value : "";
-      const subject = subjectField ? subjectField.value.trim() : "";
-      const message = messageField ? messageField.value.trim() : "";
 
       if (!recipient) {
         showError("Select an email address to send to.");
@@ -1725,19 +1952,20 @@
       if (statusEl) statusEl.textContent = "";
 
       try {
-        await apiPostRaw("dashboard.api.shared.invoices.send_client_email", {
-          client_name: client,
+        await apiPostRaw("dashboard.api.shared.client_reports.send_client_report_email", {
+          name: name,
           recipient: recipient,
-          subject: subject,
-          message: message,
+          subject: subjectField ? subjectField.value.trim() : "",
+          message: messageField ? messageField.value.trim() : "",
           sender: senderSelect ? senderSelect.value : "",
           cc: ccField ? ccField.value.trim() : ""
         });
 
-        showSuccess("Statement sent");
-        closeSendStatementModal();
+        showSuccess("Report emailed");
+        closeSendReportEmailModal();
+        await loadClientReports();
       } catch (error) {
-        showError(error.message || "Could not send the statement.");
+        showError(error.message || "Could not email this report.");
       } finally {
         if (sendBtn) {
           sendBtn.disabled = false;
@@ -1746,29 +1974,36 @@
       }
     }
 
-    function initSendStatementModal() {
-      const openBtn = el("sendClientStatementBtn");
+    function initClientReports() {
+      if (!el("clientReportsTableBody")) return;
 
-      if (!roleConfig.canInvoice) {
-        if (openBtn) openBtn.style.display = "none";
-        return;
-      }
+      loadClientReports();
 
-      if (openBtn) {
-        openBtn.addEventListener("click", function (event) {
+      const addBtn = el("addClientReportBtn");
+      if (addBtn) {
+        addBtn.addEventListener("click", function (event) {
           event.preventDefault();
-          openSendStatementModal();
+          openClientReportModal("");
         });
       }
 
-      const closeBtn = el("sendStatementModalClose");
-      if (closeBtn) closeBtn.addEventListener("click", closeSendStatementModal);
+      const modalCloseBtn = el("clientReportModalClose");
+      if (modalCloseBtn) modalCloseBtn.addEventListener("click", closeClientReportModal);
 
-      const cancelBtn = el("sendStatementCancel");
-      if (cancelBtn) cancelBtn.addEventListener("click", closeSendStatementModal);
+      const modalCancelBtn = el("clientReportCancel");
+      if (modalCancelBtn) modalCancelBtn.addEventListener("click", closeClientReportModal);
 
-      const submitBtn = el("sendStatementSubmit");
-      if (submitBtn) submitBtn.addEventListener("click", sendClientStatement);
+      const saveBtn = el("clientReportSave");
+      if (saveBtn) saveBtn.addEventListener("click", saveClientReport);
+
+      const emailCloseBtn = el("sendReportEmailModalClose");
+      if (emailCloseBtn) emailCloseBtn.addEventListener("click", closeSendReportEmailModal);
+
+      const emailCancelBtn = el("sendReportEmailCancel");
+      if (emailCancelBtn) emailCancelBtn.addEventListener("click", closeSendReportEmailModal);
+
+      const emailSubmitBtn = el("sendReportEmailSubmit");
+      if (emailSubmitBtn) emailSubmitBtn.addEventListener("click", sendReportEmail);
     }
 
     function initTherapyLocationModal() {
@@ -1988,7 +2223,7 @@
     initBillingContactButtons();
     initTherapyLocationModal();
     initSendEmailModal();
-    initSendStatementModal();
+    initClientReports();
     initDiagnosisRows();
     initSaveBeforeNewContactLinks();
 
