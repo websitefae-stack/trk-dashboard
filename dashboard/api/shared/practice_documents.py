@@ -53,6 +53,44 @@ def _can_user_see_resource(document, user=None):
 	))
 
 
+def _get_linked_item_labels_by_document(document_names):
+	"""
+	Which item(s)/workshop(s) each of the given Practice Documents is
+	linked to (Practice Document Item, managed on the document itself in
+	the Frappe Desk) - used to show what a Workshop Resource document is
+	actually connected to on the coach's own Documents page, rather than
+	a generic "Resource" label.
+	"""
+	if not document_names or not frappe.db.exists("DocType", "Practice Document Item"):
+		return {}
+
+	links = frappe.get_all(
+		"Practice Document Item",
+		filters={"parenttype": PRACTICE_DOCUMENT_DOCTYPE, "parent": ["in", document_names]},
+		fields=["parent", "item"],
+		ignore_permissions=True,
+	)
+
+	if not links:
+		return {}
+
+	item_codes = list({link.get("item") for link in links if link.get("item")})
+	item_labels = {
+		row.get("name"): row.get("item_name") or row.get("name")
+		for row in frappe.get_all(
+			"Item", filters={"name": ["in", item_codes]}, fields=["name", "item_name"], ignore_permissions=True,
+		)
+	}
+
+	labels_by_document = {}
+	for link in links:
+		labels_by_document.setdefault(link.get("parent"), []).append(
+			item_labels.get(link.get("item"), link.get("item"))
+		)
+
+	return labels_by_document
+
+
 def _get_visible_resource_documents(user=None):
 	"""
 	Published Practice Documents whose purpose includes Client Resource -
@@ -73,6 +111,11 @@ def _get_visible_resource_documents(user=None):
 		order_by="modified desc",
 		ignore_permissions=True,
 	)
+
+	linked_labels = _get_linked_item_labels_by_document([row.name for row in rows])
+
+	for row in rows:
+		row["linked_items"] = linked_labels.get(row.name, [])
 
 	return [row for row in rows if _can_user_see_resource(row, user=user)]
 
@@ -283,6 +326,13 @@ def complete_my_document_requirement(
 		frappe.db.set_value(COACH_DOCUMENT_REQUIREMENT_DOCTYPE, requirement.name, updates)
 
 	requirement.reload()
+
+	# This app does its own access check above (_get_owned_requirement) -
+	# coaches have no Frappe role permission on this doctype at all (they
+	# never touch it outside these whitelisted endpoints), so without this
+	# submit() throws a PermissionError before the Before Submit Server
+	# Script that actually completes the requirement ever gets to run.
+	requirement.flags.ignore_permissions = True
 	requirement.submit()
 
 	return {
