@@ -946,13 +946,95 @@
 
   function closePaymentModal() {
     const modal = el("invoicePaymentModal");
-  
+
     if (modal) {
       modal.hidden = true;
       modal.style.display = "none";
     }
   }
-  
+
+  function closeIncomeOwnerModal() {
+    const modal = el("invoiceIncomeOwnerModal");
+
+    if (modal) {
+      modal.hidden = true;
+      modal.style.display = "none";
+    }
+  }
+
+  // Franchise-type clients (see always_confirm_bank_account) represent
+  // another coach or HQ - an interbusiness invoice, where "who does this
+  // money belong to" has to be picked deliberately every time rather than
+  // silently defaulting to whichever bank account the client record
+  // happens to carry (almost always HQ's own). Coaches kept leaving the
+  // default bank account/company in place - a native window.confirm() at
+  // save time (see confirmBankAccountOverrideIfNeeded()) wasn't enough of
+  // a speed bump, since the default was already sitting there selected
+  // and "OK" is easy to click without reading it. This opens the moment a
+  // Franchise client is picked, before anything else about the invoice
+  // can be filled in, and forces one explicit named choice.
+  function openIncomeOwnerModal(context) {
+    const modal = el("invoiceIncomeOwnerModal");
+    const choicesBox = el("incomeOwnerChoices");
+    const messageField = el("incomeOwnerModalMessage");
+    const bankSelect = el("invoice_bank_account_select");
+
+    if (!modal || !choicesBox || !bankSelect) return;
+
+    const options = context.bank_account_options || [];
+    if (!options.length) return;
+
+    const clientLabel = context.client_label || "this client";
+
+    if (messageField) {
+      messageField.textContent =
+        `You are about to invoice ${clientLabel}. This is money moving between businesses, so pick whose invoice ` +
+        `this actually is - it decides which bank account gets paid and which company appears on it.`;
+    }
+
+    choicesBox.innerHTML = "";
+
+    options.forEach((option) => {
+      const isDefault = option.value === (context.bank_account || context.client_bank_account || "");
+
+      const heading = isDefault
+        ? `${option.label || "HQ"} (this client's default)`
+        : option.is_self
+        ? `${option.label} (you)`
+        : option.label;
+
+      const subtext = isDefault
+        ? "This invoice's income belongs to HQ, not any individual coach."
+        : option.is_self
+        ? "This invoice's income belongs to you - it'll show on your own dashboard and pay into your own account."
+        : `This invoice's income belongs to ${option.label}, not HQ.`;
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "invoice-income-owner-choice";
+      button.dataset.bankAccount = option.value;
+
+      const strong = document.createElement("strong");
+      strong.textContent = `Invoice as ${heading}`;
+      const span = document.createElement("span");
+      span.textContent = subtext;
+
+      button.appendChild(strong);
+      button.appendChild(span);
+
+      button.addEventListener("click", function () {
+        bankSelect.value = option.value;
+        bankSelect.dispatchEvent(new Event("change"));
+        closeIncomeOwnerModal();
+      });
+
+      choicesBox.appendChild(button);
+    });
+
+    modal.hidden = false;
+    modal.style.display = "flex";
+  }
+
   function parseMoneyValue(value) {
     return Number(String(value || "0").replace(/[£,]/g, "") || 0);
   }
@@ -1182,10 +1264,14 @@
 
     async function handleClientChange() {
       await restrictCustomerToClientBillingContact();
-      await refreshInvoiceContext();
+      const context = await refreshInvoiceContext();
       await refreshAllItemRates();
       await updateTravelRow();
       forceEmailTemplate();
+
+      if (context && context.always_confirm_bank_account) {
+        openIncomeOwnerModal(context);
+      }
     }
 
     async function handleCustomerChange() {
@@ -1203,6 +1289,19 @@
 
   closeEmailModal();
   closePaymentModal();
+  closeIncomeOwnerModal();
+
+  el("closeInvoiceIncomeOwnerModal")?.addEventListener("click", function (event) {
+    event.preventDefault();
+
+    const clientField = el("invoice_custom_client");
+    if (clientField) {
+      clientField.value = "";
+      clientField.dispatchEvent(new Event("change"));
+    }
+
+    closeIncomeOwnerModal();
+  });
 
   el("openAllocatePayment")?.addEventListener("click", function (event) {
     event.preventDefault();

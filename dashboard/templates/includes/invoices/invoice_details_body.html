@@ -139,6 +139,44 @@
       flex-wrap: wrap;
     }
 
+    .invoice-income-owner-choices {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .invoice-income-owner-choice {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 16px 18px;
+      border-radius: 12px;
+      border: 1px solid #D9E6E6;
+      background: #fbfcfd;
+      cursor: pointer;
+      font: inherit;
+      color: #434B49;
+    }
+
+    .invoice-income-owner-choice:hover,
+    .invoice-income-owner-choice:focus {
+      border-color: #434B49;
+      background: #F2F8F8;
+    }
+
+    .invoice-income-owner-choice strong {
+      display: block;
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+
+    .invoice-income-owner-choice span {
+      display: block;
+      font-size: 13px;
+      color: #667;
+    }
+
     @media (max-width: 980px) {
       .invoice-hero,
       .invoice-summary-grid {
@@ -528,6 +566,22 @@ I hope you’re doing well.</textarea>
     <div class="invoice-modal-actions">
       <button type="button" class="dashboard-btn dashboard-btn-light" id="closeAllocatePayment">Cancel</button>
       <button type="button" class="dashboard-btn dashboard-btn-primary" id="submitAllocatePayment">Allocate Payment</button>
+    </div>
+  </div>
+</div>
+
+<div class="invoice-modal-backdrop" id="invoiceIncomeOwnerModal" hidden style="display:none;">
+  <div class="invoice-modal-card">
+    <div class="dashboard-detail-section-head">
+      <h2 class="dashboard-detail-section-title" id="incomeOwnerModalTitle">Who is this invoice for?</h2>
+    </div>
+
+    <p class="dashboard-page-subtitle" id="incomeOwnerModalMessage"></p>
+
+    <div id="incomeOwnerChoices" class="invoice-income-owner-choices"></div>
+
+    <div class="invoice-modal-actions">
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="closeInvoiceIncomeOwnerModal">Cancel - choose a different client</button>
     </div>
   </div>
 </div>

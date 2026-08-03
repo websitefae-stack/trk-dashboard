@@ -254,12 +254,19 @@ def _get_bank_account_options():
         ignore_permissions=True,
     )
 
+    # So the invoice-as-who-you-are-yourself modal (see
+    # invoice_details.js's openIncomeOwnerModal) can label the
+    # currently-logged-in coach's own option "(you)" instead of just their
+    # name, the same way any other coach would be labelled.
+    current_coach_name = _get_current_coach_name()
+
     return [
         {
             "value": row.get("bank_account"),
             "label": _coach_label(row),
             "display_text": _bank_display_text(row.get("bank_account")),
             "company": _get_coach_company(row.get("name")),
+            "is_self": row.get("name") == current_coach_name,
         }
         for row in rows
         if row.get("bank_account")
@@ -322,13 +329,20 @@ def _ensure_default_bank_account_option(options, default_bank_account):
         return options
 
     owner_coach = _get_bank_account_owner_coach(default_bank_account)
-    label = _coach_label_from_name(owner_coach) if owner_coach else _bank_display_text(default_bank_account) or default_bank_account
+    # Not tied to any Coach - this is the office's own account, not a
+    # specific coach's, so it gets a plain "HQ" label here instead of a
+    # dump of raw bank details (which is all _bank_display_text() has to
+    # offer) - this is exactly what the invoice-as-who modal shows when no
+    # override has been picked yet, so it needs to read like an actual
+    # choice, not a wall of numbers.
+    label = _coach_label_from_name(owner_coach) if owner_coach else "HQ"
 
     return options + [{
         "value": default_bank_account,
         "label": label,
         "display_text": _bank_display_text(default_bank_account),
         "company": _get_coach_company(owner_coach) if owner_coach else "",
+        "is_self": bool(owner_coach) and owner_coach == _get_current_coach_name(),
     }]
 
 
