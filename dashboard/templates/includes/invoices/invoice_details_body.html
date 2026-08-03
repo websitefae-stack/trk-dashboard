@@ -561,7 +561,7 @@ I hope you’re doing well.</textarea>
     </div>
 
     <p class="dashboard-page-subtitle" style="margin: 0 0 12px;">
-      Sends this client a summary of all their currently outstanding invoices, not just this one.
+      Attaches a proper Statement of Account (logo, client details, every currently outstanding invoice and a running total) covering all of this client's invoices, not just this one.
     </p>
 
     <div class="dashboard-detail-grid dashboard-detail-grid-2">
@@ -593,7 +593,10 @@ I hope you’re doing well.</textarea>
 
     <p class="dashboard-page-subtitle" id="statementStatus" style="margin-top: 12px;"></p>
 
-    <div class="invoice-statement-preview" id="statementPreview" hidden></div>
+    <div class="dashboard-detail-field-full" id="statementPreviewWrap" hidden>
+      <label>Attached Statement Preview</label>
+      <div class="invoice-statement-preview" id="statementPreview"></div>
+    </div>
 
     <div class="invoice-modal-actions">
       <button type="button" class="dashboard-btn dashboard-btn-light" id="closeInvoiceStatementModal">Cancel</button>

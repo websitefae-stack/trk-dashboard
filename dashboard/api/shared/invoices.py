@@ -1,4 +1,6 @@
 import json
+from html import escape as _html_escape
+
 import frappe
 from frappe import _
 from frappe.utils import nowdate, flt, now_datetime
@@ -2305,15 +2307,36 @@ def get_client_email_options(client_name=None):
 
 
 @frappe.whitelist()
+def _get_client_outstanding_invoices(client_name):
+    invoices = frappe.get_all(
+        "Sales Invoice",
+        filters={
+            "custom_client": client_name,
+            "docstatus": 1,
+            "outstanding_amount": [">", 0],
+        },
+        fields=["name", "posting_date", "outstanding_amount", "currency"],
+        order_by="posting_date asc",
+        limit_page_length=0,
+        ignore_permissions=True,
+    )
+
+    if not invoices:
+        frappe.throw(_("This client has no outstanding invoices to include in a statement."))
+
+    currency = invoices[0].currency or "GBP"
+    total_outstanding = sum(_to_float(invoice.outstanding_amount) for invoice in invoices)
+
+    return invoices, total_outstanding, currency
+
+
 def get_client_statement_email_defaults(client_name=None):
     """
-    Subject/message for the "Send Statement" button on the Client Details
-    page's Invoices tab - a plain-text summary of this client's currently
-    outstanding (submitted, not fully paid) invoices with a running total,
-    not their full invoice history. Sent through exactly the same
-    recipient/sender/cc mechanism as the generic "Send Email" button (see
-    get_client_email_options/send_client_email) - this only builds the
-    subject/message text; sending itself reuses send_client_email as-is.
+    Subject/covering-note text for the Email Statement button on the
+    invoice details page. The actual statement - logo, header, itemised
+    invoice table, running total - is a separate attached document (see
+    render_client_statement_html/send_client_statement_email); this is
+    only the short covering note that goes in the email body above it.
     """
     _require_logged_in_user()
 
@@ -2333,49 +2356,15 @@ def get_client_statement_email_defaults(client_name=None):
     coach_name = context_data.get("coach_label") or "Coach"
     company_label = context_data.get("company") or "The Resilient Kid"
 
-    invoices = frappe.get_all(
-        "Sales Invoice",
-        filters={
-            "custom_client": client_name,
-            "docstatus": 1,
-            "outstanding_amount": [">", 0],
-        },
-        fields=["name", "posting_date", "outstanding_amount", "currency"],
-        order_by="posting_date asc",
-        limit_page_length=0,
-        ignore_permissions=True,
-    )
-
-    if not invoices:
-        frappe.throw(_("This client has no outstanding invoices to include in a statement."))
-
-    lines = []
-    total_outstanding = 0.0
-    currency = invoices[0].currency or "GBP"
-
-    for invoice in invoices:
-        outstanding = _to_float(invoice.outstanding_amount)
-        total_outstanding += outstanding
-
-        posting_date_display = (
-            frappe.utils.formatdate(invoice.posting_date, "dd-MM-yyyy") if invoice.posting_date else "—"
-        )
-
-        lines.append(
-            f"{invoice.name} - {posting_date_display} - "
-            f"{frappe.utils.fmt_money(outstanding, currency=invoice.currency or currency)} owed"
-        )
+    _invoices, total_outstanding, currency = _get_client_outstanding_invoices(client_name)
 
     subject = f"Your account statement - {company_label}"
 
     message = (
         f"Hi {contact_name},\n"
         "\n"
-        "Here's a summary of your current outstanding invoices:\n"
-        "\n"
-        f"{chr(10).join(lines)}\n"
-        "\n"
-        f"Total outstanding: {frappe.utils.fmt_money(total_outstanding, currency=currency)}\n"
+        "Please find your account statement attached, showing a total "
+        f"outstanding balance of {frappe.utils.fmt_money(total_outstanding, currency=currency)}.\n"
         "\n"
         "Warm regards,\n"
         f"{coach_name}\n"
@@ -2383,6 +2372,154 @@ def get_client_statement_email_defaults(client_name=None):
     )
 
     return {"subject": subject, "message": message}
+
+
+# Same Letter Head Sales Invoice emails already attach_print with (see
+# send_invoice_email) - reused here so the statement carries the same
+# logo/header rather than looking like a different, unbranded document.
+STATEMENT_LETTERHEAD = "Resilient Kid"
+
+
+def _statement_letterhead_html():
+    if not frappe.db.exists("Letter Head", STATEMENT_LETTERHEAD):
+        return ""
+
+    return frappe.db.get_value("Letter Head", STATEMENT_LETTERHEAD, "content") or ""
+
+
+def render_client_statement_html(client_name):
+    """
+    The actual "Statement of Account" document - logo/header, client
+    details, an itemised table of every currently outstanding invoice,
+    and a running total. Used both for the Preview button and as the PDF
+    attached to the email itself, so the two can never drift apart.
+    """
+    context_data = _resolve_invoice_context(client_name, None)
+    contact_name = context_data.get("customer_label") or _client_display_name(client_name)
+    coach_name = context_data.get("coach_label") or "Coach"
+    company_label = context_data.get("company") or "The Resilient Kid"
+
+    invoices, total_outstanding, currency = _get_client_outstanding_invoices(client_name)
+
+    rows_html = "".join(
+        "<tr>"
+        f"<td style=\"padding:10px 6px;border-bottom:1px solid #E6EFEF;\">{_html_escape(invoice.name)}</td>"
+        f"<td style=\"padding:10px 6px;border-bottom:1px solid #E6EFEF;\">"
+        f"{frappe.utils.formatdate(invoice.posting_date, 'dd-MM-yyyy') if invoice.posting_date else '—'}</td>"
+        f"<td style=\"padding:10px 6px;border-bottom:1px solid #E6EFEF;text-align:right;\">"
+        f"{frappe.utils.fmt_money(_to_float(invoice.outstanding_amount), currency=invoice.currency or currency)}</td>"
+        "</tr>"
+        for invoice in invoices
+    )
+
+    return f"""
+    <div style="font-family: Arial, Helvetica, sans-serif; color:#263238; max-width:720px; margin:0 auto;">
+      {_statement_letterhead_html()}
+      <h2 style="margin:28px 0 4px;">Statement of Account</h2>
+      <p style="margin:0 0 24px;color:#607d7d;">{frappe.utils.formatdate(nowdate(), "d MMMM yyyy")}</p>
+
+      <p style="margin:0 0 4px;font-weight:bold;">{_html_escape(contact_name)}</p>
+      <p style="margin:0 0 28px;color:#607d7d;">{_html_escape(company_label)}</p>
+
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:8px 6px;border-bottom:2px solid #263238;">Invoice</th>
+            <th style="text-align:left;padding:8px 6px;border-bottom:2px solid #263238;">Date</th>
+            <th style="text-align:right;padding:8px 6px;border-bottom:2px solid #263238;">Amount Owed</th>
+          </tr>
+        </thead>
+        <tbody>{rows_html}</tbody>
+        <tfoot>
+          <tr>
+            <td colspan="2" style="padding:14px 6px;font-weight:bold;">Total Outstanding</td>
+            <td style="padding:14px 6px;text-align:right;font-weight:bold;">
+              {frappe.utils.fmt_money(total_outstanding, currency=currency)}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <p style="margin-top:36px;">Warm regards,<br>{_html_escape(coach_name)}<br>{_html_escape(company_label)}</p>
+    </div>
+    """
+
+
+@frappe.whitelist()
+def get_client_statement_preview(client_name=None):
+    _require_logged_in_user()
+
+    client_name = (client_name or "").strip()
+
+    if not client_name:
+        frappe.throw(_("Client is required."))
+
+    if not _current_user_can_access_client(client_name):
+        frappe.throw(_("You do not have permission to access this client."), frappe.PermissionError)
+
+    return {"html": render_client_statement_html(client_name)}
+
+
+@frappe.whitelist()
+def send_client_statement_email(client_name=None, recipient=None, subject=None, message=None, cc=None, sender=None):
+    """
+    Sends the Email Statement compose modal's contents - the covering
+    note as the email body, plus the actual Statement of Account (logo,
+    header, itemised invoices, total) attached as a PDF, generated from
+    the exact same HTML the Preview button shows.
+    """
+    _require_logged_in_user()
+
+    client_name = (client_name or "").strip()
+    recipient = (recipient or "").strip()
+
+    if not client_name:
+        frappe.throw(_("Client is required."))
+
+    if not _current_user_can_access_client(client_name):
+        frappe.throw(_("You do not have permission to email this client."), frappe.PermissionError)
+
+    if not recipient:
+        frappe.throw(_("Recipient email is required."))
+
+    subject = (subject or "Your account statement").strip()
+    message = plain_text_to_email_html((message or "").strip())
+
+    statement_html = render_client_statement_html(client_name)
+
+    from frappe.utils.pdf import get_pdf
+    pdf_content = get_pdf(statement_html)
+
+    attachments = [{
+        "fname": f"Statement - {_client_display_name(client_name)}.pdf",
+        "fcontent": pdf_content,
+    }]
+
+    # Default to whoever's actually sending this, not the shared outgoing
+    # account - otherwise every client reply lands in office's inbox
+    # regardless of which coach actually emailed them.
+    reply_to = frappe.session.user
+
+    kwargs = {
+        "recipients": [recipient],
+        "subject": subject,
+        "message": message,
+        "now": True,
+        "reply_to": reply_to,
+        "attachments": attachments,
+    }
+
+    cc_list = parse_email_list(cc)
+    if cc_list:
+        kwargs["cc"] = cc_list
+
+    sender = (sender or "").strip()
+    if sender:
+        kwargs["sender"] = sender
+
+    frappe.sendmail(**kwargs)
+
+    return {"ok": 1}
 
 
 @frappe.whitelist()
