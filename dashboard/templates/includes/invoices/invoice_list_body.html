@@ -114,6 +114,15 @@
                     Allocate Payment
                   </a>
                 {% endif %}
+
+                {% if inv.docstatus == 1 %}
+                  <a
+                    class="dashboard-link-btn"
+                    href="{{ dashboard_base_path }}/invoice_details?name={{ inv.name }}&email=1"
+                  >
+                    Email
+                  </a>
+                {% endif %}
               </td>
             </tr>
           {% endfor %}

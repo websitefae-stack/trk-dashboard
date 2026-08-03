@@ -1398,6 +1398,10 @@
   if (new URLSearchParams(window.location.search).get("payment") === "1") {
     openPaymentModal();
   }
+
+  if (new URLSearchParams(window.location.search).get("email") === "1") {
+    await openEmailModal();
+  }
 }
 
 if (document.readyState === "loading") {

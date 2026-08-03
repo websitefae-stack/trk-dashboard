@@ -2266,6 +2266,87 @@ def get_client_email_options(client_name=None):
 
 
 @frappe.whitelist()
+def get_client_statement_email_defaults(client_name=None):
+    """
+    Subject/message for the "Send Statement" button on the Client Details
+    page's Invoices tab - a plain-text summary of this client's currently
+    outstanding (submitted, not fully paid) invoices with a running total,
+    not their full invoice history. Sent through exactly the same
+    recipient/sender/cc mechanism as the generic "Send Email" button (see
+    get_client_email_options/send_client_email) - this only builds the
+    subject/message text; sending itself reuses send_client_email as-is.
+    """
+    _require_logged_in_user()
+
+    client_name = (client_name or "").strip()
+
+    if not client_name:
+        frappe.throw(_("Client is required."))
+
+    if not _current_user_can_access_client(client_name):
+        frappe.throw(_("You do not have permission to access this client."), frappe.PermissionError)
+
+    if not frappe.db.exists("Client", client_name):
+        frappe.throw(_("Client not found."))
+
+    context_data = _resolve_invoice_context(client_name, None)
+    contact_name = context_data.get("customer_label") or _client_display_name(client_name)
+    coach_name = context_data.get("coach_label") or "Coach"
+    company_label = context_data.get("company") or "The Resilient Kid"
+
+    invoices = frappe.get_all(
+        "Sales Invoice",
+        filters={
+            "custom_client": client_name,
+            "docstatus": 1,
+            "outstanding_amount": [">", 0],
+        },
+        fields=["name", "posting_date", "outstanding_amount", "currency"],
+        order_by="posting_date asc",
+        limit_page_length=0,
+        ignore_permissions=True,
+    )
+
+    if not invoices:
+        frappe.throw(_("This client has no outstanding invoices to include in a statement."))
+
+    lines = []
+    total_outstanding = 0.0
+    currency = invoices[0].currency or "GBP"
+
+    for invoice in invoices:
+        outstanding = _to_float(invoice.outstanding_amount)
+        total_outstanding += outstanding
+
+        posting_date_display = (
+            frappe.utils.formatdate(invoice.posting_date, "dd-MM-yyyy") if invoice.posting_date else "—"
+        )
+
+        lines.append(
+            f"{invoice.name} - {posting_date_display} - "
+            f"{frappe.utils.fmt_money(outstanding, currency=invoice.currency or currency)} owed"
+        )
+
+    subject = f"Your account statement - {company_label}"
+
+    message = (
+        f"Hi {contact_name},\n"
+        "\n"
+        "Here's a summary of your current outstanding invoices:\n"
+        "\n"
+        f"{chr(10).join(lines)}\n"
+        "\n"
+        f"Total outstanding: {frappe.utils.fmt_money(total_outstanding, currency=currency)}\n"
+        "\n"
+        "Warm regards,\n"
+        f"{coach_name}\n"
+        f"{company_label}"
+    )
+
+    return {"subject": subject, "message": message}
+
+
+@frappe.whitelist()
 def send_invoice_email(docname, recipient=None, reply_to=None, subject=None, message=None, cc=None, sender=None):
     _require_logged_in_user()
 
