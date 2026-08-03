@@ -409,6 +409,23 @@ def _resync_practice_document_coaches(practice_document_name):
                 update_modified=False,
             )
 
+    # Coach Document access (_get_visible_resource_documents, what actually
+    # makes a document show up on the coach's own Documents page) only ever
+    # looks at documents whose Document Purpose is "Client Resource" or
+    # "Both" - Document Purpose defaults to "Internal Compliance", so a
+    # document that's only ever had Linked Items added (never had its
+    # Document Purpose touched) would be gated correctly by Resource
+    # Availability above and still never appear to any coach. Only pushes
+    # Internal-Compliance-only documents to "Client Resource"; "Both" is
+    # left alone since it's already inclusive of both purposes.
+    if linked_item_codes and frappe.get_meta(PRACTICE_DOCUMENT_DOCTYPE).has_field("document_purpose"):
+        current_purpose = frappe.db.get_value(PRACTICE_DOCUMENT_DOCTYPE, practice_document_name, "document_purpose")
+        if current_purpose == "Internal Compliance":
+            frappe.db.set_value(
+                PRACTICE_DOCUMENT_DOCTYPE, practice_document_name, "document_purpose", "Client Resource",
+                update_modified=False,
+            )
+
     target_coach_names = _get_coach_names_with_access_to_items(linked_item_codes)
 
     existing_rows = frappe.get_all(

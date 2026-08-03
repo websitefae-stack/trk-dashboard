@@ -31,7 +31,7 @@
             <div>
               <h3>Workshop Resources</h3>
               <p class="dashboard-page-subtitle">
-                Pick which item(s)/workshop(s) each document belongs to. A coach automatically gets (or loses) access to a document here the moment their <a href="/franchisor_db/item_access">Item Access</a> to any linked item changes - they keep it as long as they have access to at least one item a document is linked to. Only takes effect on documents whose Resource Availability is set to "Selected Coaches" (set that in the Frappe backend when creating the document).
+                Which item(s)/workshop(s) each document is linked to - manage the links themselves on the document in the Frappe Desk. A coach automatically gets (or loses) access to a document here the moment their <a href="/franchisor_db/item_access">Item Access</a> to any linked item changes - they keep it as long as they have access to at least one item a document is linked to.
               </p>
             </div>
           </div>
@@ -43,8 +43,6 @@
             </div>
           </div>
 
-          <div class="dashboard-help" id="workshopResourcesMessage"></div>
-
           <div class="dashboard-table-wrap">
             <table class="dashboard-table" id="workshopResourcesTable">
               <thead>
@@ -52,7 +50,7 @@
                   <th>Document</th>
                   <th>Type</th>
                   <th>Resource Availability</th>
-                  <th>Linked to Item</th>
+                  <th>Linked Items</th>
                 </tr>
               </thead>
               <tbody id="workshopResourcesTableBody">
