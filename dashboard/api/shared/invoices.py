@@ -2306,7 +2306,6 @@ def get_client_email_options(client_name=None):
     return options
 
 
-@frappe.whitelist()
 def _get_client_outstanding_invoices(client_name):
     invoices = frappe.get_all(
         "Sales Invoice",
@@ -2330,6 +2329,7 @@ def _get_client_outstanding_invoices(client_name):
     return invoices, total_outstanding, currency
 
 
+@frappe.whitelist()
 def get_client_statement_email_defaults(client_name=None):
     """
     Subject/covering-note text for the Email Statement button on the
