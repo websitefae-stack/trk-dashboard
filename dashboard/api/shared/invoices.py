@@ -1820,6 +1820,19 @@ def _validate_invoice(doc):
     if not doc.due_date:
         frappe.throw(_("Due Date is required."))
 
+    # Once fees have gone out for a month, that month is closed to coaches -
+    # replaces the disabled "block_coach_backdated_sales_invoices" Server
+    # Script (its frappe.get_roles() call wasn't available in that
+    # sandboxed environment). Checked here so it covers every write path
+    # (new draft, editing an existing draft, submit) via a single choke
+    # point, and is a no-op for HQ/Office, who still need to fix or
+    # backdate invoices after the fact.
+    if not _is_franchisor_user() and frappe.utils.getdate(doc.posting_date) < frappe.utils.get_first_day(frappe.utils.nowdate()):
+        frappe.throw(
+            _("Invoices dated before this month are locked once fees have gone out - only HQ/Office can add or edit one."),
+            frappe.PermissionError,
+        )
+
     if not doc.selling_price_list:
         frappe.throw(_("Price List could not be resolved from the selected Client."))
 
