@@ -30,9 +30,14 @@ that specific brand is ticked.
 import frappe
 from frappe import _
 
-from dashboard.api.shared.permissions import ensure_office_user
+from dashboard.api.shared.permissions import ensure_office_user, FRANCHISOR_USERS
 
 DEFAULT_PRICE_LIST = "Coach Pricelist"
+
+# Login fields tried in order to resolve a Coach record's own sign-in
+# identity - matches invoices.py's _get_current_coach()/_get_coach_company()
+# convention, since not every site has all of these fields.
+COACH_LOGIN_FIELDS = ["user", "user_id", "email", "coach_email"]
 
 # fieldname -> label shown on the Item Access page, and the exact Check
 # fieldnames added on Item by the add_item_show_on_site_and_brand_fields
@@ -45,6 +50,49 @@ BRAND_FIELDS = {
     "custom_brand_people": "The Resilient People",
     "custom_brand_school": "The Resilient School",
 }
+
+
+def _get_coach_login(coach_name):
+    meta = frappe.get_meta("Coach")
+
+    for fieldname in COACH_LOGIN_FIELDS:
+        if meta.has_field(fieldname):
+            value = frappe.db.get_value("Coach", coach_name, fieldname)
+            if value:
+                return value
+
+    return ""
+
+
+def _get_hq_coach_names():
+    """
+    Coach records that are really the office/HQ (see FRANCHISOR_USERS),
+    not a working coach with their own item business - they never appear
+    on the Item Access grid (there's nothing meaningful to tick: a
+    franchisor login already sees every item regardless of Item Default,
+    see invoices.get_link_options("Item")) and never get auto-added to a
+    document's resource access either, since HQ never has a public coach
+    profile for any of this to show up on.
+    """
+    if not _has_doctype("Coach"):
+        return set()
+
+    meta = frappe.get_meta("Coach")
+    login_fields = [fieldname for fieldname in COACH_LOGIN_FIELDS if meta.has_field(fieldname)]
+
+    hq_names = set()
+    for fieldname in login_fields:
+        hq_names.update(frappe.get_all(
+            "Coach",
+            filters={fieldname: ["in", list(FRANCHISOR_USERS)]},
+            pluck="name",
+        ))
+
+    return hq_names
+
+
+def _has_doctype(doctype):
+    return bool(frappe.db.exists("DocType", doctype))
 
 
 def _get_default_warehouse_for_company(company):
@@ -70,13 +118,18 @@ def get_item_access_grid():
         limit_page_length=5000,
     )
 
-    coaches = frappe.get_all(
-        "Coach",
-        filters={"company": ["is", "set"]},
-        fields=["name", "coach_name", "company"],
-        order_by="coach_name asc, name asc",
-        limit_page_length=5000,
-    )
+    hq_coach_names = _get_hq_coach_names()
+
+    coaches = [
+        coach for coach in frappe.get_all(
+            "Coach",
+            filters={"company": ["is", "set"]},
+            fields=["name", "coach_name", "company"],
+            order_by="coach_name asc, name asc",
+            limit_page_length=5000,
+        )
+        if coach.get("name") not in hq_coach_names
+    ]
 
     coach_companies = sorted({coach.get("company") for coach in coaches if coach.get("company")})
 
@@ -185,6 +238,7 @@ def set_item_access(item_code=None, coach=None, granted=None):
         item.remove(existing_row)
         item.save(ignore_permissions=True)
 
+    _resync_resource_access_for_item(item_code)
     frappe.db.commit()
 
     return {"ok": 1}
@@ -245,6 +299,319 @@ def set_item_brand(item_code=None, brand_field=None, enabled=None):
         frappe.throw(_("This site hasn't been migrated for brand visibility yet."))
 
     frappe.db.set_value("Item", item_code, brand_field, 1 if enabled else 0)
+    frappe.db.commit()
+
+    return {"ok": 1}
+
+
+@frappe.whitelist()
+def grant_item_access_to_all_coaches(item_code=None, show_on_site=None):
+    """
+    "Give access to all coaches" button next to an item - grants Access
+    (and, unless told otherwise, Show on Site) to every coach on the grid
+    in one call instead of clicking every cell in the row by hand. Skips
+    a coach entirely if their Coach record has no company set, the same
+    way a single set_item_access() call would - rather than failing the
+    whole batch over one bad record.
+    """
+    ensure_office_user()
+
+    item_code = (item_code or "").strip()
+    show_on_site = show_on_site is None or str(show_on_site).strip().lower() in ("1", "true", "yes", "on")
+
+    if not item_code or not frappe.db.exists("Item", item_code):
+        frappe.throw(_("Item not found."))
+
+    hq_coach_names = _get_hq_coach_names()
+
+    coach_names = [
+        name for name in frappe.get_all(
+            "Coach",
+            filters={"company": ["is", "set"]},
+            pluck="name",
+        )
+        if name not in hq_coach_names
+    ]
+
+    skipped = []
+
+    for coach_name in coach_names:
+        try:
+            set_item_access(item_code=item_code, coach=coach_name, granted=1)
+            if show_on_site:
+                set_item_show_on_site(item_code=item_code, coach=coach_name, show_on_site=1)
+        except Exception:
+            skipped.append(coach_name)
+
+    return {"ok": 1, "granted": len(coach_names) - len(skipped), "skipped": skipped}
+
+
+# =====================================================
+# WORKSHOP RESOURCES (Item <-> Practice Document)
+# =====================================================
+#
+# A workshop Item can have one or more Practice Documents attached as
+# resources (a Canva template, a handout, ...) - see Practice
+# Document.linked_items. Whenever Item Access changes for a coach, every
+# Practice Document linked to that item gets its own coach list ("Available
+# to Coaches") reconciled to match: a coach keeps resource access as long
+# as they have Item Access to at least one item that document is linked
+# to, dropped the moment none of them do. Rows added by hand in the Desk
+# (granted_via_item_access left unticked) are never touched by this - see
+# Practice Document Coach's own field description.
+
+PRACTICE_DOCUMENT_DOCTYPE = "Practice Document"
+PRACTICE_DOCUMENT_ITEM_DOCTYPE = "Practice Document Item"
+PRACTICE_DOCUMENT_COACH_DOCTYPE = "Practice Document Coach"
+
+
+def _get_linked_item_codes(practice_document_name):
+    if not _has_doctype(PRACTICE_DOCUMENT_ITEM_DOCTYPE):
+        return []
+
+    return frappe.get_all(
+        PRACTICE_DOCUMENT_ITEM_DOCTYPE,
+        filters={"parent": practice_document_name, "parenttype": PRACTICE_DOCUMENT_DOCTYPE},
+        pluck="item",
+    )
+
+
+def _get_documents_linked_to_item(item_code):
+    if not _has_doctype(PRACTICE_DOCUMENT_ITEM_DOCTYPE):
+        return []
+
+    return frappe.get_all(
+        PRACTICE_DOCUMENT_ITEM_DOCTYPE,
+        filters={"item": item_code, "parenttype": PRACTICE_DOCUMENT_DOCTYPE},
+        pluck="parent",
+        distinct=True,
+    )
+
+
+def _get_coach_names_with_access_to_items(item_codes):
+    if not item_codes:
+        return set()
+
+    companies = set(frappe.get_all(
+        "Item Default",
+        filters={"parent": ["in", item_codes]},
+        pluck="company",
+    ))
+
+    if not companies:
+        return set()
+
+    coach_names = frappe.get_all(
+        "Coach",
+        filters={"company": ["in", list(companies)]},
+        pluck="name",
+    )
+
+    hq_coach_names = _get_hq_coach_names()
+    return {name for name in coach_names if name not in hq_coach_names}
+
+
+def _resync_practice_document_coaches(practice_document_name):
+    """
+    Reconciles one Practice Document's "Available to Coaches" list against
+    who currently has Item Access to its Linked Items - adds a row (marked
+    granted_via_item_access) for every newly-entitled coach that doesn't
+    already have one, and removes only the auto-added rows for coaches no
+    longer entitled through any linked item. Manually-added rows are never
+    touched. Deliberately works on the child rows directly (frappe.get_doc
+    on the row's own doctype) rather than loading and saving the whole
+    Practice Document, since this app doesn't own whatever Server Scripts
+    are attached to that doctype in Desk and a full save could trigger
+    them unexpectedly for what's meant to be a narrow, surgical sync.
+    """
+    if not practice_document_name or not frappe.db.exists(PRACTICE_DOCUMENT_DOCTYPE, practice_document_name):
+        return
+
+    if not frappe.get_meta(PRACTICE_DOCUMENT_DOCTYPE).has_field("linked_items"):
+        return
+
+    linked_item_codes = _get_linked_item_codes(practice_document_name)
+    target_coach_names = _get_coach_names_with_access_to_items(linked_item_codes)
+
+    existing_rows = frappe.get_all(
+        PRACTICE_DOCUMENT_COACH_DOCTYPE,
+        filters={"parent": practice_document_name, "parenttype": PRACTICE_DOCUMENT_DOCTYPE},
+        fields=["name", "coach", "granted_via_item_access"],
+    )
+
+    covered_coach_names = set()
+
+    for row in existing_rows:
+        if row.get("coach"):
+            covered_coach_names.add(row.get("coach"))
+
+        if row.get("granted_via_item_access") and row.get("coach") not in target_coach_names:
+            # Raw table delete rather than frappe.delete_doc() - these are
+            # child-table rows, not standalone documents, and this is a
+            # narrow reconciliation step with no need for the full
+            # document-deletion lifecycle (hooks, deleted-doc log, etc).
+            frappe.db.delete(PRACTICE_DOCUMENT_COACH_DOCTYPE, {"name": row.get("name")})
+
+    missing_coach_names = target_coach_names - covered_coach_names
+
+    if not missing_coach_names:
+        return
+
+    next_idx = frappe.db.count(
+        PRACTICE_DOCUMENT_COACH_DOCTYPE,
+        filters={"parent": practice_document_name, "parenttype": PRACTICE_DOCUMENT_DOCTYPE},
+    )
+
+    for coach_name in missing_coach_names:
+        login = _get_coach_login(coach_name)
+        if not login:
+            continue
+
+        next_idx += 1
+        new_row = frappe.get_doc({
+            "doctype": PRACTICE_DOCUMENT_COACH_DOCTYPE,
+            "parent": practice_document_name,
+            "parenttype": PRACTICE_DOCUMENT_DOCTYPE,
+            "parentfield": "available_to_coaches",
+            "idx": next_idx,
+            "coach": coach_name,
+            "user": login,
+            "coach_name": frappe.db.get_value("Coach", coach_name, "coach_name") or coach_name,
+            "can_share": 1,
+            "granted_via_item_access": 1,
+        })
+        new_row.insert(ignore_permissions=True)
+
+
+def _resync_resource_access_for_item(item_code):
+    for practice_document_name in _get_documents_linked_to_item(item_code):
+        _resync_practice_document_coaches(practice_document_name)
+
+
+@frappe.whitelist()
+def get_workshop_resources():
+    """
+    Franchisor's Documents -> Workshop Resources tab: every Practice
+    Document, with which item(s) it's currently linked to, plus the full
+    Item list to pick from. Deliberately not filtered by document_purpose/
+    type - a workshop resource could just as easily be an internal
+    training file as a client-facing one.
+    """
+    ensure_office_user()
+
+    if not frappe.get_meta(PRACTICE_DOCUMENT_DOCTYPE).has_field("linked_items"):
+        return {"documents": [], "items": []}
+
+    documents = frappe.get_all(
+        PRACTICE_DOCUMENT_DOCTYPE,
+        fields=["name", "document_title", "document_type", "status", "resource_availability"],
+        order_by="document_title asc, name asc",
+        limit_page_length=5000,
+    )
+
+    links = frappe.get_all(
+        PRACTICE_DOCUMENT_ITEM_DOCTYPE,
+        filters={"parenttype": PRACTICE_DOCUMENT_DOCTYPE},
+        fields=["parent", "item"],
+        limit_page_length=100000,
+    )
+
+    items_by_document = {}
+    for link in links:
+        items_by_document.setdefault(link.get("parent"), []).append(link.get("item"))
+
+    items = frappe.get_all(
+        "Item",
+        fields=["name", "item_name"],
+        order_by="item_name asc, name asc",
+        limit_page_length=5000,
+    )
+
+    return {
+        "documents": [
+            {
+                "name": document.get("name"),
+                "label": document.get("document_title") or document.get("name"),
+                "document_type": document.get("document_type") or "",
+                "status": document.get("status") or "",
+                "resource_availability": document.get("resource_availability") or "",
+                "linked_items": items_by_document.get(document.get("name"), []),
+            }
+            for document in documents
+        ],
+        "items": [
+            {"name": item.get("name"), "label": item.get("item_name") or item.get("name")}
+            for item in items
+        ],
+    }
+
+
+@frappe.whitelist()
+def set_workshop_resource_items(practice_document=None, item_codes=None):
+    """
+    Replaces a Practice Document's Linked Items with exactly the given
+    set, then reconciles its coach list to match (see
+    _resync_practice_document_coaches). Works on the child rows directly
+    for the same reason set inside that function - no full-document save.
+    """
+    ensure_office_user()
+
+    practice_document = (practice_document or "").strip()
+
+    if not practice_document or not frappe.db.exists(PRACTICE_DOCUMENT_DOCTYPE, practice_document):
+        frappe.throw(_("Document not found."))
+
+    if not frappe.get_meta(PRACTICE_DOCUMENT_DOCTYPE).has_field("linked_items"):
+        frappe.throw(_("This site hasn't been migrated for workshop resources yet."))
+
+    if isinstance(item_codes, str):
+        try:
+            item_codes = frappe.parse_json(item_codes)
+        except Exception:
+            item_codes = [item_codes] if item_codes else []
+
+    requested_item_codes = [code for code in (item_codes or []) if code]
+
+    for item_code in requested_item_codes:
+        if not frappe.db.exists("Item", item_code):
+            frappe.throw(_("Item {0} not found.").format(item_code))
+
+    existing_rows = frappe.get_all(
+        PRACTICE_DOCUMENT_ITEM_DOCTYPE,
+        filters={"parent": practice_document, "parenttype": PRACTICE_DOCUMENT_DOCTYPE},
+        fields=["name", "item"],
+    )
+    existing_item_codes = {row.get("item") for row in existing_rows}
+    requested_set = set(requested_item_codes)
+
+    for row in existing_rows:
+        if row.get("item") not in requested_set:
+            frappe.db.delete(PRACTICE_DOCUMENT_ITEM_DOCTYPE, {"name": row.get("name")})
+
+    next_idx = len(existing_rows)
+
+    for item_code in requested_item_codes:
+        if item_code in existing_item_codes:
+            continue
+
+        next_idx += 1
+        new_row = frappe.get_doc({
+            "doctype": PRACTICE_DOCUMENT_ITEM_DOCTYPE,
+            "parent": practice_document,
+            "parenttype": PRACTICE_DOCUMENT_DOCTYPE,
+            "parentfield": "linked_items",
+            "idx": next_idx,
+            "item": item_code,
+            "item_name": frappe.db.get_value("Item", item_code, "item_name") or item_code,
+        })
+        new_row.insert(ignore_permissions=True)
+
+    # Both the items just removed and the items just added can change who
+    # should have resource access - a coach who lost their only linked
+    # item here needs dropping, and one newly linked needs adding, so
+    # reconcile against the item's now-current state either way.
+    _resync_practice_document_coaches(practice_document)
+
     frappe.db.commit()
 
     return {"ok": 1}

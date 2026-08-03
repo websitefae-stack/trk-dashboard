@@ -9,7 +9,8 @@
   "coach",
   "user",
   "coach_name",
-  "can_share"
+  "can_share",
+  "granted_via_item_access"
  ],
  "fields": [
   {
@@ -41,6 +42,14 @@
    "fieldtype": "Check",
    "in_list_view": 1,
    "label": "Can Share"
+  },
+  {
+   "default": "0",
+   "description": "Set automatically when this row exists only because this coach has Item Access to one of this document's Linked Items (see Practice Document's Linked Items field) - kept in sync from there, so don't rely on editing it directly. A row added by hand (this left unticked) is never touched or removed by that sync.",
+   "fieldname": "granted_via_item_access",
+   "fieldtype": "Check",
+   "label": "Granted via Item Access",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
