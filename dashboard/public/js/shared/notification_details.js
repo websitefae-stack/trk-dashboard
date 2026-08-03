@@ -350,15 +350,40 @@
     return parts[parts.length - 1] || "Attachment";
   }
 
+  function base64ToBlob(base64, contentType) {
+    const binary = window.atob(base64 || "");
+    const bytes = new Uint8Array(binary.length);
+
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    return new Blob([bytes], { type: contentType || "application/octet-stream" });
+  }
+
   // Reply attachments are uploaded private with no attached_to_doctype, so
   // linking straight to the raw file URL 403s for everyone except whoever
-  // uploaded it - this routes through get_notification_attachment(), which
-  // proxies the download after checking the same notification/conversation
-  // access as the rest of this page.
-  function attachmentDownloadUrl(attachment) {
-    return "/api/method/dashboard.api.shared.notifications.get_notification_attachment"
-      + "?name=" + encodeURIComponent(state.notificationName || "")
-      + "&attachment=" + encodeURIComponent(attachment || "");
+  // uploaded it - this fetches through get_notification_attachment(), which
+  // proxies the file after checking the same notification/conversation
+  // access as the rest of this page. Opened as a Blob URL (rather than a
+  // plain link to that endpoint) so the browser renders it - a link to a
+  // whitelisted method that returns JSON would otherwise just show raw
+  // JSON instead of the image/PDF/etc itself.
+  async function openAttachment(attachment) {
+    try {
+      const data = await callApi("dashboard.api.shared.notifications.get_notification_attachment", {
+        name: state.notificationName,
+        attachment: attachment
+      });
+
+      const blob = base64ToBlob(data.content_base64, data.content_type);
+      const url = URL.createObjectURL(blob);
+
+      window.open(url, "_blank");
+      setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+    } catch (error) {
+      window.alert(error.message || "Could not open this attachment.");
+    }
   }
 
   function renderFeedItem(message, isPost) {
@@ -381,8 +406,8 @@
       '</div>',
       '<div class="notification-feed-body">' + escapeHtml(message.message || "") + '</div>',
       message.attachment
-        ? '<a class="notification-feed-attachment" href="' + escapeHtml(attachmentDownloadUrl(message.attachment)) + '" target="_blank" rel="noopener">📎 '
-          + escapeHtml(attachmentFileName(message.attachment)) + '</a>'
+        ? '<button type="button" class="notification-feed-attachment" data-attachment="' + escapeHtml(message.attachment) + '">📎 '
+          + escapeHtml(attachmentFileName(message.attachment)) + '</button>'
         : '',
       '</div>',
       '</div>'
@@ -629,6 +654,17 @@
 
     if (archiveBtn) {
       archiveBtn.addEventListener("click", archiveNotification);
+    }
+
+    const timeline = el("notificationTimeline");
+    if (timeline) {
+      timeline.addEventListener("click", function (event) {
+        const button = event.target.closest(".notification-feed-attachment");
+        if (!button) return;
+
+        event.preventDefault();
+        openAttachment(button.dataset.attachment);
+      });
     }
   }
   

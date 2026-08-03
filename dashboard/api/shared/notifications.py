@@ -1429,11 +1429,20 @@ def get_notification_attachment(name=None, attachment=None):
     attached_to_doctype, so Frappe's own file permission check only ever
     lets the uploader (or a System Manager) view them directly - anyone
     else clicking the link got a permission error, even other coaches who
-    can plainly see the rest of the conversation. This proxies the
-    download after checking the same notification/conversation access as
-    the rest of this module, same pattern as get_resource_document_file()
-    in practice_documents.py.
+    can plainly see the rest of the conversation. This proxies the file
+    after checking the same notification/conversation access as the rest
+    of this module, same pattern as get_resource_document_file() in
+    practice_documents.py.
+
+    Returns the file as base64 JSON rather than a raw/"download" response
+    - Frappe's "download" response type forces a Content-Disposition:
+    attachment, which saves the file straight to disk instead of showing
+    it. Handing the content + mime type back lets the browser render it
+    (image, PDF, etc) via a Blob URL instead of forcing a download.
     """
+    import base64
+    import mimetypes
+
     ensure_logged_in()
 
     name = _coalesce_str("name", name)
@@ -1463,9 +1472,16 @@ def get_notification_attachment(name=None, attachment=None):
 
     fname, fcontent = get_file(attachment)
 
-    frappe.local.response.filename = fname
-    frappe.local.response.filecontent = fcontent
-    frappe.local.response.type = "download"
+    if not isinstance(fcontent, (bytes, bytearray)):
+        fcontent = str(fcontent).encode("utf-8")
+
+    content_type = mimetypes.guess_type(fname)[0] or "application/octet-stream"
+
+    return {
+        "filename": fname,
+        "content_type": content_type,
+        "content_base64": base64.b64encode(fcontent).decode("ascii"),
+    }
 
 
 @frappe.whitelist()
