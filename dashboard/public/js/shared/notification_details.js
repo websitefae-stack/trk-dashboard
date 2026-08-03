@@ -350,6 +350,17 @@
     return parts[parts.length - 1] || "Attachment";
   }
 
+  // Reply attachments are uploaded private with no attached_to_doctype, so
+  // linking straight to the raw file URL 403s for everyone except whoever
+  // uploaded it - this routes through get_notification_attachment(), which
+  // proxies the download after checking the same notification/conversation
+  // access as the rest of this page.
+  function attachmentDownloadUrl(attachment) {
+    return "/api/method/dashboard.api.shared.notifications.get_notification_attachment"
+      + "?name=" + encodeURIComponent(state.notificationName || "")
+      + "&attachment=" + encodeURIComponent(attachment || "");
+  }
+
   function renderFeedItem(message, isPost) {
     const isSystem = message.message_type === "Status Update" || message.message_type === "System";
     const author = message.sent_by_label || message.sent_by_name || message.sent_by || "System";
@@ -370,7 +381,7 @@
       '</div>',
       '<div class="notification-feed-body">' + escapeHtml(message.message || "") + '</div>',
       message.attachment
-        ? '<a class="notification-feed-attachment" href="' + escapeHtml(message.attachment) + '" target="_blank" rel="noopener">📎 '
+        ? '<a class="notification-feed-attachment" href="' + escapeHtml(attachmentDownloadUrl(message.attachment)) + '" target="_blank" rel="noopener">📎 '
           + escapeHtml(attachmentFileName(message.attachment)) + '</a>'
         : '',
       '</div>',

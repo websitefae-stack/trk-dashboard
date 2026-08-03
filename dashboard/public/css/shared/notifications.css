@@ -622,6 +622,21 @@
   font-size: 14px;
 }
 
+.dashboard-notif-card-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.dashboard-notif-card-unread-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #E4572E;
+  box-shadow: 0 0 0 2px rgba(228, 87, 46, 0.25);
+}
+
 .dashboard-notif-card-message {
   margin-top: 6px;
   color: #5d6c69;
