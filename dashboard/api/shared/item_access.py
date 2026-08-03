@@ -30,7 +30,7 @@ that specific brand is ticked.
 import frappe
 from frappe import _
 
-from dashboard.api.shared.permissions import ensure_office_user, FRANCHISOR_USERS
+from dashboard.api.shared.permissions import ensure_office_user
 
 DEFAULT_PRICE_LIST = "Coach Pricelist"
 
@@ -64,33 +64,6 @@ def _get_coach_login(coach_name):
     return ""
 
 
-def _get_hq_coach_names():
-    """
-    Coach records that are really the office/HQ (see FRANCHISOR_USERS),
-    not a working coach with their own item business - they never appear
-    on the Item Access grid (there's nothing meaningful to tick: a
-    franchisor login already sees every item regardless of Item Default,
-    see invoices.get_link_options("Item")) and never get auto-added to a
-    document's resource access either, since HQ never has a public coach
-    profile for any of this to show up on.
-    """
-    if not _has_doctype("Coach"):
-        return set()
-
-    meta = frappe.get_meta("Coach")
-    login_fields = [fieldname for fieldname in COACH_LOGIN_FIELDS if meta.has_field(fieldname)]
-
-    hq_names = set()
-    for fieldname in login_fields:
-        hq_names.update(frappe.get_all(
-            "Coach",
-            filters={fieldname: ["in", list(FRANCHISOR_USERS)]},
-            pluck="name",
-        ))
-
-    return hq_names
-
-
 def _has_doctype(doctype):
     return bool(frappe.db.exists("DocType", doctype))
 
@@ -118,18 +91,13 @@ def get_item_access_grid():
         limit_page_length=5000,
     )
 
-    hq_coach_names = _get_hq_coach_names()
-
-    coaches = [
-        coach for coach in frappe.get_all(
-            "Coach",
-            filters={"company": ["is", "set"]},
-            fields=["name", "coach_name", "company"],
-            order_by="coach_name asc, name asc",
-            limit_page_length=5000,
-        )
-        if coach.get("name") not in hq_coach_names
-    ]
+    coaches = frappe.get_all(
+        "Coach",
+        filters={"company": ["is", "set"]},
+        fields=["name", "coach_name", "company"],
+        order_by="coach_name asc, name asc",
+        limit_page_length=5000,
+    )
 
     coach_companies = sorted({coach.get("company") for coach in coaches if coach.get("company")})
 
@@ -322,16 +290,11 @@ def grant_item_access_to_all_coaches(item_code=None, show_on_site=None):
     if not item_code or not frappe.db.exists("Item", item_code):
         frappe.throw(_("Item not found."))
 
-    hq_coach_names = _get_hq_coach_names()
-
-    coach_names = [
-        name for name in frappe.get_all(
-            "Coach",
-            filters={"company": ["is", "set"]},
-            pluck="name",
-        )
-        if name not in hq_coach_names
-    ]
+    coach_names = frappe.get_all(
+        "Coach",
+        filters={"company": ["is", "set"]},
+        pluck="name",
+    )
 
     skipped = []
 
@@ -401,14 +364,11 @@ def _get_coach_names_with_access_to_items(item_codes):
     if not companies:
         return set()
 
-    coach_names = frappe.get_all(
+    return set(frappe.get_all(
         "Coach",
         filters={"company": ["in", list(companies)]},
         pluck="name",
-    )
-
-    hq_coach_names = _get_hq_coach_names()
-    return {name for name in coach_names if name not in hq_coach_names}
+    ))
 
 
 def _resync_practice_document_coaches(practice_document_name):
