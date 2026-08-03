@@ -51,6 +51,22 @@
     banner.style.color = isError ? "#C01C3E" : "#258D3B";
   }
 
+  function itemLabel(itemCode) {
+    const item = state.items.find(function (i) { return i.name === itemCode; });
+    return item ? item.label : itemCode;
+  }
+
+  function linkedItemsSummary(document_) {
+    const linkedItems = document_.linked_items || [];
+
+    if (!linkedItems.length) {
+      return '<div class="dashboard-field-hint" style="margin-bottom:6px;">Not linked to any item yet.</div>';
+    }
+
+    const labels = linkedItems.map(itemLabel).join(", ");
+    return '<div style="margin-bottom:6px;"><strong>Linked to:</strong> ' + escapeHtml(labels) + '</div>';
+  }
+
   function renderRow(document_) {
     const options = state.items.map(function (item) {
       const selected = (document_.linked_items || []).indexOf(item.name) !== -1 ? "selected" : "";
@@ -62,6 +78,7 @@
       + '<td>' + escapeHtml(document_.document_type) + '</td>'
       + '<td>' + escapeHtml(document_.resource_availability || "—") + '</td>'
       + '<td>'
+        + linkedItemsSummary(document_)
         + '<select multiple size="4" class="dashboard-select" style="min-width:260px;" data-linked-items data-document="' + escapeHtml(document_.name) + '">'
           + options
         + '</select>'
@@ -70,16 +87,32 @@
       + '</tr>';
   }
 
-  function renderTable() {
+  function filteredDocuments(searchText) {
+    if (!searchText) return state.documents;
+
+    const needle = searchText.toLowerCase();
+
+    return state.documents.filter(function (document_) {
+      if ((document_.label || "").toLowerCase().indexOf(needle) !== -1) return true;
+
+      return (document_.linked_items || []).some(function (itemCode) {
+        return itemLabel(itemCode).toLowerCase().indexOf(needle) !== -1;
+      });
+    });
+  }
+
+  function renderTable(searchText) {
     const body = el("workshopResourcesTableBody");
     if (!body) return;
 
-    if (!state.documents.length) {
+    const rows = filteredDocuments(searchText);
+
+    if (!rows.length) {
       body.innerHTML = '<tr><td colspan="4" class="dashboard-empty">No documents found.</td></tr>';
       return;
     }
 
-    body.innerHTML = state.documents.map(renderRow).join("");
+    body.innerHTML = rows.map(renderRow).join("");
 
     body.querySelectorAll("[data-linked-items]").forEach(function (select) {
       select.addEventListener("change", function () {
@@ -107,9 +140,9 @@
       if (document_) document_.linked_items = selectedItemCodes;
 
       showMessage("Saved - coach access to this document has been updated to match.");
+      renderTable(el("workshopResourcesSearch") ? el("workshopResourcesSearch").value : "");
     } catch (error) {
       showMessage(error.message || "Could not save this change.", true);
-    } finally {
       select.disabled = false;
     }
   }
@@ -124,7 +157,7 @@
       const result = await apiPost(`${API}.get_workshop_resources`, {});
       state.documents = result.documents || [];
       state.items = result.items || [];
-      renderTable();
+      renderTable(el("workshopResourcesSearch") ? el("workshopResourcesSearch").value : "");
     } catch (error) {
       body.innerHTML = '<tr><td colspan="4" class="dashboard-empty">' + escapeHtml(error.message || "Could not load documents.") + '</td></tr>';
     }
@@ -160,6 +193,13 @@
     if (!el("workshopResourcesTableBody")) return;
 
     initSectionTabs();
+
+    const search = el("workshopResourcesSearch");
+    if (search) {
+      search.addEventListener("input", Dashboard.debounce(function () {
+        renderTable(search.value);
+      }, 200));
+    }
   }
 
   if (document.readyState === "loading") {
