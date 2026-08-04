@@ -38,7 +38,13 @@
 
 .dashboard-doc-list-table th:last-child,
 .dashboard-doc-list-table td:last-child {
-  width: 120px;
+  width: 200px;
+}
+
+.dashboard-doc-list-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .dashboard-doc-list-title {

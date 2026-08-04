@@ -182,7 +182,7 @@ def get_my_documents_by_type():
 		fields=[
 			"name", "document_title", "document_code", "document_version",
 			"document_type", "status", "mandatory", "due_date",
-			"assigned_date", "completed_on",
+			"assigned_date", "completed_on", "document_file",
 		],
 		order_by="assigned_date desc",
 		ignore_permissions=True,

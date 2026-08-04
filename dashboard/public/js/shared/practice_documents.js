@@ -108,6 +108,9 @@
     var viewUrl = isResource
       ? dashboardBase() + "/document_view?practice_document=" + encodeURIComponent(row.name)
       : dashboardBase() + "/document_view?name=" + encodeURIComponent(row.name);
+    var downloadUrl = isResource
+      ? "/api/method/" + API + ".get_resource_document_file?practice_document=" + encodeURIComponent(row.name)
+      : "/api/method/" + API + ".get_my_document_file?requirement_name=" + encodeURIComponent(row.name);
 
     var statusCell;
 
@@ -136,7 +139,12 @@
         "</td>" +
         "<td>" + (row.due_date ? escapeHtml(formatDate(row.due_date)) : "&mdash;") + "</td>" +
         "<td>" + statusCell + "</td>" +
-        '<td class="dashboard-text-right"><a class="dashboard-btn dashboard-btn-primary" href="' + viewUrl + '">Open</a></td>' +
+        '<td class="dashboard-text-right dashboard-doc-list-actions">' +
+          '<a class="dashboard-btn dashboard-btn-primary" href="' + viewUrl + '">Open</a>' +
+          (row.document_file
+            ? '<a class="dashboard-btn dashboard-btn-light" href="' + downloadUrl + '" download>Download</a>'
+            : "") +
+        "</td>" +
       "</tr>"
     );
   }
