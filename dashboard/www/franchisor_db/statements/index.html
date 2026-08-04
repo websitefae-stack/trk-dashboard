@@ -1,0 +1,68 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Statements</h1>
+          <p class="dashboard-page-subtitle">Every client with an outstanding balance - send a statement to one, several, or all of them at once.</p>
+        </div>
+
+        <div class="dashboard-page-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="statementsRefresh">Refresh</button>
+        </div>
+      </div>
+
+      <div class="dashboard-card dashboard-filter-bar">
+        <div class="dashboard-filter-field">
+          <label for="statementsCoachSelector">View coach clients</label>
+          <select class="dashboard-select" id="statementsCoachSelector">
+            <option value="__all_coaches__" selected>All Coaches</option>
+            <option value="{{ current_coach }}">{{ current_coach_label }}</option>
+            {% for coach in coach_options %}
+              {% if coach.value != current_coach %}
+                <option value="{{ coach.value }}">{{ coach.label }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Outstanding Balances</div>
+          <div class="dashboard-table-count" id="statementsCount">Loading...</div>
+        </div>
+
+        <div class="dashboard-page-actions" style="margin-bottom:12px;">
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="statementsSendSelected" disabled>Send to Selected</button>
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="statementsSendAll">Send to All</button>
+        </div>
+
+        <div id="statementsStatus" class="dashboard-empty" style="display:none;"></div>
+
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table" id="statementsTable">
+            <thead>
+              <tr>
+                <th style="width:36px;"><input type="checkbox" id="statementsSelectAll"></th>
+                <th>Client</th>
+                <th>Outstanding Invoices</th>
+                <th class="dashboard-text-right">Total Outstanding</th>
+                <th class="dashboard-text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="statementsTableBody">
+              <tr><td colspan="5" class="dashboard-empty">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
