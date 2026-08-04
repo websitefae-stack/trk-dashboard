@@ -476,12 +476,27 @@ def sync_practice_document_resource_access(doc, method=None):
     """
     Practice Document.on_update hook (see hooks.py's doc_events) - Linked
     Items is managed directly on the document in the Frappe Desk, so this
-    is the only thing that keeps Resource Availability, Document Purpose
-    and the coach list in sync with it. Runs on every save regardless of
-    whether Linked Items actually changed (there's no reliable "did this
-    field change" signal available from a plain on_update hook, and
-    resyncing is cheap and idempotent) - deliberately not skipped just
-    because Linked Items is now empty, since clearing it out is exactly
-    when any previously auto-granted coach rows need removing too.
+    is the only thing that keeps Resource Availability and the coach list
+    in sync with it. Runs on every save regardless of whether Linked
+    Items actually changed (there's no reliable "did this field change"
+    signal available from a plain on_update hook, and resyncing is cheap
+    and idempotent) - deliberately not skipped just because Linked Items
+    is now empty, since clearing it out is exactly when any previously
+    auto-granted coach rows need removing too.
+
+    Wrapped so this can never block the save it's hooked onto - a
+    document being saved successfully always matters more than this
+    reconciliation happening to complete in the same request (a document
+    still without its Selected Coaches list can be caught by anyone
+    saving it again, or by re-running the resync patch, but a document
+    that can't be saved at all is a much bigger problem). Specifically
+    needed after a MySQL "Truncated incorrect DECIMAL value" error on
+    this site's Frappe version (16.14.0) turned out to survive even
+    switching the update to a plain parameterised SQL statement - so
+    whatever's actually causing it sits deeper than anything this app's
+    own code controls.
     """
-    _resync_practice_document_coaches(doc.name)
+    try:
+        _resync_practice_document_coaches(doc.name)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Practice Document Resource Resync Failed - {doc.name}")
