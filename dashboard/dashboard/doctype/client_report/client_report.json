@@ -17,6 +17,7 @@
   "created_by_user",
   "content_section",
   "content",
+  "attachment",
   "sharing_section",
   "show_on_portal",
   "shared_on_portal_on",
@@ -78,6 +79,12 @@
    "fieldname": "content",
    "fieldtype": "Text Editor",
    "label": "Content"
+  },
+  {
+   "description": "Uploaded privately - only viewable/downloadable by whoever can already access this client (or the client themselves, if this report is shared on their portal), never a direct public link.",
+   "fieldname": "attachment",
+   "fieldtype": "Attach",
+   "label": "Attachment"
   },
   {
    "fieldname": "sharing_section",

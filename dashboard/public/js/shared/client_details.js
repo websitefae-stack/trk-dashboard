@@ -1676,6 +1676,54 @@
       banner.style.color = isError ? "#C01C3E" : "#258D3B";
     }
 
+    function base64ToBlob(base64, contentType) {
+      const binary = window.atob(base64 || "");
+      const bytes = new Uint8Array(binary.length);
+
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+
+      return new Blob([bytes], { type: contentType || "application/octet-stream" });
+    }
+
+    // Opened as a Blob URL rather than a plain link straight to the file -
+    // the file is private (no attached_to_doctype), so a direct link 403s
+    // for anyone who isn't its uploader; this goes through
+    // get_client_report_attachment() instead, which proxies it after the
+    // same report-access check as the rest of this tab.
+    async function openReportAttachment(name) {
+      try {
+        const data = await apiPostRaw("dashboard.api.shared.client_reports.get_client_report_attachment", { name: name });
+        const blob = base64ToBlob(data.content_base64, data.content_type);
+        const url = URL.createObjectURL(blob);
+
+        window.open(url, "_blank");
+        setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+      } catch (error) {
+        showError(error.message || "Could not open this attachment.");
+      }
+    }
+
+    async function downloadReportAttachment(name) {
+      try {
+        const data = await apiPostRaw("dashboard.api.shared.client_reports.get_client_report_attachment", { name: name });
+        const blob = base64ToBlob(data.content_base64, data.content_type);
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = data.filename || "attachment";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+      } catch (error) {
+        showError(error.message || "Could not download this attachment.");
+      }
+    }
+
     function renderReportsTable() {
       const body = el("clientReportsTableBody");
       if (!body) return;
@@ -1687,7 +1735,12 @@
 
       body.innerHTML = reportsState.reports.map(function (report) {
         return '<tr>'
-          + '<td>' + escapeHtml(report.title || "—") + '</td>'
+          + '<td>'
+            + escapeHtml(report.title || "—")
+            + (report.attachment
+              ? '<div class="dashboard-doc-list-meta">📎 ' + escapeHtml(report.attachment_file_name || "Attachment") + '</div>'
+              : '')
+          + '</td>'
           + '<td>' + escapeHtml(formatReportDate(report.report_date)) + '</td>'
           + '<td>' + escapeHtml(report.coach_label || "—") + '</td>'
           + '<td>'
@@ -1698,6 +1751,10 @@
           + '</td>'
           + '<td>' + escapeHtml(formatReportDateTime(report.last_emailed_on)) + '</td>'
           + '<td class="dashboard-action-cell">'
+            + (report.attachment
+              ? '<button type="button" class="dashboard-link-btn" data-report-view data-name="' + escapeHtml(report.name) + '">View</button>'
+                + '<button type="button" class="dashboard-link-btn" data-report-download data-name="' + escapeHtml(report.name) + '">Download</button>'
+              : '')
             + '<button type="button" class="dashboard-link-btn" data-report-edit data-name="' + escapeHtml(report.name) + '">Edit</button>'
             + '<button type="button" class="dashboard-link-btn" data-report-email data-name="' + escapeHtml(report.name) + '">Email</button>'
             + '<button type="button" class="dashboard-link-btn" data-report-delete data-name="' + escapeHtml(report.name) + '">Delete</button>'
@@ -1726,6 +1783,18 @@
       body.querySelectorAll("[data-report-delete]").forEach(function (button) {
         button.addEventListener("click", function () {
           deleteClientReport(button.dataset.name);
+        });
+      });
+
+      body.querySelectorAll("[data-report-view]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          openReportAttachment(button.dataset.name);
+        });
+      });
+
+      body.querySelectorAll("[data-report-download]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          downloadReportAttachment(button.dataset.name);
         });
       });
     }
@@ -1795,9 +1864,15 @@
       const contentField = el("clientReportContent");
       const portalField = el("clientReportShowOnPortal");
       const statusEl = el("clientReportModalStatus");
+      const attachmentField = el("clientReportAttachment");
+      const attachmentFileField = el("clientReportAttachmentFile");
+      const attachmentCurrentEl = el("clientReportAttachmentCurrent");
+      const attachmentRemoveField = el("clientReportAttachmentRemove");
 
       if (statusEl) statusEl.textContent = "";
       if (nameField) nameField.value = name || "";
+      if (attachmentFileField) attachmentFileField.value = "";
+      if (attachmentRemoveField) attachmentRemoveField.checked = false;
 
       if (name) {
         if (titleField) titleField.textContent = "Edit Report";
@@ -1808,6 +1883,13 @@
           if (dateField) dateField.value = report.report_date || "";
           if (contentField) contentField.value = report.content || "";
           if (portalField) portalField.checked = !!report.show_on_portal;
+          if (attachmentField) attachmentField.value = report.attachment || "";
+
+          if (attachmentCurrentEl) {
+            attachmentCurrentEl.innerHTML = report.attachment
+              ? "Currently attached: " + escapeHtml(report.attachment_file_name || "Attachment")
+              : "";
+          }
         } catch (error) {
           showError(error.message || "Could not load this report.");
           return;
@@ -1818,6 +1900,8 @@
         if (dateField) dateField.value = new Date().toISOString().slice(0, 10);
         if (contentField) contentField.value = "";
         if (portalField) portalField.checked = false;
+        if (attachmentField) attachmentField.value = "";
+        if (attachmentCurrentEl) attachmentCurrentEl.innerHTML = "";
       }
 
       modal.classList.add("show");
@@ -1826,6 +1910,28 @@
     function closeClientReportModal() {
       const modal = el("clientReportModal");
       if (modal) modal.classList.remove("show");
+    }
+
+    async function uploadReportAttachmentFile(file) {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("is_private", "1");
+      formData.append("folder", "Home/Attachments");
+
+      const response = await fetch("/api/method/upload_file", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-Frappe-CSRF-Token": getCsrfToken() },
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.exc) {
+        throw new Error("Could not upload the attachment.");
+      }
+
+      return (data.message && data.message.file_url) || "";
     }
 
     async function saveClientReport() {
@@ -1837,6 +1943,9 @@
       const showOnPortal = el("clientReportShowOnPortal") ? el("clientReportShowOnPortal").checked : false;
       const statusEl = el("clientReportModalStatus");
       const saveBtn = el("clientReportSave");
+      const attachmentFileField = el("clientReportAttachmentFile");
+      const attachmentRemoveField = el("clientReportAttachmentRemove");
+      const attachmentField = el("clientReportAttachment");
 
       if (!title) {
         if (statusEl) statusEl.textContent = "Title is required.";
@@ -1849,12 +1958,27 @@
       }
 
       try {
+        let attachment;
+        const chosenFile = attachmentFileField && attachmentFileField.files && attachmentFileField.files[0];
+
+        if (chosenFile) {
+          if (statusEl) statusEl.textContent = "Uploading attachment...";
+          attachment = await uploadReportAttachmentFile(chosenFile);
+        } else if (attachmentRemoveField && attachmentRemoveField.checked) {
+          attachment = "";
+        }
+        // Otherwise leave attachment undefined - save_client_report() only
+        // ever touches it when this is explicitly sent.
+
+        if (statusEl) statusEl.textContent = "";
+
         const result = await apiPostRaw("dashboard.api.shared.client_reports.save_client_report", {
           name: name || undefined,
           client_name: client,
           title: title,
           report_date: reportDate,
-          content: content
+          content: content,
+          attachment: attachment
         });
 
         // Show on Portal is its own toggle (set_report_show_on_portal) so

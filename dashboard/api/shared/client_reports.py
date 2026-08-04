@@ -69,6 +69,7 @@ def get_client_reports(client_name=None):
         fields=[
             "name", "title", "report_date", "coach", "show_on_portal",
             "shared_on_portal_on", "last_emailed_on", "email_send_count", "modified",
+            "attachment",
         ],
         order_by="report_date desc, modified desc",
         limit_page_length=500,
@@ -77,6 +78,7 @@ def get_client_reports(client_name=None):
 
     for row in rows:
         row["coach_label"] = frappe.db.get_value("Coach", row.get("coach"), "coach_name") if row.get("coach") else ""
+        row["attachment_file_name"] = _attachment_file_name(row.get("attachment"))
 
     return rows
 
@@ -93,6 +95,8 @@ def get_client_report(name=None):
         "title": doc.title,
         "report_date": doc.report_date,
         "content": doc.content or "",
+        "attachment": doc.attachment or "",
+        "attachment_file_name": _attachment_file_name(doc.attachment),
         "show_on_portal": int(doc.show_on_portal or 0),
         "shared_on_portal_on": doc.shared_on_portal_on,
         "last_emailed_on": doc.last_emailed_on,
@@ -100,8 +104,15 @@ def get_client_report(name=None):
     }
 
 
+def _attachment_file_name(attachment):
+    if not attachment:
+        return ""
+
+    return str(attachment).split("?")[0].split("/")[-1] or "Attachment"
+
+
 @frappe.whitelist()
-def save_client_report(name=None, client_name=None, title=None, report_date=None, content=None):
+def save_client_report(name=None, client_name=None, title=None, report_date=None, content=None, attachment=None):
     _require_logged_in_user()
 
     name = (name or "").strip()
@@ -132,10 +143,51 @@ def save_client_report(name=None, client_name=None, title=None, report_date=None
     doc.title = title
     doc.report_date = report_date or doc.report_date or nowdate()
     doc.content = content or ""
+
+    # None (param not sent at all) leaves whatever's already attached
+    # untouched; "" is a deliberate clear; anything else is a new upload.
+    if attachment is not None:
+        doc.attachment = attachment
+
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 
     return {"ok": 1, "name": doc.name}
+
+
+@frappe.whitelist()
+def get_client_report_attachment(name=None):
+    """
+    Proxies the report's attachment as base64 + mime type rather than a
+    raw/"download" response, so the browser can render it (image, PDF,
+    etc) via a Blob URL instead of forcing it straight to disk - same
+    pattern as notifications.get_notification_attachment(). Access is the
+    same _ensure_report_access() check as the rest of this module, so
+    this never exposes the file to anyone who couldn't already open the
+    report itself.
+    """
+    import base64
+    import mimetypes
+
+    doc = _ensure_report_access(name)
+
+    if not doc.attachment:
+        frappe.throw(_("This report has no attachment."))
+
+    from frappe.utils.file_manager import get_file
+
+    fname, fcontent = get_file(doc.attachment)
+
+    if not isinstance(fcontent, (bytes, bytearray)):
+        fcontent = str(fcontent).encode("utf-8")
+
+    content_type = mimetypes.guess_type(fname)[0] or "application/octet-stream"
+
+    return {
+        "filename": fname,
+        "content_type": content_type,
+        "content_base64": base64.b64encode(fcontent).decode("ascii"),
+    }
 
 
 @frappe.whitelist()
