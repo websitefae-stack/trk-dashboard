@@ -373,24 +373,29 @@ def _get_coach_names_with_access_to_items(item_codes):
 
 def _resync_practice_document_coaches(practice_document_name):
     """
-    Reconciles one Practice Document's "Available to Coaches" list against
-    who currently qualifies via EITHER Item Access to its Linked Items OR
-    Brand-Based Access (practice_documents.py) - a coach keeps the row as
-    long as at least one route still applies, and it's only ever removed
-    once NEITHER does (each route's own flag is kept in sync with reality
-    on every pass, rather than one route deleting a row the other route
-    still justifies). Manually-added rows (neither flag set) are never
-    touched. Deliberately works on the child rows directly (frappe.get_doc
-    on the row's own doctype) rather than loading and saving the whole
-    Practice Document, since this app doesn't own whatever Server Scripts
-    are attached to that doctype in Desk and a full save could trigger
-    them unexpectedly for what's meant to be a narrow, surgical sync.
+    Reconciles one Practice Document's "Available to Coaches" list.
 
-    This is the one place both routes are reconciled together, so it's
-    called from both the Item Access side (this module's own hook/API
-    calls below) and the Brand Access side
+    Item Access is authoritative the moment this document has any Linked
+    Items: access is decided SOLELY by Item Access to at least one of
+    them - Brand-Based Access isn't consulted at all in that case, and
+    even a manually-added row (a Desk override) is removed if the coach
+    isn't currently item-entitled, since once an item is linked the
+    whole point is that item access is the one gate that matters. A
+    document with NO Linked Items falls back to Brand-Based Access as
+    its only automatic mechanism, and there a manually-added row IS left
+    alone, since nothing else is deciding access for that document.
+
+    Deliberately works on the child rows directly (frappe.get_doc on the
+    row's own doctype) rather than loading and saving the whole Practice
+    Document, since this app doesn't own whatever Server Scripts are
+    attached to that doctype in Desk and a full save could trigger them
+    unexpectedly for what's meant to be a narrow, surgical sync.
+
+    This is the one place Item Access and Brand Access are reconciled,
+    so it's called from both the Item Access side (this module's own
+    hook/API calls below) and the Brand Access side
     (practice_documents._resync_practice_document_brand_access) rather
-    than each maintaining its own separate, flag-blind resync.
+    than each maintaining its own separate resync.
     """
     if not practice_document_name or not frappe.db.exists(PRACTICE_DOCUMENT_DOCTYPE, practice_document_name):
         return
@@ -423,24 +428,6 @@ def _resync_practice_document_coaches(practice_document_name):
                 ("Selected Coaches", practice_document_name),
             )
 
-    item_target_coach_names = _get_coach_names_with_access_to_items(linked_item_codes)
-
-    # Local import - practice_documents.py already imports from this
-    # module at load time, so importing it back at module level here
-    # would be circular. By the time this function actually runs, both
-    # modules are fully loaded.
-    from dashboard.api.shared.practice_documents import _get_coach_names_with_brand_access, _get_practice_document_brand_values
-
-    brand_doc = frappe.get_doc(PRACTICE_DOCUMENT_DOCTYPE, practice_document_name)
-    brand_target_coach_names = _get_coach_names_with_brand_access(_get_practice_document_brand_values(brand_doc))
-    # Brand access is itself gated by Item Access when this document has
-    # Linked Items - a brand-matched coach only keeps the resource if
-    # they're also entitled to at least one linked item.
-    if linked_item_codes:
-        brand_target_coach_names = brand_target_coach_names & item_target_coach_names
-
-    target_coach_names = item_target_coach_names | brand_target_coach_names
-
     existing_rows = frappe.get_all(
         PRACTICE_DOCUMENT_COACH_DOCTYPE,
         filters={"parent": practice_document_name, "parenttype": PRACTICE_DOCUMENT_DOCTYPE},
@@ -449,36 +436,59 @@ def _resync_practice_document_coaches(practice_document_name):
 
     covered_coach_names = set()
 
-    for row in existing_rows:
-        coach_name = row.get("coach")
-        if coach_name:
-            covered_coach_names.add(coach_name)
+    if linked_item_codes:
+        target_coach_names = _get_coach_names_with_access_to_items(linked_item_codes)
+        item_target_coach_names = target_coach_names
+        brand_target_coach_names = set()
 
-        was_auto_granted = row.get("granted_via_item_access") or row.get("granted_via_brand_access")
-        if not was_auto_granted:
-            continue
+        for row in existing_rows:
+            coach_name = row.get("coach")
+            if coach_name:
+                covered_coach_names.add(coach_name)
 
-        still_item_entitled = coach_name in item_target_coach_names
-        still_brand_entitled = coach_name in brand_target_coach_names
+            if coach_name not in target_coach_names:
+                # No exception for a hand-added row here - Item Access is
+                # the sole gate once an item is linked.
+                frappe.db.delete(PRACTICE_DOCUMENT_COACH_DOCTYPE, {"name": row.get("name")})
+                covered_coach_names.discard(coach_name)
+                continue
 
-        if not still_item_entitled and not still_brand_entitled:
-            # Raw table delete rather than frappe.delete_doc() - these are
-            # child-table rows, not standalone documents, and this is a
-            # narrow reconciliation step with no need for the full
-            # document-deletion lifecycle (hooks, deleted-doc log, etc).
-            frappe.db.delete(PRACTICE_DOCUMENT_COACH_DOCTYPE, {"name": row.get("name")})
-            continue
+            # Still item-entitled - keep the row, and make sure its flags
+            # reflect the true (item-only) reason, in case it was
+            # previously granted via brand before this item was linked.
+            if not row.get("granted_via_item_access") or row.get("granted_via_brand_access"):
+                frappe.db.set_value(
+                    PRACTICE_DOCUMENT_COACH_DOCTYPE, row.get("name"),
+                    {"granted_via_item_access": 1, "granted_via_brand_access": 0},
+                    update_modified=False,
+                )
+    else:
+        # No Linked Items - Brand-Based Access is the only automatic
+        # mechanism. Local import - practice_documents.py already
+        # imports from this module at load time, so importing it back at
+        # module level here would be circular; by the time this function
+        # actually runs, both modules are fully loaded.
+        from dashboard.api.shared.practice_documents import _get_coach_names_with_brand_access, _get_practice_document_brand_values
 
-        # Still entitled via at least one route - keep the row, but make
-        # sure each flag reflects which route(s) currently apply, so a
-        # later resync on either side can correctly decide to remove it.
-        updates = {}
-        if bool(row.get("granted_via_item_access")) != still_item_entitled:
-            updates["granted_via_item_access"] = 1 if still_item_entitled else 0
-        if bool(row.get("granted_via_brand_access")) != still_brand_entitled:
-            updates["granted_via_brand_access"] = 1 if still_brand_entitled else 0
-        if updates:
-            frappe.db.set_value(PRACTICE_DOCUMENT_COACH_DOCTYPE, row.get("name"), updates, update_modified=False)
+        brand_doc = frappe.get_doc(PRACTICE_DOCUMENT_DOCTYPE, practice_document_name)
+        target_coach_names = _get_coach_names_with_brand_access(_get_practice_document_brand_values(brand_doc))
+        brand_target_coach_names = target_coach_names
+        item_target_coach_names = set()
+
+        for row in existing_rows:
+            coach_name = row.get("coach")
+            if coach_name:
+                covered_coach_names.add(coach_name)
+
+            if not row.get("granted_via_brand_access"):
+                # Hand-added (or a leftover item-only flag with no items
+                # currently linked) - nothing else is deciding access for
+                # this document, so leave it alone.
+                continue
+
+            if coach_name not in target_coach_names:
+                frappe.db.delete(PRACTICE_DOCUMENT_COACH_DOCTYPE, {"name": row.get("name")})
+                covered_coach_names.discard(coach_name)
 
     missing_coach_names = target_coach_names - covered_coach_names
 
