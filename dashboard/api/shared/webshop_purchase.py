@@ -130,6 +130,116 @@ def get_purchasable_item(item_code=None):
 
 
 @frappe.whitelist(allow_guest=True)
+def get_item_or_variants(item_code=None):
+    """
+    Public checkout-page lookup that also handles a variant template
+    (Item.has_variants=1, e.g. "Summer Resilience Support" sold in a few
+    different age-group/length options) - the checkout page can't just
+    price it directly the way get_purchasable_item() does a plain item,
+    since a template is never itself directly sellable; the actual price
+    only exists on each of its real variant Items.
+
+    Returns {"is_template": False, "item": {...}} for a plain item
+    (identical shape to get_purchasable_item()), or {"is_template": True,
+    "item_name", "description", "attributes": [...], "variants": [...]}
+    for a template - "attributes" is what to prompt for (one dropdown
+    per entry), "variants" is every currently purchasable variant with
+    its own attribute values and price, so the browser can resolve a
+    full selection to one specific item_code and rate without a second
+    round-trip. Skips (rather than errors on) any variant that isn't
+    actually available for online purchase yet - a template with at
+    least one purchasable variant should still work even if others
+    aren't priced/shown-on-site yet.
+    """
+    settings = get_settings()
+
+    if not settings.enabled:
+        frappe.throw(_("Online checkout isn't available right now."))
+
+    item_code = (item_code or "").strip()
+
+    if not item_code or not frappe.db.exists("Item", item_code):
+        frappe.throw(_("Item not found."))
+
+    item_doc = frappe.get_doc("Item", item_code)
+
+    if not item_doc.has_variants:
+        item = _get_purchasable_item(item_code, settings.company)
+        return {
+            "is_template": False,
+            "item": {
+                "item_code": item["item_code"],
+                "item_name": item["item_name"],
+                "description": item["description"],
+                "rate": item["rate"],
+                "currency": item["currency"],
+            },
+        }
+
+    variant_rows = frappe.get_all(
+        "Item",
+        filters={"variant_of": item_code, "disabled": 0},
+        fields=["name"],
+        limit_page_length=500,
+    )
+
+    attribute_names = []
+    attribute_values = {}
+    variants = []
+
+    for row in variant_rows:
+        try:
+            purchasable = _get_purchasable_item(row.name, settings.company)
+        except Exception:
+            # Not priced/shown-on-site for this company yet - skip it
+            # rather than fail the whole template.
+            continue
+
+        attr_rows = frappe.get_all(
+            "Item Variant Attribute",
+            filters={"parent": row.name, "parenttype": "Item"},
+            fields=["attribute", "attribute_value"],
+            order_by="idx asc",
+        )
+
+        attrs = {}
+
+        for attr_row in attr_rows:
+            attrs[attr_row.attribute] = attr_row.attribute_value
+
+            if attr_row.attribute not in attribute_names:
+                attribute_names.append(attr_row.attribute)
+
+            attribute_values.setdefault(attr_row.attribute, [])
+
+            if attr_row.attribute_value not in attribute_values[attr_row.attribute]:
+                attribute_values[attr_row.attribute].append(attr_row.attribute_value)
+
+        variants.append({
+            "item_code": row.name,
+            "attributes": attrs,
+            "item_name": purchasable["item_name"],
+            "description": purchasable["description"],
+            "rate": purchasable["rate"],
+            "currency": purchasable["currency"],
+        })
+
+    if not variants:
+        frappe.throw(_("This item isn't available for online purchase yet."))
+
+    return {
+        "is_template": True,
+        "item_name": item_doc.item_name or item_code,
+        "description": item_doc.description or "",
+        "attributes": [
+            {"attribute": name, "values": attribute_values.get(name, [])}
+            for name in attribute_names
+        ],
+        "variants": variants,
+    }
+
+
+@frappe.whitelist(allow_guest=True)
 def create_checkout_session(
     item_code=None,
     qty=1,
