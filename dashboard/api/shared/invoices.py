@@ -2393,11 +2393,31 @@ def get_client_statement_email_defaults(client_name=None):
 STATEMENT_LETTERHEAD = "Resilient Kid"
 
 
-def _statement_letterhead_html():
+def _statement_letterhead_html(context_doc=None):
+    """
+    The Letter Head's own content is a Jinja template (it picks a
+    different logo depending on the client's own type - Kid/Teen/Adult
+    (People)/School/Franchise - via {% set %}/{% if %} blocks reading
+    doc.custom_client), so it has to be rendered through
+    frappe.render_template() with a real doc in context, not just
+    concatenated as a raw string - that was the actual cause of the
+    "PDF generation failed because of broken image links" error: with
+    no doc to evaluate against, the Jinja never ran, and the resulting
+    HTML contained literal, unresolved {{ logo }}/{% ... %} text instead
+    of a real <img> tag.
+    """
     if not frappe.db.exists("Letter Head", STATEMENT_LETTERHEAD):
         return ""
 
-    return frappe.db.get_value("Letter Head", STATEMENT_LETTERHEAD, "content") or ""
+    content = frappe.db.get_value("Letter Head", STATEMENT_LETTERHEAD, "content") or ""
+    if not content:
+        return ""
+
+    try:
+        return frappe.render_template(content, {"doc": context_doc})
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Statement Letterhead Render Failed")
+        return ""
 
 
 def render_client_statement_html(client_name):
@@ -2414,6 +2434,11 @@ def render_client_statement_html(client_name):
 
     invoices, total_outstanding, currency = _get_client_outstanding_invoices(client_name)
 
+    # A real Sales Invoice belonging to this exact client, so the
+    # letterhead's Jinja (doc.custom_client, doc.company, ...) resolves
+    # correctly and picks that client's own logo.
+    letterhead_doc = frappe.get_doc("Sales Invoice", invoices[0].name)
+
     rows_html = "".join(
         "<tr>"
         f"<td style=\"padding:10px 6px;border-bottom:1px solid #E6EFEF;\">{_html_escape(invoice.name)}</td>"
@@ -2427,7 +2452,7 @@ def render_client_statement_html(client_name):
 
     return f"""
     <div style="font-family: Arial, Helvetica, sans-serif; color:#263238; max-width:720px; margin:0 auto;">
-      {_statement_letterhead_html()}
+      {_statement_letterhead_html(letterhead_doc)}
       <h2 style="margin:28px 0 4px;">Statement of Account</h2>
       <p style="margin:0 0 24px;color:#607d7d;">{frappe.utils.formatdate(nowdate(), "d MMMM yyyy")}</p>
 
@@ -2533,6 +2558,133 @@ def send_client_statement_email(client_name=None, recipient=None, subject=None, 
     frappe.sendmail(**kwargs)
 
     return {"ok": 1}
+
+
+@frappe.whitelist()
+def get_outstanding_client_balances(selected_coach=None):
+    """
+    Franchisor-only aggregate for the Statements page - one row per
+    client with at least one outstanding Sales Invoice (docstatus 1,
+    outstanding_amount > 0 - the same "outstanding" definition Invoices'
+    own default filter uses), scoped the same way the Invoices page
+    scopes by coach. Source for both browsing balances and sending a
+    statement (single row, or bulk via send_client_statements).
+    """
+    _require_logged_in_user()
+
+    if not _is_franchisor_user():
+        frappe.throw(_("You do not have permission to view this."), frappe.PermissionError)
+
+    current_coach = _get_current_coach()
+    if not current_coach:
+        frappe.throw(_("Your user is not linked to a Coach record."), frappe.PermissionError)
+
+    # Unlike the Invoices page (which defaults to the franchisor's own
+    # clients until "All Coaches" is deliberately chosen), Statements
+    # defaults to every coach's clients - the whole point of this page
+    # is franchise-wide oversight of outstanding balances.
+    selected_coach = (selected_coach or "").strip() or ALL_COACHES_VALUE
+
+    client_rows = _get_clients_for_invoice_scope(
+        current_coach=current_coach,
+        selected_coach=selected_coach,
+        dashboard_type=FRANCHISOR_DASHBOARD,
+    )
+    client_names = [row.get("name") for row in client_rows if row.get("name")]
+
+    if not client_names:
+        return {"rows": []}
+
+    invoice_rows = frappe.get_all(
+        "Sales Invoice",
+        filters={"custom_client": ["in", client_names], "docstatus": 1, "outstanding_amount": [">", 0]},
+        fields=["custom_client", "currency", "outstanding_amount"],
+        ignore_permissions=True,
+        limit_page_length=0,
+    )
+
+    aggregate = {}
+    for row in invoice_rows:
+        client_name = row.get("custom_client")
+        if not client_name:
+            continue
+        bucket = aggregate.setdefault(client_name, {"total": 0.0, "count": 0, "currency": row.get("currency") or "GBP"})
+        bucket["total"] += _to_float(row.get("outstanding_amount"))
+        bucket["count"] += 1
+
+    rows = [
+        {
+            "client": client_name,
+            "client_label": _client_display_name(client_name),
+            "invoice_count": bucket["count"],
+            "total_outstanding": bucket["total"],
+            "currency": bucket["currency"],
+        }
+        for client_name, bucket in aggregate.items()
+    ]
+    rows.sort(key=lambda row: row["client_label"].lower())
+
+    return {"rows": rows}
+
+
+def _send_one_client_statement(client_name):
+    """
+    Shared by the Statements page's single-row Send Statement and its
+    Send to Selected/Send to All - resolves the same default
+    recipient/subject/message the per-invoice Email Statement modal
+    would show, then sends exactly the way send_client_statement_email
+    already does for a single client clicked by hand.
+    """
+    email_options = get_client_email_options(client_name=client_name)
+    recipient = (email_options[0].get("value") if email_options else "") or ""
+
+    if not recipient:
+        frappe.throw(_("No email on file for this client."))
+
+    defaults = get_client_statement_email_defaults(client_name=client_name)
+
+    send_client_statement_email(
+        client_name=client_name,
+        recipient=recipient,
+        subject=defaults.get("subject"),
+        message=defaults.get("message"),
+    )
+
+
+@frappe.whitelist()
+def send_client_statements(client_names=None):
+    """
+    Statements page's Send to Selected/Send to All - one individual
+    email per client (never a single email to a combined list), each to
+    that client's own default recipient. Never lets one client's failure
+    (no outstanding invoices anymore, no email on file, etc) stop the
+    rest of the batch - collects failures instead and reports them back.
+    """
+    _require_logged_in_user()
+
+    if not _is_franchisor_user():
+        frappe.throw(_("You do not have permission to send statements."), frappe.PermissionError)
+
+    if isinstance(client_names, str):
+        client_names = json.loads(client_names)
+
+    client_names = [name for name in (client_names or []) if name]
+
+    if not client_names:
+        frappe.throw(_("Choose at least one client."))
+
+    sent = []
+    failed = []
+
+    for client_name in client_names:
+        try:
+            _send_one_client_statement(client_name)
+            sent.append(client_name)
+        except Exception as error:
+            frappe.log_error(frappe.get_traceback(), f"Bulk Statement Send Failed - {client_name}")
+            failed.append({"client": client_name, "label": _client_display_name(client_name), "error": str(error)})
+
+    return {"sent": len(sent), "failed": failed}
 
 
 @frappe.whitelist()
