@@ -203,6 +203,7 @@ def get_resource_document(practice_document):
 		"document_type": source.document_type,
 		"mandatory": source.mandatory,
 		"document_file": source.document_file,
+		"additional_files": _get_additional_files(source),
 		"summary": source.summary,
 		"document_text": source.document_text,
 		# Workshop Resources are internal-only, gated by Item Access - never
@@ -212,9 +213,49 @@ def get_resource_document(practice_document):
 	}
 
 
+def _get_additional_files(source):
+	"""[{"file": url, "label": label-or-filename}] for a Practice Document's
+	Additional Files table - read live off the Practice Document itself
+	rather than any snapshot, so a file added/removed there reaches
+	whoever's already been assigned or can see this document immediately."""
+	rows = []
+
+	for row in source.get("additional_files") or []:
+		file_url = row.get("file")
+		if not file_url:
+			continue
+
+		rows.append({
+			"file": file_url,
+			"label": row.get("label") or file_url.split("?")[0].split("/")[-1],
+		})
+
+	return rows
+
+
+def _serve_private_file(file_url):
+	if not file_url:
+		frappe.throw("No file is attached to this document.")
+
+	from frappe.utils.file_manager import get_file
+
+	fname, fcontent = get_file(file_url)
+
+	frappe.local.response.filename = fname
+	frappe.local.response.filecontent = fcontent
+	frappe.local.response.type = "download"
+
+
 @frappe.whitelist()
-def get_resource_document_file(practice_document):
-	"""Same private-attachment proxy as get_my_document_file(), scoped by resource visibility instead of requirement ownership."""
+def get_resource_document_file(practice_document, file_url=None):
+	"""
+	Same private-attachment proxy as get_my_document_file(), scoped by
+	resource visibility instead of requirement ownership. file_url is
+	optional - omitted, this serves the main Document File; given, it
+	must match one of this document's own Additional Files rows (never
+	trusted blind, so this can't be used to read an arbitrary private
+	file elsewhere on the site).
+	"""
 	ensure_logged_in()
 
 	if not practice_document or not frappe.db.exists(PRACTICE_DOCUMENT_DOCTYPE, practice_document):
@@ -228,26 +269,30 @@ def get_resource_document_file(practice_document):
 	if not _can_user_see_resource(source.as_dict()) and not _is_admin(frappe.session.user):
 		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
-	if not source.document_file:
-		frappe.throw("No file is attached to this document.")
+	if not file_url:
+		_serve_private_file(source.document_file)
+		return
 
-	from frappe.utils.file_manager import get_file
+	valid_files = {row.get("file") for row in _get_additional_files(source)}
 
-	fname, fcontent = get_file(source.document_file)
+	if file_url not in valid_files:
+		frappe.throw("You do not have permission to access this file.", frappe.PermissionError)
 
-	frappe.local.response.filename = fname
-	frappe.local.response.filecontent = fcontent
-	frappe.local.response.type = "download"
+	_serve_private_file(file_url)
 
 
 @frappe.whitelist()
-def get_my_document_file(requirement_name):
+def get_my_document_file(requirement_name, file_url=None):
 	"""
 	Coach Document Requirement.document_file is a copy of the Practice
 	Document's own Attach field value - the underlying File record is
 	still attached to the Practice Document, which coaches can't read
 	directly, so a direct link to it would 403. This proxies the
 	download after confirming the requesting user owns this requirement.
+	file_url is optional - omitted, this serves the requirement's own
+	document_file snapshot; given, it must match one of the linked
+	Practice Document's current Additional Files rows (read live, same
+	as get_my_document_requirement() - never trusted blind).
 	"""
 	ensure_logged_in()
 
@@ -259,16 +304,20 @@ def get_my_document_file(requirement_name):
 	if requirement.user != frappe.session.user and not _is_admin(frappe.session.user):
 		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
-	if not requirement.document_file:
-		frappe.throw("No file is attached to this document.")
+	if not file_url:
+		_serve_private_file(requirement.document_file)
+		return
 
-	from frappe.utils.file_manager import get_file
+	if not requirement.practice_document or not frappe.db.exists(PRACTICE_DOCUMENT_DOCTYPE, requirement.practice_document):
+		frappe.throw("You do not have permission to access this file.", frappe.PermissionError)
 
-	fname, fcontent = get_file(requirement.document_file)
+	source = frappe.get_doc(PRACTICE_DOCUMENT_DOCTYPE, requirement.practice_document)
+	valid_files = {row.get("file") for row in _get_additional_files(source)}
 
-	frappe.local.response.filename = fname
-	frappe.local.response.filecontent = fcontent
-	frappe.local.response.type = "download"
+	if file_url not in valid_files:
+		frappe.throw("You do not have permission to access this file.", frappe.PermissionError)
+
+	_serve_private_file(file_url)
 
 
 def _get_owned_requirement(requirement_name):
@@ -297,18 +346,14 @@ def get_my_document_requirement(requirement_name):
 	data = requirement.as_dict()
 
 	if requirement.practice_document and frappe.db.exists(PRACTICE_DOCUMENT_DOCTYPE, requirement.practice_document):
-		source = frappe.db.get_value(
-			PRACTICE_DOCUMENT_DOCTYPE,
-			requirement.practice_document,
-			["summary", "document_text", "document_purpose", "shareable_with", "client_action_required"],
-			as_dict=True,
-		)
+		source = frappe.get_doc(PRACTICE_DOCUMENT_DOCTYPE, requirement.practice_document)
 	else:
-		source = {}
+		source = None
 
-	data["summary"] = source.get("summary")
-	data["document_text"] = source.get("document_text")
-	data["can_allocate_to_client"] = (source.get("document_purpose") or "") in ("Client Resource", "Both")
+	data["summary"] = source.get("summary") if source else None
+	data["document_text"] = source.get("document_text") if source else None
+	data["can_allocate_to_client"] = ((source.get("document_purpose") if source else None) or "") in ("Client Resource", "Both")
+	data["additional_files"] = _get_additional_files(source) if source else []
 
 	return data
 

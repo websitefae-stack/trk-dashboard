@@ -106,6 +106,17 @@
   line-height: 1.6;
 }
 
+.dashboard-doc-additional-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.dashboard-doc-additional-file-row {
+  display: flex;
+}
+
 .dashboard-doc-checkbox-row {
   display: flex;
   align-items: flex-start;
