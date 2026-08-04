@@ -1,11 +1,16 @@
 """
 Dashboard-facing reads for Practice Document / Coach Document Requirement,
-and the "a document was allocated to you" notification. This deliberately
-never touches assignment, validation or completion - all of that already
-lives in the user's own Server Scripts / Client Script attached to these
-DocTypes in Frappe Desk. This file only reads what those scripts already
-produced, and notifies once a Coach Document Requirement has been
-inserted.
+and the "a document was allocated to you" notification. Mostly this
+deliberately never touches assignment, validation or completion - all of
+that already lives in the user's own Server Scripts / Client Script
+attached to these DocTypes in Frappe Desk, and this file only reads what
+those scripts already produced. The one exception is brand-based
+allocation (sync_practice_document_brand_requirements /
+sync_coach_brand_document_requirements below) - a new assignment route
+the Desk scripts have no concept of, so it's created here instead,
+by inserting a bare Coach Document Requirement and letting the existing
+"Prepare coach document requirement" Server Script (Before Insert) fill
+it in exactly as it would for one created by hand.
 """
 
 import frappe
@@ -13,10 +18,22 @@ from frappe.utils import now_datetime
 
 from dashboard.api.shared.permissions import ensure_logged_in, get_allowed_client_names
 from dashboard.api.shared.notifications import create_trk_notification
+from dashboard.api.shared.item_access import _get_coach_login
 
 COACH_DOCUMENT_REQUIREMENT_DOCTYPE = "Coach Document Requirement"
 PRACTICE_DOCUMENT_DOCTYPE = "Practice Document"
 CLIENT_DOCUMENT_SHARE_DOCTYPE = "Client Document Share"
+
+# fieldname on Practice Document -> the matching Coach Brand Access.brand_access
+# value (a Desk-only doctype, child table on Coach.coach_brand_access - see
+# resilient_domains' README "Coach Brand Access Fields" for its options).
+PRACTICE_DOCUMENT_BRAND_FIELDS = {
+	"brand_access_kid": "Kid",
+	"brand_access_teen": "Teen",
+	"brand_access_people": "People",
+	"brand_access_school": "School",
+	"brand_access_franchise": "Franchise",
+}
 
 
 def _is_admin(user):
@@ -603,3 +620,138 @@ def sync_requirement_snapshot_fields(doc, method=None):
 			)
 	except Exception:
 		frappe.log_error(frappe.get_traceback(), f"Requirement Snapshot Resync Failed - {doc.name}")
+
+
+def _get_coach_names_with_brand_access(brand_values):
+	if not brand_values or not frappe.db.exists("DocType", "Coach Brand Access"):
+		return set()
+
+	return set(frappe.get_all(
+		"Coach Brand Access",
+		filters={"brand_access": ["in", list(brand_values)], "parenttype": "Coach"},
+		pluck="parent",
+	))
+
+
+def _ensure_brand_requirement(practice_document_name, coach_name):
+	user = _get_coach_login(coach_name)
+	if not user:
+		return
+
+	frappe.get_doc({
+		"doctype": COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
+		"person_type": "Coach",
+		"coach": coach_name,
+		"user": user,
+		"practice_document": practice_document_name,
+	}).insert(ignore_permissions=True)
+
+
+def sync_practice_document_brand_requirements(doc, method=None):
+	"""
+	Practice Document.on_update hook - ticking one of the Brand Access
+	checkboxes (Applies To section) should grant every coach already
+	connected to that brand (Coach.coach_brand_access) a Coach Document
+	Requirement, the same as if they'd been individually assigned. Only
+	ever ADDS missing requirements for currently-matched coaches - never
+	removes one, matching how the existing Item Access resync
+	(item_access._resync_practice_document_coaches) leaves hand-added
+	rows alone. See sync_coach_brand_document_requirements for the other
+	half - a coach's own brand access changing.
+	"""
+	if not doc.name:
+		return
+
+	try:
+		if doc.document_purpose not in ("Internal Compliance", "Both"):
+			return
+
+		brand_values = {
+			brand_value
+			for fieldname, brand_value in PRACTICE_DOCUMENT_BRAND_FIELDS.items()
+			if doc.meta.has_field(fieldname) and doc.get(fieldname)
+		}
+		if not brand_values:
+			return
+
+		coach_names = _get_coach_names_with_brand_access(brand_values)
+		if not coach_names:
+			return
+
+		existing_coaches = set(frappe.get_all(
+			COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
+			filters={"practice_document": doc.name, "coach": ["in", list(coach_names)]},
+			pluck="coach",
+		))
+
+		for coach_name in coach_names - existing_coaches:
+			try:
+				_ensure_brand_requirement(doc.name, coach_name)
+			except Exception:
+				frappe.log_error(
+					frappe.get_traceback(), f"Brand Document Requirement Create Failed - {doc.name} - {coach_name}",
+				)
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), f"Practice Document Brand Requirement Sync Failed - {doc.name}")
+
+
+def sync_coach_brand_document_requirements(doc, method=None):
+	"""
+	Coach.on_update hook - companion to
+	sync_practice_document_brand_requirements above. Coach Brand Access is
+	a child table on Coach, so it has no on_update of its own; this fires
+	whenever the Coach record (and so their Brand Access rows) is saved,
+	e.g. adding "People" once a coach becomes a People franchisee, and
+	grants them a Coach Document Requirement for every Practice Document
+	already tagged with a brand they now have. Only ever ADDS - never
+	removes, same reasoning as above.
+	"""
+	if not doc.name:
+		return
+
+	try:
+		if not frappe.db.exists("DocType", "Coach Brand Access"):
+			return
+
+		coach_brand_values = set(frappe.get_all(
+			"Coach Brand Access",
+			filters={"parent": doc.name, "parenttype": "Coach"},
+			pluck="brand_access",
+		))
+		if not coach_brand_values:
+			return
+
+		practice_document_meta = frappe.get_meta(PRACTICE_DOCUMENT_DOCTYPE)
+		matching_fieldnames = [
+			fieldname
+			for fieldname, brand_value in PRACTICE_DOCUMENT_BRAND_FIELDS.items()
+			if brand_value in coach_brand_values and practice_document_meta.has_field(fieldname)
+		]
+		if not matching_fieldnames:
+			return
+
+		practice_document_names = frappe.get_all(
+			PRACTICE_DOCUMENT_DOCTYPE,
+			filters={"document_purpose": ["in", ("Internal Compliance", "Both")]},
+			or_filters={fieldname: 1 for fieldname in matching_fieldnames},
+			pluck="name",
+		)
+		if not practice_document_names:
+			return
+
+		existing_practice_documents = set(frappe.get_all(
+			COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
+			filters={"coach": doc.name, "practice_document": ["in", practice_document_names]},
+			pluck="practice_document",
+		))
+
+		for practice_document_name in set(practice_document_names) - existing_practice_documents:
+			try:
+				_ensure_brand_requirement(practice_document_name, doc.name)
+			except Exception:
+				frappe.log_error(
+					frappe.get_traceback(),
+					f"Brand Document Requirement Create Failed - {practice_document_name} - {doc.name}",
+				)
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), f"Coach Brand Requirement Sync Failed - {doc.name}")

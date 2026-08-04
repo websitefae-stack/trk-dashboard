@@ -111,7 +111,19 @@ doc_events = {
             # document requirement" Server Script only ever copies once,
             # at creation. See practice_documents.sync_requirement_snapshot_fields.
             "dashboard.api.shared.practice_documents.sync_requirement_snapshot_fields",
+            # Ticking a Brand Access checkbox grants every coach on that
+            # brand a Coach Document Requirement. See
+            # practice_documents.sync_practice_document_brand_requirements.
+            "dashboard.api.shared.practice_documents.sync_practice_document_brand_requirements",
         ],
+    },
+    # Other half of brand-based document access - a coach's own Brand
+    # Access changing (e.g. becoming a People franchisee) picks up every
+    # document already tagged with that brand. See
+    # practice_documents.sync_coach_brand_document_requirements. Coach is
+    # a core doctype this app doesn't own the JSON for, same as Item.
+    "Coach": {
+        "on_update": "dashboard.api.shared.practice_documents.sync_coach_brand_document_requirements",
     },
 }
 
