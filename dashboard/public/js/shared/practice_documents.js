@@ -429,6 +429,35 @@
     });
   }
 
+  function renderAdditionalFiles(data, isResource, baseFileUrl) {
+    var wrap = el("docAdditionalFilesWrap");
+    var list = el("docAdditionalFilesList");
+    if (!wrap || !list) return;
+
+    var files = data.additional_files || [];
+
+    if (!files.length) {
+      wrap.style.display = "none";
+      list.innerHTML = "";
+      return;
+    }
+
+    list.innerHTML = files
+      .map(function (file) {
+        var url = baseFileUrl + "&file_url=" + encodeURIComponent(file.file);
+        return (
+          '<div class="dashboard-doc-additional-file-row">' +
+          '<a href="' + url + '" target="_blank" rel="noopener noreferrer" class="dashboard-btn dashboard-btn-light">' +
+          escapeHtml(file.label || file.file) +
+          "</a>" +
+          "</div>"
+        );
+      })
+      .join("");
+
+    wrap.style.display = "block";
+  }
+
   function renderDocumentView(data, isResource) {
     setText("docTitle", data.document_title);
     setText("docCode", data.document_code);
@@ -473,6 +502,8 @@
       el("docTextWrap").style.display = "block";
       el("docText").innerHTML = data.document_text;
     }
+
+    renderAdditionalFiles(data, isResource, fileUrl);
 
     hideCompletionSections();
 

@@ -17,6 +17,7 @@
   "document_details_column",
   "mandatory",
   "document_file",
+  "additional_files",
   "category",
   "document_use_section",
   "document_purpose",
@@ -51,6 +52,13 @@
   "all_office_staff",
   "selected_people_or_roles",
   "selected_assignments",
+  "brand_access_section",
+  "brand_access_kid",
+  "brand_access_teen",
+  "brand_access_people",
+  "brand_access_column",
+  "brand_access_school",
+  "brand_access_franchise",
   "responsibility_section",
   "document_owner",
   "published_by",
@@ -113,6 +121,13 @@
    "fieldname": "document_file",
    "fieldtype": "Attach",
    "label": "Document File"
+  },
+  {
+   "description": "Any further files this document needs beyond the main Document File above - each is individually viewable/downloadable wherever this document itself is shown.",
+   "fieldname": "additional_files",
+   "fieldtype": "Table",
+   "label": "Additional Files",
+   "options": "Practice Document File"
   },
   {
    "fieldname": "category",
@@ -324,6 +339,47 @@
    "options": "Practice Document Assignment"
   },
   {
+   "depends_on": "eval:doc.document_purpose==\"Internal Compliance\" || doc.document_purpose==\"Both\"",
+   "description": "Grants a Coach Document Requirement to every coach connected to the ticked brand(s) (their Brand Access on their own Coach record) - automatically, both ways: tick a brand here and every coach already on that brand picks it up, or add a coach to a brand later and they pick up every document already tagged with it. In addition to, not instead of, Selected People/Roles above.",
+   "fieldname": "brand_access_section",
+   "fieldtype": "Section Break",
+   "label": "Brand-Based Access"
+  },
+  {
+   "default": "0",
+   "fieldname": "brand_access_kid",
+   "fieldtype": "Check",
+   "label": "The Resilient Kid"
+  },
+  {
+   "default": "0",
+   "fieldname": "brand_access_teen",
+   "fieldtype": "Check",
+   "label": "The Resilient Teen"
+  },
+  {
+   "default": "0",
+   "fieldname": "brand_access_people",
+   "fieldtype": "Check",
+   "label": "The Resilient People"
+  },
+  {
+   "fieldname": "brand_access_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "brand_access_school",
+   "fieldtype": "Check",
+   "label": "The Resilient School"
+  },
+  {
+   "default": "0",
+   "fieldname": "brand_access_franchise",
+   "fieldtype": "Check",
+   "label": "Franchise / Hub"
+  },
+  {
    "fieldname": "responsibility_section",
    "fieldtype": "Section Break",
    "label": "Responsibility"
@@ -350,7 +406,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-03 00:00:00.000000",
+ "modified": "2026-08-05 00:00:01.000000",
  "modified_by": "Administrator",
  "module": "Dashboard",
  "name": "Practice Document",

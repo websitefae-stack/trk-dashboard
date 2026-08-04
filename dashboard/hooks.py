@@ -103,7 +103,27 @@ doc_events = {
     # never touches Document Purpose - a Workshop Resource stays Internal
     # Compliance (gated purely by Item Access), not Client Resource.
     "Practice Document": {
-        "on_update": "dashboard.api.shared.item_access.sync_practice_document_resource_access",
+        "on_update": [
+            "dashboard.api.shared.item_access.sync_practice_document_resource_access",
+            # Keeps required_action/mandatory/declaration text/etc on any
+            # still-open Coach Document Requirement in sync with the
+            # Practice Document, which the Desk's own "Prepare coach
+            # document requirement" Server Script only ever copies once,
+            # at creation. See practice_documents.sync_requirement_snapshot_fields.
+            "dashboard.api.shared.practice_documents.sync_requirement_snapshot_fields",
+            # Ticking a Brand Access checkbox grants every coach on that
+            # brand a Coach Document Requirement. See
+            # practice_documents.sync_practice_document_brand_requirements.
+            "dashboard.api.shared.practice_documents.sync_practice_document_brand_requirements",
+        ],
+    },
+    # Other half of brand-based document access - a coach's own Brand
+    # Access changing (e.g. becoming a People franchisee) picks up every
+    # document already tagged with that brand. See
+    # practice_documents.sync_coach_brand_document_requirements. Coach is
+    # a core doctype this app doesn't own the JSON for, same as Item.
+    "Coach": {
+        "on_update": "dashboard.api.shared.practice_documents.sync_coach_brand_document_requirements",
     },
 }
 

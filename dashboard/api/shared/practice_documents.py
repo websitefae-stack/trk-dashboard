@@ -1,11 +1,16 @@
 """
 Dashboard-facing reads for Practice Document / Coach Document Requirement,
-and the "a document was allocated to you" notification. This deliberately
-never touches assignment, validation or completion - all of that already
-lives in the user's own Server Scripts / Client Script attached to these
-DocTypes in Frappe Desk. This file only reads what those scripts already
-produced, and notifies once a Coach Document Requirement has been
-inserted.
+and the "a document was allocated to you" notification. Mostly this
+deliberately never touches assignment, validation or completion - all of
+that already lives in the user's own Server Scripts / Client Script
+attached to these DocTypes in Frappe Desk, and this file only reads what
+those scripts already produced. The one exception is brand-based
+allocation (sync_practice_document_brand_requirements /
+sync_coach_brand_document_requirements below) - a new assignment route
+the Desk scripts have no concept of, so it's created here instead,
+by inserting a bare Coach Document Requirement and letting the existing
+"Prepare coach document requirement" Server Script (Before Insert) fill
+it in exactly as it would for one created by hand.
 """
 
 import frappe
@@ -13,10 +18,22 @@ from frappe.utils import now_datetime
 
 from dashboard.api.shared.permissions import ensure_logged_in, get_allowed_client_names
 from dashboard.api.shared.notifications import create_trk_notification
+from dashboard.api.shared.item_access import _get_coach_login
 
 COACH_DOCUMENT_REQUIREMENT_DOCTYPE = "Coach Document Requirement"
 PRACTICE_DOCUMENT_DOCTYPE = "Practice Document"
 CLIENT_DOCUMENT_SHARE_DOCTYPE = "Client Document Share"
+
+# fieldname on Practice Document -> the matching Coach Brand Access.brand_access
+# value (a Desk-only doctype, child table on Coach.coach_brand_access - see
+# resilient_domains' README "Coach Brand Access Fields" for its options).
+PRACTICE_DOCUMENT_BRAND_FIELDS = {
+	"brand_access_kid": "Kid",
+	"brand_access_teen": "Teen",
+	"brand_access_people": "People",
+	"brand_access_school": "School",
+	"brand_access_franchise": "Franchise",
+}
 
 
 def _is_admin(user):
@@ -203,6 +220,7 @@ def get_resource_document(practice_document):
 		"document_type": source.document_type,
 		"mandatory": source.mandatory,
 		"document_file": source.document_file,
+		"additional_files": _get_additional_files(source),
 		"summary": source.summary,
 		"document_text": source.document_text,
 		# Workshop Resources are internal-only, gated by Item Access - never
@@ -212,9 +230,49 @@ def get_resource_document(practice_document):
 	}
 
 
+def _get_additional_files(source):
+	"""[{"file": url, "label": label-or-filename}] for a Practice Document's
+	Additional Files table - read live off the Practice Document itself
+	rather than any snapshot, so a file added/removed there reaches
+	whoever's already been assigned or can see this document immediately."""
+	rows = []
+
+	for row in source.get("additional_files") or []:
+		file_url = row.get("file")
+		if not file_url:
+			continue
+
+		rows.append({
+			"file": file_url,
+			"label": row.get("label") or file_url.split("?")[0].split("/")[-1],
+		})
+
+	return rows
+
+
+def _serve_private_file(file_url):
+	if not file_url:
+		frappe.throw("No file is attached to this document.")
+
+	from frappe.utils.file_manager import get_file
+
+	fname, fcontent = get_file(file_url)
+
+	frappe.local.response.filename = fname
+	frappe.local.response.filecontent = fcontent
+	frappe.local.response.type = "download"
+
+
 @frappe.whitelist()
-def get_resource_document_file(practice_document):
-	"""Same private-attachment proxy as get_my_document_file(), scoped by resource visibility instead of requirement ownership."""
+def get_resource_document_file(practice_document, file_url=None):
+	"""
+	Same private-attachment proxy as get_my_document_file(), scoped by
+	resource visibility instead of requirement ownership. file_url is
+	optional - omitted, this serves the main Document File; given, it
+	must match one of this document's own Additional Files rows (never
+	trusted blind, so this can't be used to read an arbitrary private
+	file elsewhere on the site).
+	"""
 	ensure_logged_in()
 
 	if not practice_document or not frappe.db.exists(PRACTICE_DOCUMENT_DOCTYPE, practice_document):
@@ -228,26 +286,30 @@ def get_resource_document_file(practice_document):
 	if not _can_user_see_resource(source.as_dict()) and not _is_admin(frappe.session.user):
 		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
-	if not source.document_file:
-		frappe.throw("No file is attached to this document.")
+	if not file_url:
+		_serve_private_file(source.document_file)
+		return
 
-	from frappe.utils.file_manager import get_file
+	valid_files = {row.get("file") for row in _get_additional_files(source)}
 
-	fname, fcontent = get_file(source.document_file)
+	if file_url not in valid_files:
+		frappe.throw("You do not have permission to access this file.", frappe.PermissionError)
 
-	frappe.local.response.filename = fname
-	frappe.local.response.filecontent = fcontent
-	frappe.local.response.type = "download"
+	_serve_private_file(file_url)
 
 
 @frappe.whitelist()
-def get_my_document_file(requirement_name):
+def get_my_document_file(requirement_name, file_url=None):
 	"""
 	Coach Document Requirement.document_file is a copy of the Practice
 	Document's own Attach field value - the underlying File record is
 	still attached to the Practice Document, which coaches can't read
 	directly, so a direct link to it would 403. This proxies the
 	download after confirming the requesting user owns this requirement.
+	file_url is optional - omitted, this serves the requirement's own
+	document_file snapshot; given, it must match one of the linked
+	Practice Document's current Additional Files rows (read live, same
+	as get_my_document_requirement() - never trusted blind).
 	"""
 	ensure_logged_in()
 
@@ -259,16 +321,20 @@ def get_my_document_file(requirement_name):
 	if requirement.user != frappe.session.user and not _is_admin(frappe.session.user):
 		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
-	if not requirement.document_file:
-		frappe.throw("No file is attached to this document.")
+	if not file_url:
+		_serve_private_file(requirement.document_file)
+		return
 
-	from frappe.utils.file_manager import get_file
+	if not requirement.practice_document or not frappe.db.exists(PRACTICE_DOCUMENT_DOCTYPE, requirement.practice_document):
+		frappe.throw("You do not have permission to access this file.", frappe.PermissionError)
 
-	fname, fcontent = get_file(requirement.document_file)
+	source = frappe.get_doc(PRACTICE_DOCUMENT_DOCTYPE, requirement.practice_document)
+	valid_files = {row.get("file") for row in _get_additional_files(source)}
 
-	frappe.local.response.filename = fname
-	frappe.local.response.filecontent = fcontent
-	frappe.local.response.type = "download"
+	if file_url not in valid_files:
+		frappe.throw("You do not have permission to access this file.", frappe.PermissionError)
+
+	_serve_private_file(file_url)
 
 
 def _get_owned_requirement(requirement_name):
@@ -297,18 +363,14 @@ def get_my_document_requirement(requirement_name):
 	data = requirement.as_dict()
 
 	if requirement.practice_document and frappe.db.exists(PRACTICE_DOCUMENT_DOCTYPE, requirement.practice_document):
-		source = frappe.db.get_value(
-			PRACTICE_DOCUMENT_DOCTYPE,
-			requirement.practice_document,
-			["summary", "document_text", "document_purpose", "shareable_with", "client_action_required"],
-			as_dict=True,
-		)
+		source = frappe.get_doc(PRACTICE_DOCUMENT_DOCTYPE, requirement.practice_document)
 	else:
-		source = {}
+		source = None
 
-	data["summary"] = source.get("summary")
-	data["document_text"] = source.get("document_text")
-	data["can_allocate_to_client"] = (source.get("document_purpose") or "") in ("Client Resource", "Both")
+	data["summary"] = source.get("summary") if source else None
+	data["document_text"] = source.get("document_text") if source else None
+	data["can_allocate_to_client"] = ((source.get("document_purpose") if source else None) or "") in ("Client Resource", "Both")
+	data["additional_files"] = _get_additional_files(source) if source else []
 
 	return data
 
@@ -495,3 +557,201 @@ def notify_requirement_assigned(doc, method=None):
 		)
 	except Exception:
 		frappe.log_error(frappe.get_traceback(), "Document Assigned Notification Failed")
+
+
+# Fields the user's own "Prepare coach document requirement" Server
+# Script (Before Insert) copies from the Practice Document onto a Coach
+# Document Requirement - a one-off snapshot taken when the requirement
+# is first created, not a live reference. {practice_document_field:
+# requirement_field}.
+REQUIREMENT_SNAPSHOT_FIELDS = {
+	"document_title": "document_title",
+	"document_code": "document_code",
+	"version": "document_version",
+	"document_type": "document_type",
+	"mandatory": "mandatory",
+	"required_action": "required_action",
+	"document_file": "document_file",
+	"acknowledgement_statement": "acknowledgement_declaration",
+	"signature_statement": "signature_declaration",
+}
+
+
+def sync_requirement_snapshot_fields(doc, method=None):
+	"""
+	Practice Document.on_update hook - because REQUIREMENT_SNAPSHOT_FIELDS
+	is only ever copied once, at creation, editing the Practice Document
+	afterward (e.g. changing Required Action from Sign to Acknowledge, or
+	fixing a typo in the declaration text) never reached a requirement
+	created before that edit - it kept showing whatever was true when it
+	was first assigned, which is exactly why some policies were showing a
+	signature block and others weren't for what should be the same
+	setting. Only ever touches requirements not yet completed
+	(docstatus != 1) - a completed one is a historical record of what was
+	actually agreed to, and must never be silently rewritten after the
+	fact.
+	"""
+	if not doc.name:
+		return
+
+	try:
+		requirement_names = frappe.get_all(
+			COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
+			filters={"practice_document": doc.name, "docstatus": ["!=", 1]},
+			pluck="name",
+		)
+
+		if not requirement_names:
+			return
+
+		requirement_meta = frappe.get_meta(COACH_DOCUMENT_REQUIREMENT_DOCTYPE)
+		updates = {}
+
+		for practice_field, requirement_field in REQUIREMENT_SNAPSHOT_FIELDS.items():
+			if doc.meta.has_field(practice_field) and requirement_meta.has_field(requirement_field):
+				updates[requirement_field] = doc.get(practice_field)
+
+		if not updates:
+			return
+
+		for requirement_name in requirement_names:
+			frappe.db.set_value(
+				COACH_DOCUMENT_REQUIREMENT_DOCTYPE, requirement_name, updates, update_modified=False,
+			)
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), f"Requirement Snapshot Resync Failed - {doc.name}")
+
+
+def _get_coach_names_with_brand_access(brand_values):
+	if not brand_values or not frappe.db.exists("DocType", "Coach Brand Access"):
+		return set()
+
+	return set(frappe.get_all(
+		"Coach Brand Access",
+		filters={"brand_access": ["in", list(brand_values)], "parenttype": "Coach"},
+		pluck="parent",
+	))
+
+
+def _ensure_brand_requirement(practice_document_name, coach_name):
+	user = _get_coach_login(coach_name)
+	if not user:
+		return
+
+	frappe.get_doc({
+		"doctype": COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
+		"person_type": "Coach",
+		"coach": coach_name,
+		"user": user,
+		"practice_document": practice_document_name,
+	}).insert(ignore_permissions=True)
+
+
+def sync_practice_document_brand_requirements(doc, method=None):
+	"""
+	Practice Document.on_update hook - ticking one of the Brand Access
+	checkboxes (Applies To section) should grant every coach already
+	connected to that brand (Coach.coach_brand_access) a Coach Document
+	Requirement, the same as if they'd been individually assigned. Only
+	ever ADDS missing requirements for currently-matched coaches - never
+	removes one, matching how the existing Item Access resync
+	(item_access._resync_practice_document_coaches) leaves hand-added
+	rows alone. See sync_coach_brand_document_requirements for the other
+	half - a coach's own brand access changing.
+	"""
+	if not doc.name:
+		return
+
+	try:
+		if doc.document_purpose not in ("Internal Compliance", "Both"):
+			return
+
+		brand_values = {
+			brand_value
+			for fieldname, brand_value in PRACTICE_DOCUMENT_BRAND_FIELDS.items()
+			if doc.meta.has_field(fieldname) and doc.get(fieldname)
+		}
+		if not brand_values:
+			return
+
+		coach_names = _get_coach_names_with_brand_access(brand_values)
+		if not coach_names:
+			return
+
+		existing_coaches = set(frappe.get_all(
+			COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
+			filters={"practice_document": doc.name, "coach": ["in", list(coach_names)]},
+			pluck="coach",
+		))
+
+		for coach_name in coach_names - existing_coaches:
+			try:
+				_ensure_brand_requirement(doc.name, coach_name)
+			except Exception:
+				frappe.log_error(
+					frappe.get_traceback(), f"Brand Document Requirement Create Failed - {doc.name} - {coach_name}",
+				)
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), f"Practice Document Brand Requirement Sync Failed - {doc.name}")
+
+
+def sync_coach_brand_document_requirements(doc, method=None):
+	"""
+	Coach.on_update hook - companion to
+	sync_practice_document_brand_requirements above. Coach Brand Access is
+	a child table on Coach, so it has no on_update of its own; this fires
+	whenever the Coach record (and so their Brand Access rows) is saved,
+	e.g. adding "People" once a coach becomes a People franchisee, and
+	grants them a Coach Document Requirement for every Practice Document
+	already tagged with a brand they now have. Only ever ADDS - never
+	removes, same reasoning as above.
+	"""
+	if not doc.name:
+		return
+
+	try:
+		if not frappe.db.exists("DocType", "Coach Brand Access"):
+			return
+
+		coach_brand_values = set(frappe.get_all(
+			"Coach Brand Access",
+			filters={"parent": doc.name, "parenttype": "Coach"},
+			pluck="brand_access",
+		))
+		if not coach_brand_values:
+			return
+
+		practice_document_meta = frappe.get_meta(PRACTICE_DOCUMENT_DOCTYPE)
+		matching_fieldnames = [
+			fieldname
+			for fieldname, brand_value in PRACTICE_DOCUMENT_BRAND_FIELDS.items()
+			if brand_value in coach_brand_values and practice_document_meta.has_field(fieldname)
+		]
+		if not matching_fieldnames:
+			return
+
+		practice_document_names = frappe.get_all(
+			PRACTICE_DOCUMENT_DOCTYPE,
+			filters={"document_purpose": ["in", ("Internal Compliance", "Both")]},
+			or_filters={fieldname: 1 for fieldname in matching_fieldnames},
+			pluck="name",
+		)
+		if not practice_document_names:
+			return
+
+		existing_practice_documents = set(frappe.get_all(
+			COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
+			filters={"coach": doc.name, "practice_document": ["in", practice_document_names]},
+			pluck="practice_document",
+		))
+
+		for practice_document_name in set(practice_document_names) - existing_practice_documents:
+			try:
+				_ensure_brand_requirement(practice_document_name, doc.name)
+			except Exception:
+				frappe.log_error(
+					frappe.get_traceback(),
+					f"Brand Document Requirement Create Failed - {practice_document_name} - {doc.name}",
+				)
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), f"Coach Brand Requirement Sync Failed - {doc.name}")
