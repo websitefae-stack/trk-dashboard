@@ -150,8 +150,24 @@
 }
 
 .dashboard-doc-success-panel {
+  margin-top: 16px;
   background: #E5F6EE;
   color: #1f6d4d;
+}
+
+.dashboard-doc-success-signature-wrap {
+  margin-top: 10px;
+}
+
+.dashboard-doc-success-signature-img {
+  display: block;
+  max-width: 320px;
+  max-height: 120px;
+  margin-top: 6px;
+  background: #FFFFFF;
+  border: 1px solid #C7D6D6;
+  border-radius: 8px;
+  padding: 6px;
 }
 
 .dashboard-doc-success-panel-title {

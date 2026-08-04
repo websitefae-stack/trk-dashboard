@@ -10,7 +10,8 @@
   "user",
   "coach_name",
   "can_share",
-  "granted_via_item_access"
+  "granted_via_item_access",
+  "granted_via_brand_access"
  ],
  "fields": [
   {
@@ -50,12 +51,20 @@
    "fieldtype": "Check",
    "label": "Granted via Item Access",
    "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Set automatically when this row exists only because this coach has Brand-Based Access to one of this document's ticked brands - kept in sync from there, so don't rely on editing it directly. A row added by hand (this left unticked) is never touched or removed by that sync.",
+   "fieldname": "granted_via_brand_access",
+   "fieldtype": "Check",
+   "label": "Granted via Brand Access",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-07-27 00:00:00.000000",
+ "modified": "2026-07-27 00:00:01.000000",
  "modified_by": "Administrator",
  "module": "Dashboard",
  "name": "Practice Document Coach",
