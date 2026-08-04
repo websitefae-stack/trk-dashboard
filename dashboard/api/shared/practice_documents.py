@@ -856,7 +856,11 @@ def _resync_practice_document_brand_access(practice_document_name):
 	if doc.document_purpose in ("Internal Compliance", "Both"):
 		_sync_brand_document_requirements(practice_document_name, brand_values)
 
-	if doc.document_purpose in ("Client Resource", "Both"):
+	# Same "is this gated as a resource" rule as _is_resource_reachable -
+	# a Workshop Resource is always gated via Available to Coaches (Item
+	# Access, and now Brand Access too) regardless of Document Purpose,
+	# which deliberately stays Internal Compliance for these.
+	if doc.document_purpose in ("Client Resource", "Both") or doc.document_type == "Workshop Resource":
 		_sync_brand_resource_coaches(practice_document_name, brand_values)
 
 
