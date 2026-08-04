@@ -96,16 +96,13 @@ doc_events = {
     "Coach Document Requirement": {
         "after_insert": "dashboard.api.shared.practice_documents.notify_requirement_assigned",
     },
-    # Keeps a Practice Document's coach access (and Resource Availability/
-    # Document Purpose) in sync with its Linked Items, which are managed
-    # directly on the document in the Frappe Desk. validate runs early
-    # enough to stop a Workshop Resource document being blocked from ever
-    # saving in the first place (see
-    # item_access.ensure_document_purpose_for_workshop_resource);
-    # on_update handles everything else post-save. See
-    # item_access.sync_practice_document_resource_access.
+    # Keeps a Practice Document's coach access (and Resource Availability)
+    # in sync with its Linked Items, which are managed directly on the
+    # document in the Frappe Desk. See
+    # item_access.sync_practice_document_resource_access. Deliberately
+    # never touches Document Purpose - a Workshop Resource stays Internal
+    # Compliance (gated purely by Item Access), not Client Resource.
     "Practice Document": {
-        "validate": "dashboard.api.shared.item_access.ensure_document_purpose_for_workshop_resource",
         "on_update": "dashboard.api.shared.item_access.sync_practice_document_resource_access",
     },
 }

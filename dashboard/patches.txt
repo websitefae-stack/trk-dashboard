@@ -31,3 +31,4 @@ dashboard.patches.add_item_show_on_site_and_brand_fields
 dashboard.patches.resync_practice_document_resource_access
 dashboard.patches.fix_workshop_resource_document_purpose
 dashboard.patches.add_online_client_to_sales_invoice
+dashboard.patches.revert_workshop_resource_document_purpose
