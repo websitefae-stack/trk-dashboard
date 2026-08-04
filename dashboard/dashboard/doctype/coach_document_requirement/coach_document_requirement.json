@@ -12,6 +12,7 @@
   "coach",
   "session_worker",
   "user",
+  "granted_via_brand_access",
   "assignment_column",
   "assigned_by",
   "assigned_date",
@@ -89,6 +90,14 @@
    "in_list_view": 1,
    "label": "User",
    "options": "User",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Set automatically when this row exists only because this person has Brand-Based Access to one of the Practice Document's ticked brands - kept in sync from there, so don't rely on editing it directly. Only ever removed (and the row deleted with it) while still a draft - a completed or cancelled requirement is a historical record of what was actually agreed to, and is never touched regardless of what brand access now says. A row added by hand (this left unticked) is never touched or removed by that sync.",
+   "fieldname": "granted_via_brand_access",
+   "fieldtype": "Check",
+   "label": "Granted via Brand Access",
    "read_only": 1
   },
   {
@@ -349,7 +358,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-07-27 00:00:00.000000",
+ "modified": "2026-07-27 00:00:01.000000",
  "modified_by": "Administrator",
  "module": "Dashboard",
  "name": "Coach Document Requirement",

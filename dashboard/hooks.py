@@ -125,6 +125,11 @@ doc_events = {
     "Coach": {
         "on_update": "dashboard.api.shared.practice_documents.sync_coach_brand_document_requirements",
     },
+    # Session Worker equivalent of the Coach hook above. See
+    # practice_documents.sync_session_worker_brand_document_requirements.
+    "Session Worker": {
+        "on_update": "dashboard.api.shared.practice_documents.sync_session_worker_brand_document_requirements",
+    },
 }
 
 # Safety net for the pending-booking queue (see pending_bookings.py) - picks
