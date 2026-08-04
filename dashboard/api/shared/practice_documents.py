@@ -717,12 +717,13 @@ def _ensure_brand_requirement(practice_document_name, person_type, person_name, 
 
 def _sync_brand_document_requirements(practice_document_name, brand_values):
 	"""
-	Internal Compliance/Both half of brand-based access - reconciles Coach
-	Document Requirement rows against who currently has matching Brand
-	Access (Coach Brand Access and Session Worker Brand Access), the same
-	"add missing, remove only what this same mechanism added" shape as
-	_sync_brand_resource_coaches, via its own granted_via_brand_access
-	flag. A row is only ever removed while still a draft (docstatus 0) -
+	Internal Compliance/Both half of brand-based access (never applies to
+	a Workshop Resource - see _resync_practice_document_brand_access)-
+	reconciles Coach Document Requirement rows against who currently has
+	matching Brand Access (Coach Brand Access and Session Worker Brand
+	Access), adding missing rows and removing only the ones this same
+	mechanism added (its own granted_via_brand_access flag). A row is
+	only ever removed while still a draft (docstatus 0) -
 	a completed or cancelled requirement is a historical record of what
 	was actually agreed to, and is never touched regardless of what brand
 	access now says.
@@ -767,101 +768,35 @@ def _sync_brand_document_requirements(practice_document_name, brand_values):
 			)
 
 
-def _sync_brand_resource_coaches(practice_document_name, brand_values):
-	"""
-	Client Resource/Both half of brand-based access - reconciles Available
-	to Coaches (Practice Document Coach) against who currently has
-	matching Brand Access, mirroring item_access._resync_practice_document_coaches
-	exactly (same "push Resource Availability to Selected Coaches, add
-	missing rows, remove only the ones this same mechanism added" shape)
-	but keyed off brand instead of Item Access, using its own
-	granted_via_brand_access flag so the two auto-grant sources - and any
-	hand-added row - never tread on each other. Only ever a Coach concept
-	(Available to Coaches has no Session Worker equivalent), gated by
-	Item Access the same way as the requirement side above when this
-	document has Linked Items.
-	"""
-	if frappe.get_meta(PRACTICE_DOCUMENT_DOCTYPE).has_field("resource_availability"):
-		current_availability = frappe.db.get_value(PRACTICE_DOCUMENT_DOCTYPE, practice_document_name, "resource_availability")
-		if current_availability != "Selected Coaches":
-			# Raw SQL, not frappe.db.set_value() - see
-			# item_access._resync_practice_document_coaches's own comment
-			# for why (a MySQL "Truncated incorrect DECIMAL value" error
-			# on this site's Frappe version that traces back to core, not
-			# this app).
-			frappe.db.sql(
-				"UPDATE `tabPractice Document` SET resource_availability=%s WHERE name=%s",
-				("Selected Coaches", practice_document_name),
-			)
-
-	item_access_gate = _get_item_access_gated_coach_names(practice_document_name)
-
-	target_coach_names = _get_coach_names_with_brand_access(brand_values)
-	if item_access_gate is not None:
-		target_coach_names = target_coach_names & item_access_gate
-
-	existing_rows = frappe.get_all(
-		PRACTICE_DOCUMENT_COACH_DOCTYPE,
-		filters={"parent": practice_document_name, "parenttype": PRACTICE_DOCUMENT_DOCTYPE},
-		fields=["name", "coach", "granted_via_brand_access"],
-	)
-
-	covered_coach_names = set()
-
-	for row in existing_rows:
-		if row.get("coach"):
-			covered_coach_names.add(row.get("coach"))
-
-		if row.get("granted_via_brand_access") and row.get("coach") not in target_coach_names:
-			frappe.db.delete(PRACTICE_DOCUMENT_COACH_DOCTYPE, {"name": row.get("name")})
-
-	missing_coach_names = target_coach_names - covered_coach_names
-	if not missing_coach_names:
-		return
-
-	next_idx = frappe.db.count(
-		PRACTICE_DOCUMENT_COACH_DOCTYPE,
-		filters={"parent": practice_document_name, "parenttype": PRACTICE_DOCUMENT_DOCTYPE},
-	)
-
-	for coach_name in missing_coach_names:
-		login = _get_coach_login(coach_name)
-		if not login:
-			continue
-
-		next_idx += 1
-		try:
-			frappe.get_doc({
-				"doctype": PRACTICE_DOCUMENT_COACH_DOCTYPE,
-				"parent": practice_document_name,
-				"parenttype": PRACTICE_DOCUMENT_DOCTYPE,
-				"parentfield": "available_to_coaches",
-				"idx": next_idx,
-				"coach": coach_name,
-				"user": login,
-				"coach_name": frappe.db.get_value("Coach", coach_name, "coach_name") or coach_name,
-				"can_share": 1,
-				"granted_via_brand_access": 1,
-			}).insert(ignore_permissions=True)
-		except Exception:
-			frappe.log_error(
-				frappe.get_traceback(), f"Brand Resource Access Create Failed - {practice_document_name} - {coach_name}",
-			)
-
-
 def _resync_practice_document_brand_access(practice_document_name):
+	"""
+	Dispatches brand-based access to whichever mechanism this document
+	actually uses:
+
+	- Workshop Resource (document_type) is ALWAYS purely a resource,
+	  regardless of Document Purpose (which deliberately stays Internal
+	  Compliance for these, per _is_resource_reachable) - it must never
+	  also get a Coach Document Requirement, or the same document shows
+	  up twice on a coach's Documents page (once as a requirement, once
+	  as a resource).
+	- Internal Compliance/Both (and not a Workshop Resource) creates/
+	  removes Coach Document Requirements.
+	- Client Resource/Both (or a Workshop Resource) reconciles Available
+	  to Coaches - via item_access._resync_practice_document_coaches,
+	  which is now the single place Item Access and Brand Access are
+	  reconciled together, so a coach entitled through either route keeps
+	  access and is only dropped once neither applies.
+	"""
 	doc = frappe.get_doc(PRACTICE_DOCUMENT_DOCTYPE, practice_document_name)
 	brand_values = _get_practice_document_brand_values(doc)
+	is_workshop_resource = doc.document_type == "Workshop Resource"
 
-	if doc.document_purpose in ("Internal Compliance", "Both"):
+	if not is_workshop_resource and doc.document_purpose in ("Internal Compliance", "Both"):
 		_sync_brand_document_requirements(practice_document_name, brand_values)
 
-	# Same "is this gated as a resource" rule as _is_resource_reachable -
-	# a Workshop Resource is always gated via Available to Coaches (Item
-	# Access, and now Brand Access too) regardless of Document Purpose,
-	# which deliberately stays Internal Compliance for these.
-	if doc.document_purpose in ("Client Resource", "Both") or doc.document_type == "Workshop Resource":
-		_sync_brand_resource_coaches(practice_document_name, brand_values)
+	if is_workshop_resource or doc.document_purpose in ("Client Resource", "Both"):
+		from dashboard.api.shared.item_access import _resync_practice_document_coaches
+		_resync_practice_document_coaches(practice_document_name)
 
 
 def sync_practice_document_brand_requirements(doc, method=None):
