@@ -11,7 +11,7 @@
     var PERMISSION_FIELDS = [
         "view_profile", "can_edit_profile", "can_view_appointments",
         "can_view_invoices", "can_pay_invoices", "can_view_courses_and_products",
-        "can_view_downloads", "can_view_admin_details", "can_monitor_courses",
+        "can_view_downloads", "view_reports", "can_view_admin_details", "can_monitor_courses",
         "can_manage_staff_access", "can_view_sensitive_details",
     ];
 

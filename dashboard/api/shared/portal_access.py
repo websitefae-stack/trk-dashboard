@@ -33,6 +33,7 @@ PERMISSION_FIELDS = [
     "can_pay_invoices",
     "can_view_courses_and_products",
     "can_view_downloads",
+    "view_reports",
     "can_view_admin_details",
     "can_monitor_courses",
     "can_manage_staff_access",
