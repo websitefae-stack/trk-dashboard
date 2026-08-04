@@ -404,9 +404,15 @@ def _resync_practice_document_coaches(practice_document_name):
     if linked_item_codes and frappe.get_meta(PRACTICE_DOCUMENT_DOCTYPE).has_field("resource_availability"):
         current_availability = frappe.db.get_value(PRACTICE_DOCUMENT_DOCTYPE, practice_document_name, "resource_availability")
         if current_availability != "Selected Coaches":
-            frappe.db.set_value(
-                PRACTICE_DOCUMENT_DOCTYPE, practice_document_name, "resource_availability", "Selected Coaches",
-                update_modified=False,
+            # Raw SQL rather than frappe.db.set_value() - on this site's
+            # Frappe version (16.14.0), that call was throwing a MySQL
+            # "Truncated incorrect DECIMAL value" error from inside its own
+            # query-builder plumbing for this exact single-field update,
+            # for reasons that traced to Frappe core, not this app. A
+            # plain parameterised UPDATE sidesteps whatever that is.
+            frappe.db.sql(
+                "UPDATE `tabPractice Document` SET resource_availability=%s WHERE name=%s",
+                ("Selected Coaches", practice_document_name),
             )
 
     target_coach_names = _get_coach_names_with_access_to_items(linked_item_codes)
