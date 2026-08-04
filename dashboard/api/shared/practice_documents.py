@@ -93,17 +93,23 @@ def _get_linked_item_labels_by_document(document_names):
 
 def _get_visible_resource_documents(user=None):
 	"""
-	Published Practice Documents whose purpose includes Client Resource -
-	these never get a Coach Document Requirement (see "Create assignments
-	when published": only Internal Compliance/Both create one), so this is
-	the only way the Documents page can ever show them.
+	Published Practice Documents that reach a coach without ever getting a
+	Coach Document Requirement row - either because their purpose includes
+	Client Resource ("Create assignments when published" only fires a
+	requirement for Internal Compliance/Both), or because they're a
+	Workshop Resource, which stays Internal Compliance on purpose (it's
+	gated purely by Item Access via Resource Availability/Practice
+	Document Coach, not the Applies To section's own audience, so it's in
+	the same "nothing else surfaces this" position a Client Resource
+	document is).
 	"""
 	rows = frappe.get_all(
 		PRACTICE_DOCUMENT_DOCTYPE,
-		filters={
-			"status": "Published",
-			"document_purpose": ["in", ("Client Resource", "Both")],
-		},
+		filters={"status": "Published"},
+		or_filters=[
+			["document_purpose", "in", ("Client Resource", "Both")],
+			["document_type", "=", "Workshop Resource"],
+		],
 		fields=[
 			"name", "document_title", "document_code", "version",
 			"document_type", "mandatory", "resource_availability", "document_file",
@@ -155,12 +161,26 @@ def get_my_documents_by_type():
 	return {"types": types, "documents": documents}
 
 
+def _is_resource_reachable(source):
+	"""
+	True for anything _get_visible_resource_documents() would have listed -
+	a genuine Client Resource/Both document, or a Workshop Resource (which
+	stays Internal Compliance on purpose, gated by Item Access instead).
+	Shared by get_resource_document/get_resource_document_file so a
+	document that shows up on the list can always actually be opened.
+	"""
+	if source.status != "Published":
+		return False
+
+	return source.document_purpose in ("Client Resource", "Both") or source.document_type == "Workshop Resource"
+
+
 @frappe.whitelist()
 def get_resource_document(practice_document):
 	"""
-	The "Open Document" view for a pure Client Resource document (never
-	has a Coach Document Requirement, so nothing to read/acknowledge/sign -
-	only summary/text/file and, when eligible, Allocate to Client).
+	The "Open Document" view for a resource document (never has a Coach
+	Document Requirement, so nothing to read/acknowledge/sign - only
+	summary/text/file and, when eligible, Allocate to Client).
 	"""
 	ensure_logged_in()
 
@@ -169,7 +189,7 @@ def get_resource_document(practice_document):
 
 	source = frappe.get_doc(PRACTICE_DOCUMENT_DOCTYPE, practice_document)
 
-	if source.status != "Published" or source.document_purpose not in ("Client Resource", "Both"):
+	if not _is_resource_reachable(source):
 		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
 	if not _can_user_see_resource(source.as_dict()) and not _is_admin(frappe.session.user):
@@ -185,7 +205,10 @@ def get_resource_document(practice_document):
 		"document_file": source.document_file,
 		"summary": source.summary,
 		"document_text": source.document_text,
-		"can_allocate_to_client": True,
+		# Workshop Resources are internal-only, gated by Item Access - never
+		# shareable with a client, unlike a genuine Client Resource/Both
+		# document, regardless of what item(s) it's linked to.
+		"can_allocate_to_client": source.document_purpose in ("Client Resource", "Both"),
 	}
 
 
@@ -199,7 +222,7 @@ def get_resource_document_file(practice_document):
 
 	source = frappe.get_doc(PRACTICE_DOCUMENT_DOCTYPE, practice_document)
 
-	if source.status != "Published" or source.document_purpose not in ("Client Resource", "Both"):
+	if not _is_resource_reachable(source):
 		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
 	if not _can_user_see_resource(source.as_dict()) and not _is_admin(frappe.session.user):
