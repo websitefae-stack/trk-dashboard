@@ -495,3 +495,66 @@ def notify_requirement_assigned(doc, method=None):
 		)
 	except Exception:
 		frappe.log_error(frappe.get_traceback(), "Document Assigned Notification Failed")
+
+
+# Fields the user's own "Prepare coach document requirement" Server
+# Script (Before Insert) copies from the Practice Document onto a Coach
+# Document Requirement - a one-off snapshot taken when the requirement
+# is first created, not a live reference. {practice_document_field:
+# requirement_field}.
+REQUIREMENT_SNAPSHOT_FIELDS = {
+	"document_title": "document_title",
+	"document_code": "document_code",
+	"version": "document_version",
+	"document_type": "document_type",
+	"mandatory": "mandatory",
+	"required_action": "required_action",
+	"document_file": "document_file",
+	"acknowledgement_statement": "acknowledgement_declaration",
+	"signature_statement": "signature_declaration",
+}
+
+
+def sync_requirement_snapshot_fields(doc, method=None):
+	"""
+	Practice Document.on_update hook - because REQUIREMENT_SNAPSHOT_FIELDS
+	is only ever copied once, at creation, editing the Practice Document
+	afterward (e.g. changing Required Action from Sign to Acknowledge, or
+	fixing a typo in the declaration text) never reached a requirement
+	created before that edit - it kept showing whatever was true when it
+	was first assigned, which is exactly why some policies were showing a
+	signature block and others weren't for what should be the same
+	setting. Only ever touches requirements not yet completed
+	(docstatus != 1) - a completed one is a historical record of what was
+	actually agreed to, and must never be silently rewritten after the
+	fact.
+	"""
+	if not doc.name:
+		return
+
+	try:
+		requirement_names = frappe.get_all(
+			COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
+			filters={"practice_document": doc.name, "docstatus": ["!=", 1]},
+			pluck="name",
+		)
+
+		if not requirement_names:
+			return
+
+		requirement_meta = frappe.get_meta(COACH_DOCUMENT_REQUIREMENT_DOCTYPE)
+		updates = {}
+
+		for practice_field, requirement_field in REQUIREMENT_SNAPSHOT_FIELDS.items():
+			if doc.meta.has_field(practice_field) and requirement_meta.has_field(requirement_field):
+				updates[requirement_field] = doc.get(practice_field)
+
+		if not updates:
+			return
+
+		for requirement_name in requirement_names:
+			frappe.db.set_value(
+				COACH_DOCUMENT_REQUIREMENT_DOCTYPE, requirement_name, updates, update_modified=False,
+			)
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), f"Requirement Snapshot Resync Failed - {doc.name}")

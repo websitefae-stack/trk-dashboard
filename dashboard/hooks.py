@@ -103,7 +103,15 @@ doc_events = {
     # never touches Document Purpose - a Workshop Resource stays Internal
     # Compliance (gated purely by Item Access), not Client Resource.
     "Practice Document": {
-        "on_update": "dashboard.api.shared.item_access.sync_practice_document_resource_access",
+        "on_update": [
+            "dashboard.api.shared.item_access.sync_practice_document_resource_access",
+            # Keeps required_action/mandatory/declaration text/etc on any
+            # still-open Coach Document Requirement in sync with the
+            # Practice Document, which the Desk's own "Prepare coach
+            # document requirement" Server Script only ever copies once,
+            # at creation. See practice_documents.sync_requirement_snapshot_fields.
+            "dashboard.api.shared.practice_documents.sync_requirement_snapshot_fields",
+        ],
     },
 }
 
