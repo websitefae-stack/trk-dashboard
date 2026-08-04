@@ -623,12 +623,50 @@ def send_intake_form(name=None, subject=None, message=None, cc=None, sender=None
     return {"ok": True, "intake_url": intake_url, "email_sent": email_sent, "status": doc.status}
 
 
+def _client_request_notification_exists(reference_name, recipient_user):
+    """
+    True if a "Client Request" notification for this Lead has already
+    gone to this recipient - guards _notify_intake_completed against
+    double-notifying, since sync_intake_doctype_submission's own
+    was_already_complete check isn't a reliable enough guard on its own
+    (Intake Doctype is hooked on both after_insert and on_update, which
+    both fire for a single fresh submission).
+    """
+    if not frappe.db.exists("DocType", "Dashboard Conversation"):
+        return False
+
+    conversation_names = frappe.get_all(
+        "Dashboard Conversation",
+        filters={
+            "reference_doctype": LEAD_DOCTYPE,
+            "reference_name": reference_name,
+            "conversation_type": "Client Request",
+        },
+        pluck="name",
+        ignore_permissions=True,
+    )
+
+    if not conversation_names:
+        return False
+
+    return bool(frappe.get_all(
+        "Dashboard Conversation Recipient",
+        filters={"parent": ["in", conversation_names], "recipient_user": recipient_user},
+        limit_page_length=1,
+        ignore_permissions=True,
+    ))
+
+
 def _notify_intake_completed(doc):
     """
     doc is the Client Lead. Fires the "intake form completed" notification
-    to its coach (if resolvable) and, always, to the franchisor admins as a
-    belt-and-suspenders backstop - shared by anything that marks a Lead's
-    intake complete (currently just sync_intake_doctype_submission below).
+    to its coach - shared by anything that marks a Lead's intake complete
+    (currently just sync_intake_doctype_submission below).
+
+    Franchisor admins are only notified when there's no coach to notify
+    instead (unassigned lead, or a Coach record with no linked
+    user/coach_email) - every coach's own properly-assigned clients notify
+    only that coach, not every franchisor admin as well.
     """
     notification_message = f"{doc.client_name} - intake form has been completed. Review and convert to a client."
     coach_user = ""
@@ -639,6 +677,9 @@ def _notify_intake_completed(doc):
         )
 
     if coach_user:
+        if _client_request_notification_exists(doc.name, coach_user):
+            return
+
         # Best-effort - the intake submission itself is already saved,
         # a broken notification config must not make it look like the
         # submission failed.
@@ -653,23 +694,26 @@ def _notify_intake_completed(doc):
             )
         except Exception:
             frappe.log_error(frappe.get_traceback(), "Intake Submission - Coach Notification Failed")
-    elif doc.coach:
+        return
+
+    if doc.coach:
         # The lead has a coach assigned, but that Coach record has no
         # linked user/coach_email to notify - this would otherwise fail
         # completely silently (no exception, nothing to see in the Error
         # Log), so it's logged explicitly to be diagnosable.
         frappe.log_error(
-            f"Lead {doc.name}: Coach {doc.coach} has no linked user or coach_email - could not notify.",
+            f"Lead {doc.name}: Coach {doc.coach} has no linked user or coach_email - notifying franchisor instead.",
             "Intake Submission - No Coach Recipient",
         )
 
-    # Notified separately from the coach (not as a substitute) so this is
-    # never missed just because a specific Coach record's user/coach_email
-    # is misconfigured, or the coach simply hasn't checked their own
-    # notifications yet - the franchisor can always see it and act
-    # (reassign, remind, or convert directly).
+    # Reached only when there's no coach to rely on - genuinely unassigned,
+    # or a misconfigured Coach record - so someone still needs to see this
+    # rather than it silently disappearing.
     for admin_user in FRANCHISOR_USERS:
         if not frappe.db.exists("User", admin_user):
+            continue
+
+        if _client_request_notification_exists(doc.name, admin_user):
             continue
 
         try:
