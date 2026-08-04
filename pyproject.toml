@@ -7,7 +7,7 @@ description = "The Resilient Dashboard"
 requires-python = ">=3.10"
 readme = "README.md"
 dynamic = ["version"]
-dependencies = []
+dependencies = ["stripe"]
 
 [build-system]
 requires = ["flit_core >=3.4,<4"]

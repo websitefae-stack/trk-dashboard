@@ -1066,6 +1066,17 @@
           <textarea id="clientReportContent" class="dashboard-textarea" rows="10"></textarea>
         </div>
 
+        <div class="trk-calendar-field">
+          <label for="clientReportAttachmentFile">Attachment</label>
+          <input type="hidden" id="clientReportAttachment">
+          <div class="dashboard-help" id="clientReportAttachmentCurrent"></div>
+          <input type="file" id="clientReportAttachmentFile" class="dashboard-input">
+          <label style="display:flex;align-items:center;gap:8px;margin-top:6px;font-weight:400;">
+            <input type="checkbox" id="clientReportAttachmentRemove">
+            Remove current attachment
+          </label>
+        </div>
+
         <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
           <input type="checkbox" id="clientReportShowOnPortal">
           <label for="clientReportShowOnPortal" style="margin:0;">Show on Client Portal</label>

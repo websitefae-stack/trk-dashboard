@@ -496,3 +496,24 @@ def sync_practice_document_resource_access(doc, method=None):
     when any previously auto-granted coach rows need removing too.
     """
     _resync_practice_document_coaches(doc.name)
+
+
+def ensure_document_purpose_for_workshop_resource(doc, method=None):
+    """
+    Practice Document.validate hook (see hooks.py's doc_events) - runs
+    before Frappe's own mandatory-field checks, unlike
+    sync_practice_document_resource_access (on_update), which only runs
+    after a save has already succeeded. Document Purpose defaults to
+    "Internal Compliance", whose "Applies To" section requires at least
+    one audience ticked - a brand new document marked Workshop Resource
+    (or one that already has Linked Items) was getting blocked from ever
+    saving at all, since nothing had a chance to push it to "Client
+    Resource" until after that first save. Mirrors the same push
+    _resync_practice_document_coaches already does post-save, just early
+    enough to matter for a document's very first save.
+    """
+    if doc.get("document_purpose") != "Internal Compliance":
+        return
+
+    if doc.get("document_type") == "Workshop Resource" or doc.get("linked_items"):
+        doc.document_purpose = "Client Resource"

@@ -1,0 +1,106 @@
+{
+ "actions": [],
+ "creation": "2026-08-04 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "enabled",
+  "stripe_section",
+  "stripe_settings",
+  "stripe_column",
+  "stripe_webhook_secret",
+  "payment_section",
+  "company",
+  "bank_account",
+  "notify_column",
+  "office_notification_email"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "description": "Turn this on once Stripe Settings below is picked and the webhook is registered in your Stripe dashboard - the guest checkout page will show as unavailable until then.",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Online Checkout Enabled"
+  },
+  {
+   "fieldname": "stripe_section",
+   "fieldtype": "Section Break",
+   "label": "Stripe"
+  },
+  {
+   "description": "Reuses whichever existing Stripe Settings record already holds your HQ Stripe account's keys (Setup > Integrations > Stripe Settings) - no need to enter the same key twice.",
+   "fieldname": "stripe_settings",
+   "fieldtype": "Link",
+   "label": "Stripe Settings",
+   "options": "Stripe Settings",
+   "reqd": 1
+  },
+  {
+   "fieldname": "stripe_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "From Stripe Dashboard > Developers > Webhooks, once you've added the endpoint URL shown below - this is separate from (not a copy of) the Secret Key on the Stripe Settings record above.",
+   "fieldname": "stripe_webhook_secret",
+   "fieldtype": "Password",
+   "label": "Stripe Webhook Signing Secret"
+  },
+  {
+   "fieldname": "payment_section",
+   "fieldtype": "Section Break",
+   "label": "Invoicing"
+  },
+  {
+   "description": "The company online purchase invoices are raised under.",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "description": "Which bank account a paid-by-Stripe invoice is recorded as paid into.",
+   "fieldname": "bank_account",
+   "fieldtype": "Link",
+   "label": "Bank Account",
+   "options": "Bank Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "notify_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Gets a copy of every order confirmation email, alongside the client (and the coach, if the purchase was made from their page).",
+   "fieldname": "office_notification_email",
+   "fieldtype": "Data",
+   "label": "Office Notification Email",
+   "options": "Email",
+   "reqd": 1
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-08-04 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "Webshop Payment Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}
