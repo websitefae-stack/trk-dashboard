@@ -29,6 +29,24 @@ from dashboard.api.shared import payment_utils
 ONLINE_CLIENT_DOCTYPE = "Online Client"
 
 
+def _get_stripe_secret_key(settings):
+    """
+    Reuses whichever existing Stripe Settings record Webshop Payment
+    Settings.stripe_settings points at (Setup > Integrations > Stripe
+    Settings, a core Frappe/ERPNext doctype - this app never creates its
+    own Stripe account/key, only reuses the one already stored there).
+    """
+    if not settings.stripe_settings:
+        return ""
+
+    if not frappe.db.exists("Stripe Settings", settings.stripe_settings):
+        return ""
+
+    stripe_settings_doc = frappe.get_doc("Stripe Settings", settings.stripe_settings)
+
+    return stripe_settings_doc.get_password("secret_key", raise_exception=False)
+
+
 def _to_float(value):
     try:
         return float(value or 0)
@@ -132,7 +150,7 @@ def create_checkout_session(
     if not settings.enabled:
         frappe.throw(_("Online checkout isn't available right now."))
 
-    stripe_secret_key = settings.get_password("stripe_secret_key", raise_exception=False)
+    stripe_secret_key = _get_stripe_secret_key(settings)
 
     if not stripe_secret_key:
         frappe.throw(_("Online checkout isn't fully set up yet."))
