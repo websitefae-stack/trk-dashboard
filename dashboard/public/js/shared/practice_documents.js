@@ -344,6 +344,17 @@
     el("docSuccessPanel").style.display = "block";
     setText("docSuccessCompletedOn", "Completed on: " + formatDateTime(data.completed_on));
     setText("docSuccessReference", "Completion reference: " + (data.completion_reference || ""));
+
+    var signatureWrap = el("docSuccessSignatureWrap");
+    if (signatureWrap) {
+      if (data.required_action === "Sign" && data.signature) {
+        el("docSuccessSignature").src = data.signature;
+        setText("docSuccessSignatureName", data.typed_full_name ? "Signed by: " + data.typed_full_name : "");
+        signatureWrap.style.display = "block";
+      } else {
+        signatureWrap.style.display = "none";
+      }
+    }
   }
 
   function renderAllocateSection(data) {

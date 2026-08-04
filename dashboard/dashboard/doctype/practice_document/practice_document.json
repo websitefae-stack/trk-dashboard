@@ -284,12 +284,14 @@
    "label": "Completion Deadline (days)"
   },
   {
+   "default": "I confirm that I have read and understood this document and agree to follow the requirements and procedures that apply to my role.",
    "depends_on": "eval:(doc.document_purpose==\"Internal Compliance\" || doc.document_purpose==\"Both\") && doc.required_action==\"Acknowledge\"",
    "fieldname": "acknowledgement_statement",
    "fieldtype": "Small Text",
    "label": "Acknowledgement Statement"
   },
   {
+   "default": "I confirm that I have read and understood this document. By signing below, I agree to comply with the requirements, responsibilities and procedures that apply to my role.",
    "depends_on": "eval:(doc.document_purpose==\"Internal Compliance\" || doc.document_purpose==\"Both\") && doc.required_action==\"Sign\"",
    "fieldname": "signature_statement",
    "fieldtype": "Small Text",
@@ -339,8 +341,7 @@
    "options": "Practice Document Assignment"
   },
   {
-   "depends_on": "eval:doc.document_purpose==\"Internal Compliance\" || doc.document_purpose==\"Both\"",
-   "description": "Grants a Coach Document Requirement to every coach connected to the ticked brand(s) (their Brand Access on their own Coach record) - automatically, both ways: tick a brand here and every coach already on that brand picks it up, or add a coach to a brand later and they pick up every document already tagged with it. In addition to, not instead of, Selected People/Roles above.",
+   "description": "Automatically grants access to every coach connected to the ticked brand(s) (their Brand Access on their own Coach record), both ways - tick a brand here and every coach already on it picks this document up, or add a coach to a brand later and they pick up every document already tagged with it. For Internal Compliance/Both, this creates a Coach Document Requirement (in addition to, not instead of, Selected People/Roles above). For Client Resource/Both, this adds the coach to Available to Coaches below so they can share it with clients.",
    "fieldname": "brand_access_section",
    "fieldtype": "Section Break",
    "label": "Brand-Based Access"
