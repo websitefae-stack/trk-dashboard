@@ -350,19 +350,19 @@
    "default": "0",
    "fieldname": "brand_access_kid",
    "fieldtype": "Check",
-   "label": "The Resilient Kid"
+   "label": "TRK"
   },
   {
    "default": "0",
    "fieldname": "brand_access_teen",
    "fieldtype": "Check",
-   "label": "The Resilient Teen"
+   "label": "TRT"
   },
   {
    "default": "0",
    "fieldname": "brand_access_people",
    "fieldtype": "Check",
-   "label": "The Resilient People"
+   "label": "TRP"
   },
   {
    "fieldname": "brand_access_column",
@@ -372,7 +372,7 @@
    "default": "0",
    "fieldname": "brand_access_school",
    "fieldtype": "Check",
-   "label": "The Resilient School"
+   "label": "TRS"
   },
   {
    "default": "0",
@@ -407,7 +407,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-05 00:00:01.000000",
+ "modified": "2026-08-05 00:00:02.000000",
  "modified_by": "Administrator",
  "module": "Dashboard",
  "name": "Practice Document",
