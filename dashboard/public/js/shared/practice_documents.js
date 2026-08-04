@@ -504,11 +504,6 @@
       openBtn.style.display = "none";
     }
 
-    if (data.summary) {
-      el("docSummaryWrap").style.display = "block";
-      setText("docSummary", data.summary);
-    }
-
     if (data.document_text) {
       el("docTextWrap").style.display = "block";
       el("docText").innerHTML = data.document_text;

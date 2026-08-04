@@ -18,7 +18,6 @@
   "mandatory",
   "document_file",
   "additional_files",
-  "category",
   "document_use_section",
   "document_purpose",
   "shareable_with",
@@ -29,9 +28,7 @@
   "available_to_coaches",
   "linked_items",
   "document_content_section",
-  "summary",
   "document_text",
-  "change_summary",
   "publication_section",
   "published_date",
   "review_date",
@@ -45,13 +42,6 @@
   "completion_days",
   "acknowledgement_statement",
   "signature_statement",
-  "applies_to_section",
-  "all_coaches",
-  "all_session_workers",
-  "all_franchisees",
-  "all_office_staff",
-  "selected_people_or_roles",
-  "selected_assignments",
   "brand_access_section",
   "brand_access_kid",
   "brand_access_teen",
@@ -130,12 +120,6 @@
    "options": "Practice Document File"
   },
   {
-   "fieldname": "category",
-   "fieldtype": "Table",
-   "label": "Category",
-   "options": "Practice Document Category Assignment"
-  },
-  {
    "fieldname": "document_use_section",
    "fieldtype": "Section Break",
    "label": "Document Use"
@@ -206,19 +190,9 @@
    "label": "Document Content"
   },
   {
-   "fieldname": "summary",
-   "fieldtype": "Small Text",
-   "label": "Summary"
-  },
-  {
    "fieldname": "document_text",
    "fieldtype": "Text Editor",
    "label": "Document Text"
-  },
-  {
-   "fieldname": "change_summary",
-   "fieldtype": "Small Text",
-   "label": "Change Summary"
   },
   {
    "fieldname": "publication_section",
@@ -298,50 +272,7 @@
    "label": "Signature Statement"
   },
   {
-   "depends_on": "eval:doc.document_purpose==\"Internal Compliance\" || doc.document_purpose==\"Both\"",
-   "fieldname": "applies_to_section",
-   "fieldtype": "Section Break",
-   "label": "Applies To"
-  },
-  {
-   "default": "0",
-   "fieldname": "all_coaches",
-   "fieldtype": "Check",
-   "label": "All Coaches"
-  },
-  {
-   "default": "0",
-   "fieldname": "all_session_workers",
-   "fieldtype": "Check",
-   "label": "All Session Workers"
-  },
-  {
-   "default": "0",
-   "fieldname": "all_franchisees",
-   "fieldtype": "Check",
-   "label": "All Franchisees"
-  },
-  {
-   "default": "0",
-   "fieldname": "all_office_staff",
-   "fieldtype": "Check",
-   "label": "All Office Staff"
-  },
-  {
-   "default": "0",
-   "fieldname": "selected_people_or_roles",
-   "fieldtype": "Check",
-   "label": "Selected People or Roles"
-  },
-  {
-   "depends_on": "eval:(doc.document_purpose==\"Internal Compliance\" || doc.document_purpose==\"Both\") && doc.selected_people_or_roles==1",
-   "fieldname": "selected_assignments",
-   "fieldtype": "Table",
-   "label": "Selected Assignments",
-   "options": "Practice Document Assignment"
-  },
-  {
-   "description": "Automatically grants access to every coach connected to the ticked brand(s) (their Brand Access on their own Coach record), both ways - tick a brand here and every coach already on it picks this document up, or add a coach to a brand later and they pick up every document already tagged with it. For Internal Compliance/Both, this creates a Coach Document Requirement (in addition to, not instead of, Selected People/Roles above). For Client Resource/Both, this adds the coach to Available to Coaches below so they can share it with clients.",
+   "description": "Automatically grants access to every coach/session worker connected to the ticked brand(s) on their own Coach/Session Worker record, both ways - tick a brand here and everyone already on it picks this document up, or add someone to a brand later and they pick up every document already tagged with it. For Internal Compliance/Both, this creates a Coach Document Requirement. For Client Resource/Both, this adds them to Available to Coaches below so they can share it with clients. If this document also has Linked Items, Brand-Based Access only applies to whoever also has Item Access to at least one of them.",
    "fieldname": "brand_access_section",
    "fieldtype": "Section Break",
    "label": "Brand-Based Access"
@@ -350,19 +281,25 @@
    "default": "0",
    "fieldname": "brand_access_kid",
    "fieldtype": "Check",
-   "label": "TRK"
+   "in_list_view": 1,
+   "label": "TRK",
+   "width": "60px"
   },
   {
    "default": "0",
    "fieldname": "brand_access_teen",
    "fieldtype": "Check",
-   "label": "TRT"
+   "in_list_view": 1,
+   "label": "TRT",
+   "width": "60px"
   },
   {
    "default": "0",
    "fieldname": "brand_access_people",
    "fieldtype": "Check",
-   "label": "TRP"
+   "in_list_view": 1,
+   "label": "TRP",
+   "width": "60px"
   },
   {
    "fieldname": "brand_access_column",
@@ -372,7 +309,9 @@
    "default": "0",
    "fieldname": "brand_access_school",
    "fieldtype": "Check",
-   "label": "TRS"
+   "in_list_view": 1,
+   "label": "TRS",
+   "width": "60px"
   },
   {
    "default": "0",
@@ -386,6 +325,7 @@
    "label": "Responsibility"
   },
   {
+   "default": "office@theresilienthub.co.uk",
    "fieldname": "document_owner",
    "fieldtype": "Link",
    "label": "Document Owner",
@@ -407,7 +347,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-05 00:00:02.000000",
+ "modified": "2026-08-05 00:00:04.000000",
  "modified_by": "Administrator",
  "module": "Dashboard",
  "name": "Practice Document",
