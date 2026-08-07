@@ -25,6 +25,7 @@ from frappe.utils import now_datetime
 from dashboard.api.shared.permissions import ensure_logged_in, get_allowed_client_names
 from dashboard.api.shared.notifications import create_trk_notification
 from dashboard.api.shared.item_access import _get_coach_login, _get_linked_item_codes, _get_coach_names_with_access_to_items
+from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 
 COACH_DOCUMENT_REQUIREMENT_DOCTYPE = "Coach Document Requirement"
 PRACTICE_DOCUMENT_DOCTYPE = "Practice Document"
@@ -68,6 +69,36 @@ def _is_admin(user):
 	if user == "Administrator":
 		return True
 	return "System Manager" in frappe.get_roles(user)
+
+
+def _resolve_effective_user(view_as=None, viewer=None):
+	"""
+	Read-only "View as Coach" support, mirroring calendar.py's
+	_get_context_for_calendar_request - when the franchisor is viewing a
+	specific coach (view_as/viewer, carried on the coach_db document pages
+	while in view mode), every document read below must be scoped to that
+	coach's own identity (Coach Document Requirement.user, Practice
+	Document Coach membership) instead of the actual logged-in franchisor.
+	Returns (effective_user, is_view_mode) - callers must also skip the
+	_is_admin bypass while is_view_mode is true, so a franchisor viewing as
+	a coach only ever sees exactly what that coach sees, nothing else.
+	"""
+	view_as = (view_as or "").strip()
+
+	if not view_as:
+		return frappe.session.user, False
+
+	view_mode = get_coach_view_mode(scope=viewer, coach_name=view_as)
+
+	if not view_mode.get("is_view_mode"):
+		frappe.throw("You do not have permission to view this coach.", frappe.PermissionError)
+
+	coach_user = _get_coach_login(view_mode.get("view_coach_name"))
+
+	if not coach_user:
+		frappe.throw("This coach does not have a dashboard login.")
+
+	return coach_user, True
 
 
 def _document_type_options():
@@ -172,9 +203,9 @@ def _get_visible_resource_documents(user=None):
 
 
 @frappe.whitelist()
-def get_my_documents_by_type():
+def get_my_documents_by_type(view_as=None, viewer=None):
 	ensure_logged_in()
-	user = frappe.session.user
+	user, _is_view_mode = _resolve_effective_user(view_as, viewer)
 
 	rows = frappe.get_all(
 		COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
@@ -221,13 +252,14 @@ def _is_resource_reachable(source):
 
 
 @frappe.whitelist()
-def get_resource_document(practice_document):
+def get_resource_document(practice_document, view_as=None, viewer=None):
 	"""
 	The "Open Document" view for a resource document (never has a Coach
 	Document Requirement, so nothing to read/acknowledge/sign - only
 	summary/text/file and, when eligible, Allocate to Client).
 	"""
 	ensure_logged_in()
+	user, is_view_mode = _resolve_effective_user(view_as, viewer)
 
 	if not practice_document or not frappe.db.exists(PRACTICE_DOCUMENT_DOCTYPE, practice_document):
 		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
@@ -237,8 +269,9 @@ def get_resource_document(practice_document):
 	if not _is_resource_reachable(source):
 		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
-	if not _can_user_see_resource(source.as_dict()) and not _is_admin(frappe.session.user):
-		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
+	if not _can_user_see_resource(source.as_dict(), user=user):
+		if is_view_mode or not _is_admin(user):
+			frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
 	return {
 		"name": source.name,
@@ -291,7 +324,7 @@ def _serve_private_file(file_url):
 
 
 @frappe.whitelist()
-def get_resource_document_file(practice_document, file_url=None):
+def get_resource_document_file(practice_document, file_url=None, view_as=None, viewer=None):
 	"""
 	Same private-attachment proxy as get_my_document_file(), scoped by
 	resource visibility instead of requirement ownership. file_url is
@@ -301,6 +334,7 @@ def get_resource_document_file(practice_document, file_url=None):
 	file elsewhere on the site).
 	"""
 	ensure_logged_in()
+	user, is_view_mode = _resolve_effective_user(view_as, viewer)
 
 	if not practice_document or not frappe.db.exists(PRACTICE_DOCUMENT_DOCTYPE, practice_document):
 		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
@@ -310,8 +344,9 @@ def get_resource_document_file(practice_document, file_url=None):
 	if not _is_resource_reachable(source):
 		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
-	if not _can_user_see_resource(source.as_dict()) and not _is_admin(frappe.session.user):
-		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
+	if not _can_user_see_resource(source.as_dict(), user=user):
+		if is_view_mode or not _is_admin(user):
+			frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
 	if not file_url:
 		_serve_private_file(source.document_file)
@@ -326,7 +361,7 @@ def get_resource_document_file(practice_document, file_url=None):
 
 
 @frappe.whitelist()
-def get_my_document_file(requirement_name, file_url=None):
+def get_my_document_file(requirement_name, file_url=None, view_as=None, viewer=None):
 	"""
 	Coach Document Requirement.document_file is a copy of the Practice
 	Document's own Attach field value - the underlying File record is
@@ -338,15 +373,7 @@ def get_my_document_file(requirement_name, file_url=None):
 	Practice Document's current Additional Files rows (read live, same
 	as get_my_document_requirement() - never trusted blind).
 	"""
-	ensure_logged_in()
-
-	if not requirement_name or not frappe.db.exists(COACH_DOCUMENT_REQUIREMENT_DOCTYPE, requirement_name):
-		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
-
-	requirement = frappe.get_doc(COACH_DOCUMENT_REQUIREMENT_DOCTYPE, requirement_name)
-
-	if requirement.user != frappe.session.user and not _is_admin(frappe.session.user):
-		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
+	requirement = _get_owned_requirement(requirement_name, view_as=view_as, viewer=viewer)
 
 	if not file_url:
 		_serve_private_file(requirement.document_file)
@@ -364,29 +391,31 @@ def get_my_document_file(requirement_name, file_url=None):
 	_serve_private_file(file_url)
 
 
-def _get_owned_requirement(requirement_name):
+def _get_owned_requirement(requirement_name, view_as=None, viewer=None):
 	ensure_logged_in()
+	user, is_view_mode = _resolve_effective_user(view_as, viewer)
 
 	if not requirement_name or not frappe.db.exists(COACH_DOCUMENT_REQUIREMENT_DOCTYPE, requirement_name):
 		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
 	requirement = frappe.get_doc(COACH_DOCUMENT_REQUIREMENT_DOCTYPE, requirement_name)
 
-	if requirement.user != frappe.session.user and not _is_admin(frappe.session.user):
-		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
+	if requirement.user != user:
+		if is_view_mode or not _is_admin(user):
+			frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
 	return requirement
 
 
 @frappe.whitelist()
-def get_my_document_requirement(requirement_name):
+def get_my_document_requirement(requirement_name, view_as=None, viewer=None):
 	"""
 	Everything the in-dashboard "Open Document" view needs: the
 	requirement itself, plus the document text/purpose that only live on
 	the linked Practice Document (never duplicated onto the requirement's
 	own snapshot fields).
 	"""
-	requirement = _get_owned_requirement(requirement_name)
+	requirement = _get_owned_requirement(requirement_name, view_as=view_as, viewer=viewer)
 	data = requirement.as_dict()
 
 	if requirement.practice_document and frappe.db.exists(PRACTICE_DOCUMENT_DOCTYPE, requirement.practice_document):
