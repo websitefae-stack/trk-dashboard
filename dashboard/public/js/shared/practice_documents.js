@@ -99,18 +99,40 @@
     return "/coach_db";
   }
 
+  // A franchisor "viewing as" a coach reaches these coach_db pages with
+  // ?view_as=<coach>&viewer=franchisor in the URL - every document read
+  // below must be scoped to that coach, never the franchisor's own
+  // identity, so this is threaded through to both the API calls and the
+  // Open/Download links.
+  function getViewParams() {
+    var params = new URLSearchParams(window.location.search);
+    var viewAs = params.get("view_as") || "";
+    var viewer = params.get("viewer") || "";
+    return viewAs && viewer ? { view_as: viewAs, viewer: viewer } : {};
+  }
+
+  function withViewParams(args) {
+    return Object.assign({}, args || {}, getViewParams());
+  }
+
+  function viewParamsQueryString() {
+    var params = getViewParams();
+    var query = new URLSearchParams(params).toString();
+    return query ? "&" + query : "";
+  }
+
   // -------------------------------------------------------------------
   // Documents list page - one table per Document Type tab
   // -------------------------------------------------------------------
 
   function renderDocumentRow(row) {
     var isResource = row.kind === "resource";
-    var viewUrl = isResource
+    var viewUrl = (isResource
       ? dashboardBase() + "/document_view?practice_document=" + encodeURIComponent(row.name)
-      : dashboardBase() + "/document_view?name=" + encodeURIComponent(row.name);
-    var downloadUrl = isResource
+      : dashboardBase() + "/document_view?name=" + encodeURIComponent(row.name)) + viewParamsQueryString();
+    var downloadUrl = (isResource
       ? "/api/method/" + API + ".get_resource_document_file?practice_document=" + encodeURIComponent(row.name)
-      : "/api/method/" + API + ".get_my_document_file?requirement_name=" + encodeURIComponent(row.name);
+      : "/api/method/" + API + ".get_my_document_file?requirement_name=" + encodeURIComponent(row.name)) + viewParamsQueryString();
 
     var statusCell;
 
@@ -199,7 +221,7 @@
 
     var data;
     try {
-      data = await apiGet(API + ".get_my_documents_by_type", {});
+      data = await apiGet(API + ".get_my_documents_by_type", withViewParams());
     } catch (error) {
       panelsWrap.innerHTML = '<div class="dashboard-empty">' + escapeHtml(error.message) + "</div>";
       return;
@@ -497,9 +519,9 @@
 
     var openBtn = el("docOpenFileBtn");
     var embed = el("docFileEmbed");
-    var fileUrl = isResource
+    var fileUrl = (isResource
       ? "/api/method/" + API + ".get_resource_document_file?practice_document=" + encodeURIComponent(data.name)
-      : "/api/method/" + API + ".get_my_document_file?requirement_name=" + encodeURIComponent(data.name);
+      : "/api/method/" + API + ".get_my_document_file?requirement_name=" + encodeURIComponent(data.name)) + viewParamsQueryString();
 
     if (data.document_file) {
       if (openBtn) openBtn.href = fileUrl;
@@ -554,8 +576,8 @@
     var data;
     try {
       data = isResource
-        ? await apiGet(API + ".get_resource_document", { practice_document: practiceDocumentName })
-        : await apiGet(API + ".get_my_document_requirement", { requirement_name: requirementName });
+        ? await apiGet(API + ".get_resource_document", withViewParams({ practice_document: practiceDocumentName }))
+        : await apiGet(API + ".get_my_document_requirement", withViewParams({ requirement_name: requirementName }));
     } catch (error) {
       el("documentViewLoading").style.display = "none";
       showDocError(error.message || "You do not have permission to access this document.");
