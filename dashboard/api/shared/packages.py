@@ -97,6 +97,25 @@ def _recalculate_one_balance(balance_name):
     if not frappe.db.exists("Client Package Balance", balance_name):
         return
 
+    # Serializes concurrent recalculations of the same balance. Two
+    # bookings for the same client saved close together each enqueue their
+    # own background job (recalculate_client_package_balance's job_id is
+    # per-Event, not per-balance), and without this both jobs can read the
+    # event list before either has written its results, then race to
+    # assign session numbers off two different "before" snapshots - e.g.
+    # the earlier job numbers session 2 as the 2nd of 2 active events, the
+    # later job (which should have renumbered it to 3 once a 3rd event
+    # existed) never gets a look at the other's in-flight write and starts
+    # from its own stale read instead. That's how two different
+    # appointments end up both labelled "Session 2 of 4" for the same
+    # pack. This lock makes the second job wait for the first to finish
+    # and commit before it reads anything, so it always numbers off the
+    # complete, up-to-date event list.
+    frappe.db.sql(
+        "SELECT name FROM `tabClient Package Balance` WHERE name=%s FOR UPDATE",
+        balance_name,
+    )
+
     balance = frappe.get_doc("Client Package Balance", balance_name)
 
     event_rows = frappe.db.get_all(
@@ -148,7 +167,20 @@ def _recalculate_one_balance(balance_name):
 
     for event in active_events:
         session_index = session_index + 1
-        _recalculate_one_event(event, balance, session_index, total_purchased)
+
+        # Isolated per event - one bad write here (e.g. a Client
+        # Appointment insert failing validation) must not abort the loop,
+        # or every event chronologically after the failing one keeps
+        # whatever stale session number an earlier run gave it forever,
+        # since nothing re-triggers this recalculation except a future
+        # booking for the same client.
+        try:
+            _recalculate_one_event(event, balance, session_index, total_purchased)
+        except Exception:
+            frappe.log_error(
+                frappe.get_traceback(),
+                f"Recalculate Client Package Balance - event {event.get('name')} - balance {balance_name}",
+            )
 
     balance_status = "Active"
     if available_count <= 0:
@@ -689,4 +721,47 @@ def repair_duplicate_client_session_events(confirm=0):
         "confirmed": bool(confirm),
         "kept": kept,
         "duplicate_event_names": deleted,
+    }
+
+
+@frappe.whitelist()
+def repair_duplicate_session_numbers(confirm=0):
+    """
+    Fixes the report's "duplicate_client_appointments" case - 2+ live
+    appointments on the same Client Package Balance sharing one session
+    number (e.g. two different appointments both "Session 2 of 4"),
+    caused by the recalculation race/partial-failure described in
+    _recalculate_one_balance above. That function is deterministic given
+    the current, complete set of active events for a balance, so simply
+    re-running it renumbers everything on that balance consistently from
+    scratch - nothing is deleted or reassigned to a different balance,
+    only the session_number/progress_text fields on its own events and
+    appointments.
+
+    confirm=0 (default): dry run, reports which balances would be resynced.
+    confirm=1: actually resyncs them.
+    """
+    _ensure_reports_access()
+
+    confirm = int(confirm or 0)
+
+    report = get_appointment_integrity_report()
+    balance_names = sorted({
+        group["client_package_balance"]
+        for group in report["duplicate_client_appointments"]
+        if group.get("client_package_balance")
+    })
+
+    if confirm:
+        for balance_name in balance_names:
+            try:
+                _recalculate_one_balance(balance_name)
+            except Exception:
+                frappe.log_error(frappe.get_traceback(), f"Repair Duplicate Session Numbers - {balance_name}")
+
+        frappe.db.commit()
+
+    return {
+        "confirmed": bool(confirm),
+        "resynced_balances": balance_names,
     }

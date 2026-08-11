@@ -175,6 +175,11 @@
     if (repairSection) {
       repairSection.style.display = (report.duplicate_events && report.duplicate_events.length) ? "" : "none";
     }
+
+    var resyncSection = el("resyncSection");
+    if (resyncSection) {
+      resyncSection.style.display = (report.duplicate_client_appointments && report.duplicate_client_appointments.length) ? "" : "none";
+    }
   }
 
   async function runIntegrityReport() {
@@ -252,6 +257,66 @@
       window.alert(error.message || "Could not complete repairs.");
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = "Confirm Delete"; }
+    }
+  }
+
+  function renderResyncResults(result) {
+    var out = el("resyncResults");
+    if (!out) return;
+
+    var confirmBtn = el("confirmResyncBtn");
+
+    if (!result.resynced_balances || !result.resynced_balances.length) {
+      out.innerHTML = '<div class="dashboard-empty">No duplicate session numbers to resync.</div>';
+      if (confirmBtn) confirmBtn.style.display = "none";
+      return;
+    }
+
+    var label = result.confirmed ? "Resynced" : "Would resync";
+    out.innerHTML = '<div class="dashboard-detail-section">'
+      + '<h3 style="margin-bottom:8px;">' + label + " (" + result.resynced_balances.length + ")</h3>"
+      + '<ul style="margin:0;padding-left:20px;">'
+      + result.resynced_balances.map(function (name) { return "<li>" + nameLink("Client Package Balance", name) + "</li>"; }).join("")
+      + '</ul>'
+      + '</div>';
+
+    if (confirmBtn) {
+      confirmBtn.style.display = result.confirmed ? "none" : "";
+    }
+  }
+
+  async function previewResync() {
+    var btn = el("previewResyncBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Checking..."; }
+
+    try {
+      var result = await callApi("dashboard.api.shared.packages.repair_duplicate_session_numbers", { confirm: 0 });
+      renderResyncResults(result);
+    } catch (error) {
+      console.error("Resync preview failed:", error);
+      window.alert(error.message || "Could not preview the resync.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Preview (no changes made)"; }
+    }
+  }
+
+  async function confirmResync() {
+    if (!window.confirm("This will recalculate session numbers for the packs listed above. Continue?")) {
+      return;
+    }
+
+    var btn = el("confirmResyncBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Resyncing..."; }
+
+    try {
+      var result = await callApi("dashboard.api.shared.packages.repair_duplicate_session_numbers", { confirm: 1 });
+      renderResyncResults(result);
+      window.alert("Done - " + result.resynced_balances.length + " pack(s) resynced.");
+    } catch (error) {
+      console.error("Resync failed:", error);
+      window.alert(error.message || "Could not complete the resync.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Confirm Resync"; }
     }
   }
 
@@ -1256,6 +1321,12 @@
 
     var confirmBtn = el("confirmRepairBtn");
     if (confirmBtn) confirmBtn.addEventListener("click", confirmRepair);
+
+    var previewResyncBtn = el("previewResyncBtn");
+    if (previewResyncBtn) previewResyncBtn.addEventListener("click", previewResync);
+
+    var confirmResyncBtn = el("confirmResyncBtn");
+    if (confirmResyncBtn) confirmResyncBtn.addEventListener("click", confirmResync);
   }
 
   if (document.readyState === "loading") {

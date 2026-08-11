@@ -226,17 +226,17 @@
     } else {
       if (viewClientBtn) viewClientBtn.style.display = "none";
 
-      // Send Intake Form only hides while genuinely waiting on the
-      // parent's first submission (intakeSent but not yet intakeDone) -
-      // nothing to resend yet. Once the intake is completed it reappears
-      // as "Resend Intake Form", alongside Convert to Client, so a coach
-      // whose conversion turned up mistakes can send it back out for the
-      // parent to correct, without needing to un-send the lead first.
+      // Send/Resend Intake Form stays available at every stage right up
+      // until conversion actually succeeds - never sent yet, sent and
+      // still waiting, or completed (possibly incompletely - the parent
+      // skipped questions, or conversion turned up mistakes) all need a
+      // way to get a fresh submission back out to the parent, without
+      // requiring the lead to be un-sent or un-completed first.
       const intakeSent = !!lead.intake_sent_on;
       const intakeDone = !!lead.intake_completed_on;
       if (sendBtn) {
-        sendBtn.style.display = intakeSent && !intakeDone ? "none" : "";
-        sendBtn.textContent = intakeDone ? "Resend Intake Form" : "Send Intake Form";
+        sendBtn.style.display = "";
+        sendBtn.textContent = intakeSent ? "Resend Intake Form" : "Send Intake Form";
       }
 
       if (!lead.is_client_conversion) {
