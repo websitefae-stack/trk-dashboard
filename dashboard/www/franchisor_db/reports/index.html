@@ -53,6 +53,28 @@
 
           <div id="repairResults"></div>
         </div>
+
+        <div class="dashboard-card" id="resyncSection" style="display:none;">
+          <div class="dashboard-detail-section-head">
+            <h2 class="dashboard-detail-section-title">Resync Duplicate Session Numbers</h2>
+          </div>
+
+          <p class="dashboard-help" style="margin-bottom:16px;">
+            For every Client Package Balance flagged above with two or more live appointments sharing the same
+            "Session X of Y" number, recalculates that balance's numbering from scratch off its current, complete
+            appointment list. Nothing is deleted or moved to a different pack - only the session number/progress
+            text on that balance's own events and appointments is corrected.
+          </p>
+
+          <div class="dashboard-detail-actions" style="margin-bottom:16px;">
+            <button type="button" class="dashboard-btn dashboard-btn-light" id="previewResyncBtn">Preview (no changes made)</button>
+            <button type="button" class="dashboard-btn dashboard-btn-danger" id="confirmResyncBtn" style="display:none;">
+              Confirm Resync
+            </button>
+          </div>
+
+          <div id="resyncResults"></div>
+        </div>
       {% endif %}
     </div>
   </div>
