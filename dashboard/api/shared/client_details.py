@@ -832,6 +832,7 @@ def get_event_client_appointments(client_name, calendar_detail_base_url="/coach_
         "custom_total_sessions",
         "custom_progress_text",
         "custom_booking_warning",
+        "custom_client_package_balance",
     ]
 
     for fieldname in optional_fields:
@@ -859,6 +860,14 @@ def get_event_client_appointments(client_name, calendar_detail_base_url="/coach_
         row["appointment_end"] = row.get("ends_on")
         row["display_status"] = map_event_status_to_ui(raw_status)
         row["ui_status"] = row["display_status"]
+        # Same key as get_client_appointment_rows' own "client_package_balance"
+        # (Client Appointment's native field) - the two functions are
+        # interchangeable fallbacks for the same appointments table, and the
+        # id shown here is what makes it possible to tell two appointments
+        # with the same "Session X of Y" progress apart when a client has
+        # more than one pack, or to spot one that's been miscounted against
+        # the wrong pack entirely.
+        row["client_package_balance"] = row.get("custom_client_package_balance")
         row["display_progress"] = get_progress_text(
             row.get("custom_progress_text"),
             row.get("custom_session_number"),

@@ -1103,15 +1103,17 @@
             "<td><div class=\"dashboard-table-date\">" + formatDate(dateValue) + "</div><div class=\"dashboard-table-time\">" + escapeHtml(timeValue || "") + "</div></td>" +
             "<td><a class=\"dashboard-inline-link\" href=\"" + escapeHtml(link) + "\">" + escapeHtml(row.appointment_type || row.item_display_name || row.item || "—") + "</a></td>" +
             "<td>" + escapeHtml(row.ui_status || row.display_status || row.status || "—") + "</td>" +
+            "<td>" + escapeHtml(row.display_progress || "") + "</td>" +
+            "<td>" + escapeHtml(row.client_package_balance || "—") + "</td>" +
             "<td>" + escapeHtml(row.location || "—") + "</td>" +
             "<td class=\"dashboard-action-cell\"><a class=\"dashboard-link-btn\" href=\"" + escapeHtml(link) + "\">View</a></td>" +
           "</tr>"
         );
       });
 
-      renderSimpleTable("clientAppointmentsTableBody", rows, "No appointments found.", 5);
+      renderSimpleTable("clientAppointmentsTableBody", rows, "No appointments found.", 7);
     } catch (error) {
-      renderSimpleTable("clientAppointmentsTableBody", [], error.message || "Could not load appointments.", 5);
+      renderSimpleTable("clientAppointmentsTableBody", [], error.message || "Could not load appointments.", 7);
     }
   }
 
