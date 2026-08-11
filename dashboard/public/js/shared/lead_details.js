@@ -226,12 +226,18 @@
     } else {
       if (viewClientBtn) viewClientBtn.style.display = "none";
 
-      // Same button slot changes from "Send Intake Form" to "Convert to
-      // Client" - Send Intake Form disappears as soon as it's been sent
-      // (nothing to resend), Convert to Client appears once it's done.
+      // Send Intake Form only hides while genuinely waiting on the
+      // parent's first submission (intakeSent but not yet intakeDone) -
+      // nothing to resend yet. Once the intake is completed it reappears
+      // as "Resend Intake Form", alongside Convert to Client, so a coach
+      // whose conversion turned up mistakes can send it back out for the
+      // parent to correct, without needing to un-send the lead first.
       const intakeSent = !!lead.intake_sent_on;
       const intakeDone = !!lead.intake_completed_on;
-      if (sendBtn) sendBtn.style.display = intakeSent ? "none" : "";
+      if (sendBtn) {
+        sendBtn.style.display = intakeSent && !intakeDone ? "none" : "";
+        sendBtn.textContent = intakeDone ? "Resend Intake Form" : "Send Intake Form";
+      }
 
       if (!lead.is_client_conversion) {
         // e.g. Franchisee Call - turns into a Franchisee, not a Client;

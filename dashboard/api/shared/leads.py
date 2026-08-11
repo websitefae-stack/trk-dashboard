@@ -617,6 +617,15 @@ def send_intake_form(name=None, subject=None, message=None, cc=None, sender=None
 
     doc.status = "Intake Sent"
     doc.intake_sent_on = now_datetime()
+
+    # Resending (this lead already had a completed intake) reopens it for
+    # a fresh submission - clearing intake_completed_on hides the Convert
+    # to Client button again until the corrected answers come back in, and
+    # lets sync_intake_doctype_submission's was_already_complete check
+    # treat the next submission as a genuine completion again, so the
+    # coach gets notified and Convert to Client re-appears with the
+    # corrected data rather than the old, mistaken answers.
+    doc.intake_completed_on = None
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 
@@ -1360,7 +1369,20 @@ def convert_lead_to_client(name=None):
         })
 
         for _label, full_name, email, mobile in _extra_contacts_for_lead(doc):
-            extra_contact_name = _create_supplementary_contact(full_name, email, mobile, doc.contact_name)
+            # Best-effort, same as _attach_intake_pdf_to_client below - a
+            # bad value on one supplementary contact (e.g. a malformed
+            # email the intake form didn't validate) must never blow up
+            # the whole conversion. Frappe rolls back the entire request
+            # on an unhandled exception, so without this the Client that
+            # was already inserted above would vanish along with it,
+            # while the Lead's own status never reaches "Converted" -
+            # leaving no record either side happened.
+            try:
+                extra_contact_name = _create_supplementary_contact(full_name, email, mobile, doc.contact_name)
+            except Exception:
+                frappe.log_error(frappe.get_traceback(), f"Convert Lead to Client - Supplementary Contact Failed - {doc.name}")
+                extra_contact_name = None
+
             if extra_contact_name:
                 client.append("client_contacts", {
                     "contact": extra_contact_name,
