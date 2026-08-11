@@ -51,6 +51,13 @@
     "Personal": 60
   };
 
+  // Only these three keep a fixed, type-driven duration when editing an
+  // existing session - every other type (Event / Stall, School/Company
+  // meetings and sessions, Personal, Internal Training, General) gets a
+  // free End Time field instead, since their real-world length varies far
+  // more than a standard therapy/check-in/consultation slot does.
+  const FIXED_DURATION_EDIT_TYPES = ["Therapy Session", "Parent Check-In", "Initial Consultation"];
+
   const CLIENT_REQUIRED_TYPES = ["Therapy Session", "Parent Check-In"];
   const NON_CLIENT_TITLE_TYPES = ["Internal Training", "Event / Stall", "Personal"];
   const SCHOOL_LINKED_TYPES = ["School Visit", "Company Meeting", "School Session", "Company Session"];
@@ -1405,6 +1412,8 @@
     const dateChanged = !!(originalEvent && originalEvent.date && originalEvent.date !== bookingDate);
     const status = getValue("trkEditStatus");
     const appointmentType = getValue("trkEditType");
+    const hasFixedDuration = FIXED_DURATION_EDIT_TYPES.indexOf(appointmentType) !== -1;
+    const bookingEndTime = hasFixedDuration ? "" : getValue("trkEditEndTime");
 
     const billingType = appointmentType === "General"
       ? (getValue("trkEditBillingType") || "")
@@ -1431,6 +1440,16 @@
       return;
     }
 
+    if (!hasFixedDuration && !bookingEndTime) {
+      showToast("Please select an end time");
+      return;
+    }
+
+    if (!hasFixedDuration && bookingEndTime <= bookingTime) {
+      showToast("End time must be after the start time");
+      return;
+    }
+
     setButtonLoading("trkCalendarEditSaveBtn", true, "Saving...");
 
     var linkClient = getValue("trkEditClient") || "";
@@ -1440,6 +1459,7 @@
       event: eventName,
       booking_date: bookingDate,
       booking_time: bookingTime,
+      booking_end_time: bookingEndTime,
       status: status,
       appointment_type: appointmentType,
       billing_type: billingType,
@@ -1610,6 +1630,7 @@
     setValue("trkEditDate", event.date || "");
     updateDatePickerDisplay("trkEditDate", "trkEditDateDisplay");
     setValue("trkEditTime", event.start_time || "");
+    setValue("trkEditEndTime", event.end_time || "");
     setValue("trkEditStatus", event.ui_status || "Booked");
     setValue("trkEditType", event.type || "Therapy Session");
     setValue("trkEditBillingType", event.billing_type || "");
@@ -2071,6 +2092,16 @@
 
     if (!isGeneral) {
       setValue("trkEditBillingType", "");
+    }
+
+    const hasFixedDuration = FIXED_DURATION_EDIT_TYPES.indexOf(type) !== -1;
+    toggleDisplay("trkEditEndTimeRow", !hasFixedDuration);
+
+    if (!hasFixedDuration && !getValue("trkEditEndTime")) {
+      const startTime = getValue("trkEditTime");
+      if (startTime) {
+        setValue("trkEditEndTime", addMinutesToTimeString(startTime, DURATION_BY_TYPE[type] || 45));
+      }
     }
   }
 

@@ -3002,6 +3002,7 @@ def update_session(
     event=None,
     booking_date=None,
     booking_time=None,
+    booking_end_time=None,
     status=None,
     appointment_type=None,
     location=None,
@@ -3029,6 +3030,7 @@ def update_session(
 
     booking_date = _coalesce_str("booking_date", booking_date)
     booking_time = _coalesce_str("booking_time", booking_time)
+    booking_end_time = _coalesce_str("booking_end_time", booking_end_time)
     status = _coalesce_str("status", status)
     appointment_type = _coalesce_str("appointment_type", appointment_type)
     location = _coalesce_str("location", location)
@@ -3054,15 +3056,28 @@ def update_session(
     if not booking_date or not booking_time:
         frappe.throw(_("Please select date and time."))
 
-    old_start = get_datetime(event_doc.starts_on) if event_doc.starts_on else None
-    old_end = get_datetime(event_doc.ends_on) if event_doc.ends_on else None
-    duration_minutes = 45
-
-    if old_start and old_end:
-        duration_minutes = max(int((old_end - old_start).total_seconds() / 60), 15)
-
     new_start = get_datetime(f"{booking_date} {booking_time}:00")
-    new_end = add_to_date(new_start, minutes=duration_minutes)
+
+    if booking_end_time:
+        # Explicit end time from the edit form (Event / Stall, School/
+        # Company meetings and sessions, Personal, Internal Training,
+        # General) - these vary far more in real length than a standard
+        # Therapy Session/Parent Check-In/Initial Consultation slot does,
+        # so the coach sets it directly rather than the original duration
+        # being silently preserved below.
+        new_end = get_datetime(f"{booking_date} {booking_end_time}:00")
+
+        if new_end <= new_start:
+            frappe.throw(_("End time must be after the start time."))
+    else:
+        old_start = get_datetime(event_doc.starts_on) if event_doc.starts_on else None
+        old_end = get_datetime(event_doc.ends_on) if event_doc.ends_on else None
+        duration_minutes = 45
+
+        if old_start and old_end:
+            duration_minutes = max(int((old_end - old_start).total_seconds() / 60), 15)
+
+        new_end = add_to_date(new_start, minutes=duration_minutes)
 
     event_doc.starts_on = new_start
     event_doc.ends_on = new_end
