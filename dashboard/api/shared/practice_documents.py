@@ -407,6 +407,22 @@ def _get_owned_requirement(requirement_name, view_as=None, viewer=None):
 	return requirement
 
 
+def _auto_complete_read_only_requirement(requirement):
+	"""
+	A Read Only document isn't something to tick a box or sign - it's just
+	there to read, so opening it in the document view IS the completion
+	action. Still sets read_confirmed and goes through submit() (never a
+	raw docstatus write), exactly as the old checkbox-driven flow did, so
+	the user's own "Complete coach document requirement" Before Submit
+	Server Script - which may itself expect that field set - runs exactly
+	as it does for Acknowledge/Sign.
+	"""
+	frappe.db.set_value(COACH_DOCUMENT_REQUIREMENT_DOCTYPE, requirement.name, "read_confirmed", 1)
+	requirement.reload()
+	requirement.flags.ignore_permissions = True
+	requirement.submit()
+
+
 @frappe.whitelist()
 def get_my_document_requirement(requirement_name, view_as=None, viewer=None):
 	"""
@@ -416,6 +432,10 @@ def get_my_document_requirement(requirement_name, view_as=None, viewer=None):
 	own snapshot fields).
 	"""
 	requirement = _get_owned_requirement(requirement_name, view_as=view_as, viewer=viewer)
+
+	if requirement.required_action == "Read Only" and requirement.docstatus == 0 and requirement.status != "Superseded":
+		_auto_complete_read_only_requirement(requirement)
+
 	data = requirement.as_dict()
 
 	if requirement.practice_document and frappe.db.exists(PRACTICE_DOCUMENT_DOCTYPE, requirement.practice_document):
@@ -433,7 +453,6 @@ def get_my_document_requirement(requirement_name, view_as=None, viewer=None):
 @frappe.whitelist()
 def complete_my_document_requirement(
 	requirement_name,
-	read_confirmed=None,
 	acknowledgement_confirmed=None,
 	typed_full_name=None,
 	signature=None,
@@ -444,7 +463,10 @@ def complete_my_document_requirement(
 	requirement.submit() - never frappe.db.set_value(..., "docstatus", 1) -
 	so the user's own "Complete coach document requirement" Server Script
 	(Before Submit) is what actually validates and finishes this, exactly
-	as it does when submitted from the Desk form.
+	as it does when submitted from the Desk form. Read Only requirements
+	never reach this - get_my_document_requirement() completes those
+	itself as soon as they're opened, since there's nothing for the coach
+	to confirm.
 	"""
 	requirement = _get_owned_requirement(requirement_name)
 
@@ -453,9 +475,7 @@ def complete_my_document_requirement(
 
 	updates = {}
 
-	if requirement.required_action == "Read Only":
-		updates["read_confirmed"] = 1 if _truthy(read_confirmed) else 0
-	elif requirement.required_action == "Acknowledge":
+	if requirement.required_action == "Acknowledge":
 		updates["acknowledgement_confirmed"] = 1 if _truthy(acknowledgement_confirmed) else 0
 	elif requirement.required_action == "Sign":
 		updates["typed_full_name"] = (typed_full_name or "").strip()

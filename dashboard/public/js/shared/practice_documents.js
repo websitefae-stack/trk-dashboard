@@ -298,7 +298,7 @@
   }
 
   function hideCompletionSections() {
-    ["docActionReadOnly", "docActionAcknowledge", "docActionSign", "docSuccessPanel"].forEach(function (id) {
+    ["docActionAcknowledge", "docActionSign", "docSuccessPanel"].forEach(function (id) {
       var node = el(id);
       if (node) node.style.display = "none";
     });
@@ -543,13 +543,14 @@
 
     hideCompletionSections();
 
-    if (data.docstatus === 1 || data.status === "Completed") {
-      renderSuccessPanel(data);
-    } else if (data.status === "Superseded") {
-      showDocError("This document has been superseded and can no longer be completed.");
+    if (data.status === "Superseded") {
+      showDocError("This document has been superseded and can no longer be viewed.");
     } else if (data.required_action === "Read Only") {
-      el("docActionReadOnly").style.display = "block";
-      el("docReadConfirmed").checked = !!data.read_confirmed;
+      // Nothing to tick or submit - the document itself is the whole
+      // interaction, and the backend already marks it read as soon as
+      // this view is opened.
+    } else if (data.docstatus === 1 || data.status === "Completed") {
+      renderSuccessPanel(data);
     } else if (data.required_action === "Acknowledge") {
       el("docActionAcknowledge").style.display = "block";
       setText("docAcknowledgementDeclaration", data.acknowledgement_declaration || "");
@@ -603,23 +604,6 @@
   }
 
   function bindCompletionButtons() {
-    var readBtn = el("docSubmitReadOnly");
-    if (readBtn) {
-      readBtn.addEventListener("click", function () {
-        clearDocError();
-
-        if (!el("docReadConfirmed").checked) {
-          showDocError("Please confirm you have read this document before submitting.");
-          return;
-        }
-
-        readBtn.disabled = true;
-        submitCompletion({ read_confirmed: 1 }).catch(function () {}).finally(function () {
-          readBtn.disabled = false;
-        });
-      });
-    }
-
     var ackBtn = el("docSubmitAcknowledge");
     if (ackBtn) {
       ackBtn.addEventListener("click", function () {
