@@ -265,23 +265,46 @@
     if (!out) return;
 
     var confirmBtn = el("confirmResyncBtn");
+    var resynced = result.resynced_balances || [];
+    var failed = result.failed_balances || [];
 
-    if (!result.resynced_balances || !result.resynced_balances.length) {
+    if (!resynced.length && !failed.length) {
       out.innerHTML = '<div class="dashboard-empty">No duplicate session numbers to resync.</div>';
       if (confirmBtn) confirmBtn.style.display = "none";
       return;
     }
 
-    var label = result.confirmed ? "Resynced" : "Would resync";
-    out.innerHTML = '<div class="dashboard-detail-section">'
-      + '<h3 style="margin-bottom:8px;">' + label + " (" + result.resynced_balances.length + ")</h3>"
-      + '<ul style="margin:0;padding-left:20px;">'
-      + result.resynced_balances.map(function (name) { return "<li>" + nameLink("Client Package Balance", name) + "</li>"; }).join("")
-      + '</ul>'
-      + '</div>';
+    var label = result.confirmed ? "Resynced" : "Would attempt";
+    var html = "";
+
+    if (resynced.length) {
+      html += '<div class="dashboard-detail-section">'
+        + '<h3 style="margin-bottom:8px;">' + label + " (" + resynced.length + ")</h3>"
+        + '<ul style="margin:0;padding-left:20px;">'
+        + resynced.map(function (name) { return "<li>" + nameLink("Client Package Balance", name) + "</li>"; }).join("")
+        + '</ul>'
+        + '</div>';
+    }
+
+    if (failed.length) {
+      html += '<div class="dashboard-detail-section" style="margin-top:16px;">'
+        + '<h3 style="margin-bottom:8px;color:#b91c1c;">Still broken - hit an error (' + failed.length + ")</h3>"
+        + '<p class="dashboard-help" style="margin-bottom:8px;">Check the Error Log for these - title starts with "Recalculate Client Package Balance" or "Repair Duplicate Session Numbers".</p>'
+        + '<ul style="margin:0;padding-left:20px;">'
+        + failed.map(function (row) {
+            var events = (row.failed_events || []).length
+              ? " (failed on: " + row.failed_events.map(function (n) { return nameLink("Event", n); }).join(", ") + ")"
+              : "";
+            return "<li>" + nameLink("Client Package Balance", row.balance) + events + "</li>";
+          }).join("")
+        + '</ul>'
+        + '</div>';
+    }
+
+    out.innerHTML = html;
 
     if (confirmBtn) {
-      confirmBtn.style.display = result.confirmed ? "none" : "";
+      confirmBtn.style.display = (result.confirmed || !resynced.length) ? "none" : "";
     }
   }
 

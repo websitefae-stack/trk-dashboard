@@ -164,6 +164,7 @@ def _recalculate_one_balance(balance_name):
         available_count = 0
 
     session_index = 0
+    failed_event_names = []
 
     for event in active_events:
         session_index = session_index + 1
@@ -173,7 +174,11 @@ def _recalculate_one_balance(balance_name):
         # or every event chronologically after the failing one keeps
         # whatever stale session number an earlier run gave it forever,
         # since nothing re-triggers this recalculation except a future
-        # booking for the same client.
+        # booking for the same client. Failures are collected (not just
+        # logged) so a caller like repair_duplicate_session_numbers can
+        # tell the difference between "actually fixed" and "silently
+        # didn't work" instead of reporting every attempted balance as
+        # resynced regardless of what really happened.
         try:
             _recalculate_one_event(event, balance, session_index, total_purchased)
         except Exception:
@@ -181,6 +186,7 @@ def _recalculate_one_balance(balance_name):
                 frappe.get_traceback(),
                 f"Recalculate Client Package Balance - event {event.get('name')} - balance {balance_name}",
             )
+            failed_event_names.append(event.get("name"))
 
     balance_status = "Active"
     if available_count <= 0:
@@ -219,6 +225,8 @@ def _recalculate_one_balance(balance_name):
             package_status = "Exhausted"
 
         frappe.db.set_value("Client Package", package_name, "status", package_status, update_modified=False)
+
+    return failed_event_names
 
 
 def _recalculate_one_event(event, balance, session_index, total_purchased):
@@ -738,8 +746,16 @@ def repair_duplicate_session_numbers(confirm=0):
     only the session_number/progress_text fields on its own events and
     appointments.
 
-    confirm=0 (default): dry run, reports which balances would be resynced.
-    confirm=1: actually resyncs them.
+    confirm=0 (default): dry run, reports which balances would be attempted.
+    confirm=1: actually attempts them, and reports honestly - resynced_balances
+    is only ever populated with balances _recalculate_one_balance actually
+    got through clean; anything it hit an error on (per-event failures, or
+    the balance-level call itself throwing) goes in failed_balances instead,
+    with the exact appointment(s) that failed where known. A balance
+    appearing in failed_balances is genuinely still broken and needs the
+    Error Log entry it wrote (title "Recalculate Client Package Balance -
+    event ... - balance ..." or "Repair Duplicate Session Numbers - ...")
+    looked at directly.
     """
     _ensure_reports_access()
 
@@ -752,16 +768,29 @@ def repair_duplicate_session_numbers(confirm=0):
         if group.get("client_package_balance")
     })
 
+    resynced_balances = []
+    failed_balances = []
+
     if confirm:
         for balance_name in balance_names:
             try:
-                _recalculate_one_balance(balance_name)
+                failed_event_names = _recalculate_one_balance(balance_name) or []
             except Exception:
                 frappe.log_error(frappe.get_traceback(), f"Repair Duplicate Session Numbers - {balance_name}")
+                failed_balances.append({"balance": balance_name, "failed_events": []})
+                continue
+
+            if failed_event_names:
+                failed_balances.append({"balance": balance_name, "failed_events": failed_event_names})
+            else:
+                resynced_balances.append(balance_name)
 
         frappe.db.commit()
+    else:
+        resynced_balances = balance_names
 
     return {
         "confirmed": bool(confirm),
-        "resynced_balances": balance_names,
+        "resynced_balances": resynced_balances,
+        "failed_balances": failed_balances,
     }
