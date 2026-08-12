@@ -551,6 +551,87 @@
     ], intakeFormState.rows);
   }
 
+  function renderResyncIntakeFormsResults(result) {
+    var out = el("resyncIntakeFormsResults");
+    if (!out) return;
+
+    var confirmBtn = el("confirmResyncIntakeFormsBtn");
+    var resynced = result.resynced || [];
+    var unmatched = result.unmatched || [];
+
+    if (!resynced.length && !unmatched.length) {
+      out.innerHTML = '<div class="dashboard-empty">No stuck intake forms found.</div>';
+      if (confirmBtn) confirmBtn.style.display = "none";
+      return;
+    }
+
+    var label = result.confirmed ? "Resynced" : "Would resync";
+    var html = "";
+
+    if (resynced.length) {
+      html += '<div class="dashboard-detail-section">'
+        + '<h3 style="margin-bottom:8px;">' + label + " (" + resynced.length + ")</h3>"
+        + '<ul style="margin:0;padding-left:20px;">'
+        + resynced.map(function (row) {
+            return "<li>" + nameLink("Client Lead", row.lead) + " &larr; " + nameLink("Intake Doctype", row.intake) + "</li>";
+          }).join("")
+        + '</ul>'
+        + '</div>';
+    }
+
+    if (unmatched.length) {
+      html += '<div class="dashboard-detail-section" style="margin-top:16px;">'
+        + '<h3 style="margin-bottom:8px;">Could not resync (' + unmatched.length + ")</h3>"
+        + '<ul style="margin:0;padding-left:20px;">'
+        + unmatched.map(function (row) {
+            return "<li>" + nameLink("Client Lead", row.lead) + " &mdash; " + escapeHtml(row.reason || "") + "</li>";
+          }).join("")
+        + '</ul>'
+        + '</div>';
+    }
+
+    out.innerHTML = html;
+
+    if (confirmBtn) {
+      confirmBtn.style.display = (result.confirmed || !resynced.length) ? "none" : "";
+    }
+  }
+
+  async function previewResyncIntakeForms() {
+    var btn = el("previewResyncIntakeFormsBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Checking..."; }
+
+    try {
+      var result = await callApi("dashboard.api.shared.leads.resync_stuck_intake_forms", { confirm: 0 });
+      renderResyncIntakeFormsResults(result);
+    } catch (error) {
+      console.error("Resync intake forms preview failed:", error);
+      window.alert(error.message || "Could not preview the resync.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Preview (no changes made)"; }
+    }
+  }
+
+  async function confirmResyncIntakeForms() {
+    if (!window.confirm("This will update the leads listed above with their matching intake submission's answers. Continue?")) {
+      return;
+    }
+
+    var btn = el("confirmResyncIntakeFormsBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Resyncing..."; }
+
+    try {
+      var result = await callApi("dashboard.api.shared.leads.resync_stuck_intake_forms", { confirm: 1 });
+      renderResyncIntakeFormsResults(result);
+      window.alert("Done - " + (result.resynced || []).length + " lead(s) resynced.");
+    } catch (error) {
+      console.error("Resync intake forms failed:", error);
+      window.alert(error.message || "Could not complete the resync.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Confirm Resync"; }
+    }
+  }
+
   var formModuleState = { rows: [], questionRows: [], chartQuestions: [], mode: "charts" };
 
   // Fixed-order categorical palette (light mode) - validated for CVD-safe
@@ -1212,6 +1293,12 @@
 
     var exportIntakeBtn = el("exportIntakeFormReportBtn");
     if (exportIntakeBtn) exportIntakeBtn.addEventListener("click", exportIntakeFormReport);
+
+    var previewResyncIntakeBtn = el("previewResyncIntakeFormsBtn");
+    if (previewResyncIntakeBtn) previewResyncIntakeBtn.addEventListener("click", previewResyncIntakeForms);
+
+    var confirmResyncIntakeBtn = el("confirmResyncIntakeFormsBtn");
+    if (confirmResyncIntakeBtn) confirmResyncIntakeBtn.addEventListener("click", confirmResyncIntakeForms);
 
     var formModuleBtn = el("runFormModuleReportBtn");
     if (formModuleBtn) formModuleBtn.addEventListener("click", runFormModuleReport);

@@ -6,6 +6,7 @@ from frappe.utils import now_datetime, get_url
 
 from dashboard.api.shared.permissions import (
     ensure_logged_in,
+    ensure_office_user,
     is_franchisor_user,
     get_current_coach_name,
     get_current_user_dashboard_type,
@@ -924,6 +925,148 @@ def _find_client_lead_for_intake_submission(doc):
     return None, f"by email: {email_reason}; by name: {name_reason}", candidates
 
 
+# Every field _intake_doctype_display_emails/_intake_doctype_display_names
+# read off an Intake Doctype submission - fetched once by
+# _open_intake_submissions_for_matching so _find_intake_submission_for_lead
+# can reuse those same two helpers on a bulk-fetched row exactly as they're
+# used on a live submission doc.
+INTAKE_SUBMISSION_MATCH_FIELDS = INTAKE_EMAIL_FIELDS + [
+    "young_person_first_name", "young_person_preferred_name", "young_person_last_name",
+    "adult_first_name", "adult_preferred_name", "adult_last_name",
+    "family_first", "family_last", "signature_name", "primary_caregiver_full_name",
+]
+
+
+def _open_intake_submissions_for_matching():
+    """
+    Every Intake Doctype submission's own identity fields, fetched once
+    for _find_intake_submission_for_lead to match against a stuck Lead -
+    the reverse direction of _open_client_leads_for_matching above.
+    """
+    if not frappe.db.exists("DocType", INTAKE_DOCTYPE):
+        return []
+
+    intake_meta = frappe.get_meta(INTAKE_DOCTYPE)
+    fields = ["name"] + [
+        fieldname for fieldname in INTAKE_SUBMISSION_MATCH_FIELDS if intake_meta.has_field(fieldname)
+    ]
+
+    return frappe.get_all(INTAKE_DOCTYPE, fields=fields, limit_page_length=5000, ignore_permissions=True)
+
+
+def _find_intake_submission_for_lead(lead_doc):
+    """
+    Reverse of _find_client_lead_for_intake_submission - given a stuck
+    Lead (intake_sent_on set, intake_completed_on not, per the "Sent, not
+    yet completed" status the Intake Forms report shows), looks for the
+    Intake Doctype submission that actually belongs to it. Used by
+    resync_stuck_intake_forms to catch up submissions that came in (or
+    were already sitting there, already fully answered by the guest)
+    before the matching fix existed - deploying the fix doesn't
+    retroactively re-run the hook for a submission that already fired and
+    failed to match once, so without this those Leads would stay stuck
+    forever. Email first, name as a fallback - same priority and same
+    normalised comparison as the forward direction.
+    """
+    lead_email = _normalize_match_text(lead_doc.contact_email or "")
+    lead_names = {
+        _normalize_match_text(name)
+        for name in (lead_doc.contact_name, lead_doc.client_name)
+        if name
+    }
+
+    if not lead_email and not lead_names:
+        return None, "this lead has no contact_email or contact_name/client_name to match on"
+
+    email_candidates = []
+    name_candidates = []
+
+    for row in _open_intake_submissions_for_matching():
+        row_emails = {_normalize_match_text(email) for email in _intake_doctype_display_emails(row) if email}
+        if lead_email and lead_email in row_emails:
+            email_candidates.append(row.name)
+            continue
+
+        row_names = {_normalize_match_text(name) for name in _intake_doctype_display_names(row) if name}
+        if lead_names & row_names:
+            name_candidates.append(row.name)
+
+    if len(email_candidates) == 1:
+        return email_candidates[0], None
+
+    if email_candidates:
+        return None, f"{len(email_candidates)} intake submissions match this lead's email - can't tell which one"
+
+    if len(name_candidates) == 1:
+        return name_candidates[0], None
+
+    if name_candidates:
+        return None, f"{len(name_candidates)} intake submissions match this lead's name - can't tell which one"
+
+    return None, "no intake submission matches this lead's email or name"
+
+
+@frappe.whitelist()
+def resync_stuck_intake_forms(confirm=0):
+    """
+    Read-only by default (confirm=0) - reports every not-yet-converted
+    Client Lead currently stuck showing "Sent, not yet completed" (the
+    Intake Forms report's own status) that actually has a matching,
+    completed Intake Doctype submission sitting unlinked, and what it
+    would apply. confirm=1 actually applies it, via the exact same
+    _apply_intake_submission_to_lead the live hook uses.
+
+    This only ever acts on an unambiguous single match per Lead (see
+    _find_intake_submission_for_lead) - a Lead with no match, or more than
+    one candidate submission, is left alone and reported separately
+    rather than guessed at.
+    """
+    ensure_office_user()
+
+    confirm = int(confirm or 0)
+
+    stuck_leads = frappe.get_all(
+        LEAD_DOCTYPE,
+        filters={
+            "status": ["!=", "Converted"],
+            "intake_sent_on": ["is", "set"],
+            "intake_completed_on": ["is", "not set"],
+        },
+        fields=["name", "contact_name", "client_name", "contact_email"],
+        limit_page_length=1000,
+        ignore_permissions=True,
+    )
+
+    resynced = []
+    unmatched = []
+
+    for row in stuck_leads:
+        lead_doc = frappe.get_doc(LEAD_DOCTYPE, row.name)
+        intake_name, reason = _find_intake_submission_for_lead(lead_doc)
+
+        if not intake_name:
+            unmatched.append({"lead": row.name, "reason": reason})
+            continue
+
+        resynced.append({"lead": row.name, "intake": intake_name})
+
+        if confirm:
+            try:
+                intake_doc = frappe.get_doc(INTAKE_DOCTYPE, intake_name)
+                _apply_intake_submission_to_lead(intake_doc, row.name)
+            except Exception:
+                frappe.log_error(frappe.get_traceback(), f"Resync Stuck Intake Forms - {row.name} - {intake_name}")
+
+    if confirm:
+        frappe.db.commit()
+
+    return {
+        "confirmed": bool(confirm),
+        "resynced": resynced,
+        "unmatched": unmatched,
+    }
+
+
 # Deliberately narrower than FRANCHISOR_USERS (which also includes
 # hq@theresilientkid.co.uk and ashley@theresilientkid.co.uk) - a match
 # failure with no identifiable coach still needs a human to see it, but
@@ -1000,56 +1143,46 @@ def _notify_intake_match_failed(doc, reason, candidate_lead_names=None):
         frappe.log_error(frappe.get_traceback(), "Intake Submission - Match Failed Notification Failed")
 
 
-def sync_intake_doctype_submission(doc, method=None):
-    """
-    Hook target (see hooks.py doc_events["Intake Doctype"]) - fires whenever
-    someone submits or edits the real "Intake Doctype" Web Form (owned and
-    built directly in Frappe Desk, not by this app). doc is the Intake
-    Doctype record itself - there's no link field to a Client Lead (the
-    "created_lead" field turned out to point at a separate, unrelated Frappe
-    CRM "Lead" doctype, and isn't something a public guest form-filler could
-    ever sensibly populate anyway), so the Client Lead to sync onto is found
-    by matching the email address (and, failing that, the name) the guest
-    actually typed in (see _find_client_lead_for_intake_submission).
+# "headline" fields (contact_name/contact_email/contact_mobile/client_name/
+# client_age/postal_code/enquiry_reason/how_heard/consent_given) aren't part
+# of INTAKE_DETAIL_FIELDS, but if Intake Doctype happens to carry its own
+# same-named versions (it's the guest's own submission, so it may be the
+# more accurate/complete source - e.g. the Lead was created with only a name
+# before the intake link was ever sent), sync those too. Convert to Client
+# reads contact details straight off these Client Lead fields to build the
+# Contact.
+LEAD_HEADLINE_FIELDS = [
+    "contact_name", "contact_email", "contact_mobile", "client_name",
+    "client_age", "postal_code", "enquiry_reason", "how_heard", "consent_given",
+]
 
-    Copies over every field name Intake Doctype and Client Lead have in
-    common (INTAKE_DETAIL_FIELDS - same names on both, by design) so the
-    rest of this app (PDF generation, the Files tab, the "Submitted Intake
+
+def _apply_intake_submission_to_lead(doc, lead_name):
+    """
+    Copies one Intake Doctype submission's answers onto its
+    already-identified Client Lead - shared by the live after_insert/
+    on_update hook (sync_intake_doctype_submission) and
+    resync_stuck_intake_forms's bulk repair, so both go through exactly
+    the same field-copying/completion logic. Copies every field name
+    Intake Doctype and Client Lead have in common (INTAKE_DETAIL_FIELDS -
+    same names on both, by design) plus LEAD_HEADLINE_FIELDS, so the rest
+    of this app (PDF generation, the Files tab, the "Submitted Intake
     Form" section, Convert to Client) keeps working exactly as it already
-    does off the Client Lead's own fields, without needing to know anything
-    about Intake Doctype specifically.
+    does off the Client Lead's own fields, without needing to know
+    anything about Intake Doctype specifically.
+
+    Returns True if the Lead was newly completed or otherwise changed by
+    this submission, False if it was a no-op (already Converted, or an
+    already-complete Lead with nothing new to copy).
     """
-    lead_name, reason, candidate_lead_names = _find_client_lead_for_intake_submission(doc)
-
-    if not lead_name:
-        frappe.log_error(
-            f"Intake Doctype {doc.name}: {reason}.",
-            "Intake Submission - Client Lead Match Failed",
-        )
-        _notify_intake_match_failed(doc, reason, candidate_lead_names)
-        return
-
     lead_doc = frappe.get_doc(LEAD_DOCTYPE, lead_name)
 
     if lead_doc.status == "Converted":
-        return
+        return False
 
     lead_meta = frappe.get_meta(LEAD_DOCTYPE)
     intake_meta = frappe.get_meta(INTAKE_DOCTYPE)
     changed = False
-
-    # The "headline" fields (contact_name/contact_email/contact_mobile/
-    # client_name/client_age/postal_code/enquiry_reason/how_heard/
-    # consent_given) aren't part of INTAKE_DETAIL_FIELDS, but if Intake
-    # Doctype happens to carry its own same-named versions (it's the
-    # guest's own submission, so it may be the more accurate/complete
-    # source - e.g. the Lead was created with only a name before the intake
-    # link was ever sent), sync those too. Convert to Client reads contact
-    # details straight off these Client Lead fields to build the Contact.
-    LEAD_HEADLINE_FIELDS = [
-        "contact_name", "contact_email", "contact_mobile", "client_name",
-        "client_age", "postal_code", "enquiry_reason", "how_heard", "consent_given",
-    ]
 
     for fieldname in INTAKE_DETAIL_FIELDS + LEAD_HEADLINE_FIELDS:
         if not intake_meta.has_field(fieldname) or not lead_meta.has_field(fieldname):
@@ -1110,6 +1243,35 @@ def sync_intake_doctype_submission(doc, method=None):
 
     if not was_already_complete:
         _notify_intake_completed(lead_doc)
+
+    return changed or not was_already_complete
+
+
+def sync_intake_doctype_submission(doc, method=None):
+    """
+    Hook target (see hooks.py doc_events["Intake Doctype"]) - fires whenever
+    someone submits or edits the real "Intake Doctype" Web Form (owned and
+    built directly in Frappe Desk, not by this app). doc is the Intake
+    Doctype record itself - there's no link field to a Client Lead (the
+    "created_lead" field turned out to point at a separate, unrelated Frappe
+    CRM "Lead" doctype, and isn't something a public guest form-filler could
+    ever sensibly populate anyway), so the Client Lead to sync onto is found
+    by matching the email address (and, failing that, the name) the guest
+    actually typed in (see _find_client_lead_for_intake_submission), and the
+    actual field-copying is shared with resync_stuck_intake_forms via
+    _apply_intake_submission_to_lead.
+    """
+    lead_name, reason, candidate_lead_names = _find_client_lead_for_intake_submission(doc)
+
+    if not lead_name:
+        frappe.log_error(
+            f"Intake Doctype {doc.name}: {reason}.",
+            "Intake Submission - Client Lead Match Failed",
+        )
+        _notify_intake_match_failed(doc, reason, candidate_lead_names)
+        return
+
+    _apply_intake_submission_to_lead(doc, lead_name)
 
 
 def _split_name(full_name):

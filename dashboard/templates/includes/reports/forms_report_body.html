@@ -81,6 +81,31 @@
       </table>
     </div>
 
+    {% if dashboard_type == "franchisor" %}
+      <div class="dashboard-card" style="margin-top:20px;" id="resyncIntakeFormsSection">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Resync Stuck Intake Forms</h2>
+        </div>
+
+        <p class="dashboard-help" style="margin-bottom:16px;">
+          For any lead above stuck showing "Sent, not yet completed" despite the guest having actually
+          submitted the intake form - which happens when the automatic match to a lead fails - looks for the
+          matching Intake Doctype submission and, if found unambiguously, applies it exactly as a normal
+          submission would. A lead with no match, or more than one possible match, is left alone and listed
+          separately for manual review.
+        </p>
+
+        <div class="dashboard-detail-actions" style="margin-bottom:16px;">
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="previewResyncIntakeFormsBtn">Preview (no changes made)</button>
+          <button type="button" class="dashboard-btn dashboard-btn-danger" id="confirmResyncIntakeFormsBtn" style="display:none;">
+            Confirm Resync
+          </button>
+        </div>
+
+        <div id="resyncIntakeFormsResults"></div>
+      </div>
+    {% endif %}
+
     <div id="intakeFormPersonEmpty" class="dashboard-empty" style="display:none;">Select a person to see their answers.</div>
     <div class="dashboard-table-wrap" id="intakeFormPersonResults" style="display:none;">
       <table class="dashboard-table dashboard-table-compact">
