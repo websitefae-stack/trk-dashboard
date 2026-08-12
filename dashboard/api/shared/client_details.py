@@ -1,3 +1,4 @@
+import datetime
 import json
 import frappe
 from frappe import _
@@ -1527,6 +1528,36 @@ def save_client(docname=None, data=None):
     return {"name": doc.name}
 
 
+def _parse_note_session_date(value):
+    """
+    session_date arrives here as whatever a caller's date input actually
+    submitted - normally ISO (native <input type="date"> fields already
+    produce yyyy-mm-dd), but a note whose session_date was ever saved in
+    the UK dd/mm/yyyy format this site displays everywhere else (e.g. an
+    older client, or a value round-tripped through a non-native date
+    field) makes that same string come back as the edit form's prefilled
+    value - and MySQL's DATE column rejects anything that isn't
+    yyyy-mm-dd outright, crashing the whole save with a raw SQL error
+    instead of a normal validation message. Tries ISO first, then UK
+    dd/mm/yyyy, and only throws a clear, catchable error if neither
+    parses - deliberately not using a generic/dateutil-style parser here,
+    since "11/08/2026" is genuinely ambiguous (11th Aug vs Nov 8th) and a
+    silent wrong-format guess would corrupt the date rather than fail
+    loudly.
+    """
+    value = (value or "").strip()
+    if not value:
+        return None
+
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.datetime.strptime(value, fmt).date()
+        except ValueError:
+            continue
+
+    frappe.throw(_("'{0}' isn't a valid date - use dd/mm/yyyy.").format(value))
+
+
 @frappe.whitelist()
 def add_client_note(client_name, note_text, session_date=None, session_type=None, attachement=None):
     require_logged_in_user()
@@ -1562,7 +1593,7 @@ def add_client_note(client_name, note_text, session_date=None, session_type=None
         child.note_text = note_text
 
     if child.meta.has_field("session_date"):
-        child.session_date = session_date or frappe.utils.nowdate()
+        child.session_date = _parse_note_session_date(session_date) or frappe.utils.nowdate()
 
     if child.meta.has_field("session_type") and session_type:
         child.session_type = session_type
@@ -1621,7 +1652,7 @@ def update_client_note(client_name, note_name, note_text, session_date=None, ses
         child.note_text = note_text
 
     if child.meta.has_field("session_date") and session_date:
-        child.session_date = session_date
+        child.session_date = _parse_note_session_date(session_date)
 
     if child.meta.has_field("session_type") and session_type:
         child.session_type = session_type

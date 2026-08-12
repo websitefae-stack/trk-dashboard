@@ -815,12 +815,25 @@ def _resync_practice_document_brand_access(practice_document_name):
 	  which is now the single place Item Access and Brand Access are
 	  reconciled together, so a coach entitled through either route keeps
 	  access and is only dropped once neither applies.
+
+	Coach Document Requirement creation is skipped entirely while the
+	document is still a Draft - its own "Prepare coach document
+	requirement" Before Insert Server Script always rejects an
+	unpublished Practice Document ("Only a published Practice Document
+	can be assigned"), so attempting it here is guaranteed to fail every
+	time this hook fires (i.e. every save) for a draft that already has a
+	brand access box ticked - it was doing nothing but writing an Error
+	Log entry per coach/session worker on every such save. Publishing the
+	document later triggers this same on_update hook again, at which
+	point status is Published and the requirements are created normally
+	- nothing is lost by waiting, only the guaranteed-failed attempts
+	while still drafting are skipped.
 	"""
 	doc = frappe.get_doc(PRACTICE_DOCUMENT_DOCTYPE, practice_document_name)
 	brand_values = _get_practice_document_brand_values(doc)
 	is_workshop_resource = doc.document_type == "Workshop Resource"
 
-	if not is_workshop_resource and doc.document_purpose in ("Internal Compliance", "Both"):
+	if not is_workshop_resource and doc.document_purpose in ("Internal Compliance", "Both") and doc.status == "Published":
 		_sync_brand_document_requirements(practice_document_name, brand_values)
 
 	if is_workshop_resource or doc.document_purpose in ("Client Resource", "Both"):
