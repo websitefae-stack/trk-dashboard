@@ -3,6 +3,25 @@
 
   const SHARED_API = "dashboard.api.shared.calendar";
 
+  // Mirrors calendar.js's own FIXED_DURATION_EDIT_TYPES/DURATION_BY_TYPE -
+  // only Parent Check-In and Initial Consultation keep a fixed, type-driven
+  // duration when editing here; every other type (including Therapy
+  // Session) gets a free End Time field instead.
+  const FIXED_DURATION_EDIT_TYPES = ["Parent Check-In", "Initial Consultation"];
+  const DURATION_BY_TYPE = {
+    "Therapy Session": 45,
+    "Parent Check-In": 30,
+    "Initial Consultation": 60,
+    "Internal Training": 360,
+    "School Visit": 120,
+    "Company Meeting": 120,
+    "School Session": 45,
+    "Company Session": 45,
+    "Event / Stall": 180,
+    "Holiday": 0,
+    "Personal": 60
+  };
+
   const state = {
     dashboardType: getDashboardType(),
     eventName: "",
@@ -389,6 +408,7 @@
     setValue("trkDetailEditDate", data.session_date || "");
     updateEditDateDisplay();
     setValue("trkDetailEditTime", data.start_time || "");
+    setValue("trkDetailEditEndTime", data.end_time || "");
     setValue("trkDetailEditStatus", data.ui_status || "Booked");
     setValue("trkDetailEditType", data.appointment_type || "Therapy Session");
     setValue("trkDetailEditBillingType", data.billing_type || "");
@@ -471,6 +491,41 @@
     if (el("trkDetailEditTravelOnlyRow")) {
       el("trkDetailEditTravelOnlyRow").style.display = isGeneral ? "none" : "";
     }
+
+    const hasFixedDuration = FIXED_DURATION_EDIT_TYPES.indexOf(type) !== -1;
+    if (el("trkDetailEditEndTimeRow")) {
+      el("trkDetailEditEndTimeRow").style.display = hasFixedDuration ? "none" : "";
+    }
+
+    if (!hasFixedDuration && !getValue("trkDetailEditEndTime")) {
+      const startTime = getValue("trkDetailEditTime");
+      if (startTime) {
+        setValue("trkDetailEditEndTime", addMinutesToTimeString(startTime, DURATION_BY_TYPE[type] || 45));
+      }
+    }
+  }
+
+  function timeToMinutes(timeValue) {
+    const parts = String(timeValue || "00:00").split(":");
+    const hours = parseInt(parts[0], 10) || 0;
+    const minutes = parseInt(parts[1], 10) || 0;
+
+    return (hours * 60) + minutes;
+  }
+
+  function pad(value) {
+    return value < 10 ? "0" + value : String(value);
+  }
+
+  function minutesToTime(totalMinutes) {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    return pad(hours) + ":" + pad(minutes);
+  }
+
+  function addMinutesToTimeString(timeStr, minutes) {
+    return minutesToTime(timeToMinutes(timeStr) + Number(minutes || 0));
   }
 
   // Reuses the exact same location-type -> text convention the booking
@@ -529,6 +584,8 @@
     const bookingTime = getValue("trkDetailEditTime");
     const status = getValue("trkDetailEditStatus");
     const appointmentType = getValue("trkDetailEditType");
+    const hasFixedDuration = FIXED_DURATION_EDIT_TYPES.indexOf(appointmentType) !== -1;
+    const bookingEndTime = hasFixedDuration ? "" : getValue("trkDetailEditEndTime");
 
     const billingType = appointmentType === "General"
       ? getValue("trkDetailEditBillingType")
@@ -542,6 +599,16 @@
 
     if (!eventName || !bookingDate || !bookingTime) {
       alert("Please complete the required fields.");
+      return;
+    }
+
+    if (!hasFixedDuration && !bookingEndTime) {
+      alert("Please select an end time.");
+      return;
+    }
+
+    if (!hasFixedDuration && bookingEndTime <= bookingTime) {
+      alert("End time must be after the start time.");
       return;
     }
 
@@ -559,6 +626,7 @@
         event: eventName,
         booking_date: bookingDate,
         booking_time: bookingTime,
+        booking_end_time: bookingEndTime,
         status: status,
         appointment_type: appointmentType,
         billing_type: billingType,
