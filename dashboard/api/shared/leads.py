@@ -843,26 +843,29 @@ def _find_client_lead_by_emails(emails):
     Whichever not-yet-converted Client Lead has a contact_email matching
     (normalised) any of emails. Same "give up rather than guess" contract
     as _find_client_lead_by_names below - None with a reason unless
-    exactly one match is found.
+    exactly one match is found. Always also returns whatever candidates
+    it found (even 0 or 2+) so a caller that can't get a confident single
+    match can still see who was in the running - e.g. to notify the
+    coach the near-miss(es) belong to instead of guessing which Lead.
     """
     normalized = {_normalize_match_text(email) for email in (emails or []) if email}
 
     if not normalized:
-        return None, "the intake submission has no usable email to match on"
+        return None, "the intake submission has no usable email to match on", []
 
-    candidates = {
+    candidates = sorted({
         row.name
         for row in _open_client_leads_for_matching()
         if row.get("contact_email") and _normalize_match_text(row["contact_email"]) in normalized
-    }
+    })
 
     if not candidates:
-        return None, f"no not-yet-converted {LEAD_DOCTYPE} matches any of {sorted(normalized)!r} by email"
+        return None, f"no not-yet-converted {LEAD_DOCTYPE} matches any of {sorted(normalized)!r} by email", []
 
     if len(candidates) > 1:
-        return None, f"{len(candidates)} different {LEAD_DOCTYPE} records match {sorted(normalized)!r} by email - can't tell which one"
+        return None, f"{len(candidates)} different {LEAD_DOCTYPE} records match {sorted(normalized)!r} by email - can't tell which one", candidates
 
-    return next(iter(candidates)), None
+    return candidates[0], None, candidates
 
 
 def _find_client_lead_by_names(display_names):
@@ -871,27 +874,28 @@ def _find_client_lead_by_names(display_names):
     client_name matching (normalised - see _normalize_match_text) any of
     display_names. Returns None (and lets the caller log why) unless
     exactly one match is found, rather than risk silently syncing onto
-    the wrong person's record.
+    the wrong person's record. Always also returns whatever candidates it
+    found - see _find_client_lead_by_emails above for why.
     """
     normalized = {_normalize_match_text(name) for name in (display_names or []) if name}
 
     if not normalized:
-        return None, "the intake submission has no usable name to match on"
+        return None, "the intake submission has no usable name to match on", []
 
-    candidates = {
+    candidates = sorted({
         row.name
         for row in _open_client_leads_for_matching()
         if (row.get("contact_name") and _normalize_match_text(row["contact_name"]) in normalized)
         or (row.get("client_name") and _normalize_match_text(row["client_name"]) in normalized)
-    }
+    })
 
     if not candidates:
-        return None, f"no not-yet-converted {LEAD_DOCTYPE} matches any of {sorted(normalized)!r} by name"
+        return None, f"no not-yet-converted {LEAD_DOCTYPE} matches any of {sorted(normalized)!r} by name", []
 
     if len(candidates) > 1:
-        return None, f"{len(candidates)} different {LEAD_DOCTYPE} records match {sorted(normalized)!r} by name - can't tell which one"
+        return None, f"{len(candidates)} different {LEAD_DOCTYPE} records match {sorted(normalized)!r} by name - can't tell which one", candidates
 
-    return next(iter(candidates)), None
+    return candidates[0], None, candidates
 
 
 def _find_client_lead_for_intake_submission(doc):
@@ -902,51 +906,98 @@ def _find_client_lead_for_intake_submission(doc):
     (_find_client_lead_by_names) only when no email match is found, so
     older/simpler leads with no email captured on their client_type
     section still resolve the way they always did.
+
+    Returns (lead_name, reason, candidate_lead_names) - candidate_lead_names
+    is every Lead either step turned up (matched or not, confident or
+    ambiguous), used by _notify_intake_match_failed to route a failed
+    match to the coach it's actually about instead of broadcasting.
     """
-    email_lead, email_reason = _find_client_lead_by_emails(_intake_doctype_display_emails(doc))
+    email_lead, email_reason, email_candidates = _find_client_lead_by_emails(_intake_doctype_display_emails(doc))
     if email_lead:
-        return email_lead, None
+        return email_lead, None, [email_lead]
 
-    name_lead, name_reason = _find_client_lead_by_names(_intake_doctype_display_names(doc))
+    name_lead, name_reason, name_candidates = _find_client_lead_by_names(_intake_doctype_display_names(doc))
     if name_lead:
-        return name_lead, None
+        return name_lead, None, [name_lead]
 
-    return None, f"by email: {email_reason}; by name: {name_reason}"
+    candidates = sorted(set(email_candidates) | set(name_candidates))
+    return None, f"by email: {email_reason}; by name: {name_reason}", candidates
 
 
-def _notify_intake_match_failed(doc, reason):
+# Deliberately narrower than FRANCHISOR_USERS (which also includes
+# hq@theresilientkid.co.uk and ashley@theresilientkid.co.uk) - a match
+# failure with no identifiable coach still needs a human to see it, but
+# not the wider franchisor broadcast list, since this is a single
+# unrelated coach's client and not something every franchisor-level inbox
+# needs visibility into.
+INTAKE_MATCH_FAILED_FALLBACK_USER = "office@theresilienthub.co.uk"
+
+
+def _coach_user_for_lead(lead_name):
+    coach = frappe.db.get_value(LEAD_DOCTYPE, lead_name, "coach")
+    if not coach:
+        return None
+
+    return frappe.db.get_value("Coach", coach, "user") or frappe.db.get_value("Coach", coach, "coach_email")
+
+
+def _notify_intake_match_failed(doc, reason, candidate_lead_names=None):
     """
     A completed intake submission that couldn't be matched to any Client
     Lead used to only ever show up in the Error Log - nobody actively
     watches that, so a fully completed form could sit invisible
-    indefinitely with nothing to convert. Every franchisor admin now gets
-    a notification instead, pointing at the raw Intake Doctype record so
-    it can be reviewed and linked/converted by hand without waiting to
-    stumble across the Error Log entry.
+    indefinitely with nothing to convert. Someone now gets a notification
+    instead, pointing at the raw Intake Doctype record so it can be
+    reviewed and linked/converted by hand without waiting to stumble
+    across the Error Log entry.
+
+    Routing is deliberately narrow, not a franchisor-wide broadcast - this
+    is one coach's client, and other coaches/franchisor staff have no
+    reason to see it:
+    - If every candidate Lead the match considered (an ambiguous 2+ match,
+      or one rejected only for already being Converted) belongs to the
+      same coach, that coach alone is notified - it's squarely their own
+      client.
+    - Otherwise (no candidates at all, or candidates split across more
+      than one coach - genuinely nothing to attribute this to) it falls
+      back to INTAKE_MATCH_FAILED_FALLBACK_USER alone, not the full
+      FRANCHISOR_USERS list.
     """
     message = (
         f"An intake form was submitted but couldn't be automatically matched to a lead ({reason}). "
         f"Open {INTAKE_DOCTYPE} {doc.name} in the Desk to review the answers and create or link the client by hand."
     )
 
-    for admin_user in FRANCHISOR_USERS:
-        if not frappe.db.exists("User", admin_user):
-            continue
+    recipient = None
+    coach_users = {
+        _coach_user_for_lead(lead_name) for lead_name in (candidate_lead_names or [])
+    }
+    coach_users.discard(None)
+    coach_users.discard("")
 
-        if _client_request_notification_exists(doc.name, admin_user, reference_doctype=INTAKE_DOCTYPE):
-            continue
+    if len(coach_users) == 1:
+        recipient = next(iter(coach_users))
 
-        try:
-            create_trk_notification(
-                recipient_user=admin_user,
-                notification_type="Client Request",
-                message=message,
-                priority="High",
-                reference_doctype=INTAKE_DOCTYPE,
-                reference_name=doc.name,
-            )
-        except Exception:
-            frappe.log_error(frappe.get_traceback(), "Intake Submission - Match Failed Notification Failed")
+    if not recipient:
+        recipient = INTAKE_MATCH_FAILED_FALLBACK_USER
+
+    if not frappe.db.exists("User", recipient):
+        return
+
+    if _client_request_notification_exists(doc.name, recipient, reference_doctype=INTAKE_DOCTYPE):
+        return
+
+    try:
+        create_trk_notification(
+            recipient_user=recipient,
+            notification_type="Client Request",
+            message=message,
+            priority="High",
+            reference_doctype=INTAKE_DOCTYPE,
+            reference_name=doc.name,
+        )
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Intake Submission - Match Failed Notification Failed")
 
 
 def sync_intake_doctype_submission(doc, method=None):
@@ -968,14 +1019,14 @@ def sync_intake_doctype_submission(doc, method=None):
     does off the Client Lead's own fields, without needing to know anything
     about Intake Doctype specifically.
     """
-    lead_name, reason = _find_client_lead_for_intake_submission(doc)
+    lead_name, reason, candidate_lead_names = _find_client_lead_for_intake_submission(doc)
 
     if not lead_name:
         frappe.log_error(
             f"Intake Doctype {doc.name}: {reason}.",
             "Intake Submission - Client Lead Match Failed",
         )
-        _notify_intake_match_failed(doc, reason)
+        _notify_intake_match_failed(doc, reason, candidate_lead_names)
         return
 
     lead_doc = frappe.get_doc(LEAD_DOCTYPE, lead_name)
