@@ -148,6 +148,7 @@
     try {
       const leads = await apiPost(`${SHARED_API}.get_leads`, {
         dashboard_type: getDashboardType(),
+        scope: board.dataset.scope || "mine",
       });
 
       const rows = Array.isArray(leads) ? leads : [];
@@ -160,11 +161,28 @@
     }
   }
 
+  function initScopeToggle() {
+    const board = el("leadsKanbanBoard");
+    const toggle = el("leadsScopeToggle");
+    if (!board || !toggle) return;
+
+    toggle.querySelectorAll("[data-scope]").forEach((btn) => {
+      btn.addEventListener("click", function () {
+        if (btn.dataset.scope === board.dataset.scope) return;
+
+        toggle.querySelectorAll("[data-scope]").forEach((b) => b.classList.toggle("is-active", b === btn));
+        board.dataset.scope = btn.dataset.scope;
+        loadLeads();
+      });
+    });
+  }
+
   function init() {
     const board = el("leadsKanbanBoard");
     if (!board) return;
 
     loadLeads();
+    initScopeToggle();
 
     const refreshBtn = el("refreshLeads");
     if (refreshBtn) {

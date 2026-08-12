@@ -214,17 +214,23 @@
     const convertBtn = el("convertLeadBtn");
     const viewClientBtn = el("viewConvertedClientBtn");
     const linkExistingSection = el("leadLinkExistingSection");
+    const deleteBtn = el("deleteLeadBtn");
 
     if (lead.status === "Converted" && lead.converted_client) {
       if (sendBtn) sendBtn.style.display = "none";
       if (convertBtn) convertBtn.style.display = "none";
       if (linkExistingSection) linkExistingSection.style.display = "none";
+      // Converted leads already have a real client record built from
+      // them - deletion is blocked on the backend too, but hiding the
+      // button here avoids offering an action that will just fail.
+      if (deleteBtn) deleteBtn.style.display = "none";
       if (viewClientBtn) {
         viewClientBtn.style.display = "";
         viewClientBtn.href = `${baseUrl}/client_details?name=${encodeURIComponent(lead.converted_client)}`;
       }
     } else {
       if (viewClientBtn) viewClientBtn.style.display = "none";
+      if (deleteBtn) deleteBtn.style.display = "";
 
       // Send/Resend Intake Form stays available at every stage right up
       // until conversion actually succeeds - never sent yet, sent and
@@ -683,6 +689,33 @@
     }
   }
 
+  async function deleteLead() {
+    const name = getValue("leadDocname");
+    if (!name) return;
+
+    if (!window.confirm("Delete this lead? This cannot be undone.")) {
+      return;
+    }
+
+    const deleteBtn = el("deleteLeadBtn");
+    if (deleteBtn) {
+      deleteBtn.disabled = true;
+      deleteBtn.textContent = "Deleting...";
+    }
+
+    try {
+      await apiPost(`${SHARED_API}.delete_lead`, { name });
+      const baseUrl = getValue("leadBaseUrl") || "/coach_db";
+      window.location.href = `${baseUrl}/leads`;
+    } catch (error) {
+      showMessage(error.message || "Could not delete this lead.", true);
+      if (deleteBtn) {
+        deleteBtn.disabled = false;
+        deleteBtn.textContent = "Delete Lead";
+      }
+    }
+  }
+
   function todayIso() {
     const now = new Date();
     const offset = now.getTimezoneOffset();
@@ -723,6 +756,9 @@
 
     const convertBtn = el("convertLeadBtn");
     if (convertBtn) convertBtn.addEventListener("click", convertLead);
+
+    const deleteBtn = el("deleteLeadBtn");
+    if (deleteBtn) deleteBtn.addEventListener("click", deleteLead);
 
     const linkBtn = el("linkExistingClientBtn");
     if (linkBtn) linkBtn.addEventListener("click", linkExistingClient);

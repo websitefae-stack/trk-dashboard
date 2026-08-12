@@ -179,22 +179,34 @@ def _current_coach_name():
     return get_current_coach_name(optional=True)
 
 
-def _lead_filters_for_current_user(dashboard_type=None):
+def _lead_filters_for_current_user(dashboard_type=None, scope=None):
     """
-    None means "no filter" (franchisor sees every lead). Any other value is
-    a Frappe filters dict restricting to the current coach's own leads.
+    None means "no filter" (see every lead). Any other value is a Frappe
+    filters dict restricting to one coach's own leads.
+
+    A coach/session worker always sees their own leads only, regardless of
+    scope. A franchisor is often also a working coach with their own
+    Client Leads (e.g. Ashley) - their board defaults to "mine" (scope
+    omitted or "mine"), same as everyone else, but they can pass
+    scope="all" to see the full board across every coach, matching the
+    "my own first, but I can go look at everyone else's" pattern the rest
+    of the franchisor dashboard already uses (see coach_view_mode.py).
     """
     ensure_logged_in()
 
     dashboard_type = dashboard_type or get_current_user_dashboard_type()
+    is_franchisor = is_franchisor_user() or dashboard_type == "franchisor"
 
-    if is_franchisor_user() or dashboard_type == "franchisor":
+    if is_franchisor and (scope or "mine").strip().lower() == "all":
         return None
 
     coach_name = _current_coach_name()
 
     if not coach_name:
-        return {"name": ["in", []]}
+        # A franchisor with no Coach profile of their own has no "mine" to
+        # show - fall back to everyone's rather than an empty board that
+        # would otherwise look broken rather than intentional.
+        return None if is_franchisor else {"name": ["in", []]}
 
     return {"coach": coach_name}
 
@@ -219,10 +231,10 @@ def ensure_lead_access(name):
 
 
 @frappe.whitelist()
-def get_leads(dashboard_type=None):
+def get_leads(dashboard_type=None, scope=None):
     ensure_logged_in()
 
-    filters = _lead_filters_for_current_user(dashboard_type)
+    filters = _lead_filters_for_current_user(dashboard_type, scope)
 
     args = {
         "doctype": LEAD_DOCTYPE,
@@ -414,6 +426,36 @@ def create_lead_from_booking(contact_name, phone=None, coach=None):
     frappe.db.commit()
 
     return doc.name
+
+
+@frappe.whitelist()
+def delete_lead(name=None):
+    """
+    Permanently removes a Client Lead - for bad/duplicate/test enquiries,
+    not for undoing a real conversion. A Converted lead already has a real
+    Client (and usually Contact) built from it, so it's blocked here
+    rather than silently orphaning that record's own history of where it
+    came from. Anything else (an Event booked against this lead, e.g. an
+    Initial Consultation) is caught by Frappe's own linked-document check
+    inside delete_doc and re-raised as a clear message instead of a raw
+    traceback - deleting the lead first would leave that booking pointing
+    at nothing.
+    """
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if doc.status == "Converted" or doc.converted_client:
+        frappe.throw(_("Converted leads can't be deleted - they already have a client record built from them."))
+
+    try:
+        frappe.delete_doc(LEAD_DOCTYPE, doc.name, ignore_permissions=True)
+    except frappe.LinkExistsError:
+        frappe.throw(_(
+            "This lead still has other records linked to it (e.g. a booked appointment) "
+            "and can't be deleted until those are removed first."
+        ))
+
+    return {"ok": True}
 
 
 @frappe.whitelist()

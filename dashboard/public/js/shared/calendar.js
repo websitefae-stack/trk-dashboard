@@ -14,6 +14,10 @@
   const MOBILE_BREAKPOINT = 860;
 
   const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  // Month view's header/grid render Monday-first (see renderMonthView) -
+  // this is that same order as day names, since DAYS above is indexed by
+  // Date#getDay() (0=Sunday) rather than display position.
+  const MONTH_VIEW_DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   const SHARED_API = "dashboard.api.shared.calendar";
@@ -51,12 +55,12 @@
     "Personal": 60
   };
 
-  // Only these three keep a fixed, type-driven duration when editing an
-  // existing session - every other type (Event / Stall, School/Company
-  // meetings and sessions, Personal, Internal Training, General) gets a
-  // free End Time field instead, since their real-world length varies far
-  // more than a standard therapy/check-in/consultation slot does.
-  const FIXED_DURATION_EDIT_TYPES = ["Therapy Session", "Parent Check-In", "Initial Consultation"];
+  // Only these keep a fixed, type-driven duration when editing an existing
+  // session - every other type (Therapy Session, Event / Stall, School/
+  // Company meetings and sessions, Personal, Internal Training, General)
+  // gets a free End Time field instead, since their real-world length can
+  // vary from the standard slot.
+  const FIXED_DURATION_EDIT_TYPES = ["Parent Check-In", "Initial Consultation"];
 
   const CLIENT_REQUIRED_TYPES = ["Therapy Session", "Parent Check-In"];
   const NON_CLIENT_TITLE_TYPES = ["Internal Training", "Event / Stall", "Personal"];
@@ -883,8 +887,8 @@
 
     const monthStart = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth(), 1);
     const monthEnd = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth() + 1, 0);
-    const firstGridDate = addDays(monthStart, -monthStart.getDay());
-    const lastGridDate = addDays(monthEnd, 6 - monthEnd.getDay());
+    const firstGridDate = addDays(monthStart, -((monthStart.getDay() + 6) % 7));
+    const lastGridDate = addDays(monthEnd, 6 - ((monthEnd.getDay() + 6) % 7));
 
     label.textContent = MONTH_NAMES[state.currentDate.getMonth()] + " " + state.currentDate.getFullYear();
 
@@ -903,7 +907,7 @@
 
     for (let i = 0; i < 7; i++) {
       headerHtml += '<div class="trk-calendar-day-header-cell">'
-        + '<div class="trk-calendar-day-name">' + DAYS[i] + '</div>'
+        + '<div class="trk-calendar-day-name">' + MONTH_VIEW_DAY_NAMES[i] + '</div>'
         + '</div>';
     }
 
@@ -2494,7 +2498,9 @@
 
   function getWeekStart(date) {
     const d = stripTime(date);
-    d.setDate(d.getDate() - d.getDay());
+    // getDay() is 0=Sunday..6=Saturday; (getDay() + 6) % 7 maps that to
+    // 0=Monday..6=Sunday so the week grid starts on Monday.
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
 
     return d;
   }
