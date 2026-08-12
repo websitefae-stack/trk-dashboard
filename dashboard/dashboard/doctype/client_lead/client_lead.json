@@ -30,6 +30,7 @@
   "column_break_outcome",
   "event",
   "intake_sent_on",
+  "intake_email_status",
   "intake_completed_on",
   "converted_client",
   "converted_contact",
@@ -301,6 +302,13 @@
    "fieldname": "intake_sent_on",
    "fieldtype": "Datetime",
    "label": "Intake Form Sent On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "intake_email_status",
+   "fieldtype": "Select",
+   "label": "Intake Email Status",
+   "options": "\nSent\nFailed",
    "read_only": 1
   },
   {

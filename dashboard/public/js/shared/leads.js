@@ -48,6 +48,16 @@
       .replace(/'/g, "&#039;");
   }
 
+  function renderEmailStatusBadge(lead) {
+    if (lead.intake_email_status === "Sent") {
+      return `<span class="dashboard-badge dashboard-status-active">Intake email sent</span>`;
+    }
+    if (lead.intake_email_status === "Failed") {
+      return `<span class="dashboard-badge dashboard-status-failed">Intake email failed</span>`;
+    }
+    return "";
+  }
+
   function renderCard(lead, baseUrl, showCoach) {
     const detailUrl = `${baseUrl}/lead_details?name=${encodeURIComponent(lead.name)}`;
 
@@ -59,6 +69,7 @@
       <a class="dashboard-lead-card${lead.needs_conversion_review ? " dashboard-lead-card-needs-review" : ""}" href="${detailUrl}">
         ${lead.needs_conversion_review ? `<span class="dashboard-badge dashboard-lead-card-review-badge">Form completed - ready to convert</span>` : ""}
         ${lead.appointment_type ? `<span class="dashboard-badge dashboard-status-active dashboard-lead-card-type">${escapeHtml(lead.appointment_type)}</span>` : ""}
+        ${renderEmailStatusBadge(lead)}
         <div class="dashboard-lead-card-client">${escapeHtml(lead.client_name || "—")}</div>
         <div class="dashboard-lead-card-contact">${escapeHtml(lead.contact_name || "—")}</div>
         ${metaBits.length ? `<div class="dashboard-lead-card-meta">${metaBits.join(" · ")}</div>` : ""}

@@ -2,7 +2,7 @@ import re
 
 import frappe
 from frappe import _
-from frappe.utils import now_datetime, get_url
+from frappe.utils import now_datetime, get_url, get_fullname
 
 from dashboard.api.shared.permissions import (
     ensure_logged_in,
@@ -16,6 +16,7 @@ from dashboard.api.shared.utils import coalesce_str, coalesce_raw
 from dashboard.api.shared.notifications import create_trk_notification, FRANCHISOR_USERS
 from dashboard.api.shared.appointment_types import creates_client_on_conversion
 from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, parse_email_list, INTAKE_INVITE_TEMPLATE
+from dashboard.api.shared.item_access import _get_coach_login
 
 
 INTAKE_ROUTE = "client-intake"
@@ -114,7 +115,7 @@ LEAD_LIST_FIELDS = [
     "name", "status", "source", "appointment_type", "coach",
     "contact_name", "contact_email", "contact_mobile",
     "client_name", "client_age", "postal_code",
-    "event", "converted_client", "intake_completed_on", "modified", "creation",
+    "event", "converted_client", "intake_sent_on", "intake_email_status", "intake_completed_on", "modified", "creation",
 ]
 
 
@@ -134,6 +135,8 @@ def _normalize_lead_row(row):
         "postal_code": row.get("postal_code") or "",
         "event": row.get("event") or "",
         "converted_client": row.get("converted_client") or "",
+        "intake_sent_on": row.get("intake_sent_on"),
+        "intake_email_status": row.get("intake_email_status") or "",
         "intake_completed_on": row.get("intake_completed_on"),
         "needs_conversion_review": 1 if (
             row.get("intake_completed_on") and (row.get("status") or "New") not in ("Converted", "Declined")
@@ -177,6 +180,38 @@ def _mark_converted_leads_with_invoices(rows):
 
 def _current_coach_name():
     return get_current_coach_name(optional=True)
+
+
+def _notify_lead_allocated(doc, previous_coach=None):
+    """
+    Tells a coach when a lead lands on their list because someone else put
+    it there - HQ creating a lead straight onto a coach's board, or a
+    franchisor reassigning an existing one - not a coach booking/creating
+    a lead for themselves. Never fires when the lead's coach hasn't
+    actually changed (previous_coach == doc.coach), and never notifies
+    someone about their own action.
+    """
+    if not doc.coach or doc.coach == previous_coach:
+        return
+
+    coach_user = _get_coach_login(doc.coach)
+    if not coach_user or coach_user == frappe.session.user:
+        return
+
+    try:
+        create_trk_notification(
+            recipient_user=coach_user,
+            notification_type="Task",
+            message="A new lead was allocated to you by {0}: {1}".format(
+                get_fullname(frappe.session.user) or frappe.session.user,
+                doc.client_name or doc.contact_name or "New Lead",
+            ),
+            reference_doctype=LEAD_DOCTYPE,
+            reference_name=doc.name,
+            coach=doc.coach,
+        )
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Lead Allocated Notification Failed - {doc.name}")
 
 
 def _lead_filters_for_current_user(dashboard_type=None, scope=None):
@@ -404,6 +439,8 @@ def create_lead(
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
 
+    _notify_lead_allocated(doc)
+
     return {"ok": True, "name": doc.name}
 
 
@@ -425,6 +462,8 @@ def create_lead_from_booking(contact_name, phone=None, coach=None):
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
 
+    _notify_lead_allocated(doc)
+
     return doc.name
 
 
@@ -435,11 +474,17 @@ def delete_lead(name=None):
     not for undoing a real conversion. A Converted lead already has a real
     Client (and usually Contact) built from it, so it's blocked here
     rather than silently orphaning that record's own history of where it
-    came from. Anything else (an Event booked against this lead, e.g. an
-    Initial Consultation) is caught by Frappe's own linked-document check
-    inside delete_doc and re-raised as a clear message instead of a raw
-    traceback - deleting the lead first would leave that booking pointing
-    at nothing.
+    came from.
+
+    Any Event booked against this lead (e.g. an Initial Consultation call)
+    is deleted along with it, the same way deleting an appointment from
+    the calendar does (force=True - a synced appointment also carries
+    Calendar Sync Log rows that would otherwise block this) - so the
+    on_trash hook that removes it from Google Calendar still fires, and
+    the lead is never blocked by, or left leaving behind, a booking
+    pointing at nothing. Anything else linked that this doesn't already
+    know to expect is still caught by Frappe's own linked-document check
+    and re-raised as a clear message rather than a raw traceback.
     """
     name = coalesce_str("name", name)
     doc = ensure_lead_access(name)
@@ -447,12 +492,23 @@ def delete_lead(name=None):
     if doc.status == "Converted" or doc.converted_client:
         frappe.throw(_("Converted leads can't be deleted - they already have a client record built from them."))
 
+    linked_event_names = set(frappe.get_all(
+        "Event",
+        filters={"custom_client_lead": doc.name},
+        pluck="name",
+    ))
+    if doc.event:
+        linked_event_names.add(doc.event)
+
+    for event_name in linked_event_names:
+        if frappe.db.exists("Event", event_name):
+            frappe.delete_doc("Event", event_name, ignore_permissions=True, force=True)
+
     try:
         frappe.delete_doc(LEAD_DOCTYPE, doc.name, ignore_permissions=True)
     except frappe.LinkExistsError:
         frappe.throw(_(
-            "This lead still has other records linked to it (e.g. a booked appointment) "
-            "and can't be deleted until those are removed first."
+            "This lead still has other records linked to it and can't be deleted until those are removed first."
         ))
 
     return {"ok": True}
@@ -494,6 +550,7 @@ def update_lead(
     # action (a coach's own Lead Details page never shows this field, but
     # the backend shouldn't just trust that) - only the franchisor
     # dashboard's "Coach" select on an existing lead ever sends this.
+    previous_coach = doc.coach
     coach = coalesce_str("coach", coach)
     if coach and is_franchisor_user() and coach != doc.coach:
         if not frappe.db.exists("Coach", coach):
@@ -520,6 +577,8 @@ def update_lead(
 
     doc.save(ignore_permissions=True)
     frappe.db.commit()
+
+    _notify_lead_allocated(doc, previous_coach=previous_coach)
 
     return {"ok": True, "name": doc.name}
 
@@ -672,6 +731,7 @@ def send_intake_form(name=None, subject=None, message=None, cc=None, sender=None
 
     doc.status = "Intake Sent"
     doc.intake_sent_on = now_datetime()
+    doc.intake_email_status = "Sent" if email_sent else "Failed"
 
     # Resending (this lead already had a completed intake) reopens it for
     # a fresh submission - clearing intake_completed_on hides the Convert
