@@ -681,7 +681,20 @@
     grid.style.display = "grid";
     column.style.display = "";
 
-    let html = "";
+    // The time column has no header row of its own - trkCalendarDayHeader
+    // sits above trkCalendarDayGrid instead, in the neighbouring grid
+    // column, so without this spacer the two columns would need a
+    // hardcoded height guess to stay lined up (which is exactly what used
+    // to happen here, and drifted out of sync with the real header
+    // height). Giving the spacer the day header cell's own class - same
+    // padding, same child elements, just empty and invisible - makes its
+    // rendered height always match the real header exactly, so every
+    // hour row below it lines up with the actual day grid regardless of
+    // font size, zoom or DPI.
+    let html = '<div class="trk-calendar-day-header-cell trk-calendar-time-column-spacer" aria-hidden="true">'
+      + '<div class="trk-calendar-day-name">&nbsp;</div>'
+      + '<div class="trk-calendar-day-number">&nbsp;</div>'
+      + '</div>';
 
     for (let hour = START_HOUR; hour < END_HOUR; hour++) {
       html += '<div class="trk-calendar-time-slot trk-calendar-time-slot-label">' + pad(hour) + ':00</div>';

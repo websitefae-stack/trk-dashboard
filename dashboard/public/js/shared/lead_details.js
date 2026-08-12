@@ -6,6 +6,10 @@
   const SHARED_API = "dashboard.api.shared.leads";
   const DECLINE_STATUSES = ["Declined"];
 
+  // Set by populateForm() - deleteLead() reads it back to warn about a
+  // linked appointment before deleting, without a redundant extra fetch.
+  let currentLead = null;
+
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
     return meta && meta.content ? meta.content : "";
@@ -119,6 +123,8 @@
   }
 
   function populateForm(lead) {
+    currentLead = lead;
+
     setValue("lead_contact_name", lead.contact_name);
     setValue("lead_contact_email", lead.contact_email);
     setValue("lead_contact_mobile", lead.contact_mobile);
@@ -158,7 +164,11 @@
         }
         intakeInfo.textContent = text;
       } else if (lead.intake_sent_on) {
-        intakeInfo.textContent = `Intake form sent ${new Date(lead.intake_sent_on).toLocaleString("en-GB")} - not yet completed`;
+        let text = `Intake form sent ${new Date(lead.intake_sent_on).toLocaleString("en-GB")} - not yet completed`;
+        if (lead.intake_email_status === "Failed") {
+          text += " - the email failed to send, please resend it";
+        }
+        intakeInfo.textContent = text;
       } else {
         intakeInfo.textContent = "Intake form not sent yet";
       }
@@ -693,7 +703,15 @@
     const name = getValue("leadDocname");
     if (!name) return;
 
-    if (!window.confirm("Delete this lead? This cannot be undone.")) {
+    let confirmMessage = "Delete this lead? This cannot be undone.";
+    if (currentLead && currentLead.call && currentLead.call.date) {
+      const dateText = new Date(`${currentLead.call.date}T00:00:00`).toLocaleDateString("en-GB", {
+        day: "numeric", month: "long", year: "numeric"
+      });
+      confirmMessage = `Delete this lead? This will also delete the linked appointment on ${dateText}. This cannot be undone.`;
+    }
+
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 

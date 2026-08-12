@@ -132,7 +132,11 @@
 .trk-calendar-time-column {
   background: #FBFCFD;
   border-right: 1px solid #D9E6E6;
-  padding-top: 56px;
+}
+
+.trk-calendar-time-column-spacer {
+  visibility: hidden;
+  border-left: 0;
 }
 
 .trk-calendar-time-slot {
@@ -573,10 +577,6 @@
 
   .trk-calendar-board.trk-calendar-board-month {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .trk-calendar-time-column {
-    padding-top: 52px;
   }
 
   .trk-calendar-time-slot-label {

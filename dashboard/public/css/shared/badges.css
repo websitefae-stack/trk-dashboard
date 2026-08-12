@@ -31,6 +31,11 @@
   color: #839898;
 }
 
+.dashboard-status-failed {
+  background: rgba(192, 57, 43, 0.12);
+  color: #C0392B;
+}
+
 .dashboard-priority-dot {
   display: inline-block;
   width: 13px;
