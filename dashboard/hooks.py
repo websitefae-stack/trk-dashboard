@@ -123,7 +123,12 @@ doc_events = {
     # practice_documents.sync_coach_brand_document_requirements. Coach is
     # a core doctype this app doesn't own the JSON for, same as Item.
     "Coach": {
-        "on_update": "dashboard.api.shared.practice_documents.sync_coach_brand_document_requirements",
+        "on_update": [
+            "dashboard.api.shared.practice_documents.sync_coach_brand_document_requirements",
+            # Provisions the Coach Onboarding Journey the one time
+            # start_onboarding is ticked - see onboarding.provision_onboarding_steps.
+            "dashboard.api.shared.onboarding.provision_onboarding_steps",
+        ],
     },
     # Session Worker equivalent of the Coach hook above. See
     # practice_documents.sync_session_worker_brand_document_requirements.

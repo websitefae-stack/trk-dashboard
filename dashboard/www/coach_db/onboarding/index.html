@@ -1,0 +1,31 @@
+{% include "dashboard/templates/includes/head/coach_head.html" %}
+
+<div class="dashboard-page" id="onboardingPage">
+  {% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Onboarding</h1>
+          <p class="dashboard-page-subtitle">Your journey, step by step</p>
+        </div>
+      </div>
+
+      <div id="onboardingProgressCard" class="dashboard-card dashboard-onboarding-progress" style="display:none;">
+        <div class="dashboard-onboarding-progress-bar">
+          <div class="dashboard-onboarding-progress-bar-fill" id="onboardingProgressFill"></div>
+        </div>
+        <div class="dashboard-onboarding-progress-label" id="onboardingProgressLabel"></div>
+      </div>
+
+      <div id="onboardingContent">
+        <div class="dashboard-empty">Loading your onboarding journey...</div>
+      </div>
+
+    </div>
+  </div>
+</div>
