@@ -790,9 +790,21 @@ def _send_booking_confirmation_email(contact_email, contact_name, coach, appoint
         fallback_message=fallback_message,
     )
 
-    frappe.sendmail(
-        recipients=[contact_email],
-        subject=subject,
-        message=plain_text_to_email_html(message),
-        now=True,
-    )
+    # No logged-in session here (this is a public/guest booking flow), so
+    # reply_to can't default to frappe.session.user like the dashboard's
+    # own send functions do - resolved from the coach this booking is
+    # actually with instead, via the same lookup get_available_slots()
+    # etc. already use.
+    reply_to = _get_coach_user(coach)
+
+    kwargs = {
+        "recipients": [contact_email],
+        "subject": subject,
+        "message": plain_text_to_email_html(message),
+        "now": True,
+    }
+
+    if reply_to:
+        kwargs["reply_to"] = reply_to
+
+    frappe.sendmail(**kwargs)

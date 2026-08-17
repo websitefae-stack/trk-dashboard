@@ -49,4 +49,26 @@
       }, wait || 500);
     };
   };
+
+  /**
+   * Inserts a one-line explainer right after a "From" sender <select> in
+   * an email compose modal, the first time it's called for that element -
+   * every send in this app goes out via the shared office account with
+   * reply-to set to whoever's actually sending it (see
+   * email_templates.get_email_sender_options() and every frappe.sendmail()
+   * call across the API), which isn't obvious just from a dropdown with a
+   * single "Office email" option in it. Safe to call every time a modal's
+   * sender options are (re)loaded - a repeat call on the same element is a
+   * no-op rather than stacking duplicate notes.
+   * @param {HTMLElement|null} selectEl
+   */
+  Dashboard.attachSenderHint = function (selectEl) {
+    if (!selectEl || !selectEl.parentNode) return;
+    if (selectEl.parentNode.querySelector(".dashboard-sender-hint")) return;
+
+    var hint = document.createElement("div");
+    hint.className = "dashboard-field-hint dashboard-sender-hint";
+    hint.textContent = "Sent from office@theresilienthub.co.uk, but replies go straight to your own email - let clients know to look for mail from office.";
+    selectEl.insertAdjacentElement("afterend", hint);
+  };
 })();

@@ -573,6 +573,7 @@
             option.textContent = opt.label;
             senderField.appendChild(option);
           });
+          Dashboard.attachSenderHint(senderField);
         } catch (error) {
           console.error("Could not load sender options", error);
         }

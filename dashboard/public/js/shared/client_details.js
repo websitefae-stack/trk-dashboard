@@ -1555,6 +1555,7 @@
         fillSelect(emailSelect, sendEmailState.emailOptions, sendEmailState.emailOptions.length ? "" : "No email on file");
         fillSelect(templateSelect, sendEmailState.templateOptions, "General");
         fillSelect(senderSelect, senderOptions || [], "");
+        Dashboard.attachSenderHint(senderSelect);
 
         // Starts blank on "General" every time, ready to type a one-off
         // message - a template only fills anything in once deliberately
@@ -2040,6 +2041,7 @@
 
         fillSelect(emailSelect, emailOptions, emailOptions.length ? "" : "No email on file");
         fillSelect(senderSelect, senderOptions || [], "");
+        Dashboard.attachSenderHint(senderSelect);
 
         if (subjectField) subjectField.value = (defaults && defaults.subject) || "";
         if (messageField) messageField.value = (defaults && defaults.message) || "";
