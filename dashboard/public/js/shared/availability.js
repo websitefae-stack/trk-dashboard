@@ -5,6 +5,26 @@
 
   const SHARED_API = "dashboard.api.shared.coach_availability";
 
+  // A franchisor "viewing as" a coach reaches this page with
+  // ?view_as=<coach>&viewer=franchisor in the URL - every read/write
+  // below must be scoped to that coach, never the franchisor's own
+  // identity. See practice_documents.js for the same convention.
+  function getViewParams() {
+    var params = new URLSearchParams(window.location.search);
+    var viewAs = params.get("view_as") || "";
+    var viewer = params.get("viewer") || "";
+    return viewAs && viewer ? { view_as: viewAs, viewer: viewer } : {};
+  }
+
+  function isViewMode() {
+    var params = getViewParams();
+    return !!params.view_as;
+  }
+
+  function withViewParams(args) {
+    return Object.assign({}, args || {}, getViewParams());
+  }
+
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
     return meta && meta.content ? meta.content : "";
@@ -55,6 +75,8 @@
       return;
     }
 
+    const readOnly = isViewMode();
+
     body.innerHTML = rows.map((row) => `
       <tr>
         <td>${escapeHtml(row.appointment_label || row.appointment_name)}</td>
@@ -63,11 +85,15 @@
         <td>${escapeHtml(row.end_time)}</td>
         <td>${row.active ? "Yes" : "No"}</td>
         <td class="dashboard-action-cell">
-          <a class="dashboard-link-btn" href="#" data-edit-row="${escapeHtml(row.name)}">Edit</a>
-          <a class="dashboard-link-btn" href="#" data-delete-row="${escapeHtml(row.name)}">Delete</a>
+          ${readOnly ? "" : `
+            <a class="dashboard-link-btn" href="#" data-edit-row="${escapeHtml(row.name)}">Edit</a>
+            <a class="dashboard-link-btn" href="#" data-delete-row="${escapeHtml(row.name)}">Delete</a>
+          `}
         </td>
       </tr>
     `).join("");
+
+    if (readOnly) return;
 
     body.querySelectorAll("[data-edit-row]").forEach((link) => {
       link.addEventListener("click", function (event) {
@@ -90,7 +116,7 @@
     if (!body) return;
 
     try {
-      const rows = await apiPost(`${SHARED_API}.get_my_availability`, {});
+      const rows = await apiPost(`${SHARED_API}.get_my_availability`, withViewParams());
       renderRows(rows);
     } catch (error) {
       body.innerHTML = `<tr><td colspan="6" class="dashboard-empty">${escapeHtml(error.message || "Could not load availability.")}</td></tr>`;
@@ -168,7 +194,7 @@
     if (!window.confirm("Remove this availability window?")) return;
 
     try {
-      const result = await apiPost(`${SHARED_API}.delete_availability_row`, { row_name: rowName });
+      const result = await apiPost(`${SHARED_API}.delete_availability_row`, withViewParams({ row_name: rowName }));
       renderRows(result.rows || []);
     } catch (error) {
       showMessage(error.message || "Could not remove this row.", true);
@@ -191,12 +217,12 @@
       return;
     }
 
-    const basePayload = {
+    const basePayload = withViewParams({
       appointment_name: el("availabilityAppointmentType").value,
       start_time: el("availabilityStartTime").value,
       end_time: el("availabilityEndTime").value,
       active: el("availabilityActive").checked ? 1 : 0,
-    };
+    });
 
     const saveBtn = el("saveAvailabilityBtn");
     if (saveBtn) saveBtn.disabled = true;
@@ -232,6 +258,15 @@
     loadAppointmentTypeOptions();
 
     const addBtn = el("addAvailabilityBtn");
+
+    if (isViewMode()) {
+      // Read-only while viewing another coach's dashboard, same as every
+      // other page reached this way - see the backend's own
+      // _ensure_not_view_mode() guard on the write endpoints.
+      if (addBtn) addBtn.style.display = "none";
+      return;
+    }
+
     if (addBtn) addBtn.addEventListener("click", function () { openForm(null); });
 
     const cancelBtn = el("cancelAvailabilityBtn");

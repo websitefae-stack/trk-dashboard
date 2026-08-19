@@ -13,6 +13,7 @@ from dashboard.api.shared.utils import coalesce_str, coalesce_raw
 from dashboard.api.shared.appointment_types import is_publicly_bookable
 from dashboard.api.shared.public_booking import PORTAL_BOOKABLE_TYPES
 from dashboard.api.shared.supervision_booking import SUPERVISION_TYPE_LABEL
+from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 
 # Parent Check-In and Supervision are deliberately excluded from
 # is_publicly_bookable() - they must never appear on a coach's public
@@ -52,9 +53,42 @@ def _format_time_value(value):
     return text
 
 
-def _get_current_coach_doc():
+def _get_current_coach_doc(view_as=None, viewer=None):
+    """
+    The Coach whose availability this request is about - the logged-in
+    user's own Coach record, unless a franchisor is viewing a specific
+    coach's dashboard (view_as/viewer), in which case it's that coach's
+    record instead. Without this, every "View as Coach" visit to
+    Availability was silently showing (and, worse, letting a franchisor
+    edit) their OWN availability while believing they were looking at the
+    coach they'd chosen to view.
+    """
+    view_as = (view_as or "").strip()
+
+    if view_as:
+        view_mode = get_coach_view_mode(scope=viewer, coach_name=view_as)
+        if view_mode.get("is_view_mode"):
+            return frappe.get_doc("Coach", view_mode.get("view_coach_name"))
+
     coach_name = get_current_coach_name(optional=False)
     return frappe.get_doc("Coach", coach_name)
+
+
+def _ensure_not_view_mode(view_as=None, viewer=None):
+    """
+    "View as Coach" is read-only everywhere else in the app (see the
+    banner on every other page reached that way) - Availability's own
+    add/update/delete endpoints need this same guard explicitly, since
+    nothing about calling them otherwise stops a franchisor's edit from
+    silently landing on the coach they're viewing.
+    """
+    view_as = (view_as or "").strip()
+    if not view_as:
+        return
+
+    view_mode = get_coach_view_mode(scope=viewer, coach_name=view_as)
+    if view_mode.get("is_view_mode"):
+        frappe.throw(_("You cannot make changes while viewing this coach's dashboard."), frappe.PermissionError)
 
 
 def _get_template_label(template_name, label_cache):
@@ -116,10 +150,10 @@ def get_appointment_template_options():
 
 
 @frappe.whitelist()
-def get_my_availability():
+def get_my_availability(view_as=None, viewer=None):
     ensure_logged_in()
 
-    coach = _get_current_coach_doc()
+    coach = _get_current_coach_doc(view_as, viewer)
 
     if not coach.meta.has_field("appointment_types"):
         return []
@@ -159,13 +193,15 @@ def _validate_availability_input(appointment_name, day_of_the_week, start_time, 
 
 
 @frappe.whitelist()
-def add_availability_row(appointment_name=None, days=None, start_time=None, end_time=None, active=1):
+def add_availability_row(appointment_name=None, days=None, start_time=None, end_time=None, active=1, view_as=None, viewer=None):
     """
     Accepts one or more days (e.g. Thursday and Friday, both with the same
     time window) and creates one Coach.appointment_types row per day in a
     single save, rather than making the coach repeat the whole form once
     per day.
     """
+    _ensure_not_view_mode(view_as, viewer)
+
     appointment_name = coalesce_str("appointment_name", appointment_name)
     days = coalesce_raw("days", days)
     start_time = coalesce_str("start_time", start_time)
@@ -209,7 +245,9 @@ def add_availability_row(appointment_name=None, days=None, start_time=None, end_
 
 
 @frappe.whitelist()
-def update_availability_row(row_name=None, appointment_name=None, day_of_the_week=None, start_time=None, end_time=None, active=1):
+def update_availability_row(row_name=None, appointment_name=None, day_of_the_week=None, start_time=None, end_time=None, active=1, view_as=None, viewer=None):
+    _ensure_not_view_mode(view_as, viewer)
+
     row_name = coalesce_str("row_name", row_name)
     appointment_name = coalesce_str("appointment_name", appointment_name)
     day_of_the_week = coalesce_str("day_of_the_week", day_of_the_week)
@@ -243,7 +281,9 @@ def update_availability_row(row_name=None, appointment_name=None, day_of_the_wee
 
 
 @frappe.whitelist()
-def delete_availability_row(row_name=None):
+def delete_availability_row(row_name=None, view_as=None, viewer=None):
+    _ensure_not_view_mode(view_as, viewer)
+
     row_name = coalesce_str("row_name", row_name)
 
     coach = _get_current_coach_doc()
