@@ -207,6 +207,7 @@
           option.textContent = opt.label;
           senderSelect.appendChild(option);
         });
+        Dashboard.attachSenderHint(senderSelect);
       }
 
       if (subjectField) subjectField.value = defaults.subject || "";
@@ -313,6 +314,7 @@
         option.textContent = opt.label;
         select.appendChild(option);
       });
+      Dashboard.attachSenderHint(select);
     } catch (error) {
       console.error("Could not load sender options", error);
     }

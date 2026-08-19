@@ -2101,9 +2101,10 @@ def send_booking_confirmation_email(event=None, recipient=None, subject=None, me
     if cc_list:
         kwargs["cc"] = cc_list
 
-    sender = (sender or "").strip()
-    if sender:
-        kwargs["sender"] = sender
+    # Always the shared office account, never an individual coach's own
+    # (Google-OAuth-connected, so intermittently expiring) Email Account -
+    # see email_templates.get_email_sender_options(). reply_to above is
+    # what still routes a client's reply to the coach personally.
 
     frappe.sendmail(**kwargs)
 

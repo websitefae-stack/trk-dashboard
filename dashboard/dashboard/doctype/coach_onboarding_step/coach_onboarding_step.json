@@ -1,0 +1,192 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "autoincrement",
+ "creation": "2026-08-13 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "coach",
+  "onboarding_step",
+  "column_break_link",
+  "status",
+  "step_details_section",
+  "step_name",
+  "stage",
+  "owner_type",
+  "column_break_step_details",
+  "stage_sort_order",
+  "sort_order",
+  "expected_result",
+  "where_it_happens",
+  "link_url",
+  "depends_on_step",
+  "completion_section",
+  "completed_on",
+  "completed_by",
+  "column_break_completion",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "coach",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Coach",
+   "options": "Coach",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "onboarding_step",
+   "fieldtype": "Link",
+   "label": "Onboarding Step",
+   "options": "Onboarding Step",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_link",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Not Started",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Not Started\nIn Progress\nWaiting on HQ\nReady for You\nDone"
+  },
+  {
+   "fieldname": "step_details_section",
+   "fieldtype": "Section Break",
+   "label": "Step Details",
+   "description": "Copied from the Onboarding Step at the point this was created, so a later edit to the master step doesn't rewrite a coach's history of what they were actually asked to do."
+  },
+  {
+   "fetch_from": "onboarding_step.step_name",
+   "fieldname": "step_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Step Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.stage",
+   "fieldname": "stage",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Stage",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.owner_type",
+   "fieldname": "owner_type",
+   "fieldtype": "Select",
+   "label": "Owner",
+   "options": "Coach\nHQ",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_step_details",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "onboarding_step.stage_sort_order",
+   "fieldname": "stage_sort_order",
+   "fieldtype": "Int",
+   "label": "Stage Sort Order",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.sort_order",
+   "fieldname": "sort_order",
+   "fieldtype": "Int",
+   "label": "Sort Order Within Stage",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.expected_result",
+   "fieldname": "expected_result",
+   "fieldtype": "Small Text",
+   "label": "Expected Result When Done",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.where_it_happens",
+   "fieldname": "where_it_happens",
+   "fieldtype": "Data",
+   "label": "Where It Happens",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.link_url",
+   "fieldname": "link_url",
+   "fieldtype": "Data",
+   "label": "Link URL",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.depends_on",
+   "fieldname": "depends_on_step",
+   "fieldtype": "Link",
+   "label": "Depends On Step",
+   "options": "Onboarding Step",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completion_section",
+   "fieldtype": "Section Break",
+   "label": "Completion"
+  },
+  {
+   "fieldname": "completed_on",
+   "fieldtype": "Datetime",
+   "label": "Completed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completed_by",
+   "fieldtype": "Link",
+   "label": "Completed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_completion",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-13 00:00:01.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "Coach Onboarding Step",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

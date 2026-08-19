@@ -131,27 +131,24 @@ def _default_outgoing_email():
 @frappe.whitelist()
 def get_email_sender_options():
     """
-    "From" choices for the compose modals: the site's own default outgoing
-    (office) email account, plus the logged-in user's own address if they
-    have one - Ashley's own wording is "our office email" vs "the coach's
-    own email address". Whether a given address can actually send (its own
-    Email Account with SMTP credentials) is a site-admin setup step, same
-    as the rest of outgoing mail configuration - this just offers the
-    choice; frappe.sendmail falls back to the office account if a chosen
-    sender has no working outgoing account behind it.
+    "From" choices for the compose modals. Deliberately office-only now -
+    this used to also offer "My email (coach's own address)", which sent
+    through that coach's own individually Google-OAuth-connected Email
+    Account. Those tokens expire on their own schedule regardless of
+    anything the coach does, and there was no graceful fallback when one
+    had - it just failed outright. Every send now always goes through the
+    one shared, reliably-configured office account (see every
+    frappe.sendmail() call across this app - none of them set `sender`
+    anymore); reply_to is what keeps a client's reply landing with the
+    coach personally, not this.
     """
     if frappe.session.user == "Guest":
         frappe.throw(frappe._("Login required"), frappe.PermissionError)
 
     default_email = _default_outgoing_email()
     office_label = f"Office email ({default_email})" if default_email else "Office email (default)"
-    options = [{"value": "", "label": office_label}]
 
-    user_email = frappe.session.user
-    if user_email and user_email not in ("Guest", "Administrator") and user_email != default_email:
-        options.append({"value": user_email, "label": f"My email ({user_email})"})
-
-    return options
+    return [{"value": "", "label": office_label}]
 
 
 def parse_email_list(value):

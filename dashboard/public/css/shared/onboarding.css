@@ -1,0 +1,42 @@
+.dashboard-onboarding-progress {
+  margin-bottom: 18px;
+}
+
+.dashboard-onboarding-progress-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: #EDF2F4;
+  overflow: hidden;
+}
+
+.dashboard-onboarding-progress-bar-fill {
+  height: 100%;
+  background: #00A19E;
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.dashboard-onboarding-progress-label {
+  margin-top: 8px;
+  color: #434B49;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dashboard-onboarding-stage {
+  margin-bottom: 16px;
+}
+
+.dashboard-onboarding-stage-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: #1F4E4E;
+}
+
+.dashboard-onboarding-row-locked {
+  opacity: 0.55;
+}
+
+.dashboard-onboarding-status-select {
+  min-width: 150px;
+}

@@ -1,0 +1,139 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "autoincrement",
+ "creation": "2026-08-13 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "step_name",
+  "is_active",
+  "column_break_active",
+  "owner_type",
+  "column_break_stage",
+  "stage",
+  "stage_sort_order",
+  "sort_order",
+  "details_section",
+  "expected_result",
+  "where_it_happens",
+  "link_url",
+  "column_break_details",
+  "depends_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "step_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Step Name",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Active",
+   "description": "Unticking retires this step without deleting it or the history of coaches who already completed it - it just stops being created for anyone newly starting onboarding."
+  },
+  {
+   "fieldname": "column_break_active",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Coach",
+   "fieldname": "owner_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Owner",
+   "options": "Coach\nHQ",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_stage",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "stage",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Stage",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "stage_sort_order",
+   "fieldtype": "Int",
+   "label": "Stage Sort Order",
+   "description": "Stages are displayed in this order (ascending) - stage name alone doesn't sort correctly (e.g. \"Stage 10\" would sort before \"Stage 2\")."
+  },
+  {
+   "default": "0",
+   "fieldname": "sort_order",
+   "fieldtype": "Int",
+   "label": "Sort Order Within Stage",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "details_section",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "expected_result",
+   "fieldtype": "Small Text",
+   "label": "Expected Result When Done"
+  },
+  {
+   "fieldname": "where_it_happens",
+   "fieldtype": "Data",
+   "label": "Where It Happens",
+   "description": "e.g. LMS, Frappe, External, In-Person, Manual, Background"
+  },
+  {
+   "fieldname": "link_url",
+   "fieldtype": "Data",
+   "label": "Link URL",
+   "description": "Where the \"Go\" action on this step should send the coach - an LMS course, a document to sign, etc. Leave blank for a step with no specific destination."
+  },
+  {
+   "fieldname": "column_break_details",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "depends_on",
+   "fieldtype": "Link",
+   "label": "Depends On",
+   "options": "Onboarding Step",
+   "description": "Optional - if set, this step shows as locked for a coach until the step it depends on is marked Done."
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-13 00:00:01.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "Onboarding Step",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

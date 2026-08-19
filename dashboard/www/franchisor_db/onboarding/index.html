@@ -1,0 +1,46 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Onboarding</h1>
+          <p class="dashboard-page-subtitle">Every coach currently onboarding, and what's waiting on HQ</p>
+        </div>
+      </div>
+
+      <div class="dashboard-card" id="onboardingOverviewTable">
+        <table class="dashboard-table dashboard-doc-list-table">
+          <thead>
+            <tr>
+              <th>Coach</th>
+              <th>Current Stage</th>
+              <th>Progress</th>
+              <th>Waiting on HQ</th>
+            </tr>
+          </thead>
+          <tbody id="onboardingOverviewBody">
+            <tr><td colspan="4"><div class="dashboard-empty">Loading...</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="onboardingOverviewDetail" style="display:none;">
+        <div class="dashboard-page-actions" style="margin-bottom:14px;">
+          <button type="button" class="dashboard-btn dashboard-btn-secondary" id="onboardingOverviewBackBtn">
+            &larr; Back to all coaches
+          </button>
+        </div>
+        <h2 class="dashboard-detail-section-title" id="onboardingOverviewDetailTitle"></h2>
+        <div id="onboardingOverviewDetailContent"></div>
+      </div>
+
+    </div>
+  </div>
+</div>

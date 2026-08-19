@@ -79,6 +79,11 @@
             <span>Documents</span>
         </a>
 
+        <a href="/coach_db/onboarding{{ coach_view_query or '' }}" class="{% if active_page == 'onboarding' %}is-active{% endif %}">
+            <span class="dashboard-nav-icon">🧭</span>
+            <span>Onboarding</span>
+        </a>
+
         <a href="/coach_db/profile{{ coach_view_query or '' }}" class="{% if active_page == 'profile' %}is-active{% endif %}">
             <span class="dashboard-nav-icon">⚙️</span>
             <span>Profile</span>

@@ -769,6 +769,7 @@
       fillSelect(el("trkBookingEmailRecipient"), defaults.email_options || []);
       if (defaults.recipient) setValue("trkBookingEmailRecipient", defaults.recipient);
       fillSelect(el("trkBookingEmailSender"), senderOptions || []);
+      Dashboard.attachSenderHint(el("trkBookingEmailSender"));
 
       setValue("trkBookingEmailCc", "");
       setValue("trkBookingEmailSubject", defaults.subject || "");
