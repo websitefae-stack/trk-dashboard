@@ -169,6 +169,13 @@
 .trk-calendar-grid-wrap {
   min-width: 0;
   overflow-x: auto;
+  /* Vertical scrolling belongs to .trk-calendar-board alone (see
+     syncBoardHeight() in calendar.js) - without this, setting
+     overflow-x here implicitly makes this element's own overflow-y
+     resolve to "auto" too (per the CSS overflow spec), which would
+     make it a second, competing vertical scroll container and let the
+     day grid scroll out of step with the time column next to it. */
+  overflow-y: hidden;
 }
 
 .trk-calendar-board.trk-calendar-board-month .trk-calendar-grid-wrap {
