@@ -96,15 +96,33 @@ def execute():
     if not frappe.db.exists("DocType", ONBOARDING_STEP_DOCTYPE):
         return
 
+    # Seeding the master step list is a one-time convenience, not
+    # something the rest of the site depends on to function - if
+    # anything here goes wrong (e.g. the schema-sync approach below
+    # turns out not to be bulletproof on some Frappe version), it must
+    # never be allowed to fail the whole migrate and roll back the
+    # entire deploy again. Worst case HQ adds/edits steps by hand in
+    # the Desk, or this patch gets fixed and re-run later.
+    try:
+        _seed()
+    except Exception:
+        frappe.db.rollback()
+        frappe.log_error(frappe.get_traceback(), "seed_onboarding_steps failed")
+
+
+def _seed():
     # This patch runs pre_model_sync (before Frappe syncs new doctypes'
     # tables to the database) - Onboarding Step is a brand-new doctype
-    # in this same release, so its columns don't exist yet without this.
-    # force=True matters: without it, reload_doctype() sees the on-disk
-    # json's "modified" timestamp already matches what Frappe's own
-    # doctype-metadata sync (which runs just before this patch, in the
-    # same migrate) recorded a moment earlier, so it thinks nothing
-    # changed and skips the actual table/column sync entirely.
-    frappe.reload_doctype(ONBOARDING_STEP_DOCTYPE, force=True)
+    # in this same release, so its table doesn't exist yet without this.
+    # frappe.reload_doctype() (even with force=True) goes through
+    # Document/DocType save machinery that, in practice, did not
+    # reliably trigger a table sync here - calling the lower-level
+    # schema-sync function Frappe itself uses (the same one DocType's
+    # own on_update() calls) guarantees the table actually gets
+    # created/altered before the query below runs.
+    from frappe.model.db_schema import updatedb
+
+    updatedb(ONBOARDING_STEP_DOCTYPE)
 
     training_day_name = frappe.db.get_value(
         ONBOARDING_STEP_DOCTYPE,
