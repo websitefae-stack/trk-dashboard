@@ -13,6 +13,26 @@
           <h1 class="dashboard-page-title">Onboarding</h1>
           <p class="dashboard-page-subtitle">Every coach currently onboarding, and what's waiting on HQ</p>
         </div>
+
+        <div class="dashboard-page-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="onboardingManageStepsBtn">
+            Manage Step List
+          </button>
+        </div>
+      </div>
+
+      <div id="onboardingStepManagerSection" style="display:none;">
+        <div class="dashboard-page-actions" style="margin-bottom:14px;">
+          <button type="button" class="dashboard-btn dashboard-btn-secondary" id="onboardingStepManagerBackBtn">
+            &larr; Back to coach progress
+          </button>
+        </div>
+        <p class="dashboard-page-subtitle" style="margin-bottom:14px;">
+          Add a link to any step so a coach can click straight through to where they need to go - an internal
+          dashboard page (e.g. <code>/coach_db/documents</code>) or a full external link (LMS module, etc.).
+          Saving here updates every coach already on that step too, not just coaches who start from now on.
+        </p>
+        <div id="onboardingStepManagerContent"></div>
       </div>
 
       <div class="dashboard-card" id="onboardingOverviewTable">

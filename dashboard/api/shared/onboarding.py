@@ -180,9 +180,19 @@ def _group_by_stage(rows):
     stage_index = {}
 
     for row in rows:
+        # If step_name is still blank after _repair_blank_rows(), the
+        # master Onboarding Step it points at is itself blank/broken -
+        # never show a genuinely empty cell for that, since it's
+        # indistinguishable from a rendering bug and impossible to
+        # report precisely. Falling back to the record's own name (e.g.
+        # "ONB-00023") makes a broken row identifiable and fixable
+        # instead of silently invisible.
+        step_name = row.step_name or ("Unnamed step (" + (row.onboarding_step or row.name) + ")")
+        stage = row.stage or "Unassigned"
+
         row_dict = {
             "name": row.name,
-            "step_name": row.step_name,
+            "step_name": step_name,
             "owner_type": row.owner_type,
             "status": row.status,
             "expected_result": row.expected_result or "",
@@ -193,11 +203,11 @@ def _group_by_stage(rows):
             "is_locked": _is_locked(row, done_step_names),
         }
 
-        if row.stage not in stage_index:
-            stage_index[row.stage] = len(stages)
-            stages.append({"stage": row.stage, "steps": []})
+        if stage not in stage_index:
+            stage_index[stage] = len(stages)
+            stages.append({"stage": stage, "steps": []})
 
-        stages[stage_index[row.stage]]["steps"].append(row_dict)
+        stages[stage_index[stage]]["steps"].append(row_dict)
 
     return stages
 
@@ -327,3 +337,58 @@ def get_all_coaches_onboarding_progress():
             entry["current_stage"] = "Complete"
 
     return results
+
+
+@frappe.whitelist()
+def get_onboarding_step_master_list():
+    """
+    Every active Onboarding Step, for HQ's "Manage Step List" screen -
+    lets HQ add/edit a step's link_url straight from the dashboard
+    instead of needing Desk access.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to view this."), frappe.PermissionError)
+
+    return frappe.get_all(
+        ONBOARDING_STEP_DOCTYPE,
+        filters={"is_active": 1},
+        fields=["name", "step_name", "stage", "stage_sort_order", "sort_order", "owner_type", "expected_result", "link_url"],
+        order_by="stage_sort_order asc, sort_order asc",
+    )
+
+
+@frappe.whitelist()
+def update_onboarding_step_master(step_name=None, link_url=None):
+    """
+    Saves a step's Go link from the dashboard's step manager. Unlike
+    the other fields copied onto Coach Onboarding Step at creation time
+    (deliberately a snapshot, so a later wording edit doesn't rewrite a
+    coach's history), the link is treated as always-current - it's a
+    "where do I go" pointer, not a record of what a coach was told, so
+    an HQ correction or addition here is pushed onto every coach's
+    existing row for this step too, not just coaches who start from now
+    on.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    step_name = coalesce_str("step_name", step_name)
+    link_url = coalesce_str("link_url", link_url)
+
+    if not step_name or not frappe.db.exists(ONBOARDING_STEP_DOCTYPE, step_name):
+        frappe.throw(_("Onboarding step not found."))
+
+    frappe.db.set_value(ONBOARDING_STEP_DOCTYPE, step_name, "link_url", link_url, update_modified=False)
+
+    if frappe.db.exists("DocType", COACH_ONBOARDING_STEP_DOCTYPE):
+        frappe.db.set_value(
+            COACH_ONBOARDING_STEP_DOCTYPE,
+            {"onboarding_step": step_name},
+            "link_url",
+            link_url,
+            update_modified=False,
+        )
+
+    frappe.db.commit()
+
+    return {"ok": True, "link_url": link_url}
