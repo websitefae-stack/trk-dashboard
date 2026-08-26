@@ -222,6 +222,22 @@ def get_my_onboarding_steps(coach=None):
         fields=COACH_STEP_FIELDS,
     )
 
+    # A coach can end up with start_onboarding ticked but zero rows -
+    # e.g. a cleanup patch removing a batch that was entirely created
+    # from broken master data (as happened here), or any other future
+    # reason rows might legitimately need clearing out. Rather than
+    # leave that coach stranded until someone remembers to re-tick the
+    # checkbox (which is a no-op if it's already ticked - provisioning
+    # only fires on the tick actually changing), re-provision right
+    # here so the page just works again on the next load.
+    if not rows and frappe.db.get_value("Coach", coach_name, "start_onboarding"):
+        _create_coach_onboarding_steps(coach_name)
+        rows = frappe.get_all(
+            COACH_ONBOARDING_STEP_DOCTYPE,
+            filters={"coach": coach_name},
+            fields=COACH_STEP_FIELDS,
+        )
+
     _repair_blank_rows(rows)
     rows = sorted(rows, key=lambda row: (row.stage_sort_order or 0, row.sort_order or 0))
 
@@ -288,6 +304,31 @@ def mark_step_done_for_coach(step_name=None, status=None):
     return {"ok": True, "status": row.status}
 
 
+def _ensure_all_started_coaches_provisioned():
+    """
+    Same self-healing as get_my_onboarding_steps, but for every coach at
+    once - the franchisor overview queries Coach Onboarding Step rows
+    directly rather than going through that function, so a coach with
+    start_onboarding ticked but no rows (e.g. a cleanup patch clearing
+    out a batch made from broken master data) would otherwise just be
+    silently missing from this list instead of showing up needing
+    attention.
+    """
+    started_coaches = frappe.get_all("Coach", filters={"start_onboarding": 1}, pluck="name")
+    if not started_coaches:
+        return
+
+    provisioned = set(frappe.get_all(
+        COACH_ONBOARDING_STEP_DOCTYPE,
+        filters={"coach": ["in", started_coaches]},
+        pluck="coach",
+    ))
+
+    for coach_name in started_coaches:
+        if coach_name not in provisioned:
+            _create_coach_onboarding_steps(coach_name)
+
+
 @frappe.whitelist()
 def get_all_coaches_onboarding_progress():
     """
@@ -297,6 +338,8 @@ def get_all_coaches_onboarding_progress():
     """
     if not is_franchisor_user():
         frappe.throw(_("You do not have permission to view this."), frappe.PermissionError)
+
+    _ensure_all_started_coaches_provisioned()
 
     rows = frappe.get_all(
         COACH_ONBOARDING_STEP_DOCTYPE,
