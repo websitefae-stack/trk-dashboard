@@ -42,7 +42,7 @@
    "fieldname": "onboarding_step",
    "fieldtype": "Link",
    "label": "Onboarding Step",
-   "options": "Onboarding Step",
+   "options": "Coach Onboarding Master Step",
    "read_only": 1,
    "reqd": 1
   },
@@ -132,7 +132,7 @@
    "fieldname": "depends_on_step",
    "fieldtype": "Link",
    "label": "Depends On Step",
-   "options": "Onboarding Step",
+   "options": "Coach Onboarding Master Step",
    "read_only": 1
   },
   {

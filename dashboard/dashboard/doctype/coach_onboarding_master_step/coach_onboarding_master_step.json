@@ -106,7 +106,7 @@
    "fieldname": "depends_on",
    "fieldtype": "Link",
    "label": "Depends On",
-   "options": "Onboarding Step",
+   "options": "Coach Onboarding Master Step",
    "description": "Optional - if set, this step shows as locked for a coach until the step it depends on is marked Done."
   }
  ],
@@ -115,7 +115,7 @@
  "modified": "2026-08-13 00:00:01.000000",
  "modified_by": "Administrator",
  "module": "Dashboard",
- "name": "Onboarding Step",
+ "name": "Coach Onboarding Master Step",
  "naming_rule": "Autoincrement",
  "owner": "Administrator",
  "permissions": [

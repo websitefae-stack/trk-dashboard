@@ -11,7 +11,7 @@ won't pick up a later edit to the master step automatically.
 
 import frappe
 
-ONBOARDING_STEP_DOCTYPE = "Onboarding Step"
+ONBOARDING_STEP_DOCTYPE = "Coach Onboarding Master Step"
 COACH_ONBOARDING_STEP_DOCTYPE = "Coach Onboarding Step"
 
 STEP_NAME = "Safeguarding + essential policies"
