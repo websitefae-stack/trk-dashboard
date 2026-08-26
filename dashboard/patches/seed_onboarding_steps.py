@@ -33,7 +33,7 @@ STAGES = [
     ]),
     (3, "Stage 3 - Training Day", [
         (1, "Training Day - curriculum, Resilient Kid Values, Resilient Kid Framework, Photoshoot",
-         "HQ delivers / Coach attends", "In-Person",
+         "HQ", "In-Person",
          "Day completed and marked done - this is what unlocks every later stage."),
         (2, "Access Your Emails", "Coach", "LMS", "Module marked complete in LMS."),
         (3, "Branding Shots for Business", "Coach", "LMS", "Module marked complete in LMS."),
