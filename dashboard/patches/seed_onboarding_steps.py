@@ -111,19 +111,15 @@ def execute():
 
 
 def _seed():
-    # This patch runs pre_model_sync (before Frappe syncs new doctypes'
-    # tables to the database) - Onboarding Step is a brand-new doctype
-    # in this same release, so its table doesn't exist yet without this.
-    # frappe.reload_doctype() (even with force=True) goes through
-    # Document/DocType save machinery that, in practice, did not
-    # reliably trigger a table sync here - calling the lower-level
-    # schema-sync function Frappe itself uses (the same one DocType's
-    # own on_update() calls) guarantees the table actually gets
-    # created/altered before the query below runs.
-    from frappe.model.db_schema import updatedb
-
-    updatedb(ONBOARDING_STEP_DOCTYPE)
-
+    # No schema-sync workaround needed here any more - that was only
+    # ever necessary the very first time this ran, when the doctype
+    # was brand new and its table didn't exist yet during this
+    # pre_model_sync patch. It's been a normal, fully-synced table for
+    # a while now. An earlier version of this called
+    # frappe.model.db_schema.updatedb() defensively anyway, which
+    # started throwing ModuleNotFoundError once the site's Frappe
+    # version moved that function elsewhere - removed rather than
+    # chasing its new import path, since it was dead weight regardless.
     training_day_name = frappe.db.get_value(
         ONBOARDING_STEP_DOCTYPE,
         {"step_name": "Training Day - curriculum, Resilient Kid Values, Resilient Kid Framework, Photoshoot"},
