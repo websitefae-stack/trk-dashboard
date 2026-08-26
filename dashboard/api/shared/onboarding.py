@@ -69,9 +69,17 @@ def _create_coach_onboarding_steps(coach_name):
     # already say is intended: a copy taken at creation time, not a live
     # link that would rewrite a coach's history if the master step is
     # edited later.
+    # is_active alone isn't a safe filter here: this table used to be
+    # shared with a Frappe core doctype of the same name (see the
+    # rename patch) - when is_active was added as a new field with a
+    # default of 1, MySQL backfills that default onto every pre-existing
+    # row too, including all the leftover core-Frappe ones. Also
+    # requiring stage to be set is what actually distinguishes this
+    # app's real steps, since stage is a field only this app's records
+    # have ever had a value in.
     steps = frappe.get_all(
         ONBOARDING_STEP_DOCTYPE,
-        filters={"is_active": 1},
+        filters=[["is_active", "=", 1], ["stage", "is", "set"]],
         fields=[
             "name", "step_name", "stage", "owner_type", "stage_sort_order",
             "sort_order", "expected_result", "where_it_happens", "link_url", "depends_on",
@@ -398,7 +406,7 @@ def get_onboarding_step_master_list():
 
     return frappe.get_all(
         ONBOARDING_STEP_DOCTYPE,
-        filters={"is_active": 1},
+        filters=[["is_active", "=", 1], ["stage", "is", "set"]],
         fields=["name", "step_name", "stage", "stage_sort_order", "sort_order", "owner_type", "expected_result", "link_url"],
         order_by="stage_sort_order asc, sort_order asc",
     )
