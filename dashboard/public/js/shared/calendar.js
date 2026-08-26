@@ -706,7 +706,9 @@
     let html = "";
 
     for (let hour = START_HOUR; hour < END_HOUR; hour++) {
-      html += '<div class="trk-calendar-time-slot trk-calendar-time-slot-label" data-hour="' + hour + '">' + pad(hour) + ':00</div>';
+      html += '<div class="trk-calendar-time-slot trk-calendar-time-slot-label" data-hour="' + hour + '">'
+        + '<span class="trk-calendar-time-slot-label-text">' + pad(hour) + ':00</span>'
+        + '</div>';
       html += '<div class="trk-calendar-time-slot"></div>';
     }
 

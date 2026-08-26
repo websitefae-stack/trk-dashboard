@@ -143,11 +143,27 @@
 }
 
 .trk-calendar-time-slot-label {
-  padding: 6px 6px 0 0;
+  position: relative;
+  padding: 0 6px 0 0;
   text-align: right;
+}
+
+/* Sits centred ON the gridline that starts this hour (the top border of
+   this cell), matching the convention every other calendar (Google
+   Calendar, Outlook, etc.) uses - not padded down inside the cell below
+   it, which was always going to look "off" against that gridline no
+   matter how precisely the two calendar columns themselves lined up. */
+.trk-calendar-time-slot-label-text {
+  position: absolute;
+  top: 0;
+  right: 6px;
+  transform: translateY(-50%);
+  background: #FBFCFD;
+  padding: 0 2px;
   color: #839898;
   font-size: 11px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .trk-calendar-grid-wrap {
@@ -577,7 +593,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .trk-calendar-time-slot-label {
+  .trk-calendar-time-slot-label-text {
     font-size: 10px;
   }
 
