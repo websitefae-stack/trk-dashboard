@@ -152,14 +152,14 @@
    this cell), matching the convention every other calendar (Google
    Calendar, Outlook, etc.) uses - not padded down inside the cell below
    it, which was always going to look "off" against that gridline no
-   matter how precisely the two calendar columns themselves lined up. */
+   matter how precisely the two calendar columns themselves lined up.
+   No background here on purpose - it looked like a separate floating
+   shape sitting under the number rather than blending into the line. */
 .trk-calendar-time-slot-label-text {
   position: absolute;
   top: 0;
   right: 6px;
   transform: translateY(-50%);
-  background: #FBFCFD;
-  padding: 0 2px;
   color: #839898;
   font-size: 11px;
   font-weight: 700;
