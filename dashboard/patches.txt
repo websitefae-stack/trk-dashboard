@@ -37,3 +37,4 @@ dashboard.patches.resync_practice_document_resource_access_v2
 dashboard.patches.remove_duplicate_workshop_resource_requirements
 dashboard.patches.add_coach_start_onboarding_field
 dashboard.patches.seed_onboarding_steps
+dashboard.patches.backfill_coach_onboarding_step_fields

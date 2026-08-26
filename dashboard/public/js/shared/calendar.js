@@ -18,6 +18,14 @@
   // calendar doesn't land on three empty pre-dawn hours by default.
   const DEFAULT_SCROLL_HOUR = 8;
 
+  // The board used to have no bounded height at all, so "scrolling" it
+  // just scrolled the whole page - which meant the day/date header
+  // scrolled away with everything else instead of staying visible. Giving
+  // the board itself a real height + its own scrollbar (see
+  // syncBoardHeight()) is what makes the sticky day header actually work.
+  const BOARD_BOTTOM_SPACING = 24;
+  const BOARD_MIN_HEIGHT = 420;
+
   const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   // Month view's header/grid render Monday-first (see renderMonthView) -
   // this is that same order as day names, since DAYS above is indexed by
@@ -217,6 +225,16 @@
     updateViewButtons();
     renderCalendar();
     loadCalendarData();
+
+    let resizeTimer = null;
+    window.addEventListener("resize", function () {
+      if (state.currentView === "month") return;
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(function () {
+        syncTimeColumnWithHeader();
+        syncBoardHeight();
+      }, 150);
+    });
   }
 
   function bindEvents() {
@@ -633,9 +651,29 @@
     renderTimeColumn();
     renderDayHeader();
     syncTimeColumnWithHeader();
+    syncBoardHeight();
     renderDayGrid();
     renderEvents();
     scrollGridToDefaultHour();
+  }
+
+  // Bounds the board to whatever vertical space is actually left in the
+  // viewport below it and turns that into its own scroll area - measured
+  // live rather than guessed in CSS, same reasoning as
+  // syncTimeColumnWithHeader() above (a fixed calc() would need to know
+  // the exact height of the topbar/page header/toolbar above it, which
+  // differs by page and breakpoint). Without a bounded height here,
+  // position: sticky on the day header has nothing to stick within - the
+  // header just scrolls away with the rest of the page.
+  function syncBoardHeight() {
+    const board = document.getElementById("trkCalendarBoard");
+    if (!board) return;
+
+    const top = board.getBoundingClientRect().top;
+    const available = window.innerHeight - top - BOARD_BOTTOM_SPACING;
+
+    board.style.maxHeight = Math.max(available, BOARD_MIN_HEIGHT) + "px";
+    board.style.overflowY = "auto";
   }
 
   // Deliberately scrolls the 8am *label* into view rather than computing

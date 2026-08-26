@@ -57,19 +57,39 @@ def provision_onboarding_steps(doc, method=None):
 
 
 def _create_coach_onboarding_steps(coach_name):
+    # Field values are copied across explicitly here rather than relying
+    # on the doctype's fetch_from configuration - fetch_from is meant to
+    # do this automatically on insert, but proved unreliable in practice
+    # (rows came out with step_name/stage/etc. blank), so this doesn't
+    # depend on it working. It also matches what the field descriptions
+    # already say is intended: a copy taken at creation time, not a live
+    # link that would rewrite a coach's history if the master step is
+    # edited later.
     steps = frappe.get_all(
         ONBOARDING_STEP_DOCTYPE,
         filters={"is_active": 1},
-        pluck="name",
+        fields=[
+            "name", "step_name", "stage", "owner_type", "stage_sort_order",
+            "sort_order", "expected_result", "where_it_happens", "link_url", "depends_on",
+        ],
         order_by="stage_sort_order asc, sort_order asc",
     )
 
-    for step_name in steps:
+    for step in steps:
         frappe.get_doc({
             "doctype": COACH_ONBOARDING_STEP_DOCTYPE,
             "coach": coach_name,
-            "onboarding_step": step_name,
+            "onboarding_step": step.name,
             "status": "Not Started",
+            "step_name": step.step_name,
+            "stage": step.stage,
+            "owner_type": step.owner_type,
+            "stage_sort_order": step.stage_sort_order,
+            "sort_order": step.sort_order,
+            "expected_result": step.expected_result,
+            "where_it_happens": step.where_it_happens,
+            "link_url": step.link_url,
+            "depends_on_step": step.depends_on,
         }).insert(ignore_permissions=True)
 
 
