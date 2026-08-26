@@ -122,6 +122,14 @@
   display: grid;
   grid-template-columns: 60px minmax(0, 1fr);
   min-height: 620px;
+  /* The single scroll container for the whole calendar (both axes) -
+     see syncBoardHeight() in calendar.js for the height. Both the day
+     header (position: sticky; top: 0) and the time column
+     (position: sticky; left: 0) rely on this being their nearest
+     scrolling ancestor - neither child element below should introduce
+     its own overflow, or it becomes an intervening scroll container
+     that sticky positioning would attach to instead of this one. */
+  overflow: auto;
 }
 
 .trk-calendar-board.trk-calendar-board-month {
@@ -132,9 +140,22 @@
 .trk-calendar-time-column {
   background: #FBFCFD;
   border-right: 1px solid #D9E6E6;
-  /* padding-top is set from JS (syncTimeColumnWithHeader in calendar.js),
-     measured directly off the real day-header's rendered height - not a
-     value to hardcode here. */
+  position: sticky;
+  left: 0;
+  z-index: 3;
+}
+
+/* Pinned top-left corner, matching height set from JS
+   (syncTimeColumnWithHeader in calendar.js, measured off the real day
+   header) - keeps this column's hour labels aligned with the day-grid
+   rows actually visible next to them once the board is scrolled,
+   mirroring the day header's own position: sticky. */
+.trk-calendar-time-column-spacer {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: #FBFCFD;
+  border-bottom: 1px solid #D9E6E6;
 }
 
 .trk-calendar-time-slot {
@@ -168,14 +189,18 @@
 
 .trk-calendar-grid-wrap {
   min-width: 0;
-  overflow-x: auto;
-  /* Vertical scrolling belongs to .trk-calendar-board alone (see
-     syncBoardHeight() in calendar.js) - without this, setting
-     overflow-x here implicitly makes this element's own overflow-y
-     resolve to "auto" too (per the CSS overflow spec), which would
-     make it a second, competing vertical scroll container and let the
-     day grid scroll out of step with the time column next to it. */
-  overflow-y: hidden;
+  /* No overflow here on purpose, for week/day view (JS sets it to
+     "visible" explicitly in renderTimeColumn()) - both scroll axes
+     live on .trk-calendar-board instead. Giving this element ANY
+     non-visible overflow (even just overflow-x) makes it a scroll
+     container in its own right per the CSS overflow spec, which - since
+     it directly contains the day header - would make IT the sticky
+     containing block instead of the board. It never actually scrolls
+     on its own though, so the header's position: sticky would then
+     never have anything to stick to: this was the bug behind the date
+     header not staying visible while scrolling through hours. Month
+     view still sets overflow-x: hidden below since it doesn't share
+     this scroll setup (no time column, board isn't height-bounded). */
 }
 
 .trk-calendar-board.trk-calendar-board-month .trk-calendar-grid-wrap {
