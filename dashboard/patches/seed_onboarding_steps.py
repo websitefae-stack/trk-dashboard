@@ -99,7 +99,12 @@ def execute():
     # This patch runs pre_model_sync (before Frappe syncs new doctypes'
     # tables to the database) - Onboarding Step is a brand-new doctype
     # in this same release, so its columns don't exist yet without this.
-    frappe.reload_doctype(ONBOARDING_STEP_DOCTYPE)
+    # force=True matters: without it, reload_doctype() sees the on-disk
+    # json's "modified" timestamp already matches what Frappe's own
+    # doctype-metadata sync (which runs just before this patch, in the
+    # same migrate) recorded a moment earlier, so it thinks nothing
+    # changed and skips the actual table/column sync entirely.
+    frappe.reload_doctype(ONBOARDING_STEP_DOCTYPE, force=True)
 
     training_day_name = frappe.db.get_value(
         ONBOARDING_STEP_DOCTYPE,
