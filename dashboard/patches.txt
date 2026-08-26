@@ -42,3 +42,4 @@ dashboard.patches.add_safeguarding_policies_link
 dashboard.patches.remove_blank_onboarding_steps
 dashboard.patches.rename_onboarding_step_doctype_away_from_core_collision
 dashboard.patches.purge_orphaned_master_step_leftovers
+dashboard.patches.ensure_onboarding_steps_seeded
