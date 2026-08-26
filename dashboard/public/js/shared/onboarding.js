@@ -246,9 +246,11 @@
     var body = el("onboardingOverviewBody");
     var table = el("onboardingOverviewTable");
     var detail = el("onboardingOverviewDetail");
+    var manager = el("onboardingStepManagerSection");
     if (!body) return;
 
     if (detail) detail.style.display = "none";
+    if (manager) manager.style.display = "none";
     if (table) table.style.display = "";
 
     var rows;
@@ -277,11 +279,13 @@
   async function loadCoachDetail(coachName) {
     var table = el("onboardingOverviewTable");
     var detail = el("onboardingOverviewDetail");
+    var manager = el("onboardingStepManagerSection");
     var content = el("onboardingOverviewDetailContent");
     var title = el("onboardingOverviewDetailTitle");
     if (!detail || !content) return;
 
     if (table) table.style.display = "none";
+    if (manager) manager.style.display = "none";
     detail.style.display = "block";
     if (title) title.textContent = "Onboarding - " + coachName;
     content.innerHTML = '<div class="dashboard-empty">Loading...</div>';
@@ -298,6 +302,116 @@
     bindStepActions(content, function () { loadCoachDetail(coachName); });
   }
 
+  // -------------------------------------------------------------------
+  // Step list manager - lets HQ add a "Go" link (or edit one) on any
+  // step directly from the dashboard, without needing Desk access.
+  // Edits the master Onboarding Step, and also updates the link on any
+  // Coach Onboarding Step rows already created from it, so a coach
+  // already partway through sees the corrected/added link immediately
+  // rather than only coaches who start onboarding from now on.
+  // -------------------------------------------------------------------
+
+  function renderStepManagerRow(step) {
+    return (
+      "<tr>" +
+        "<td>" +
+          '<div class="dashboard-doc-list-title">' + escapeHtml(step.step_name) + "</div>" +
+          (step.expected_result ? '<div class="dashboard-doc-list-meta">' + escapeHtml(step.expected_result) + "</div>" : "") +
+        "</td>" +
+        "<td>" + escapeHtml(step.owner_type) + "</td>" +
+        "<td>" +
+          '<input type="text" class="dashboard-input dashboard-onboarding-link-input" data-step="' +
+            escapeHtml(step.name) + '" value="' + escapeHtml(step.link_url || "") +
+            '" placeholder="/coach_db/... or https://...">' +
+        "</td>" +
+        '<td class="dashboard-text-right">' +
+          '<button type="button" class="dashboard-btn dashboard-btn-primary dashboard-onboarding-save-link" data-step="' +
+            escapeHtml(step.name) + '">Save</button>' +
+        "</td>" +
+      "</tr>"
+    );
+  }
+
+  function renderStepManagerStage(stage) {
+    return (
+      '<div class="dashboard-card dashboard-onboarding-stage">' +
+        '<h3 class="dashboard-onboarding-stage-title">' + escapeHtml(stage.stage) + "</h3>" +
+        '<table class="dashboard-table dashboard-doc-list-table">' +
+          "<thead><tr><th>Step</th><th>Owner</th><th>Link URL</th><th class=\"dashboard-text-right\">Action</th></tr></thead>" +
+          "<tbody>" + stage.steps.map(renderStepManagerRow).join("") + "</tbody>" +
+        "</table>" +
+      "</div>"
+    );
+  }
+
+  async function loadStepManager() {
+    var content = el("onboardingStepManagerContent");
+    if (!content) return;
+
+    content.innerHTML = '<div class="dashboard-empty">Loading...</div>';
+
+    var steps;
+    try {
+      steps = await apiGet(API + ".get_onboarding_step_master_list", {});
+    } catch (error) {
+      content.innerHTML = '<div class="dashboard-empty">' + escapeHtml(error.message) + "</div>";
+      return;
+    }
+
+    var stageMap = {};
+    var stages = [];
+
+    steps.forEach(function (step) {
+      var stageLabel = step.stage || "Unassigned";
+      if (!(stageLabel in stageMap)) {
+        stageMap[stageLabel] = stages.length;
+        stages.push({ stage: stageLabel, steps: [] });
+      }
+      stages[stageMap[stageLabel]].steps.push(step);
+    });
+
+    if (!stages.length) {
+      content.innerHTML = '<div class="dashboard-empty">No onboarding steps set up yet.</div>';
+      return;
+    }
+
+    content.innerHTML = stages.map(renderStepManagerStage).join("");
+
+    content.querySelectorAll(".dashboard-onboarding-save-link").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        var input = content.querySelector('.dashboard-onboarding-link-input[data-step="' + btn.dataset.step + '"]');
+        if (!input) return;
+
+        btn.disabled = true;
+        var originalLabel = btn.textContent;
+        btn.textContent = "Saving...";
+
+        try {
+          await apiPost(API + ".update_onboarding_step_master", { step_name: btn.dataset.step, link_url: input.value });
+          btn.textContent = "Saved";
+          window.setTimeout(function () {
+            btn.textContent = originalLabel;
+            btn.disabled = false;
+          }, 1200);
+        } catch (error) {
+          window.alert(error.message || "Could not save this link.");
+          btn.textContent = originalLabel;
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  function showStepManager() {
+    var table = el("onboardingOverviewTable");
+    var detail = el("onboardingOverviewDetail");
+    var manager = el("onboardingStepManagerSection");
+    if (table) table.style.display = "none";
+    if (detail) detail.style.display = "none";
+    if (manager) manager.style.display = "block";
+    loadStepManager();
+  }
+
   function initFranchisorOnboardingPage() {
     var table = el("onboardingOverviewTable");
     if (!table) return;
@@ -309,6 +423,16 @@
       backBtn.addEventListener("click", function () {
         loadOverview();
       });
+    }
+
+    var manageBtn = el("onboardingManageStepsBtn");
+    if (manageBtn) {
+      manageBtn.addEventListener("click", showStepManager);
+    }
+
+    var managerBackBtn = el("onboardingStepManagerBackBtn");
+    if (managerBackBtn) {
+      managerBackBtn.addEventListener("click", loadOverview);
     }
   }
 
