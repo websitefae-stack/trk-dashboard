@@ -40,3 +40,23 @@
 .dashboard-onboarding-status-select {
   min-width: 150px;
 }
+
+/* The action cell can hold a "Go" link (see link_url on Onboarding
+   Step) alongside "Mark Done" or the HQ status dropdown - the shared
+   .dashboard-doc-list-table column widths elsewhere weren't wide
+   enough to fit both without the button text wrapping onto two lines. */
+.dashboard-onboarding-stage .dashboard-doc-list-table th:last-child,
+.dashboard-onboarding-stage .dashboard-doc-list-table td:last-child {
+  width: auto;
+  min-width: 230px;
+}
+
+.dashboard-onboarding-stage .dashboard-doc-list-actions {
+  flex-wrap: nowrap;
+}
+
+.dashboard-onboarding-stage .dashboard-doc-list-actions .dashboard-btn,
+.dashboard-onboarding-mark-done {
+  white-space: nowrap;
+  flex-shrink: 0;
+}

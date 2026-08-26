@@ -734,14 +734,36 @@
     board.style.minHeight = "620px";
 
     wrap.style.display = "";
-    wrap.style.overflowX = "auto";
+    // Horizontal (and vertical) scrolling both live on #trkCalendarBoard
+    // now (see syncBoardHeight()) - this wrap staying overflow:visible
+    // matters, not just cosmetically: an element with overflow-x set to
+    // anything other than visible has its overflow-y forced to behave
+    // as a real scroll container too (per the CSS overflow spec), even
+    // if overflow-y is itself set to hidden. Since this wrap directly
+    // contains the day header, that would make IT the sticky
+    // containing block instead of the board - and since this wrap
+    // never actually scrolls on its own (only the board does), the
+    // header's position: sticky would then never have anything to
+    // stick to. This was the actual bug behind the header not staying
+    // put while scrolling through hours.
+    wrap.style.overflowX = "visible";
     wrap.style.minWidth = "0";
 
     header.style.display = "grid";
     grid.style.display = "grid";
     column.style.display = "";
 
-    let html = "";
+    // A real spacer element (not just padding-top) is needed at the top
+    // of this column now that the board scrolls as one unit with a
+    // sticky day header (see syncBoardHeight()): the header stays
+    // pinned in place while its neighbouring day-grid content scrolls
+    // underneath it, so this column needs a matching pinned top-left
+    // corner too (see the position: sticky rule on
+    // .trk-calendar-time-column-spacer) - otherwise, once scrolled, the
+    // hour labels here would run one header-height ahead of the day-grid
+    // rows actually visible next to them, since nothing would be
+    // reserving/pinning that same space in this column.
+    let html = '<div class="trk-calendar-time-column-spacer" id="trkCalendarTimeColumnSpacer"></div>';
 
     for (let hour = START_HOUR; hour < END_HOUR; hour++) {
       html += '<div class="trk-calendar-time-slot trk-calendar-time-slot-label" data-hour="' + hour + '">'
@@ -755,21 +777,33 @@
 
   // The time column has no header row of its own - trkCalendarDayHeader
   // sits above trkCalendarDayGrid instead, in the neighbouring grid
-  // column - so without this, the two columns need a *guessed* pixel
-  // offset to stay lined up, which is exactly what kept drifting out of
-  // sync here (first a hardcoded padding-top, then a same-CSS-class
-  // spacer that was still, in the end, a guess about what the browser
-  // would render). This instead reads the header's own actual rendered
-  // height with getBoundingClientRect() once it's in the DOM, and applies
-  // that exact number - nothing to keep in sync by hand, and nothing
-  // that can drift regardless of font size, zoom, DPI, or anything else
-  // that affects real layout but not source code.
+  // column - so without a matching spacer here, the two columns need a
+  // *guessed* pixel height to stay lined up, which is exactly what kept
+  // drifting out of sync here (first a hardcoded padding-top, then a
+  // same-CSS-class spacer that was still, in the end, a guess about what
+  // the browser would render). This instead reads the header's own
+  // actual rendered height with getBoundingClientRect() once it's in the
+  // DOM, and applies that exact number to the spacer - nothing to keep
+  // in sync by hand, and nothing that can drift regardless of font size,
+  // zoom, DPI, or anything else that affects real layout but not source
+  // code.
   function syncTimeColumnWithHeader() {
     const header = document.getElementById("trkCalendarDayHeader");
-    const column = document.getElementById("trkCalendarTimeColumn");
-    if (!header || !column) return;
+    const spacer = document.getElementById("trkCalendarTimeColumnSpacer");
+    const board = document.getElementById("trkCalendarBoard");
+    if (!header || !spacer) return;
 
-    column.style.paddingTop = header.getBoundingClientRect().height + "px";
+    const headerHeight = header.getBoundingClientRect().height;
+    spacer.style.height = headerHeight + "px";
+
+    // scrollIntoView() (used to land on DEFAULT_SCROLL_HOUR below) has no
+    // idea the day header is pinned in place - left alone, it would
+    // happily scroll the 8am label to the very top of the board, right
+    // underneath where the sticky header then covers it. scroll-padding
+    // on the scroll container is the standard fix: it tells the browser
+    // to treat that much space as already "spoken for" at the top of
+    // the scrollport when deciding where scrollIntoView should land.
+    if (board) board.style.scrollPaddingTop = headerHeight + "px";
   }
 
   function renderDayHeader() {

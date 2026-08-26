@@ -117,6 +117,58 @@ def _resolve_target_coach(coach=None):
     return own_coach_name
 
 
+_STEP_COPY_FIELDS = [
+    ("step_name", "step_name"),
+    ("stage", "stage"),
+    ("owner_type", "owner_type"),
+    ("stage_sort_order", "stage_sort_order"),
+    ("sort_order", "sort_order"),
+    ("expected_result", "expected_result"),
+    ("where_it_happens", "where_it_happens"),
+    ("link_url", "link_url"),
+    ("depends_on", "depends_on_step"),
+]
+
+
+def _repair_blank_rows(rows):
+    """
+    Coach Onboarding Step rows can end up with their copied step details
+    blank (the fetch_from that used to populate them on insert wasn't
+    reliable - see _create_coach_onboarding_steps). Rather than trust a
+    one-off backfill patch to have caught every case, every read here
+    self-heals: any row missing its step_name gets re-copied from its
+    linked Onboarding Step on the spot, both for this response and
+    written back to the row itself so the Desk list view is correct too
+    (and this never has to run again for that row).
+    """
+    blank_rows = [row for row in rows if row.onboarding_step and (not row.step_name or not row.stage)]
+    if not blank_rows:
+        return
+
+    step_names = list({row.onboarding_step for row in blank_rows})
+    masters = frappe.get_all(
+        ONBOARDING_STEP_DOCTYPE,
+        filters={"name": ["in", step_names]},
+        fields=["name"] + [source for source, _target in _STEP_COPY_FIELDS],
+    )
+    master_by_name = {master.name: master for master in masters}
+
+    for row in blank_rows:
+        master = master_by_name.get(row.onboarding_step)
+        if not master:
+            continue
+
+        updates = {}
+        for source, target in _STEP_COPY_FIELDS:
+            value = master.get(source)
+            row[target] = value
+            updates[target] = value
+
+        frappe.db.set_value(COACH_ONBOARDING_STEP_DOCTYPE, row.name, updates, update_modified=False)
+
+    frappe.db.commit()
+
+
 def _is_locked(row, done_step_names):
     return bool(row.depends_on_step) and row.depends_on_step not in done_step_names and row.status != "Done"
 
@@ -158,8 +210,10 @@ def get_my_onboarding_steps(coach=None):
         COACH_ONBOARDING_STEP_DOCTYPE,
         filters={"coach": coach_name},
         fields=COACH_STEP_FIELDS,
-        order_by="stage_sort_order asc, sort_order asc",
     )
+
+    _repair_blank_rows(rows)
+    rows = sorted(rows, key=lambda row: (row.stage_sort_order or 0, row.sort_order or 0))
 
     total = len(rows)
     done = len([row for row in rows if row.status == "Done"])

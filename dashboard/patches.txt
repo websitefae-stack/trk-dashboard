@@ -38,3 +38,4 @@ dashboard.patches.remove_duplicate_workshop_resource_requirements
 dashboard.patches.add_coach_start_onboarding_field
 dashboard.patches.seed_onboarding_steps
 dashboard.patches.backfill_coach_onboarding_step_fields
+dashboard.patches.add_safeguarding_policies_link
