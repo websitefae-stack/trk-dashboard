@@ -23,7 +23,11 @@ from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_use
 from dashboard.api.shared.utils import coalesce_str
 
 COACH_ONBOARDING_STEP_DOCTYPE = "Coach Onboarding Step"
-ONBOARDING_STEP_DOCTYPE = "Onboarding Step"
+# Deliberately NOT "Onboarding Step" - that name collides with a doctype
+# Frappe's own core framework already ships (used for ERPNext's built-in
+# "Getting Started" setup guidance). Creating a doctype with that same
+# name overwrote the core one's schema, which is why this is prefixed.
+ONBOARDING_STEP_DOCTYPE = "Coach Onboarding Master Step"
 
 COACH_STEP_FIELDS = [
     "name", "onboarding_step", "step_name", "stage", "owner_type", "status",

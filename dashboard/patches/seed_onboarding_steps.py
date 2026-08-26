@@ -15,7 +15,7 @@ particular steps need it.
 
 import frappe
 
-ONBOARDING_STEP_DOCTYPE = "Onboarding Step"
+ONBOARDING_STEP_DOCTYPE = "Coach Onboarding Master Step"
 
 # (stage_sort_order, stage_label, [(sort_order, step_name, owner_type, where_it_happens, expected_result), ...])
 STAGES = [

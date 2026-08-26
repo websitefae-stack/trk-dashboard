@@ -11,7 +11,7 @@ linked Onboarding Step.
 import frappe
 
 COACH_STEP_DOCTYPE = "Coach Onboarding Step"
-STEP_DOCTYPE = "Onboarding Step"
+STEP_DOCTYPE = "Coach Onboarding Master Step"
 
 COPY_FIELDS = [
     ("step_name", "step_name"),

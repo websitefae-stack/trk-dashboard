@@ -19,7 +19,7 @@ nothing a coach has done gets silently lost.
 
 import frappe
 
-ONBOARDING_STEP_DOCTYPE = "Onboarding Step"
+ONBOARDING_STEP_DOCTYPE = "Coach Onboarding Master Step"
 COACH_ONBOARDING_STEP_DOCTYPE = "Coach Onboarding Step"
 
 
