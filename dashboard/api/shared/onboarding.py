@@ -141,7 +141,7 @@ def _repair_blank_rows(rows):
     written back to the row itself so the Desk list view is correct too
     (and this never has to run again for that row).
     """
-    blank_rows = [row for row in rows if row.onboarding_step and not row.step_name]
+    blank_rows = [row for row in rows if row.onboarding_step and (not row.step_name or not row.stage)]
     if not blank_rows:
         return
 
