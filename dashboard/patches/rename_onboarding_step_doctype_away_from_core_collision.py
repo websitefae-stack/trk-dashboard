@@ -53,6 +53,6 @@ def execute():
     if not frappe.get_meta(OLD_NAME).has_field("step_name"):
         return
 
-    frappe.rename_doc("DocType", OLD_NAME, NEW_NAME, force=True, ignore_permissions=True)
+    frappe.rename_doc("DocType", OLD_NAME, NEW_NAME, force=True)
     frappe.clear_cache(doctype=NEW_NAME)
     frappe.db.commit()
