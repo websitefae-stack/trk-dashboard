@@ -96,6 +96,11 @@ def execute():
     if not frappe.db.exists("DocType", ONBOARDING_STEP_DOCTYPE):
         return
 
+    # This patch runs pre_model_sync (before Frappe syncs new doctypes'
+    # tables to the database) - Onboarding Step is a brand-new doctype
+    # in this same release, so its columns don't exist yet without this.
+    frappe.reload_doctype(ONBOARDING_STEP_DOCTYPE)
+
     training_day_name = frappe.db.get_value(
         ONBOARDING_STEP_DOCTYPE,
         {"step_name": "Training Day - curriculum, Resilient Kid Values, Resilient Kid Framework, Photoshoot"},
