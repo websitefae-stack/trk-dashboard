@@ -13,6 +13,11 @@
   const SLOT_HEIGHT = 44;
   const MOBILE_BREAKPOINT = 860;
 
+  // The grid still starts at START_HOUR (5am) so early appointments and a
+  // scroll up are both still possible - this just means opening the
+  // calendar doesn't land on three empty pre-dawn hours by default.
+  const DEFAULT_SCROLL_HOUR = 8;
+
   const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   // Month view's header/grid render Monday-first (see renderMonthView) -
   // this is that same order as day names, since DAYS above is indexed by
@@ -629,6 +634,17 @@
     renderDayHeader();
     renderDayGrid();
     renderEvents();
+    scrollGridToDefaultHour();
+  }
+
+  function scrollGridToDefaultHour() {
+    const wrap = document.querySelector(".trk-calendar-grid-wrap");
+    if (!wrap) return;
+
+    const pixelsPerHour = SLOT_HEIGHT * (60 / SLOT_MINUTES);
+    const hoursFromTop = Math.max(DEFAULT_SCROLL_HOUR - START_HOUR, 0);
+
+    wrap.scrollTop = hoursFromTop * pixelsPerHour;
   }
 
   function updateViewButtons() {
