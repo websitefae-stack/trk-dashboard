@@ -132,11 +132,9 @@
 .trk-calendar-time-column {
   background: #FBFCFD;
   border-right: 1px solid #D9E6E6;
-}
-
-.trk-calendar-time-column-spacer {
-  visibility: hidden;
-  border-left: 0;
+  /* padding-top is set from JS (syncTimeColumnWithHeader in calendar.js),
+     measured directly off the real day-header's rendered height - not a
+     value to hardcode here. */
 }
 
 .trk-calendar-time-slot {

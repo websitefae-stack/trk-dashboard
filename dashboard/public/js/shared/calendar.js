@@ -632,19 +632,25 @@
     renderRangeLabel();
     renderTimeColumn();
     renderDayHeader();
+    syncTimeColumnWithHeader();
     renderDayGrid();
     renderEvents();
     scrollGridToDefaultHour();
   }
 
+  // Deliberately scrolls the 8am *label* into view rather than computing
+  // and setting scrollTop on the day-grid side by hand - the time column
+  // and the day grid are separate sibling elements (see
+  // syncTimeColumnWithHeader() above), so scrolling only one of them
+  // directly risks moving it out of step with the other. scrollIntoView()
+  // lets the browser find whatever their real shared scrolling ancestor
+  // actually is and scroll that, which by construction moves both
+  // columns together.
   function scrollGridToDefaultHour() {
-    const wrap = document.querySelector(".trk-calendar-grid-wrap");
-    if (!wrap) return;
+    const label = document.querySelector('.trk-calendar-time-slot-label[data-hour="' + DEFAULT_SCROLL_HOUR + '"]');
+    if (!label) return;
 
-    const pixelsPerHour = SLOT_HEIGHT * (60 / SLOT_MINUTES);
-    const hoursFromTop = Math.max(DEFAULT_SCROLL_HOUR - START_HOUR, 0);
-
-    wrap.scrollTop = hoursFromTop * pixelsPerHour;
+    label.scrollIntoView({ block: "start" });
   }
 
   function updateViewButtons() {
@@ -697,27 +703,33 @@
     grid.style.display = "grid";
     column.style.display = "";
 
-    // The time column has no header row of its own - trkCalendarDayHeader
-    // sits above trkCalendarDayGrid instead, in the neighbouring grid
-    // column, so without this spacer the two columns would need a
-    // hardcoded height guess to stay lined up (which is exactly what used
-    // to happen here, and drifted out of sync with the real header
-    // height). Giving the spacer the day header cell's own class - same
-    // padding, same child elements, just empty and invisible - makes its
-    // rendered height always match the real header exactly, so every
-    // hour row below it lines up with the actual day grid regardless of
-    // font size, zoom or DPI.
-    let html = '<div class="trk-calendar-day-header-cell trk-calendar-time-column-spacer" aria-hidden="true">'
-      + '<div class="trk-calendar-day-name">&nbsp;</div>'
-      + '<div class="trk-calendar-day-number">&nbsp;</div>'
-      + '</div>';
+    let html = "";
 
     for (let hour = START_HOUR; hour < END_HOUR; hour++) {
-      html += '<div class="trk-calendar-time-slot trk-calendar-time-slot-label">' + pad(hour) + ':00</div>';
+      html += '<div class="trk-calendar-time-slot trk-calendar-time-slot-label" data-hour="' + hour + '">' + pad(hour) + ':00</div>';
       html += '<div class="trk-calendar-time-slot"></div>';
     }
 
     column.innerHTML = html;
+  }
+
+  // The time column has no header row of its own - trkCalendarDayHeader
+  // sits above trkCalendarDayGrid instead, in the neighbouring grid
+  // column - so without this, the two columns need a *guessed* pixel
+  // offset to stay lined up, which is exactly what kept drifting out of
+  // sync here (first a hardcoded padding-top, then a same-CSS-class
+  // spacer that was still, in the end, a guess about what the browser
+  // would render). This instead reads the header's own actual rendered
+  // height with getBoundingClientRect() once it's in the DOM, and applies
+  // that exact number - nothing to keep in sync by hand, and nothing
+  // that can drift regardless of font size, zoom, DPI, or anything else
+  // that affects real layout but not source code.
+  function syncTimeColumnWithHeader() {
+    const header = document.getElementById("trkCalendarDayHeader");
+    const column = document.getElementById("trkCalendarTimeColumn");
+    if (!header || !column) return;
+
+    column.style.paddingTop = header.getBoundingClientRect().height + "px";
   }
 
   function renderDayHeader() {
