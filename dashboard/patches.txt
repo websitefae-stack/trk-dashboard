@@ -46,3 +46,4 @@ dashboard.patches.ensure_onboarding_steps_seeded
 dashboard.patches.retry_onboarding_steps_seeding
 dashboard.patches.create_missing_master_step_sequence_and_seed
 dashboard.patches.dedupe_coach_onboarding_step_rows
+dashboard.patches.restructure_onboarding_journey_v2
