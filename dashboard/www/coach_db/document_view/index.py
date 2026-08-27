@@ -27,6 +27,18 @@ def get_context(context):
         frappe.local.flags.redirect_location = "/coach_db/documents"
         raise frappe.Redirect
 
+    # Only used outside view mode - view mode already has its own
+    # "return to franchisor" concept (coach_view_return_to below), so
+    # this covers the plain "coach viewing their own document" case,
+    # where the Back link used to always go to the general Documents
+    # list regardless of where the coach actually came from (e.g. the
+    # Policies section of their own Onboarding page). Restricted to
+    # known internal paths so this can't be used as an open redirect.
+    back_to = (frappe.form_dict.get("back_to") or "").strip()
+    if not (back_to.startswith("/coach_db/") or back_to.startswith("/franchisor_db/")):
+        back_to = "/coach_db/documents"
+    context.back_to = back_to
+
     context.no_cache = 1
     context.page_title = "Document"
     context.active_page = "documents"

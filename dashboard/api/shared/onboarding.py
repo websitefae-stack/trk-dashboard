@@ -282,8 +282,16 @@ def get_my_onboarding_steps(coach=None):
     _repair_blank_rows(rows)
     rows = sorted(rows, key=lambda row: (row.stage_sort_order or 0, row.sort_order or 0))
 
+    # A franchisor drilled into someone else's checklist needs view_as/
+    # viewer on the document link too, or document_view has no way to
+    # know she's allowed to be looking at a coach she isn't - it just
+    # redirects her out. coalesce_str("coach", coach) here mirrors
+    # _resolve_target_coach()'s own check for "was an explicit coach
+    # actually asked for", not just "who ended up being resolved".
+    is_drill_down = bool(coalesce_str("coach", coach)) and is_franchisor_user()
+
     stages = _group_by_stage(rows)
-    policy_stage = _dynamic_policies_stage(coach_name)
+    policy_stage = _dynamic_policies_stage(coach_name, view_as_coach=coach_name if is_drill_down else None)
     _insert_dynamic_stage(stages, policy_stage, after_stage_number=4)
 
     total = len(rows) + len(policy_stage["steps"])
@@ -302,7 +310,7 @@ def get_my_onboarding_steps(coach=None):
 POLICY_DOCUMENT_TYPES = ["Policy", "Procedure"]
 
 
-def _dynamic_policies_stage(coach_name):
+def _dynamic_policies_stage(coach_name, view_as_coach=None):
     """
     Stage 5 (Policies) has no static Coach Onboarding Step rows behind it
     - it's built live from Coach Document Requirement instead, so it
@@ -314,6 +322,12 @@ def _dynamic_policies_stage(coach_name):
     same underlying record being read, not a copy of it. Never locked -
     the whole point is these are readable before Training Day, not
     gated behind it like everything else from here on.
+
+    view_as_coach is set only when a franchisor is looking at someone
+    else's checklist (see get_my_onboarding_steps) - document_view needs
+    view_as/viewer on the URL in that case, or it has no way to know
+    she's allowed to be looking at a coach she isn't, and redirects her
+    out entirely.
     """
     user = frappe.db.get_value("Coach", coach_name, "user")
     if not user:
@@ -325,6 +339,11 @@ def _dynamic_policies_stage(coach_name):
         fields=["name", "document_title", "document_type", "status", "completed_on"],
         order_by="document_type asc, document_title asc",
     )
+
+    if view_as_coach:
+        extra_params = "&view_as=" + frappe.utils.quote(view_as_coach) + "&viewer=franchisor"
+    else:
+        extra_params = "&back_to=" + frappe.utils.quote("/coach_db/onboarding")
 
     steps = []
     for row in rows:
@@ -343,7 +362,7 @@ def _dynamic_policies_stage(coach_name):
             # ?name=<requirement>), not the general list - the whole
             # point of the Go link is landing exactly where the coach
             # needs to act, not one extra click away from it.
-            "link_url": "/coach_db/document_view?name=" + row.name,
+            "link_url": "/coach_db/document_view?name=" + row.name + extra_params,
             "completed_on": row.completed_on,
             "notes": "",
             "is_locked": False,

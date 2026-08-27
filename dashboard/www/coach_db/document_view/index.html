@@ -10,7 +10,7 @@
 
       <div class="dashboard-page-header">
         <div>
-          <a href="/coach_db/documents{{ coach_view_query or '' }}" class="dashboard-link-btn">&larr; Back to Documents</a>
+          <a href="{{ coach_is_view_mode and (coach_view_return_to or '/franchisor_db/coaches') or (back_to + (coach_view_query or '')) }}" class="dashboard-link-btn">&larr; Back</a>
         </div>
       </div>
 
