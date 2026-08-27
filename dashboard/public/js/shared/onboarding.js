@@ -418,18 +418,44 @@
     return optionsHtml;
   }
 
+  function findChapterEntry(chapters, courseName, chapterTitle) {
+    return chapters.find(function (c) { return c.course === courseName && c.chapter_title === chapterTitle; }) ||
+      chapters.find(function (c) { return c.chapter_title === chapterTitle; });
+  }
+
+  function renderLessonOptions(lessons, selectedNumber) {
+    if (!lessons || !lessons.length) {
+      return '<option value="1">Lesson 1</option>';
+    }
+    return lessons.map(function (lesson) {
+      var isSelected = String(lesson.idx) === String(selectedNumber);
+      return '<option value="' + lesson.idx + '"' + (isSelected ? " selected" : "") + ">" +
+        escapeHtml(lesson.idx + ". " + lesson.title) + "</option>";
+    }).join("");
+  }
+
   function renderStepManagerRow(step, chapters) {
     // An LMS step's Go link and Done status are worked out live from
-    // actual course progress once HQ picks which chapter to watch (see
-    // _apply_lms_progress_overrides) - a dropdown of the real chapters
-    // Frappe LMS actually has, so there's no title to mistype.
+    // actual course progress once HQ picks which chapter (and which
+    // lesson Go should open) to watch (see _apply_lms_progress_overrides)
+    // - dropdowns of the real chapters/lessons Frappe LMS actually has,
+    // so there's nothing to mistype. Done still requires every lesson in
+    // the chapter, regardless of which one Go points to.
     var isLmsStep = step.where_it_happens === "LMS";
 
     var linkCell;
     if (isLmsStep && chapters.length) {
+      var currentChapter = step.lms_chapter_title
+        ? findChapterEntry(chapters, step.lms_course, step.lms_chapter_title)
+        : null;
+
       linkCell = '<select class="dashboard-select dashboard-onboarding-lms-chapter-select" data-step="' +
           escapeHtml(step.name) + '">' + renderChapterOptions(chapters, step) + "</select>" +
-          '<div class="dashboard-doc-list-meta">Go link and Done status are worked out automatically from this chapter\'s lessons</div>';
+          '<select class="dashboard-select dashboard-onboarding-lms-lesson-select" data-step="' +
+          escapeHtml(step.name) + '" style="margin-top:6px;">' +
+          renderLessonOptions(currentChapter ? currentChapter.lessons : [], step.lms_lesson_number || 1) +
+          "</select>" +
+          '<div class="dashboard-doc-list-meta">Go opens the lesson picked above; Done is automatic once every lesson in the chapter is complete</div>';
     } else if (isLmsStep) {
       linkCell = '<div class="dashboard-doc-list-meta">No LMS chapters found - check Frappe LMS is installed.</div>';
     } else {
@@ -500,6 +526,25 @@
 
     content.innerHTML = stages.map(function (stage) { return renderStepManagerStage(stage, chapters); }).join("");
 
+    // Picking a different chapter needs the lesson dropdown next to it
+    // rebuilt from that chapter's own lessons - it's a fresh list per
+    // chapter, not shared, so nothing to do here beyond looking the
+    // newly-picked chapter back up in the same data already loaded.
+    content.querySelectorAll(".dashboard-onboarding-lms-chapter-select").forEach(function (chapterSelect) {
+      chapterSelect.addEventListener("change", function () {
+        var lessonSelect = content.querySelector(
+          '.dashboard-onboarding-lms-lesson-select[data-step="' + chapterSelect.dataset.step + '"]',
+        );
+        if (!lessonSelect) return;
+
+        var selectedOption = chapterSelect.options[chapterSelect.selectedIndex];
+        var courseName = selectedOption ? (selectedOption.dataset.course || "") : "";
+        var entry = findChapterEntry(chapters, courseName, chapterSelect.value);
+
+        lessonSelect.innerHTML = renderLessonOptions(entry ? entry.lessons : [], 1);
+      });
+    });
+
     content.querySelectorAll(".dashboard-onboarding-save-link").forEach(function (btn) {
       btn.addEventListener("click", async function () {
         var isLms = btn.dataset.lms === "1";
@@ -516,8 +561,12 @@
           var payload = { step_name: btn.dataset.step };
           if (isLms) {
             var selectedOption = field.options[field.selectedIndex];
+            var lessonSelect = content.querySelector(
+              '.dashboard-onboarding-lms-lesson-select[data-step="' + btn.dataset.step + '"]',
+            );
             payload.lms_chapter_title = field.value;
             payload.lms_course = selectedOption ? (selectedOption.dataset.course || "") : "";
+            payload.lms_lesson_number = lessonSelect ? (lessonSelect.value || "1") : "1";
           } else {
             payload.link_url = field.value;
           }

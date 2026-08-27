@@ -31,7 +31,8 @@ ONBOARDING_STEP_DOCTYPE = "Coach Onboarding Master Step"
 
 COACH_STEP_FIELDS = [
     "name", "onboarding_step", "step_name", "stage", "owner_type", "status",
-    "expected_result", "where_it_happens", "link_url", "lms_chapter_title", "lms_course",
+    "expected_result", "where_it_happens", "link_url",
+    "lms_chapter_title", "lms_course", "lms_lesson_number",
     "depends_on_step", "stage_sort_order", "sort_order", "completed_on", "completed_by", "notes",
 ]
 
@@ -97,7 +98,7 @@ def _create_coach_onboarding_steps(coach_name):
         fields=[
             "name", "step_name", "stage", "owner_type", "stage_sort_order",
             "sort_order", "expected_result", "where_it_happens", "link_url",
-            "lms_chapter_title", "lms_course", "depends_on",
+            "lms_chapter_title", "lms_course", "lms_lesson_number", "depends_on",
         ],
         order_by="stage_sort_order asc, sort_order asc",
     )
@@ -118,6 +119,7 @@ def _create_coach_onboarding_steps(coach_name):
             "link_url": step.link_url,
             "lms_chapter_title": step.lms_chapter_title,
             "lms_course": step.lms_course,
+            "lms_lesson_number": step.lms_lesson_number,
             "depends_on_step": step.depends_on,
         }).insert(ignore_permissions=True)
 
@@ -157,6 +159,7 @@ _STEP_COPY_FIELDS = [
     ("link_url", "link_url"),
     ("lms_chapter_title", "lms_chapter_title"),
     ("lms_course", "lms_course"),
+    ("lms_lesson_number", "lms_lesson_number"),
     ("depends_on", "depends_on_step"),
 ]
 
@@ -294,9 +297,20 @@ def _apply_lms_progress_overrides(rows, user):
             continue
 
         if not chapter_info:
+            # Configured but not resolving - genuinely worth knowing about
+            # (a mismatched course, a chapter that got renamed/deleted in
+            # the LMS since it was picked, etc.), not just silently left
+            # showing "Complete the course" with no Go link.
+            frappe.log_error(
+                f"Step: {row.name}\nChapter title: {row.lms_chapter_title}\nCourse: {row.get('lms_course')}",
+                "LMS Chapter Not Found",
+            )
             continue
 
-        row["link_url"] = "/lms/courses/{0}/learn/{1}-1".format(chapter_info["course"], chapter_info["chapter_idx"])
+        lesson_number = row.get("lms_lesson_number") or 1
+        row["link_url"] = "/lms/courses/{0}/learn/{1}-{2}".format(
+            chapter_info["course"], chapter_info["chapter_idx"], lesson_number,
+        )
 
         if row.status != "Done":
             try:
@@ -751,7 +765,8 @@ def get_onboarding_step_master_list():
         filters=[["is_active", "=", 1], ["stage", "is", "set"]],
         fields=[
             "name", "step_name", "stage", "stage_sort_order", "sort_order", "owner_type",
-            "expected_result", "where_it_happens", "link_url", "lms_chapter_title", "lms_course",
+            "expected_result", "where_it_happens", "link_url",
+            "lms_chapter_title", "lms_course", "lms_lesson_number",
         ],
         order_by="stage_sort_order asc, sort_order asc",
     )
@@ -760,13 +775,19 @@ def get_onboarding_step_master_list():
 @frappe.whitelist()
 def get_lms_chapters():
     """
-    Every chapter across every Frappe LMS course, in the same order HQ
-    sees them in the LMS course editor sidebar (Chapter Reference.idx),
-    for the Manage Step List chapter picker - selecting from this instead
+    Every chapter across every Frappe LMS course, each with its own
+    lessons in order, in the same order HQ sees them in the LMS course
+    editor sidebar (Chapter Reference.idx / Lesson Reference.idx), for the
+    Manage Step List chapter+lesson picker - selecting from this instead
     of typing a title means it's always an exact, real match, and
     lms_course comes along with it to disambiguate two chapters that
-    happen to share a title in different courses. Empty list if Frappe
-    LMS isn't installed on this site.
+    happen to share a title in different courses.
+
+    Wrapped in try/except (unlike the read-only helpers in
+    _apply_lms_progress_overrides, which are only ever called for a step
+    already configured to use LMS tracking) because this is the very
+    first place a schema mismatch with what's actually installed would
+    show up - logged rather than left as an unexplained empty dropdown.
     """
     if not is_franchisor_user():
         frappe.throw(_("You do not have permission to view this."), frappe.PermissionError)
@@ -774,37 +795,59 @@ def get_lms_chapters():
     if not frappe.db.exists("DocType", LMS_COURSE_CHAPTER_DOCTYPE):
         return []
 
-    course_titles = {
-        course.name: course.title
-        for course in frappe.get_all("LMS Course", fields=["name", "title"])
-    }
-    chapter_titles = {
-        chapter.name: chapter.title
-        for chapter in frappe.get_all(LMS_COURSE_CHAPTER_DOCTYPE, fields=["name", "title"])
-    }
-
-    references = frappe.get_all(
-        LMS_CHAPTER_REFERENCE_DOCTYPE,
-        fields=["parent", "chapter"],
-        order_by="parent asc, idx asc",
-    )
-
-    return [
-        {
-            "course": reference.parent,
-            "course_title": course_titles.get(reference.parent, reference.parent),
-            "chapter_title": chapter_titles[reference.chapter],
+    try:
+        course_titles = {
+            course.name: course.title
+            for course in frappe.get_all("LMS Course", fields=["name", "title"])
         }
-        for reference in references
-        if reference.chapter in chapter_titles
-    ]
+        chapter_titles = {
+            chapter.name: chapter.title
+            for chapter in frappe.get_all(LMS_COURSE_CHAPTER_DOCTYPE, fields=["name", "title"])
+        }
+        lesson_titles = {
+            lesson.name: lesson.title
+            for lesson in frappe.get_all("Course Lesson", fields=["name", "title"])
+        }
+
+        lessons_by_chapter = {}
+        for lesson_ref in frappe.get_all(
+            LMS_LESSON_REFERENCE_DOCTYPE, fields=["parent", "idx", "lesson"], order_by="parent asc, idx asc",
+        ):
+            if lesson_ref.lesson not in lesson_titles:
+                continue
+            lessons_by_chapter.setdefault(lesson_ref.parent, []).append({
+                "idx": lesson_ref.idx,
+                "title": lesson_titles[lesson_ref.lesson],
+            })
+
+        references = frappe.get_all(
+            LMS_CHAPTER_REFERENCE_DOCTYPE,
+            fields=["parent", "chapter"],
+            order_by="parent asc, idx asc",
+        )
+
+        return [
+            {
+                "course": reference.parent,
+                "course_title": course_titles.get(reference.parent, reference.parent),
+                "chapter_title": chapter_titles[reference.chapter],
+                "lessons": lessons_by_chapter.get(reference.chapter, []),
+            }
+            for reference in references
+            if reference.chapter in chapter_titles
+        ]
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "get_lms_chapters failed")
+        return []
 
 
 @frappe.whitelist()
-def update_onboarding_step_master(step_name=None, link_url=None, lms_chapter_title=None, lms_course=None):
+def update_onboarding_step_master(
+    step_name=None, link_url=None, lms_chapter_title=None, lms_course=None, lms_lesson_number=None,
+):
     """
-    Saves a step's Go link (or LMS Chapter Title/Course, picked from the
-    get_lms_chapters dropdown) from the dashboard's step manager. Unlike
+    Saves a step's Go link (or LMS Chapter/Lesson, picked from the
+    get_lms_chapters dropdowns) from the dashboard's step manager. Unlike
     the other fields copied onto Coach Onboarding Step at creation time
     (deliberately a snapshot, so a later wording edit doesn't rewrite a
     coach's history), all of these are treated as always-current - they're
@@ -825,11 +868,22 @@ def update_onboarding_step_master(step_name=None, link_url=None, lms_chapter_tit
     link_url = coalesce_str("link_url", link_url)
     lms_chapter_title = coalesce_str("lms_chapter_title", lms_chapter_title)
     lms_course = coalesce_str("lms_course", lms_course)
+    lms_lesson_number = coalesce_str("lms_lesson_number", lms_lesson_number)
 
     if not step_name or not frappe.db.exists(ONBOARDING_STEP_DOCTYPE, step_name):
         frappe.throw(_("Onboarding step not found."))
 
-    updates = {"link_url": link_url, "lms_chapter_title": lms_chapter_title, "lms_course": lms_course}
+    try:
+        lms_lesson_number = int(lms_lesson_number) if lms_lesson_number else 1
+    except ValueError:
+        lms_lesson_number = 1
+
+    updates = {
+        "link_url": link_url,
+        "lms_chapter_title": lms_chapter_title,
+        "lms_course": lms_course,
+        "lms_lesson_number": lms_lesson_number,
+    }
     frappe.db.set_value(ONBOARDING_STEP_DOCTYPE, step_name, updates, update_modified=False)
 
     if frappe.db.exists("DocType", COACH_ONBOARDING_STEP_DOCTYPE):
@@ -842,4 +896,10 @@ def update_onboarding_step_master(step_name=None, link_url=None, lms_chapter_tit
 
     frappe.db.commit()
 
-    return {"ok": True, "link_url": link_url, "lms_chapter_title": lms_chapter_title, "lms_course": lms_course}
+    return {
+        "ok": True,
+        "link_url": link_url,
+        "lms_chapter_title": lms_chapter_title,
+        "lms_course": lms_course,
+        "lms_lesson_number": lms_lesson_number,
+    }
