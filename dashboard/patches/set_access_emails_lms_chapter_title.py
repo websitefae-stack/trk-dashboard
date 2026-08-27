@@ -19,6 +19,7 @@ COACH_ONBOARDING_STEP_DOCTYPE = "Coach Onboarding Step"
 
 STEP_NAME = "Access Your Emails with Chantelle Venter"
 LMS_CHAPTER_TITLE = "Access your emails with Chantelle Venter"
+LMS_COURSE_TITLE = "The Resilient Hub - Expert Village"
 
 
 def execute():
@@ -36,14 +37,23 @@ def _set_lms_chapter_title():
 	if not step_name:
 		return
 
-	frappe.db.set_value(ONBOARDING_STEP_DOCTYPE, step_name, "lms_chapter_title", LMS_CHAPTER_TITLE, update_modified=False)
+	# lms_course disambiguates a title shared across courses (see
+	# _resolve_lms_chapter) - best-effort only, since this patch runs
+	# before we can be certain LMS is installed/migrated on this site;
+	# left blank if it can't be resolved, which just falls back to a
+	# title-only match, same as before this field existed.
+	lms_course = None
+	if frappe.db.exists("DocType", "LMS Course"):
+		lms_course = frappe.db.get_value("LMS Course", {"title": LMS_COURSE_TITLE})
+
+	updates = {"lms_chapter_title": LMS_CHAPTER_TITLE, "lms_course": lms_course}
+	frappe.db.set_value(ONBOARDING_STEP_DOCTYPE, step_name, updates, update_modified=False)
 
 	if frappe.db.exists("DocType", COACH_ONBOARDING_STEP_DOCTYPE):
 		frappe.db.set_value(
 			COACH_ONBOARDING_STEP_DOCTYPE,
 			{"onboarding_step": step_name},
-			"lms_chapter_title",
-			LMS_CHAPTER_TITLE,
+			updates,
 			update_modified=False,
 		)
 

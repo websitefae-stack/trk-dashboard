@@ -22,6 +22,7 @@
   "where_it_happens",
   "link_url",
   "lms_chapter_title",
+  "lms_course",
   "depends_on_step",
   "completion_section",
   "completed_on",
@@ -133,6 +134,13 @@
    "fieldname": "lms_chapter_title",
    "fieldtype": "Data",
    "label": "LMS Chapter Title",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.lms_course",
+   "fieldname": "lms_course",
+   "fieldtype": "Data",
+   "label": "LMS Course",
    "read_only": 1
   },
   {
