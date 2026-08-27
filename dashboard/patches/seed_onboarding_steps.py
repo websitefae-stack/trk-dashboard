@@ -1,11 +1,12 @@
 """
-Seeds the agreed Coach Onboarding Journey step list (Stages 2-10 - Stage 1,
-the pre-hire Franchise pipeline, isn't part of Coach Onboarding Step at
-all, since it happens before a Coach record exists). Idempotent: skips any
-step_name that already exists, so re-running this (or HQ having already
-started editing the list in the Desk) never creates duplicates.
+Seeds the agreed Coach Onboarding Journey step list (Stages 2-11 - Stage 1,
+the pre-hire Franchise Lead pipeline, isn't part of Coach Onboarding Step at
+all, since it happens before a Coach record exists - and is on hold for now,
+not being built while no new franchisees are being taken on). Idempotent:
+skips any step_name that already exists, so re-running this (or HQ having
+already started editing the list in the Desk) never creates duplicates.
 
-Every Stage 3+ step depends on "Training Day" being marked Done first -
+Every Stage 4+ step depends on "Training Day" being marked Done first -
 the one dependency worth wiring up front, since it's the single real gate
 in the whole journey (nothing meaningfully starts before the coach has
 actually been trained). Everything else is ordered by stage/sort_order
@@ -28,62 +29,67 @@ STAGES = [
         (3, "Frappe Dashboard account created (view access only)", "HQ", "Frappe",
          "Coach can log in and look around/follow along, but can't act on real data yet - no clients exist "
          "for them yet."),
-        (4, "Social media account created (setup only, not branded)", "HQ", "External (social platform)",
-         "Account exists, ready to be branded once photos are back."),
     ]),
     (3, "Stage 3 - Training Day", [
         (1, "Training Day - curriculum, Resilient Kid Values, Resilient Kid Framework, Photoshoot",
          "HQ", "In-Person",
          "Day completed and marked done - this is what unlocks every later stage."),
-        (2, "Access Your Emails", "Coach", "LMS", "Module marked complete in LMS."),
-        (3, "Branding Shots for Business", "Coach", "LMS", "Module marked complete in LMS."),
+        (2, "Access Your Emails with Chantelle Venter", "Coach", "LMS", "Module marked complete in LMS."),
+        (3, "Branding Shots for Business with Ali Ford", "Coach", "LMS", "Module marked complete in LMS."),
         (4, "Operations Manual", "Coach", "LMS", "Module marked complete in LMS."),
     ]),
     (4, "Stage 4 - Get Business Ready", [
-        (1, "HQ processes & delivers photoshoot images", "HQ", "Manual", "Branded photos delivered to the coach."),
-        (2, "HQ finalises social media account with branding", "HQ", "External (social platform)",
+        (1, "Social media account created (setup only, not branded)", "HQ", "External (social platform)",
+         "Account exists, ready to be branded once photos are back."),
+        (2, "HQ processes & delivers photoshoot images", "HQ", "Manual", "Branded photos delivered to the coach."),
+        (3, "HQ finalises social media account with branding", "HQ", "External (social platform)",
          "Account fully branded, ready to post."),
-        (3, "Email signature set up (with photo)", "HQ", "External (email client)", "Signature added and in use."),
+        (4, "Email signature set up (with photo)", "HQ", "External (email client)", "Signature added and in use."),
     ]),
-    (5, "Stage 5 - Get Visible", [
-        (1, "Graphics / Canva Training", "Coach", "LMS", "Module marked complete in LMS."),
-        (2, "Social Media Training - basics", "Coach", "LMS", "Module marked complete in LMS."),
-        (3, "B-Roll Guide", "Coach", "LMS", "Module marked complete in LMS."),
-        (4, "LinkedIn Training", "Coach", "LMS", "Module marked complete in LMS."),
-        (5, "Mission-Led Content", "Coach", "LMS", "Module marked complete in LMS."),
-        (6, "Talking About Your Business", "Coach", "LMS", "Module marked complete in LMS."),
-        (7, "The Stories We Should Be Telling", "Coach", "LMS", "Module marked complete in LMS."),
+    (5, "Stage 5 - Policies", [
+        (1, "Safeguarding + essential policies", "Coach", "Frappe - Practice Documents (existing)",
+         "Mandatory policies read/acknowledged/signed as required, including the diversity information "
+         "form and social media policy - done before any training starts, so the coach knows the policies "
+         "up front."),
     ]),
-    (6, "Stage 6 - Build Your Local Business", [
-        (1, "Building a Networking Strategy", "Coach", "LMS", "Module marked complete in LMS."),
-        (2, "Networking - the C.O.N.N.E.C.T. Method", "Coach", "LMS", "Module marked complete in LMS."),
-        (3, "PR Training", "Coach", "LMS", "Module marked complete in LMS."),
-        (4, "Confidence", "Coach", "LMS", "Module marked complete in LMS."),
-        (5, "The Marketing Momentum Circle", "Coach", "LMS", "Module marked complete in LMS."),
+    (6, "Stage 6 - Get Visible", [
+        (1, "Graphics / Canva Training with Sally Tyson", "Coach", "LMS", "Module marked complete in LMS."),
+        (2, "Social Media Training - basics with Lynda Pepper", "Coach", "LMS", "Module marked complete in LMS."),
+        (3, "B-Roll Guide for Resilient Kid Coaches", "Coach", "LMS", "Module marked complete in LMS."),
+        (4, "LinkedIn Training with Helen Tudor", "Coach", "LMS", "Module marked complete in LMS."),
+        (5, "Mission-Led Content with Lisa Barry", "Coach", "LMS", "Module marked complete in LMS."),
+        (6, "Talking About Your Business with Catherine Sandland", "Coach", "LMS", "Module marked complete in LMS."),
+        (7, "The Stories We Should Be Telling with Catherine Sandland", "Coach", "LMS", "Module marked complete in LMS."),
+        (8, "Public Speaking Training with Catherine Sandland", "Coach", "LMS", "Module marked complete in LMS."),
     ]),
-    (7, "Stage 7 - Get Client Ready", [
+    (7, "Stage 7 - Build Your Local Business", [
+        (1, "Building a Networking Strategy with Catherine Sandland", "Coach", "LMS", "Module marked complete in LMS."),
+        (2, "Networking - the C.O.N.N.E.C.T. Method with Susie Sprigg", "Coach", "LMS", "Module marked complete in LMS."),
+        (3, "PR Training with Michelle and Christian Ewan", "Coach", "LMS", "Module marked complete in LMS."),
+        (4, "Confidence with Washington Ali", "Coach", "LMS", "Module marked complete in LMS."),
+        (5, "The Marketing Momentum Circle with Lisa Barry", "Coach", "LMS", "Module marked complete in LMS."),
+    ]),
+    (8, "Stage 8 - Get Client Ready", [
         (1, "Onboarding and Offboarding Clients", "Coach", "LMS", "Module marked complete in LMS."),
-        (2, "Safeguarding + essential policies", "Coach", "Frappe - Practice Documents",
-         "Mandatory policies read/acknowledged/signed as required."),
-        (3, "Frappe Dashboard practice (sandbox)", "Coach", "Frappe - coming soon (Tier 3)",
+        (2, "Frappe Dashboard practice (sandbox)", "Coach", "Frappe - coming soon (Tier 3)",
          "Coach can create a lead, send an intake email, have a client complete the form, convert to "
          "Client + Contact, raise an invoice, book an appointment, mark an invoice paid, and view reports "
          "and documents - all against sandbox data, with any triggered email going to the coach's own "
          "address rather than a fictional client."),
     ]),
-    (8, "Stage 8 - Learn Your Systems", [
-        (1, "Frappe Training", "Coach", "LMS", "Module marked complete in LMS."),
+    (9, "Stage 9 - Learn Your Systems", [
+        (1, "Frappe Training with Chantelle Venter", "Coach", "LMS", "Module marked complete in LMS."),
         (2, "Live Frappe follow-up session with Chantelle", "Coach", "In-Person / External",
-         "Hands-on session completed, after the LMS module."),
-        (3, "Accounting Training", "Coach", "LMS", "Module marked complete in LMS."),
+         "Hands-on session booked with Chantelle and completed, after the LMS module."),
+        (3, "Accounting Training with Harriet Parry", "Coach", "LMS", "Module marked complete in LMS."),
     ]),
-    (9, "Stage 9 - Grow", [
-        (1, "Business Coaching", "Coach", "LMS", "Module marked complete in LMS."),
-        (2, "Manage ADHD", "Coach", "LMS", "Module marked complete in LMS."),
-        (3, "How to WOW", "Coach", "LMS", "Module marked complete in LMS."),
-        (4, "Fierce Principles", "Coach", "LMS", "Module marked complete in LMS."),
+    (10, "Stage 10 - Grow", [
+        (1, "Business Coaching with Paula Cohen", "Coach", "LMS", "Module marked complete in LMS."),
+        (2, "Manage ADHD with Georgia Osborne", "Coach", "LMS", "Module marked complete in LMS."),
+        (3, "How to WOW with Nic Welsh", "Coach", "LMS", "Module marked complete in LMS."),
+        (4, "Fierce Principles with Sarah Vogel", "Coach", "LMS", "Module marked complete in LMS."),
     ]),
-    (10, "Stage 10 - Launch", [
+    (11, "Stage 11 - Launch", [
         (1, "Final checks", "HQ", "Manual", "HQ confirms everything required is actually complete."),
         (2, "Coaches Feedback", "Coach", "LMS", "Module marked complete in LMS."),
         (3, "Certification", "Coach", "LMS",
@@ -98,11 +104,10 @@ def execute():
 
     # Seeding the master step list is a one-time convenience, not
     # something the rest of the site depends on to function - if
-    # anything here goes wrong (e.g. the schema-sync approach below
-    # turns out not to be bulletproof on some Frappe version), it must
-    # never be allowed to fail the whole migrate and roll back the
-    # entire deploy again. Worst case HQ adds/edits steps by hand in
-    # the Desk, or this patch gets fixed and re-run later.
+    # anything here goes wrong, it must never be allowed to fail the
+    # whole migrate and roll back the entire deploy again. Worst case
+    # HQ adds/edits steps by hand in the Desk, or this patch gets fixed
+    # and re-run later.
     try:
         _seed()
     except Exception:
@@ -111,15 +116,6 @@ def execute():
 
 
 def _seed():
-    # No schema-sync workaround needed here any more - that was only
-    # ever necessary the very first time this ran, when the doctype
-    # was brand new and its table didn't exist yet during this
-    # pre_model_sync patch. It's been a normal, fully-synced table for
-    # a while now. An earlier version of this called
-    # frappe.model.db_schema.updatedb() defensively anyway, which
-    # started throwing ModuleNotFoundError once the site's Frappe
-    # version moved that function elsewhere - removed rather than
-    # chasing its new import path, since it was dead weight regardless.
     training_day_name = frappe.db.get_value(
         ONBOARDING_STEP_DOCTYPE,
         {"step_name": "Training Day - curriculum, Resilient Kid Values, Resilient Kid Framework, Photoshoot"},
