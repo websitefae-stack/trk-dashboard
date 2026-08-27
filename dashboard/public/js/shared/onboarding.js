@@ -31,6 +31,34 @@
     return meta && meta.content ? meta.content : "";
   }
 
+  // Same approach as calendar.js/calendar_details.js etc. - a bare
+  // data.message check missed most real errors, since an unhandled
+  // Python exception's actual text usually lands in _server_messages
+  // or data.exception instead, not data.message. Without this, every
+  // real failure just showed the same generic fallback text, which
+  // made diagnosing anything reported here far harder than it needed
+  // to be.
+  function extractErrorMessage(data) {
+    if (!data) return "";
+
+    if (typeof data._server_messages === "string" && data._server_messages) {
+      try {
+        var parsed = JSON.parse(data._server_messages);
+        if (Array.isArray(parsed) && parsed.length) {
+          var first = JSON.parse(parsed[0]);
+          if (first && first.message) return first.message;
+        }
+      } catch (error) {
+        console.error("Could not parse server messages:", error);
+      }
+    }
+
+    if (typeof data.message === "string" && data.message) return data.message;
+    if (data.exception) return String(data.exception);
+
+    return "";
+  }
+
   async function apiGet(method, args) {
     var params = new URLSearchParams(args || {});
     var response = await fetch("/api/method/" + method + "?" + params.toString(), {
@@ -41,7 +69,7 @@
     var data = await response.json();
 
     if (!response.ok || data.exc) {
-      throw new Error(data.message || "There was a problem loading this.");
+      throw new Error(extractErrorMessage(data) || "There was a problem loading this.");
     }
 
     return data.message;
@@ -61,7 +89,7 @@
     var data = await response.json();
 
     if (!response.ok || data.exc) {
-      throw new Error(data.message || "There was a problem saving this.");
+      throw new Error(extractErrorMessage(data) || "There was a problem saving this.");
     }
 
     return data.message;
