@@ -23,6 +23,21 @@
   font-weight: 600;
 }
 
+.dashboard-onboarding-show-completed-toggle {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #434B49;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dashboard-onboarding-hidden-note {
+  margin: -4px 0 10px;
+  font-style: italic;
+}
+
 .dashboard-onboarding-stage {
   margin-bottom: 16px;
 }

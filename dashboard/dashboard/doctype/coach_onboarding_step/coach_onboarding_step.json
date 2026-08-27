@@ -21,8 +21,8 @@
   "expected_result",
   "where_it_happens",
   "link_url",
-  "lms_chapter_title",
   "lms_course",
+  "lms_chapter",
   "lms_lesson_number",
   "depends_on_step",
   "completion_section",
@@ -131,17 +131,19 @@
    "read_only": 1
   },
   {
-   "fetch_from": "onboarding_step.lms_chapter_title",
-   "fieldname": "lms_chapter_title",
-   "fieldtype": "Data",
-   "label": "LMS Chapter Title",
+   "fetch_from": "onboarding_step.lms_course",
+   "fieldname": "lms_course",
+   "fieldtype": "Link",
+   "options": "LMS Course",
+   "label": "LMS Course",
    "read_only": 1
   },
   {
-   "fetch_from": "onboarding_step.lms_course",
-   "fieldname": "lms_course",
-   "fieldtype": "Data",
-   "label": "LMS Course",
+   "fetch_from": "onboarding_step.lms_chapter",
+   "fieldname": "lms_chapter",
+   "fieldtype": "Link",
+   "options": "Course Chapter",
+   "label": "LMS Chapter",
    "read_only": 1
   },
   {
