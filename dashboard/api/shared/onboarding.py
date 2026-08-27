@@ -282,13 +282,28 @@ def get_my_onboarding_steps(coach=None):
     _repair_blank_rows(rows)
     rows = sorted(rows, key=lambda row: (row.stage_sort_order or 0, row.sort_order or 0))
 
+    # A franchisor drilled into someone else's checklist needs view_as/
+    # viewer on the document link too, or document_view has no way to
+    # know she's allowed to be looking at a coach she isn't - it just
+    # redirects her out. coalesce_str("coach", coach) here mirrors
+    # _resolve_target_coach()'s own check for "was an explicit coach
+    # actually asked for", not just "who ended up being resolved".
+    is_drill_down = bool(coalesce_str("coach", coach)) and is_franchisor_user()
+    view_as_coach = coach_name if is_drill_down else None
+
     stages = _group_by_stage(rows)
-    policy_stage = _dynamic_policies_stage(coach_name)
+    policy_stage = _dynamic_policies_stage(coach_name, view_as_coach=view_as_coach)
     _insert_dynamic_stage(stages, policy_stage, after_stage_number=4)
 
-    total = len(rows) + len(policy_stage["steps"])
+    operations_manual_step = _dynamic_operations_manual_step(coach_name, view_as_coach=view_as_coach)
+    if operations_manual_step:
+        _append_step_to_stage(stages, stage_number=3, step=operations_manual_step)
+
+    total = len(rows) + len(policy_stage["steps"]) + (1 if operations_manual_step else 0)
     done = len([row for row in rows if row.status == "Done"])
     done += len([step for step in policy_stage["steps"] if step["status"] == "Completed"])
+    if operations_manual_step and operations_manual_step["status"] == "Completed":
+        done += 1
 
     return {
         "coach": coach_name,
@@ -302,7 +317,7 @@ def get_my_onboarding_steps(coach=None):
 POLICY_DOCUMENT_TYPES = ["Policy", "Procedure"]
 
 
-def _dynamic_policies_stage(coach_name):
+def _dynamic_policies_stage(coach_name, view_as_coach=None):
     """
     Stage 5 (Policies) has no static Coach Onboarding Step rows behind it
     - it's built live from Coach Document Requirement instead, so it
@@ -314,6 +329,12 @@ def _dynamic_policies_stage(coach_name):
     same underlying record being read, not a copy of it. Never locked -
     the whole point is these are readable before Training Day, not
     gated behind it like everything else from here on.
+
+    view_as_coach is set only when a franchisor is looking at someone
+    else's checklist (see get_my_onboarding_steps) - document_view needs
+    view_as/viewer on the URL in that case, or it has no way to know
+    she's allowed to be looking at a coach she isn't, and redirects her
+    out entirely.
     """
     user = frappe.db.get_value("Coach", coach_name, "user")
     if not user:
@@ -325,6 +346,11 @@ def _dynamic_policies_stage(coach_name):
         fields=["name", "document_title", "document_type", "status", "completed_on"],
         order_by="document_type asc, document_title asc",
     )
+
+    if view_as_coach:
+        extra_params = "&view_as=" + frappe.utils.quote(view_as_coach) + "&viewer=franchisor"
+    else:
+        extra_params = "&back_to=" + frappe.utils.quote("/coach_db/onboarding")
 
     steps = []
     for row in rows:
@@ -343,7 +369,7 @@ def _dynamic_policies_stage(coach_name):
             # ?name=<requirement>), not the general list - the whole
             # point of the Go link is landing exactly where the coach
             # needs to act, not one extra click away from it.
-            "link_url": "/coach_db/document_view?name=" + row.name,
+            "link_url": "/coach_db/document_view?name=" + row.name + extra_params,
             "completed_on": row.completed_on,
             "notes": "",
             "is_locked": False,
@@ -351,6 +377,71 @@ def _dynamic_policies_stage(coach_name):
         })
 
     return {"stage": "Stage 5 - Policies", "steps": steps}
+
+
+# This is deliberately the one specific Practice Document ID, not a
+# document_type filter (e.g. "Practice Manual") - Ashley was explicit that
+# this is only for the Operations Manual itself, not every document of
+# that type, so a future second "Practice Manual" document must never be
+# swept in here by accident. Update this if the Operations Manual's
+# Practice Document is ever recreated under a different ID.
+OPERATIONS_MANUAL_PRACTICE_DOCUMENT = "9006"
+
+
+def _dynamic_operations_manual_step(coach_name, view_as_coach=None):
+    """
+    Same mechanism as _dynamic_policies_stage, but for a single named
+    document (the Operations Manual) rather than a whole document_type -
+    it used to be a static "complete this in the LMS" step, now it's
+    pulled live from the coach's own Coach Document Requirement for that
+    one Practice Document, so it's automatically "Done" the moment the
+    coach acknowledges it on the Documents page. Returns None if this
+    coach has no requirement for it yet (e.g. brand access hasn't synced
+    one in), in which case the step is simply omitted rather than shown
+    broken.
+    """
+    user = frappe.db.get_value("Coach", coach_name, "user")
+    if not user:
+        return None
+
+    row = frappe.db.get_value(
+        "Coach Document Requirement",
+        {"user": user, "practice_document": OPERATIONS_MANUAL_PRACTICE_DOCUMENT},
+        ["name", "document_title", "status", "completed_on"],
+        as_dict=True,
+    )
+    if not row:
+        return None
+
+    if view_as_coach:
+        extra_params = "&view_as=" + frappe.utils.quote(view_as_coach) + "&viewer=franchisor"
+    else:
+        extra_params = "&back_to=" + frappe.utils.quote("/coach_db/onboarding")
+
+    return {
+        "name": row.name,
+        "step_name": row.document_title or "Operations Manual",
+        "owner_type": "Coach",
+        "status": row.status,
+        "expected_result": "",
+        "where_it_happens": "Frappe - Documents",
+        "link_url": "/coach_db/document_view?name=" + row.name + extra_params,
+        "completed_on": row.completed_on,
+        "notes": "",
+        "is_locked": False,
+        "read_only": True,
+    }
+
+
+def _append_step_to_stage(stages, stage_number, step):
+    for stage in stages:
+        try:
+            number = int((stage["stage"] or "").split(" ")[1])
+        except (IndexError, ValueError):
+            continue
+        if number == stage_number:
+            stage["steps"].append(step)
+            return
 
 
 def _insert_dynamic_stage(stages, dynamic_stage, after_stage_number):

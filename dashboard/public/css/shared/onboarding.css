@@ -72,6 +72,15 @@
   max-width: 480px;
 }
 
+/* .dashboard-table thead th sets text-align: left with higher
+   specificity (a class + 2 elements) than .dashboard-text-right alone
+   (1 class), so it was silently winning and leaving "Action" flush
+   left despite the class being there - needs an equally specific
+   override, not just the shared utility class. */
+.dashboard-onboarding-stage .dashboard-doc-list-table thead th.dashboard-text-right {
+  text-align: right;
+}
+
 .dashboard-onboarding-stage .dashboard-doc-list-title,
 .dashboard-onboarding-stage .dashboard-doc-list-meta {
   overflow-wrap: break-word;

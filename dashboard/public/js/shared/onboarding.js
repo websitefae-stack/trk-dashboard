@@ -140,11 +140,11 @@
     // Policies rows are a live mirror of Coach Document Requirement, not
     // a real Coach Onboarding Step - there's no step to "mark done" here
     // at all (that happens by acknowledging the actual document on the
-    // Documents page), so this never gets the usual button/dropdown.
+    // Documents page), so this never gets the usual button/dropdown. The
+    // status badge already says "Completed" - repeating the completion
+    // date next to it here was just noise, so this is Go-only.
     if (step.read_only) {
-      actionCell = step.status === "Completed"
-        ? '<span class="dashboard-doc-list-meta">' + escapeHtml(formatDateTime(step.completed_on)) + "</span>"
-        : "";
+      actionCell = "";
     } else if (hqMode) {
       var options = HQ_STATUSES.map(function (status) {
         return '<option value="' + status + '"' + (status === step.status ? " selected" : "") + '>' + status + "</option>";

@@ -34,7 +34,11 @@ STAGES = [
         (1, "Training Day - curriculum, Resilient Kid Values, Resilient Kid Framework, Photoshoot",
          "HQ", "In-Person", ""),
         (2, "Access Your Emails with Chantelle Venter", "Coach", "LMS", "Module marked complete in LMS."),
-        (3, "Operations Manual", "Coach", "LMS", "Module marked complete in LMS."),
+        # Operations Manual is NOT a static step here - it's pulled live
+        # from the coach's own Coach Document Requirement for the
+        # Operations Manual Practice Document, same mechanism as Stage 5
+        # Policies, just for this one specific document. See
+        # _dynamic_operations_manual_step in api/shared/onboarding.py.
     ]),
     (4, "Stage 4 - Get Business Ready", [
         (1, "Social media account created (setup only, not branded)", "HQ", "External (social platform)",
@@ -43,6 +47,8 @@ STAGES = [
         (3, "HQ finalises social media account with branding", "HQ", "External (social platform)",
          "Account fully branded, ready to post."),
         (4, "Email signature set up (with photo)", "HQ", "External (email client)", "Signature added and in use."),
+        (5, "Create and order print materials (flyers, business cards, roller banner)", "HQ", "External (print supplier)",
+         "Materials ordered and delivered to the coach."),
     ]),
     # Stage 5 - Policies has no static steps here: it's built dynamically
     # from Practice Documents (Policy/Procedure) at read time - see
