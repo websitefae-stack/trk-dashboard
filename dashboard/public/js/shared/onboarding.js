@@ -188,10 +188,26 @@
     return step.status === "Done" || step.status === "Completed";
   }
 
-  function renderStage(stage, hqMode) {
+  function renderStage(stage, hqMode, hideCompleted) {
     var allDone = stage.steps.length > 0 && stage.steps.every(isStepDone);
     var completeBadge = allDone
       ? '<span class="dashboard-badge doc-status-completed dashboard-onboarding-stage-complete-badge">All done</span>'
+      : "";
+
+    // Hiding completed steps is opt-out on the coach's own page (see
+    // onboardingShowCompletedCheckbox) so a coach mid-journey sees only
+    // what's still due instead of a long list dominated by everything
+    // they already finished - HQ's drill-down never hides anything
+    // (hideCompleted is only ever passed true from loadMyOnboarding).
+    // allDone/the stage collapsing is worked out from the full list
+    // either way, so this never leaves an open stage with an empty table
+    // - if every step were hidden, allDone would be true and the whole
+    // stage collapses instead.
+    var visibleSteps = hideCompleted ? stage.steps.filter(function (step) { return !isStepDone(step); }) : stage.steps;
+    var hiddenCount = stage.steps.length - visibleSteps.length;
+    var hiddenNote = (hiddenCount > 0 && !allDone)
+      ? '<div class="dashboard-doc-list-meta dashboard-onboarding-hidden-note">' +
+          hiddenCount + " completed step" + (hiddenCount === 1 ? "" : "s") + " hidden</div>"
       : "";
 
     // A native <details>/<summary> collapses a stage automatically once
@@ -202,9 +218,10 @@
     return (
       '<details class="dashboard-card dashboard-onboarding-stage"' + (allDone ? "" : " open") + '>' +
         '<summary class="dashboard-onboarding-stage-title">' + escapeHtml(stage.stage) + completeBadge + '</summary>' +
+        hiddenNote +
         '<table class="dashboard-table dashboard-doc-list-table">' +
           "<thead><tr><th>Step</th><th>Owner</th><th>Status</th><th class=\"dashboard-text-right\">Action</th></tr></thead>" +
-          "<tbody>" + stage.steps.map(function (step) { return renderStepRow(step, hqMode); }).join("") + "</tbody>" +
+          "<tbody>" + visibleSteps.map(function (step) { return renderStepRow(step, hqMode); }).join("") + "</tbody>" +
         "</table>" +
       "</details>"
     );
@@ -214,10 +231,12 @@
     var card = el("onboardingProgressCard");
     var fill = el("onboardingProgressFill");
     var label = el("onboardingProgressLabel");
+    var showCompletedRow = el("onboardingShowCompletedRow");
     if (!card || !fill || !label) return;
 
     if (!data.started || !data.total_steps) {
       card.style.display = "none";
+      if (showCompletedRow) showCompletedRow.style.display = "none";
       return;
     }
 
@@ -225,6 +244,10 @@
     card.style.display = "block";
     fill.style.width = pct + "%";
     label.textContent = data.done_steps + " of " + data.total_steps + " steps done (" + pct + "%)";
+
+    // Only worth offering once there's actually something done to hide -
+    // nothing to toggle on a fresh journey with 0 steps completed yet.
+    if (showCompletedRow) showCompletedRow.style.display = data.done_steps > 0 ? "flex" : "none";
   }
 
   function bindStepActions(container, onChange) {
@@ -262,6 +285,42 @@
   // Coach's own page
   // -------------------------------------------------------------------
 
+  // Hides completed steps by default so a coach mid-journey sees what's
+  // still due instead of a long list dominated by everything already
+  // finished - persisted per-browser (not per-account) since it's purely
+  // a display preference, not something anyone else needs to see.
+  var HIDE_COMPLETED_STORAGE_KEY = "trk_onboarding_show_completed";
+
+  function getShowCompletedPreference() {
+    try {
+      return window.localStorage.getItem(HIDE_COMPLETED_STORAGE_KEY) === "1";
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function setShowCompletedPreference(showCompleted) {
+    try {
+      window.localStorage.setItem(HIDE_COMPLETED_STORAGE_KEY, showCompleted ? "1" : "0");
+    } catch (error) {
+      // Private browsing / storage blocked - the toggle still works for
+      // this page view, it just won't be remembered next visit.
+    }
+  }
+
+  var lastOnboardingData = null;
+
+  function renderMyOnboardingStages() {
+    var content = el("onboardingContent");
+    if (!content || !lastOnboardingData) return;
+
+    var hideCompleted = !getShowCompletedPreference();
+    content.innerHTML = lastOnboardingData.stages
+      .map(function (stage) { return renderStage(stage, false, hideCompleted); })
+      .join("");
+    bindStepActions(content, loadMyOnboarding);
+  }
+
   async function loadMyOnboarding() {
     var content = el("onboardingContent");
     if (!content) return;
@@ -279,13 +338,23 @@
       return;
     }
 
+    lastOnboardingData = data;
     renderProgress(data);
-    content.innerHTML = data.stages.map(function (stage) { return renderStage(stage, false); }).join("");
-    bindStepActions(content, loadMyOnboarding);
+    renderMyOnboardingStages();
   }
 
   function initCoachOnboardingPage() {
     if (!el("onboardingPage") || window.location.pathname.indexOf("/franchisor_db") !== -1) return;
+
+    var checkbox = el("onboardingShowCompletedCheckbox");
+    if (checkbox) {
+      checkbox.checked = getShowCompletedPreference();
+      checkbox.addEventListener("change", function () {
+        setShowCompletedPreference(checkbox.checked);
+        renderMyOnboardingStages();
+      });
+    }
+
     loadMyOnboarding();
   }
 
