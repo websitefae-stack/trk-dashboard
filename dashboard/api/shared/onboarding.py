@@ -339,7 +339,11 @@ def _dynamic_policies_stage(coach_name):
             "status": row.status,
             "expected_result": "",
             "where_it_happens": "Frappe - Documents",
-            "link_url": "/coach_db/documents",
+            # Straight to this specific document (document_view reads
+            # ?name=<requirement>), not the general list - the whole
+            # point of the Go link is landing exactly where the coach
+            # needs to act, not one extra click away from it.
+            "link_url": "/coach_db/document_view?name=" + row.name,
             "completed_on": row.completed_on,
             "notes": "",
             "is_locked": False,
