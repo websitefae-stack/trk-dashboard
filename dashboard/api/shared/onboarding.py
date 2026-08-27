@@ -61,6 +61,38 @@ def provision_onboarding_steps(doc, method=None):
         frappe.log_error(frappe.get_traceback(), f"Onboarding Provisioning Failed - {doc.name}")
 
 
+MASTER_STEP_LIVE_FIELDS = ["link_url", "lms_course", "lms_chapter", "lms_lesson_number"]
+
+
+def sync_master_step_link_fields(doc, method=None):
+    """
+    Coach Onboarding Master Step.on_update hook. link_url/lms_course/
+    lms_chapter/lms_lesson_number are "where do I go / how do I know
+    it's done" pointers, treated as always-current rather than a
+    point-in-time snapshot (unlike step_name/expected_result/etc, which
+    stay whatever a coach was actually told at the time) - so a change
+    here needs to reach every Coach Onboarding Step row already created
+    from this master step, not just coaches who start from now on.
+
+    This runs on every save regardless of how it happened (a direct Desk
+    edit, the franchisor Manage Step List screen, Data Import...) - it
+    used to only happen via update_onboarding_step_master's own explicit
+    push, which meant a plain Desk edit silently never reached any
+    coach's already-existing row.
+    """
+    if not frappe.db.exists("DocType", COACH_ONBOARDING_STEP_DOCTYPE):
+        return
+
+    try:
+        updates = {field: doc.get(field) for field in MASTER_STEP_LIVE_FIELDS}
+        frappe.db.set_value(
+            COACH_ONBOARDING_STEP_DOCTYPE, {"onboarding_step": doc.name}, updates, update_modified=False,
+        )
+        frappe.db.commit()
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Master Step Link Field Sync Failed - {doc.name}")
+
+
 def _create_coach_onboarding_steps(coach_name):
     # Locks the Coach row for the rest of this function, so two nearly-
     # simultaneous requests for the same coach (e.g. two staff members
@@ -878,14 +910,12 @@ def update_onboarding_step_master(
     }
     frappe.db.set_value(ONBOARDING_STEP_DOCTYPE, step_name, updates, update_modified=False)
 
-    if frappe.db.exists("DocType", COACH_ONBOARDING_STEP_DOCTYPE):
-        frappe.db.set_value(
-            COACH_ONBOARDING_STEP_DOCTYPE,
-            {"onboarding_step": step_name},
-            updates,
-            update_modified=False,
-        )
-
+    # Pushes these same values onto every coach already on this step -
+    # see sync_master_step_link_fields (Coach Onboarding Master Step's
+    # on_update hook). Called directly rather than via doc.save() here,
+    # since frappe.db.set_value above (a fast targeted update, not a full
+    # document save) doesn't fire doc_events on its own.
+    sync_master_step_link_fields(frappe.get_doc(ONBOARDING_STEP_DOCTYPE, step_name))
     frappe.db.commit()
 
     return {

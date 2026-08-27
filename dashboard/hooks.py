@@ -135,6 +135,15 @@ doc_events = {
     "Session Worker": {
         "on_update": "dashboard.api.shared.practice_documents.sync_session_worker_brand_document_requirements",
     },
+    # link_url/lms_course/lms_chapter/lms_lesson_number are "always
+    # current" fields (not a point-in-time snapshot like step_name,
+    # which stays whatever a coach was actually told at the time), so any
+    # edit here needs to reach every coach already on this step - from
+    # ANY save path (a direct Desk edit, not just the franchisor Manage
+    # Step List screen). See onboarding.sync_master_step_link_fields.
+    "Coach Onboarding Master Step": {
+        "on_update": "dashboard.api.shared.onboarding.sync_master_step_link_fields",
+    },
 }
 
 # Safety net for the pending-booking queue (see pending_bookings.py) - picks
