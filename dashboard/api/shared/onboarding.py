@@ -289,14 +289,21 @@ def get_my_onboarding_steps(coach=None):
     # _resolve_target_coach()'s own check for "was an explicit coach
     # actually asked for", not just "who ended up being resolved".
     is_drill_down = bool(coalesce_str("coach", coach)) and is_franchisor_user()
+    view_as_coach = coach_name if is_drill_down else None
 
     stages = _group_by_stage(rows)
-    policy_stage = _dynamic_policies_stage(coach_name, view_as_coach=coach_name if is_drill_down else None)
+    policy_stage = _dynamic_policies_stage(coach_name, view_as_coach=view_as_coach)
     _insert_dynamic_stage(stages, policy_stage, after_stage_number=4)
 
-    total = len(rows) + len(policy_stage["steps"])
+    operations_manual_step = _dynamic_operations_manual_step(coach_name, view_as_coach=view_as_coach)
+    if operations_manual_step:
+        _append_step_to_stage(stages, stage_number=3, step=operations_manual_step)
+
+    total = len(rows) + len(policy_stage["steps"]) + (1 if operations_manual_step else 0)
     done = len([row for row in rows if row.status == "Done"])
     done += len([step for step in policy_stage["steps"] if step["status"] == "Completed"])
+    if operations_manual_step and operations_manual_step["status"] == "Completed":
+        done += 1
 
     return {
         "coach": coach_name,
@@ -370,6 +377,71 @@ def _dynamic_policies_stage(coach_name, view_as_coach=None):
         })
 
     return {"stage": "Stage 5 - Policies", "steps": steps}
+
+
+# This is deliberately the one specific Practice Document ID, not a
+# document_type filter (e.g. "Practice Manual") - Ashley was explicit that
+# this is only for the Operations Manual itself, not every document of
+# that type, so a future second "Practice Manual" document must never be
+# swept in here by accident. Update this if the Operations Manual's
+# Practice Document is ever recreated under a different ID.
+OPERATIONS_MANUAL_PRACTICE_DOCUMENT = "9006"
+
+
+def _dynamic_operations_manual_step(coach_name, view_as_coach=None):
+    """
+    Same mechanism as _dynamic_policies_stage, but for a single named
+    document (the Operations Manual) rather than a whole document_type -
+    it used to be a static "complete this in the LMS" step, now it's
+    pulled live from the coach's own Coach Document Requirement for that
+    one Practice Document, so it's automatically "Done" the moment the
+    coach acknowledges it on the Documents page. Returns None if this
+    coach has no requirement for it yet (e.g. brand access hasn't synced
+    one in), in which case the step is simply omitted rather than shown
+    broken.
+    """
+    user = frappe.db.get_value("Coach", coach_name, "user")
+    if not user:
+        return None
+
+    row = frappe.db.get_value(
+        "Coach Document Requirement",
+        {"user": user, "practice_document": OPERATIONS_MANUAL_PRACTICE_DOCUMENT},
+        ["name", "document_title", "status", "completed_on"],
+        as_dict=True,
+    )
+    if not row:
+        return None
+
+    if view_as_coach:
+        extra_params = "&view_as=" + frappe.utils.quote(view_as_coach) + "&viewer=franchisor"
+    else:
+        extra_params = "&back_to=" + frappe.utils.quote("/coach_db/onboarding")
+
+    return {
+        "name": row.name,
+        "step_name": row.document_title or "Operations Manual",
+        "owner_type": "Coach",
+        "status": row.status,
+        "expected_result": "",
+        "where_it_happens": "Frappe - Documents",
+        "link_url": "/coach_db/document_view?name=" + row.name + extra_params,
+        "completed_on": row.completed_on,
+        "notes": "",
+        "is_locked": False,
+        "read_only": True,
+    }
+
+
+def _append_step_to_stage(stages, stage_number, step):
+    for stage in stages:
+        try:
+            number = int((stage["stage"] or "").split(" ")[1])
+        except (IndexError, ValueError):
+            continue
+        if number == stage_number:
+            stage["steps"].append(step)
+            return
 
 
 def _insert_dynamic_stage(stages, dynamic_stage, after_stage_number):
