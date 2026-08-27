@@ -19,8 +19,8 @@
   "expected_result",
   "where_it_happens",
   "link_url",
-  "lms_chapter_title",
   "lms_course",
+  "lms_chapter",
   "lms_lesson_number",
   "column_break_details",
   "depends_on"
@@ -102,25 +102,25 @@
    "description": "Where the \"Go\" action on this step should send the coach - an LMS course, a document to sign, etc. Leave blank for a step with no specific destination."
   },
   {
-   "fieldname": "lms_chapter_title",
-   "fieldtype": "Data",
-   "label": "LMS Chapter Title",
-   "description": "Exact title of the matching chapter in the LMS course editor (e.g. \"Access your emails with Chantelle Venter\"). When set, the Go link and Done status for this step are worked out automatically from the coach's actual progress through that chapter's lessons, instead of using Link URL / needing anyone to mark it done by hand. Set together with LMS Course via the franchisor Onboarding page's Manage Step List chapter picker, not typed here directly."
+   "fieldname": "lms_course",
+   "fieldtype": "Link",
+   "label": "LMS Course",
+   "options": "LMS Course",
+   "description": "Pick by course Title. Once LMS Course and LMS Chapter are both set, the Go link and Done status for this step are worked out automatically from the coach's actual progress through that chapter's lessons, instead of using Link URL / needing anyone to mark it done by hand."
   },
   {
-   "fieldname": "lms_course",
-   "fieldtype": "Data",
-   "label": "LMS Course",
-   "read_only": 1,
-   "description": "Which LMS course LMS Chapter Title belongs to - disambiguates two chapters that happen to share a title in different courses. Set automatically by the Manage Step List chapter picker."
+   "fieldname": "lms_chapter",
+   "fieldtype": "Link",
+   "label": "LMS Chapter",
+   "options": "Course Chapter",
+   "description": "The specific chapter within LMS Course (its name already reads as its title, e.g. \"0001 Access your emails with Chantelle Venter\")."
   },
   {
    "default": "1",
    "fieldname": "lms_lesson_number",
    "fieldtype": "Int",
    "label": "LMS Lesson Number",
-   "read_only": 1,
-   "description": "Which lesson within the chapter Go should open (its position in the chapter's lesson list, not the lesson's own name) - Done still requires every lesson in the chapter, not just this one. Set automatically by the Manage Step List lesson picker."
+   "description": "Which lesson within the chapter Go should open (its position in the chapter's lesson list, not the lesson's own name) - Done still requires every lesson in the chapter, not just this one."
   },
   {
    "fieldname": "column_break_details",

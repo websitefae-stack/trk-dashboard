@@ -51,3 +51,4 @@ dashboard.patches.restructure_onboarding_journey_v3
 dashboard.patches.replace_operations_manual_step_with_document_link
 dashboard.patches.add_print_materials_onboarding_step
 dashboard.patches.set_access_emails_lms_chapter_title
+dashboard.patches.migrate_lms_chapter_title_to_link

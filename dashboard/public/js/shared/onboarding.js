@@ -285,23 +285,26 @@
   // Coach's own page
   // -------------------------------------------------------------------
 
-  // Hides completed steps by default so a coach mid-journey sees what's
-  // still due instead of a long list dominated by everything already
+  // Hides completed steps by default so a long-in-progress journey shows
+  // what's still due instead of a list dominated by everything already
   // finished - persisted per-browser (not per-account) since it's purely
-  // a display preference, not something anyone else needs to see.
-  var HIDE_COMPLETED_STORAGE_KEY = "trk_onboarding_show_completed";
+  // a display preference, not something anyone else needs to see. Coach
+  // page and franchisor drill-down use separate keys since they're
+  // realistically different people/sessions and independently useful.
+  var COACH_HIDE_COMPLETED_STORAGE_KEY = "trk_onboarding_show_completed";
+  var HQ_HIDE_COMPLETED_STORAGE_KEY = "trk_onboarding_show_completed_hq";
 
-  function getShowCompletedPreference() {
+  function getShowCompletedPreference(storageKey) {
     try {
-      return window.localStorage.getItem(HIDE_COMPLETED_STORAGE_KEY) === "1";
+      return window.localStorage.getItem(storageKey) === "1";
     } catch (error) {
       return false;
     }
   }
 
-  function setShowCompletedPreference(showCompleted) {
+  function setShowCompletedPreference(storageKey, showCompleted) {
     try {
-      window.localStorage.setItem(HIDE_COMPLETED_STORAGE_KEY, showCompleted ? "1" : "0");
+      window.localStorage.setItem(storageKey, showCompleted ? "1" : "0");
     } catch (error) {
       // Private browsing / storage blocked - the toggle still works for
       // this page view, it just won't be remembered next visit.
@@ -314,7 +317,7 @@
     var content = el("onboardingContent");
     if (!content || !lastOnboardingData) return;
 
-    var hideCompleted = !getShowCompletedPreference();
+    var hideCompleted = !getShowCompletedPreference(COACH_HIDE_COMPLETED_STORAGE_KEY);
     content.innerHTML = lastOnboardingData.stages
       .map(function (stage) { return renderStage(stage, false, hideCompleted); })
       .join("");
@@ -348,9 +351,9 @@
 
     var checkbox = el("onboardingShowCompletedCheckbox");
     if (checkbox) {
-      checkbox.checked = getShowCompletedPreference();
+      checkbox.checked = getShowCompletedPreference(COACH_HIDE_COMPLETED_STORAGE_KEY);
       checkbox.addEventListener("change", function () {
-        setShowCompletedPreference(checkbox.checked);
+        setShowCompletedPreference(COACH_HIDE_COMPLETED_STORAGE_KEY, checkbox.checked);
         renderMyOnboardingStages();
       });
     }
@@ -416,6 +419,20 @@
     });
   }
 
+  var lastCoachDetailData = null;
+  var lastCoachDetailName = null;
+
+  function renderCoachDetailStages() {
+    var content = el("onboardingOverviewDetailContent");
+    if (!content || !lastCoachDetailData) return;
+
+    var hideCompleted = !getShowCompletedPreference(HQ_HIDE_COMPLETED_STORAGE_KEY);
+    content.innerHTML = lastCoachDetailData.stages
+      .map(function (stage) { return renderStage(stage, true, hideCompleted); })
+      .join("");
+    bindStepActions(content, function () { loadCoachDetail(lastCoachDetailName); });
+  }
+
   async function loadCoachDetail(coachName) {
     var table = el("onboardingOverviewTable");
     var detail = el("onboardingOverviewDetail");
@@ -438,8 +455,9 @@
       return;
     }
 
-    content.innerHTML = data.stages.map(function (stage) { return renderStage(stage, true); }).join("");
-    bindStepActions(content, function () { loadCoachDetail(coachName); });
+    lastCoachDetailData = data;
+    lastCoachDetailName = coachName;
+    renderCoachDetailStages();
   }
 
   // -------------------------------------------------------------------
@@ -452,14 +470,9 @@
   // -------------------------------------------------------------------
 
   function renderChapterOptions(chapters, step) {
-    // Prefer matching on title+course together (an exact, unambiguous
-    // match); a step set before lms_course existed has none stored, so
-    // falls back to a title-only match just to pre-select something
-    // sensible - saving re-selects properly from here on.
-    var exactMatch = chapters.some(function (c) {
-      return c.chapter_title === step.lms_chapter_title && c.course === step.lms_course;
-    });
-
+    // chapter_name is the real Course Chapter document name - an exact,
+    // unambiguous key regardless of course, unlike matching on title
+    // text (which is how this used to work, and turned out unreliable).
     var courseGroups = {};
     var courseOrder = [];
     chapters.forEach(function (c) {
@@ -470,15 +483,13 @@
       courseGroups[c.course].chapters.push(c);
     });
 
-    var optionsHtml = '<option value=""' + (step.lms_chapter_title ? "" : " selected") + '>— none —</option>';
+    var optionsHtml = '<option value=""' + (step.lms_chapter ? "" : " selected") + '>— none —</option>';
 
     optionsHtml += courseOrder.map(function (courseName) {
       var group = courseGroups[courseName];
       var optionsForCourse = group.chapters.map(function (c) {
-        var isSelected = exactMatch
-          ? (c.chapter_title === step.lms_chapter_title && c.course === step.lms_course)
-          : (c.chapter_title === step.lms_chapter_title);
-        return '<option value="' + escapeHtml(c.chapter_title) + '" data-course="' + escapeHtml(c.course) + '"' +
+        var isSelected = c.chapter_name === step.lms_chapter;
+        return '<option value="' + escapeHtml(c.chapter_name) + '" data-course="' + escapeHtml(c.course) + '"' +
           (isSelected ? " selected" : "") + ">" + escapeHtml(c.chapter_title) + "</option>";
       }).join("");
       return '<optgroup label="' + escapeHtml(group.title) + '">' + optionsForCourse + "</optgroup>";
@@ -487,9 +498,8 @@
     return optionsHtml;
   }
 
-  function findChapterEntry(chapters, courseName, chapterTitle) {
-    return chapters.find(function (c) { return c.course === courseName && c.chapter_title === chapterTitle; }) ||
-      chapters.find(function (c) { return c.chapter_title === chapterTitle; });
+  function findChapterEntry(chapters, chapterName) {
+    return chapters.find(function (c) { return c.chapter_name === chapterName; });
   }
 
   function renderLessonOptions(lessons, selectedNumber) {
@@ -514,9 +524,7 @@
 
     var linkCell;
     if (isLmsStep && chapters.length) {
-      var currentChapter = step.lms_chapter_title
-        ? findChapterEntry(chapters, step.lms_course, step.lms_chapter_title)
-        : null;
+      var currentChapter = step.lms_chapter ? findChapterEntry(chapters, step.lms_chapter) : null;
 
       linkCell = '<select class="dashboard-select dashboard-onboarding-lms-chapter-select" data-step="' +
           escapeHtml(step.name) + '">' + renderChapterOptions(chapters, step) + "</select>" +
@@ -606,9 +614,7 @@
         );
         if (!lessonSelect) return;
 
-        var selectedOption = chapterSelect.options[chapterSelect.selectedIndex];
-        var courseName = selectedOption ? (selectedOption.dataset.course || "") : "";
-        var entry = findChapterEntry(chapters, courseName, chapterSelect.value);
+        var entry = findChapterEntry(chapters, chapterSelect.value);
 
         lessonSelect.innerHTML = renderLessonOptions(entry ? entry.lessons : [], 1);
       });
@@ -633,7 +639,7 @@
             var lessonSelect = content.querySelector(
               '.dashboard-onboarding-lms-lesson-select[data-step="' + btn.dataset.step + '"]',
             );
-            payload.lms_chapter_title = field.value;
+            payload.lms_chapter = field.value;
             payload.lms_course = selectedOption ? (selectedOption.dataset.course || "") : "";
             payload.lms_lesson_number = lessonSelect ? (lessonSelect.value || "1") : "1";
           } else {
@@ -680,6 +686,15 @@
     var manageBtn = el("onboardingManageStepsBtn");
     if (manageBtn) {
       manageBtn.addEventListener("click", showStepManager);
+    }
+
+    var hqCheckbox = el("onboardingOverviewShowCompletedCheckbox");
+    if (hqCheckbox) {
+      hqCheckbox.checked = getShowCompletedPreference(HQ_HIDE_COMPLETED_STORAGE_KEY);
+      hqCheckbox.addEventListener("change", function () {
+        setShowCompletedPreference(HQ_HIDE_COMPLETED_STORAGE_KEY, hqCheckbox.checked);
+        renderCoachDetailStages();
+      });
     }
 
     var managerBackBtn = el("onboardingStepManagerBackBtn");
