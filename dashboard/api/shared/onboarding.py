@@ -274,6 +274,14 @@ def mark_step_done(step_name=None, coach=None):
     step_name = coalesce_str("step_name", step_name)
     coach_name = _resolve_target_coach(coach)
 
+    # Coach Onboarding Step's own DocType permissions only grant
+    # System Manager - a coach never has that role, so without this,
+    # loading their own step here throws a permission error before
+    # this function's own authorization logic (the coach/owner_type
+    # checks below) ever gets a chance to run. save(ignore_permissions)
+    # alone doesn't cover it - loading the document is a separate step.
+    frappe.flags.ignore_permissions = True
+
     row = frappe.get_doc(COACH_ONBOARDING_STEP_DOCTYPE, step_name)
 
     if row.coach != coach_name:
@@ -307,6 +315,12 @@ def mark_step_done_for_coach(step_name=None, status=None):
     valid_statuses = {"Not Started", "In Progress", "Waiting on HQ", "Ready for You", "Done"}
     if status not in valid_statuses:
         frappe.throw(_("Invalid status."))
+
+    # See the matching comment in mark_step_done() - loading the
+    # document is a separate step from saving it, and
+    # save(ignore_permissions) alone doesn't cover a read-permission
+    # failure on the load itself.
+    frappe.flags.ignore_permissions = True
 
     row = frappe.get_doc(COACH_ONBOARDING_STEP_DOCTYPE, step_name)
     row.status = status
