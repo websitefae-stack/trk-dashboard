@@ -137,6 +137,14 @@
 
     var actionCell;
 
+    // An LMS-based step (a course module the coach completes elsewhere)
+    // isn't something to self-report Done from this dashboard - a
+    // misclick here marks it complete with no actual course completion
+    // behind it. Until real course-completion tracking exists, these are
+    // Go-only for the coach; only HQ (the status dropdown below, in the
+    // franchisor drill-down) can correct the status.
+    var isLmsStep = step.owner_type === "Coach" && step.where_it_happens === "LMS";
+
     // Policies rows are a live mirror of Coach Document Requirement, not
     // a real Coach Onboarding Step - there's no step to "mark done" here
     // at all (that happens by acknowledging the actual document on the
@@ -150,6 +158,10 @@
         return '<option value="' + status + '"' + (status === step.status ? " selected" : "") + '>' + status + "</option>";
       }).join("");
       actionCell = '<select class="dashboard-select dashboard-onboarding-status-select" data-step="' + escapeHtml(step.name) + '">' + options + "</select>";
+    } else if (isLmsStep) {
+      actionCell = step.status === "Done"
+        ? '<span class="dashboard-doc-list-meta">' + escapeHtml(formatDateTime(step.completed_on)) + "</span>"
+        : '<span class="dashboard-doc-list-meta">Complete the course to finish this step</span>';
     } else if (step.owner_type === "Coach" && step.status !== "Done" && !step.is_locked) {
       actionCell = '<button type="button" class="dashboard-btn dashboard-btn-primary dashboard-onboarding-mark-done" data-step="' + escapeHtml(step.name) + '">Mark Done</button>';
     } else if (step.status === "Done") {

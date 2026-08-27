@@ -485,6 +485,16 @@ def mark_step_done(step_name=None, coach=None):
     if row.owner_type != "Coach":
         frappe.throw(_("This step is owned by HQ - only HQ can mark it done."))
 
+    # An LMS-based step is completed by actually finishing the course,
+    # not by self-reporting it here - a misclick on this button is
+    # exactly what previously marked a step Done with no course
+    # completion behind it. The dashboard already hides the Mark Done
+    # button for these (see isLmsStep in onboarding.js), this is the
+    # same rule enforced server-side so it can't be bypassed by calling
+    # this endpoint directly.
+    if row.where_it_happens == "LMS":
+        frappe.throw(_("This step is completed in the course itself, not marked done here."))
+
     if row.status == "Done":
         return {"ok": True, "status": row.status}
 
