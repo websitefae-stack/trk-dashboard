@@ -32,11 +32,9 @@ STAGES = [
     ]),
     (3, "Stage 3 - Training Day", [
         (1, "Training Day - curriculum, Resilient Kid Values, Resilient Kid Framework, Photoshoot",
-         "HQ", "In-Person",
-         "Day completed and marked done - this is what unlocks every later stage."),
+         "HQ", "In-Person", ""),
         (2, "Access Your Emails with Chantelle Venter", "Coach", "LMS", "Module marked complete in LMS."),
-        (3, "Branding Shots for Business with Ali Ford", "Coach", "LMS", "Module marked complete in LMS."),
-        (4, "Operations Manual", "Coach", "LMS", "Module marked complete in LMS."),
+        (3, "Operations Manual", "Coach", "LMS", "Module marked complete in LMS."),
     ]),
     (4, "Stage 4 - Get Business Ready", [
         (1, "Social media account created (setup only, not branded)", "HQ", "External (social platform)",
@@ -46,42 +44,43 @@ STAGES = [
          "Account fully branded, ready to post."),
         (4, "Email signature set up (with photo)", "HQ", "External (email client)", "Signature added and in use."),
     ]),
-    (5, "Stage 5 - Policies", [
-        (1, "Safeguarding + essential policies", "Coach", "Frappe - Practice Documents (existing)",
-         "Mandatory policies read/acknowledged/signed as required, including the diversity information "
-         "form and social media policy - done before any training starts, so the coach knows the policies "
-         "up front."),
-    ]),
+    # Stage 5 - Policies has no static steps here: it's built dynamically
+    # from Practice Documents (Policy/Procedure) at read time - see
+    # _dynamic_policies_stage() in api/shared/onboarding.py. Kept here
+    # (with an empty step list) purely so the stage exists in this map
+    # for documentation.
+    (5, "Stage 5 - Policies", []),
     (6, "Stage 6 - Get Visible", [
         (1, "Graphics / Canva Training with Sally Tyson", "Coach", "LMS", "Module marked complete in LMS."),
-        (2, "Social Media Training - basics with Lynda Pepper", "Coach", "LMS", "Module marked complete in LMS."),
-        (3, "B-Roll Guide for Resilient Kid Coaches", "Coach", "LMS", "Module marked complete in LMS."),
-        (4, "LinkedIn Training with Helen Tudor", "Coach", "LMS", "Module marked complete in LMS."),
-        (5, "Mission-Led Content with Lisa Barry", "Coach", "LMS", "Module marked complete in LMS."),
-        (6, "Talking About Your Business with Catherine Sandland", "Coach", "LMS", "Module marked complete in LMS."),
-        (7, "The Stories We Should Be Telling with Catherine Sandland", "Coach", "LMS", "Module marked complete in LMS."),
-        (8, "Public Speaking Training with Catherine Sandland", "Coach", "LMS", "Module marked complete in LMS."),
+        (2, "Branding Shots for Business with Ali Ford", "Coach", "LMS", "Module marked complete in LMS."),
+        (3, "Social Media Training - basics with Lynda Pepper", "Coach", "LMS", "Module marked complete in LMS."),
+        (4, "B-Roll Guide for Resilient Kid Coaches", "Coach", "LMS", "Module marked complete in LMS."),
+        (5, "LinkedIn Training with Helen Tudor", "Coach", "LMS", "Module marked complete in LMS."),
+        (6, "Mission-Led Content with Lisa Barry", "Coach", "LMS", "Module marked complete in LMS."),
+        (7, "Talking About Your Business with Catherine Sandland", "Coach", "LMS", "Module marked complete in LMS."),
+        (8, "The Stories We Should Be Telling with Catherine Sandland", "Coach", "LMS", "Module marked complete in LMS."),
+        (9, "Public Speaking Training with Catherine Sandland", "Coach", "LMS", "Module marked complete in LMS."),
+        (10, "The Marketing Momentum Circle with Lisa Barry", "Coach", "LMS", "Module marked complete in LMS."),
     ]),
     (7, "Stage 7 - Build Your Local Business", [
         (1, "Building a Networking Strategy with Catherine Sandland", "Coach", "LMS", "Module marked complete in LMS."),
         (2, "Networking - the C.O.N.N.E.C.T. Method with Susie Sprigg", "Coach", "LMS", "Module marked complete in LMS."),
         (3, "PR Training with Michelle and Christian Ewan", "Coach", "LMS", "Module marked complete in LMS."),
         (4, "Confidence with Washington Ali", "Coach", "LMS", "Module marked complete in LMS."),
-        (5, "The Marketing Momentum Circle with Lisa Barry", "Coach", "LMS", "Module marked complete in LMS."),
     ]),
     (8, "Stage 8 - Get Client Ready", [
-        (1, "Onboarding and Offboarding Clients", "Coach", "LMS", "Module marked complete in LMS."),
+        (1, "Frappe Training with Chantelle Venter", "Coach", "LMS", "Module marked complete in LMS."),
         (2, "Frappe Dashboard practice (sandbox)", "Coach", "Frappe - coming soon (Tier 3)",
          "Coach can create a lead, send an intake email, have a client complete the form, convert to "
          "Client + Contact, raise an invoice, book an appointment, mark an invoice paid, and view reports "
          "and documents - all against sandbox data, with any triggered email going to the coach's own "
          "address rather than a fictional client."),
+        (3, "Onboarding and Offboarding Clients", "Coach", "LMS", "Module marked complete in LMS."),
     ]),
     (9, "Stage 9 - Learn Your Systems", [
-        (1, "Frappe Training with Chantelle Venter", "Coach", "LMS", "Module marked complete in LMS."),
-        (2, "Live Frappe follow-up session with Chantelle", "Coach", "In-Person / External",
+        (1, "Live Frappe follow-up session with Chantelle", "Coach", "In-Person / External",
          "Hands-on session booked with Chantelle and completed, after the LMS module."),
-        (3, "Accounting Training with Harriet Parry", "Coach", "LMS", "Module marked complete in LMS."),
+        (2, "Accounting Training with Harriet Parry", "Coach", "LMS", "Module marked complete in LMS."),
     ]),
     (10, "Stage 10 - Grow", [
         (1, "Business Coaching with Paula Cohen", "Coach", "LMS", "Module marked complete in LMS."),

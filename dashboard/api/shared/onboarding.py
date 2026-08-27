@@ -239,6 +239,20 @@ def _group_by_stage(rows):
 
 
 @frappe.whitelist()
+def coach_has_onboarding_steps():
+    """
+    Cheap check for the sidebar - a coach who was never opted into the
+    onboarding journey (most existing coaches) shouldn't see the
+    Onboarding link at all, only coaches who actually have a checklist.
+    """
+    coach_name = get_current_coach_name(optional=True)
+    if not coach_name:
+        return {"has_steps": False}
+
+    return {"has_steps": bool(frappe.db.exists(COACH_ONBOARDING_STEP_DOCTYPE, {"coach": coach_name}))}
+
+
+@frappe.whitelist()
 def get_my_onboarding_steps(coach=None):
     coach_name = _resolve_target_coach(coach)
 
@@ -268,16 +282,87 @@ def get_my_onboarding_steps(coach=None):
     _repair_blank_rows(rows)
     rows = sorted(rows, key=lambda row: (row.stage_sort_order or 0, row.sort_order or 0))
 
-    total = len(rows)
+    stages = _group_by_stage(rows)
+    policy_stage = _dynamic_policies_stage(coach_name)
+    _insert_dynamic_stage(stages, policy_stage, after_stage_number=4)
+
+    total = len(rows) + len(policy_stage["steps"])
     done = len([row for row in rows if row.status == "Done"])
+    done += len([step for step in policy_stage["steps"] if step["status"] == "Completed"])
 
     return {
         "coach": coach_name,
         "started": total > 0,
         "total_steps": total,
         "done_steps": done,
-        "stages": _group_by_stage(rows),
+        "stages": stages,
     }
+
+
+POLICY_DOCUMENT_TYPES = ["Policy", "Procedure"]
+
+
+def _dynamic_policies_stage(coach_name):
+    """
+    Stage 5 (Policies) has no static Coach Onboarding Step rows behind it
+    - it's built live from Coach Document Requirement instead, so it
+    always reflects whatever Policy/Procedure documents currently exist
+    (add a new one in the Desk and it just shows up here, no onboarding
+    step needs creating for it). A step here is automatically "Done" the
+    moment the coach actually acknowledges that document on the
+    Documents page - there's nothing to keep in sync, since it's the
+    same underlying record being read, not a copy of it. Never locked -
+    the whole point is these are readable before Training Day, not
+    gated behind it like everything else from here on.
+    """
+    user = frappe.db.get_value("Coach", coach_name, "user")
+    if not user:
+        return {"stage": "Stage 5 - Policies", "steps": []}
+
+    rows = frappe.get_all(
+        "Coach Document Requirement",
+        filters={"user": user, "document_type": ["in", POLICY_DOCUMENT_TYPES]},
+        fields=["name", "document_title", "document_type", "status", "completed_on"],
+        order_by="document_type asc, document_title asc",
+    )
+
+    steps = []
+    for row in rows:
+        label = row.document_title or row.name
+        if row.document_type == "Procedure":
+            label += " (Procedure)"
+
+        steps.append({
+            "name": row.name,
+            "step_name": label,
+            "owner_type": "Coach",
+            "status": row.status,
+            "expected_result": "",
+            "where_it_happens": "Frappe - Documents",
+            "link_url": "/coach_db/documents",
+            "completed_on": row.completed_on,
+            "notes": "",
+            "is_locked": False,
+            "read_only": True,
+        })
+
+    return {"stage": "Stage 5 - Policies", "steps": steps}
+
+
+def _insert_dynamic_stage(stages, dynamic_stage, after_stage_number):
+    def stage_number(label):
+        try:
+            return int((label or "").split(" ")[1])
+        except (IndexError, ValueError):
+            return 0
+
+    insert_at = len(stages)
+    for index, stage in enumerate(stages):
+        if stage_number(stage["stage"]) > after_stage_number:
+            insert_at = index
+            break
+
+    stages.insert(insert_at, dynamic_stage)
 
 
 @frappe.whitelist()
