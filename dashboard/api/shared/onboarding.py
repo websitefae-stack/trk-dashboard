@@ -61,6 +61,20 @@ def provision_onboarding_steps(doc, method=None):
 
 
 def _create_coach_onboarding_steps(coach_name):
+    # Locks the Coach row for the rest of this function, so two nearly-
+    # simultaneous requests for the same coach (e.g. two staff members
+    # both opening this coach's onboarding at once) can't both pass the
+    # "does this coach already have steps" check before either has
+    # actually created any - a real race that happened in production,
+    # duplicating a coach's entire step list every time it occurred.
+    # The second caller blocks here until the first one's transaction
+    # commits, then sees the steps the first one just created and exits
+    # via the check below instead of creating a second full batch.
+    frappe.db.sql("SELECT name FROM `tabCoach` WHERE name=%s FOR UPDATE", coach_name)
+
+    if frappe.db.exists(COACH_ONBOARDING_STEP_DOCTYPE, {"coach": coach_name}):
+        return
+
     # Field values are copied across explicitly here rather than relying
     # on the doctype's fetch_from configuration - fetch_from is meant to
     # do this automatically on insert, but proved unreliable in practice
@@ -244,6 +258,7 @@ def get_my_onboarding_steps(coach=None):
     # here so the page just works again on the next load.
     if not rows and frappe.db.get_value("Coach", coach_name, "start_onboarding"):
         _create_coach_onboarding_steps(coach_name)
+        frappe.db.commit()
         rows = frappe.get_all(
             COACH_ONBOARDING_STEP_DOCTYPE,
             filters={"coach": coach_name},
@@ -353,6 +368,7 @@ def _ensure_all_started_coaches_provisioned():
     for coach_name in started_coaches:
         if coach_name not in provisioned:
             _create_coach_onboarding_steps(coach_name)
+            frappe.db.commit()
 
 
 @frappe.whitelist()
