@@ -383,6 +383,22 @@
   // -------------------------------------------------------------------
 
   function renderStepManagerRow(step) {
+    // An LMS step's Go link and Done status are worked out live from
+    // actual course progress once HQ tells it which chapter to watch
+    // (see _apply_lms_progress_overrides) - so this asks for the exact
+    // chapter title, copied straight from the LMS course editor, instead
+    // of a URL nobody should need to go hunting for by hand.
+    var isLmsStep = step.where_it_happens === "LMS";
+
+    var linkCell = isLmsStep
+      ? '<input type="text" class="dashboard-input dashboard-onboarding-lms-chapter-input" data-step="' +
+          escapeHtml(step.name) + '" value="' + escapeHtml(step.lms_chapter_title || "") +
+          '" placeholder="Exact chapter title, e.g. Access your emails with Chantelle Venter">' +
+          '<div class="dashboard-doc-list-meta">Go link and Done status are worked out automatically from this chapter\'s lessons</div>'
+      : '<input type="text" class="dashboard-input dashboard-onboarding-link-input" data-step="' +
+          escapeHtml(step.name) + '" value="' + escapeHtml(step.link_url || "") +
+          '" placeholder="/coach_db/... or https://...">';
+
     return (
       "<tr>" +
         "<td>" +
@@ -390,14 +406,10 @@
           (step.expected_result ? '<div class="dashboard-doc-list-meta">' + escapeHtml(step.expected_result) + "</div>" : "") +
         "</td>" +
         "<td>" + escapeHtml(step.owner_type) + "</td>" +
-        "<td>" +
-          '<input type="text" class="dashboard-input dashboard-onboarding-link-input" data-step="' +
-            escapeHtml(step.name) + '" value="' + escapeHtml(step.link_url || "") +
-            '" placeholder="/coach_db/... or https://...">' +
-        "</td>" +
+        "<td>" + linkCell + "</td>" +
         '<td class="dashboard-text-right">' +
           '<button type="button" class="dashboard-btn dashboard-btn-primary dashboard-onboarding-save-link" data-step="' +
-            escapeHtml(step.name) + '">Save</button>' +
+            escapeHtml(step.name) + '" data-lms="' + (isLmsStep ? "1" : "0") + '">Save</button>' +
         "</td>" +
       "</tr>"
     );
@@ -408,7 +420,7 @@
       '<div class="dashboard-card dashboard-onboarding-stage">' +
         '<h3 class="dashboard-onboarding-stage-title">' + escapeHtml(stage.stage) + "</h3>" +
         '<table class="dashboard-table dashboard-doc-list-table">' +
-          "<thead><tr><th>Step</th><th>Owner</th><th>Link URL</th><th class=\"dashboard-text-right\">Action</th></tr></thead>" +
+          "<thead><tr><th>Step</th><th>Owner</th><th>Link URL / LMS Chapter</th><th class=\"dashboard-text-right\">Action</th></tr></thead>" +
           "<tbody>" + stage.steps.map(renderStepManagerRow).join("") + "</tbody>" +
         "</table>" +
       "</div>"
@@ -450,7 +462,9 @@
 
     content.querySelectorAll(".dashboard-onboarding-save-link").forEach(function (btn) {
       btn.addEventListener("click", async function () {
-        var input = content.querySelector('.dashboard-onboarding-link-input[data-step="' + btn.dataset.step + '"]');
+        var isLms = btn.dataset.lms === "1";
+        var inputClass = isLms ? ".dashboard-onboarding-lms-chapter-input" : ".dashboard-onboarding-link-input";
+        var input = content.querySelector(inputClass + '[data-step="' + btn.dataset.step + '"]');
         if (!input) return;
 
         btn.disabled = true;
@@ -458,7 +472,13 @@
         btn.textContent = "Saving...";
 
         try {
-          await apiPost(API + ".update_onboarding_step_master", { step_name: btn.dataset.step, link_url: input.value });
+          var payload = { step_name: btn.dataset.step };
+          if (isLms) {
+            payload.lms_chapter_title = input.value;
+          } else {
+            payload.link_url = input.value;
+          }
+          await apiPost(API + ".update_onboarding_step_master", payload);
           btn.textContent = "Saved";
           window.setTimeout(function () {
             btn.textContent = originalLabel;
