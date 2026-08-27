@@ -137,6 +137,14 @@
 
     var actionCell;
 
+    // An LMS-based step (a course module the coach completes elsewhere)
+    // isn't something to self-report Done from this dashboard - a
+    // misclick here marks it complete with no actual course completion
+    // behind it. Until real course-completion tracking exists, these are
+    // Go-only for the coach; only HQ (the status dropdown below, in the
+    // franchisor drill-down) can correct the status.
+    var isLmsStep = step.owner_type === "Coach" && step.where_it_happens === "LMS";
+
     // Policies rows are a live mirror of Coach Document Requirement, not
     // a real Coach Onboarding Step - there's no step to "mark done" here
     // at all (that happens by acknowledging the actual document on the
@@ -150,6 +158,10 @@
         return '<option value="' + status + '"' + (status === step.status ? " selected" : "") + '>' + status + "</option>";
       }).join("");
       actionCell = '<select class="dashboard-select dashboard-onboarding-status-select" data-step="' + escapeHtml(step.name) + '">' + options + "</select>";
+    } else if (isLmsStep) {
+      actionCell = step.status === "Done"
+        ? '<span class="dashboard-doc-list-meta">' + escapeHtml(formatDateTime(step.completed_on)) + "</span>"
+        : '<span class="dashboard-doc-list-meta">Complete the course to finish this step</span>';
     } else if (step.owner_type === "Coach" && step.status !== "Done" && !step.is_locked) {
       actionCell = '<button type="button" class="dashboard-btn dashboard-btn-primary dashboard-onboarding-mark-done" data-step="' + escapeHtml(step.name) + '">Mark Done</button>';
     } else if (step.status === "Done") {
@@ -370,7 +382,62 @@
   // rather than only coaches who start onboarding from now on.
   // -------------------------------------------------------------------
 
-  function renderStepManagerRow(step) {
+  function renderChapterOptions(chapters, step) {
+    // Prefer matching on title+course together (an exact, unambiguous
+    // match); a step set before lms_course existed has none stored, so
+    // falls back to a title-only match just to pre-select something
+    // sensible - saving re-selects properly from here on.
+    var exactMatch = chapters.some(function (c) {
+      return c.chapter_title === step.lms_chapter_title && c.course === step.lms_course;
+    });
+
+    var courseGroups = {};
+    var courseOrder = [];
+    chapters.forEach(function (c) {
+      if (!(c.course in courseGroups)) {
+        courseGroups[c.course] = { title: c.course_title, chapters: [] };
+        courseOrder.push(c.course);
+      }
+      courseGroups[c.course].chapters.push(c);
+    });
+
+    var optionsHtml = '<option value=""' + (step.lms_chapter_title ? "" : " selected") + '>— none —</option>';
+
+    optionsHtml += courseOrder.map(function (courseName) {
+      var group = courseGroups[courseName];
+      var optionsForCourse = group.chapters.map(function (c) {
+        var isSelected = exactMatch
+          ? (c.chapter_title === step.lms_chapter_title && c.course === step.lms_course)
+          : (c.chapter_title === step.lms_chapter_title);
+        return '<option value="' + escapeHtml(c.chapter_title) + '" data-course="' + escapeHtml(c.course) + '"' +
+          (isSelected ? " selected" : "") + ">" + escapeHtml(c.chapter_title) + "</option>";
+      }).join("");
+      return '<optgroup label="' + escapeHtml(group.title) + '">' + optionsForCourse + "</optgroup>";
+    }).join("");
+
+    return optionsHtml;
+  }
+
+  function renderStepManagerRow(step, chapters) {
+    // An LMS step's Go link and Done status are worked out live from
+    // actual course progress once HQ picks which chapter to watch (see
+    // _apply_lms_progress_overrides) - a dropdown of the real chapters
+    // Frappe LMS actually has, so there's no title to mistype.
+    var isLmsStep = step.where_it_happens === "LMS";
+
+    var linkCell;
+    if (isLmsStep && chapters.length) {
+      linkCell = '<select class="dashboard-select dashboard-onboarding-lms-chapter-select" data-step="' +
+          escapeHtml(step.name) + '">' + renderChapterOptions(chapters, step) + "</select>" +
+          '<div class="dashboard-doc-list-meta">Go link and Done status are worked out automatically from this chapter\'s lessons</div>';
+    } else if (isLmsStep) {
+      linkCell = '<div class="dashboard-doc-list-meta">No LMS chapters found - check Frappe LMS is installed.</div>';
+    } else {
+      linkCell = '<input type="text" class="dashboard-input dashboard-onboarding-link-input" data-step="' +
+          escapeHtml(step.name) + '" value="' + escapeHtml(step.link_url || "") +
+          '" placeholder="/coach_db/... or https://...">';
+    }
+
     return (
       "<tr>" +
         "<td>" +
@@ -378,26 +445,22 @@
           (step.expected_result ? '<div class="dashboard-doc-list-meta">' + escapeHtml(step.expected_result) + "</div>" : "") +
         "</td>" +
         "<td>" + escapeHtml(step.owner_type) + "</td>" +
-        "<td>" +
-          '<input type="text" class="dashboard-input dashboard-onboarding-link-input" data-step="' +
-            escapeHtml(step.name) + '" value="' + escapeHtml(step.link_url || "") +
-            '" placeholder="/coach_db/... or https://...">' +
-        "</td>" +
+        "<td>" + linkCell + "</td>" +
         '<td class="dashboard-text-right">' +
           '<button type="button" class="dashboard-btn dashboard-btn-primary dashboard-onboarding-save-link" data-step="' +
-            escapeHtml(step.name) + '">Save</button>' +
+            escapeHtml(step.name) + '" data-lms="' + (isLmsStep ? "1" : "0") + '">Save</button>' +
         "</td>" +
       "</tr>"
     );
   }
 
-  function renderStepManagerStage(stage) {
+  function renderStepManagerStage(stage, chapters) {
     return (
       '<div class="dashboard-card dashboard-onboarding-stage">' +
         '<h3 class="dashboard-onboarding-stage-title">' + escapeHtml(stage.stage) + "</h3>" +
         '<table class="dashboard-table dashboard-doc-list-table">' +
-          "<thead><tr><th>Step</th><th>Owner</th><th>Link URL</th><th class=\"dashboard-text-right\">Action</th></tr></thead>" +
-          "<tbody>" + stage.steps.map(renderStepManagerRow).join("") + "</tbody>" +
+          "<thead><tr><th>Step</th><th>Owner</th><th>Link URL / LMS Chapter</th><th class=\"dashboard-text-right\">Action</th></tr></thead>" +
+          "<tbody>" + stage.steps.map(function (step) { return renderStepManagerRow(step, chapters); }).join("") + "</tbody>" +
         "</table>" +
       "</div>"
     );
@@ -409,9 +472,10 @@
 
     content.innerHTML = '<div class="dashboard-empty">Loading...</div>';
 
-    var steps;
+    var steps, chapters;
     try {
       steps = await apiGet(API + ".get_onboarding_step_master_list", {});
+      chapters = await apiGet(API + ".get_lms_chapters", {});
     } catch (error) {
       content.innerHTML = '<div class="dashboard-empty">' + escapeHtml(error.message) + "</div>";
       return;
@@ -434,19 +498,30 @@
       return;
     }
 
-    content.innerHTML = stages.map(renderStepManagerStage).join("");
+    content.innerHTML = stages.map(function (stage) { return renderStepManagerStage(stage, chapters); }).join("");
 
     content.querySelectorAll(".dashboard-onboarding-save-link").forEach(function (btn) {
       btn.addEventListener("click", async function () {
-        var input = content.querySelector('.dashboard-onboarding-link-input[data-step="' + btn.dataset.step + '"]');
-        if (!input) return;
+        var isLms = btn.dataset.lms === "1";
+        var fieldSelector = (isLms ? ".dashboard-onboarding-lms-chapter-select" : ".dashboard-onboarding-link-input") +
+          '[data-step="' + btn.dataset.step + '"]';
+        var field = content.querySelector(fieldSelector);
+        if (!field) return;
 
         btn.disabled = true;
         var originalLabel = btn.textContent;
         btn.textContent = "Saving...";
 
         try {
-          await apiPost(API + ".update_onboarding_step_master", { step_name: btn.dataset.step, link_url: input.value });
+          var payload = { step_name: btn.dataset.step };
+          if (isLms) {
+            var selectedOption = field.options[field.selectedIndex];
+            payload.lms_chapter_title = field.value;
+            payload.lms_course = selectedOption ? (selectedOption.dataset.course || "") : "";
+          } else {
+            payload.link_url = field.value;
+          }
+          await apiPost(API + ".update_onboarding_step_master", payload);
           btn.textContent = "Saved";
           window.setTimeout(function () {
             btn.textContent = originalLabel;
