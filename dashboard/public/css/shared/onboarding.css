@@ -27,10 +27,55 @@
   margin-bottom: 16px;
 }
 
+/* .dashboard-onboarding-stage-title is a <summary> now (see renderStage
+   in onboarding.js), which lets a fully-completed stage start collapsed
+   without any JS tracking open/closed state itself - this just makes it
+   look like the plain heading it used to be, with a custom disclosure
+   arrow instead of the browser default. */
 .dashboard-onboarding-stage-title {
   margin: 0 0 12px;
   font-size: 15px;
   color: #1F4E4E;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dashboard-onboarding-stage-title::-webkit-details-marker {
+  display: none;
+}
+
+.dashboard-onboarding-stage-title::before {
+  content: "▸";
+  font-size: 12px;
+  color: #839898;
+  transition: transform 0.15s ease;
+}
+
+.dashboard-onboarding-stage[open] > .dashboard-onboarding-stage-title::before {
+  transform: rotate(90deg);
+}
+
+.dashboard-onboarding-stage-complete-badge {
+  font-size: 11px;
+}
+
+/* The step column was stretching to fill however wide the browser
+   window happened to be, which on a wide monitor left title/description
+   text spread thin across the whole width instead of wrapping onto a
+   few short lines like every other column. Capping it forces normal
+   wrapping instead. */
+.dashboard-onboarding-stage .dashboard-doc-list-table th:first-child,
+.dashboard-onboarding-stage .dashboard-doc-list-table td:first-child {
+  max-width: 480px;
+}
+
+.dashboard-onboarding-stage .dashboard-doc-list-title,
+.dashboard-onboarding-stage .dashboard-doc-list-meta {
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .dashboard-onboarding-row-locked {

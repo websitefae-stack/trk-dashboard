@@ -21,7 +21,16 @@
     "In Progress": "doc-status-new",
     "Waiting on HQ": "doc-status-overdue",
     "Ready for You": "doc-status-overdue",
-    "Done": "doc-status-completed"
+    "Done": "doc-status-completed",
+    // The Policies stage reads its status straight from Coach Document
+    // Requirement (see _dynamic_policies_stage on the server) rather
+    // than the usual 5 onboarding statuses, so its own status values
+    // need their own badge colours here too.
+    "Not Viewed": "doc-status-new",
+    "Viewed": "doc-status-new",
+    "Completed": "doc-status-completed",
+    "Overdue": "doc-status-overdue",
+    "Superseded": "doc-status-superseded"
   };
 
   var HQ_STATUSES = ["Not Started", "In Progress", "Waiting on HQ", "Ready for You", "Done"];
@@ -128,7 +137,15 @@
 
     var actionCell;
 
-    if (hqMode) {
+    // Policies rows are a live mirror of Coach Document Requirement, not
+    // a real Coach Onboarding Step - there's no step to "mark done" here
+    // at all (that happens by acknowledging the actual document on the
+    // Documents page), so this never gets the usual button/dropdown.
+    if (step.read_only) {
+      actionCell = step.status === "Completed"
+        ? '<span class="dashboard-doc-list-meta">' + escapeHtml(formatDateTime(step.completed_on)) + "</span>"
+        : "";
+    } else if (hqMode) {
       var options = HQ_STATUSES.map(function (status) {
         return '<option value="' + status + '"' + (status === step.status ? " selected" : "") + '>' + status + "</option>";
       }).join("");
@@ -155,15 +172,29 @@
     );
   }
 
+  function isStepDone(step) {
+    return step.status === "Done" || step.status === "Completed";
+  }
+
   function renderStage(stage, hqMode) {
+    var allDone = stage.steps.length > 0 && stage.steps.every(isStepDone);
+    var completeBadge = allDone
+      ? '<span class="dashboard-badge doc-status-completed dashboard-onboarding-stage-complete-badge">All done</span>'
+      : "";
+
+    // A native <details>/<summary> collapses a stage automatically once
+    // everything in it is done, without needing any JS to track open/
+    // closed state - it just starts collapsed for a stage that already
+    // was complete when the page loaded, and stays interactive (click
+    // the title to reopen) for anyone who wants to double check it.
     return (
-      '<div class="dashboard-card dashboard-onboarding-stage">' +
-        '<h3 class="dashboard-onboarding-stage-title">' + escapeHtml(stage.stage) + "</h3>" +
+      '<details class="dashboard-card dashboard-onboarding-stage"' + (allDone ? "" : " open") + '>' +
+        '<summary class="dashboard-onboarding-stage-title">' + escapeHtml(stage.stage) + completeBadge + '</summary>' +
         '<table class="dashboard-table dashboard-doc-list-table">' +
           "<thead><tr><th>Step</th><th>Owner</th><th>Status</th><th class=\"dashboard-text-right\">Action</th></tr></thead>" +
           "<tbody>" + stage.steps.map(function (step) { return renderStepRow(step, hqMode); }).join("") + "</tbody>" +
         "</table>" +
-      "</div>"
+      "</details>"
     );
   }
 

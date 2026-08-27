@@ -148,9 +148,28 @@
     });
   }
 
+  // Most existing coaches were never opted into the onboarding journey
+  // (it's opt-in, per coach - see start_onboarding on the Coach
+  // doctype), so the sidebar link is only worth showing to a coach who
+  // actually has a checklist. Franchisor-side nav keeps its own
+  // Onboarding link regardless, since that one is the overview across
+  // every coach, not tied to any single coach having steps.
+  async function hideOnboardingLinkIfUnused() {
+    if (window.location.pathname.indexOf("/coach_db/") !== 0) return;
+
+    const link = qs('.dashboard-nav a[href^="/coach_db/onboarding"]');
+    if (!link) return;
+
+    const data = await callApi("dashboard.api.shared.onboarding.coach_has_onboarding_steps", {});
+    if (data && !data.has_steps) {
+      link.style.display = "none";
+    }
+  }
+
   function init() {
     bindSidebarEvents();
     loadNotificationBadges();
+    hideOnboardingLinkIfUnused();
   }
 
   if (document.readyState === "loading") {
