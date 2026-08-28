@@ -161,7 +161,7 @@
     if (!link) return;
 
     const data = await callApi("dashboard.api.shared.onboarding.coach_has_onboarding_steps", {});
-    if (data && !data.has_steps) {
+    if (data && (!data.has_steps || data.all_done)) {
       link.style.display = "none";
     }
   }

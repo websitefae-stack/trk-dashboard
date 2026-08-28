@@ -660,6 +660,59 @@ def get_form_submission(doctype=None, name=None):
     }
 
 
+def _upsert_form_visibility_rule(doctype, visibility):
+    if frappe.db.exists("Form Visibility Rule", doctype):
+        frappe.db.set_value("Form Visibility Rule", doctype, "visibility", visibility)
+    else:
+        frappe.get_doc({
+            "doctype": "Form Visibility Rule",
+            "form_doctype": doctype,
+            "visibility": visibility,
+        }).insert(ignore_permissions=True)
+    frappe.db.commit()
+
+
+def sync_web_form_report_visibility(doc, method=None):
+    """
+    Web Form.on_update hook (see hooks.py) - lets "Show In Dashboard
+    Reports" / "Also Show To Coaches" on the Web Form itself (see
+    add_web_form_report_visibility_fields patch) drive the two things
+    that actually control Reports-section visibility, without whoever
+    built the form needing to know either exists:
+
+    - get_form_module_doctypes() only discovers a DocType whose Module is
+      "Forms" - ticking "Show In Dashboard Reports" sets that here.
+    - Form Visibility Rule's "visibility" then decides who: "Everyone" if
+      "Also Show To Coaches" is ticked too, "Franchisors Only" if not.
+
+    Unticking "Show In Dashboard Reports" sets the rule to "Hidden"
+    rather than reverting the DocType's Module - a straight revert could
+    fight whatever Module the DocType is meant to belong to for reasons
+    unrelated to this app, whereas "Hidden" already fully suppresses it
+    from the Form Results picker for everyone (see Form Visibility
+    Rule's own field description) and is just as reversible by ticking
+    the box again.
+    """
+    target = doc.get("doc_type")
+    if not target or not frappe.db.exists("DocType", target):
+        return
+
+    meta_row = frappe.db.get_value("DocType", target, ["istable", "issingle"], as_dict=True)
+    if not meta_row or meta_row.istable or meta_row.issingle:
+        return
+
+    if doc.get("custom_show_in_reports"):
+        if frappe.db.get_value("DocType", target, "module") != FORMS_MODULE:
+            frappe.db.set_value("DocType", target, "module", FORMS_MODULE)
+            frappe.clear_cache(doctype=target)
+
+        visibility = "Everyone" if doc.get("custom_show_on_coach_dashboard") else "Franchisors Only"
+        _upsert_form_visibility_rule(target, visibility)
+    else:
+        if frappe.db.exists("Form Visibility Rule", target):
+            _upsert_form_visibility_rule(target, "Hidden")
+
+
 def _client_display_name(client_name):
     if not client_name:
         return ""
