@@ -1105,6 +1105,19 @@
     }
   }
 
+  function coachRevenueCell(amount, coachValue, clientTypeValue, isStrong) {
+    var number = Number(amount || 0);
+    var text = formatMoney(number);
+    if (isStrong) text = "<strong>" + text + "</strong>";
+
+    if (!number) return "<td>" + text + "</td>";
+
+    return "<td><a href=\"#\" class=\"dashboard-inline-link coach-revenue-drilldown-link\""
+      + " data-coach=\"" + escapeHtml(coachValue) + "\""
+      + " data-client-type=\"" + escapeHtml(clientTypeValue) + "\">"
+      + text + "</a></td>";
+  }
+
   function renderCoachRevenueReport(data) {
     var empty = el("coachRevenueEmpty");
     var results = el("coachRevenueResults");
@@ -1118,6 +1131,8 @@
 
     coachRevenueState.client_types = clientTypes;
     coachRevenueState.rows = rows;
+
+    toggleDisplayEl("coachRevenueDrilldown", false);
 
     if (!rows.length) {
       empty.textContent = "No invoiced revenue found for this period.";
@@ -1134,19 +1149,71 @@
       + "<th>Total</th>";
 
     body.innerHTML = rows.map(function (row) {
+      var coachValue = row.coach || "";
       return "<tr>"
         + "<td>" + escapeHtml(row.coach_label || row.coach) + "</td>"
         + clientTypes.map(function (ct) {
-            return "<td>" + formatMoney((row.by_type || {})[ct]) + "</td>";
+            return coachRevenueCell((row.by_type || {})[ct], coachValue, ct, false);
           }).join("")
-        + "<td><strong>" + formatMoney(row.total) + "</strong></td>"
+        + coachRevenueCell(row.total, coachValue, "", true)
         + "</tr>";
     }).join("");
 
     var grandTotals = data.grand_totals || {};
+    var currentCoachFilter = (el("coachRevenueCoachSelect") || {}).value || "";
     totalsRow.innerHTML = "<td>All Coaches</td>"
-      + clientTypes.map(function (ct) { return "<td>" + formatMoney(grandTotals[ct]) + "</td>"; }).join("")
-      + "<td>" + formatMoney(data.grand_total) + "</td>";
+      + clientTypes.map(function (ct) { return coachRevenueCell(grandTotals[ct], currentCoachFilter, ct, false); }).join("")
+      + coachRevenueCell(data.grand_total, currentCoachFilter, "", true);
+  }
+
+  function renderCoachRevenueDrilldown(rows, title) {
+    var container = el("coachRevenueDrilldown");
+    var titleEl = el("coachRevenueDrilldownTitle");
+    var body = el("coachRevenueDrilldownBody");
+    if (!container || !titleEl || !body) return;
+
+    titleEl.textContent = title;
+
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="6"><div class="dashboard-empty">No invoices found.</div></td></tr>';
+    } else {
+      var baseUrl = dashboardBaseUrl();
+      body.innerHTML = rows.map(function (row) {
+        var detailUrl = baseUrl + "/invoice_details?name=" + encodeURIComponent(row.name);
+        return "<tr>"
+          + '<td><a href="' + escapeHtml(detailUrl) + '" target="_blank" rel="noopener">' + escapeHtml(row.name) + "</a></td>"
+          + "<td>" + escapeHtml(row.client_label || row.client || "—") + "</td>"
+          + "<td>" + escapeHtml(row.client_type || "—") + "</td>"
+          + "<td>" + formatDate(row.posting_date) + "</td>"
+          + "<td>" + escapeHtml(row.status || "—") + "</td>"
+          + "<td>" + formatMoney(row.net_amount) + "</td>"
+          + "</tr>";
+      }).join("");
+    }
+
+    container.style.display = "block";
+    container.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  async function loadCoachRevenueDrilldown(coachValue, clientTypeValue, coachLabel) {
+    var container = el("coachRevenueDrilldown");
+    if (container) container.style.display = "block";
+    renderCoachRevenueDrilldown([], "Loading...");
+
+    var title = (coachLabel || (coachValue ? coachValue : "All Coaches"))
+      + (clientTypeValue ? " - " + clientTypeValue : " - All Client Types");
+
+    try {
+      var args = coachRevenueFilterArgs();
+      args.coach = coachValue || "";
+      args.client_type = clientTypeValue || "";
+
+      var rows = await callApi("dashboard.api.shared.dashboard.get_coach_revenue_invoice_list", args);
+      renderCoachRevenueDrilldown(rows || [], title);
+    } catch (error) {
+      console.error("Coach revenue drilldown failed:", error);
+      window.alert(error.message || "Could not load invoices.");
+    }
   }
 
   function coachRevenueFilterArgs() {
@@ -1585,6 +1652,29 @@
     if (exportCoachRevenuePdfBtn) exportCoachRevenuePdfBtn.addEventListener("click", exportCoachRevenuePdf);
 
     if (el("coachRevenueCoachSelect") || el("coachRevenueClientTypeSelect")) loadCoachRevenueFilterOptions();
+
+    var coachRevenueTableWrap = el("coachRevenueResults");
+    if (coachRevenueTableWrap) {
+      coachRevenueTableWrap.addEventListener("click", function (event) {
+        var link = event.target.closest(".coach-revenue-drilldown-link");
+        if (!link) return;
+        event.preventDefault();
+
+        var coachValue = link.getAttribute("data-coach") || "";
+        var clientTypeValue = link.getAttribute("data-client-type") || "";
+        var coachRow = link.closest("tr");
+        var coachLabel = coachValue && coachRow ? (coachRow.querySelector("td").textContent || "").trim() : "";
+
+        loadCoachRevenueDrilldown(coachValue, clientTypeValue, coachLabel);
+      });
+    }
+
+    var closeCoachRevenueDrilldownBtn = el("closeCoachRevenueDrilldownBtn");
+    if (closeCoachRevenueDrilldownBtn) {
+      closeCoachRevenueDrilldownBtn.addEventListener("click", function () {
+        toggleDisplayEl("coachRevenueDrilldown", false);
+      });
+    }
 
     initFormsReportPicker();
     initCoachLogs();

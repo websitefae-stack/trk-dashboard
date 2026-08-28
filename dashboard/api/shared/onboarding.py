@@ -470,6 +470,10 @@ def _group_by_stage(rows):
             "notes": row.notes or "",
             "is_locked": _is_locked(row, done_step_names),
             "hidden_from_coach": bool(row.hidden_from_coach),
+            # Carried through so _append_step_to_stage can slot a dynamic
+            # step (e.g. Operations Manual) in among these by position
+            # rather than always at the very end of the stage.
+            "sort_order": row.sort_order or 0,
         }
 
         if stage not in stage_index:
@@ -653,6 +657,17 @@ def _dynamic_policies_stage(coach_name, view_as_coach=None):
 # Practice Document is ever recreated under a different ID.
 OPERATIONS_MANUAL_PRACTICE_DOCUMENT = "9006"
 
+# Operations Manual has no real Coach Onboarding Master Step row of its
+# own (it's built live from a Coach Document Requirement - see
+# _dynamic_operations_manual_step), so it has no natural "Sort Order
+# Within Stage" to compare against. Pinning it to this fixed, deliberately
+# high value lets any real Stage 3 step be placed after it just by giving
+# that step a Sort Order Within Stage higher than this - without needing
+# a real stage restructure. Real Stage 3 steps should stay well below
+# this (existing ones already are); anything wanting to land after
+# Operations Manual should use a value above it, e.g. 1001, 1002.
+OPERATIONS_MANUAL_SORT_ORDER = 1000
+
 
 def _dynamic_operations_manual_step(coach_name, view_as_coach=None):
     """
@@ -696,6 +711,7 @@ def _dynamic_operations_manual_step(coach_name, view_as_coach=None):
         "notes": "",
         "is_locked": False,
         "read_only": True,
+        "sort_order": OPERATIONS_MANUAL_SORT_ORDER,
     }
 
 
@@ -706,7 +722,17 @@ def _append_step_to_stage(stages, stage_number, step):
         except (IndexError, ValueError):
             continue
         if number == stage_number:
-            stage["steps"].append(step)
+            # Inserted by sort_order rather than blindly appended last -
+            # a real step in this stage with a higher Sort Order Within
+            # Stage than this dynamic step's own (see e.g.
+            # OPERATIONS_MANUAL_SORT_ORDER) lands after it, not before.
+            step_sort_order = step.get("sort_order", 0) or 0
+            insert_at = len(stage["steps"])
+            for index, existing in enumerate(stage["steps"]):
+                if (existing.get("sort_order", 0) or 0) > step_sort_order:
+                    insert_at = index
+                    break
+            stage["steps"].insert(insert_at, step)
             return
 
 

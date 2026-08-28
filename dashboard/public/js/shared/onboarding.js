@@ -140,7 +140,18 @@
       ? '<div class="dashboard-doc-list-meta">Hidden from coach - HQ only</div>'
       : "";
 
-    var goLink = (!step.is_locked && step.link_url)
+    // On the coach's own page, a Done step shows a single "View
+    // Completed" link (reusing the same link_url a "Go" would have used)
+    // instead of a separate Go button plus the raw completion date - the
+    // Status column already shows Done, so repeating that as a
+    // timestamp next to it was just noise, and showing both Go and a
+    // date for the same finished step read as two competing actions.
+    // HQ's drill-down is unchanged - Go plus the status dropdown both
+    // stay there, since HQ still needs to both jump to it and correct
+    // the status.
+    var coachSeesDone = !hqMode && step.status === "Done";
+
+    var goLink = (!step.is_locked && step.link_url && !coachSeesDone)
       ? '<a class="dashboard-btn dashboard-btn-light" href="' + escapeHtml(step.link_url) + '" target="_blank" rel="noopener noreferrer">Go</a>'
       : "";
 
@@ -167,14 +178,14 @@
         return '<option value="' + status + '"' + (status === step.status ? " selected" : "") + '>' + status + "</option>";
       }).join("");
       actionCell = '<select class="dashboard-select dashboard-onboarding-status-select" data-step="' + escapeHtml(step.name) + '">' + options + "</select>";
-    } else if (isLmsStep) {
-      actionCell = step.status === "Done"
-        ? '<span class="dashboard-doc-list-meta">' + escapeHtml(formatDateTime(step.completed_on)) + "</span>"
+    } else if (coachSeesDone) {
+      actionCell = (!step.is_locked && step.link_url)
+        ? '<a class="dashboard-btn dashboard-btn-light" href="' + escapeHtml(step.link_url) + '" target="_blank" rel="noopener noreferrer">View Completed</a>'
         : "";
-    } else if (step.owner_type === "Coach" && step.status !== "Done" && !step.is_locked) {
+    } else if (isLmsStep) {
+      actionCell = "";
+    } else if (step.owner_type === "Coach" && !step.is_locked) {
       actionCell = '<button type="button" class="dashboard-btn dashboard-btn-primary dashboard-onboarding-mark-done" data-step="' + escapeHtml(step.name) + '">Mark Done</button>';
-    } else if (step.status === "Done") {
-      actionCell = '<span class="dashboard-doc-list-meta">' + escapeHtml(formatDateTime(step.completed_on)) + "</span>";
     } else {
       actionCell = '<span class="dashboard-doc-list-meta">Owned by ' + escapeHtml(step.owner_type) + "</span>";
     }
