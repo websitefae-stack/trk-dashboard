@@ -61,18 +61,33 @@ def provision_onboarding_steps(doc, method=None):
         frappe.log_error(frappe.get_traceback(), f"Onboarding Provisioning Failed - {doc.name}")
 
 
-MASTER_STEP_LIVE_FIELDS = ["link_url", "lms_course", "lms_chapter", "lms_lesson_number", "hidden_from_coach"]
+MASTER_STEP_LIVE_FIELDS = [
+    "link_url", "lms_course", "lms_chapter", "lms_lesson_number", "hidden_from_coach",
+    # Structural fields, not descriptive text - who owns the step (which
+    # controls whether a coach even gets a Mark Done button, or just an
+    # "Owned by HQ" badge - see renderStepRow) and where it sits (Stage 3
+    # step reordering via Sort Order Within Stage, e.g. positioning
+    # something after Operations Manual, only actually works for a coach
+    # who already has the row if these travel with it too) need to stay
+    # current the same way link_url does. step_name/expected_result/
+    # where_it_happens deliberately stay out of this list - those remain
+    # a point-in-time snapshot of what a coach was actually told.
+    "owner_type", "stage", "stage_sort_order", "sort_order",
+]
 
 
 def sync_master_step_link_fields(doc, method=None):
     """
-    Coach Onboarding Master Step.on_update hook. link_url/lms_course/
-    lms_chapter/lms_lesson_number are "where do I go / how do I know
-    it's done" pointers, treated as always-current rather than a
-    point-in-time snapshot (unlike step_name/expected_result/etc, which
-    stay whatever a coach was actually told at the time) - so a change
-    here needs to reach every Coach Onboarding Step row already created
-    from this master step, not just coaches who start from now on.
+    Coach Onboarding Master Step.on_update hook. Every field in
+    MASTER_STEP_LIVE_FIELDS - "where do I go / how do I know it's done"
+    pointers, plus who owns the step and where it sits - is treated as
+    always-current rather than a point-in-time snapshot (unlike
+    step_name/expected_result/etc, which stay whatever a coach was
+    actually told at the time), so a change to any of them needs to
+    reach every Coach Onboarding Step row already created from this
+    master step, not just coaches who start from now on. Without this,
+    fixing an accidentally-wrong Owner (or Stage/Sort Order) on a master
+    step silently never reached anyone who already had that step.
 
     This runs on every save regardless of how it happened (a direct Desk
     edit, the franchisor Manage Step List screen, Data Import...) - it
