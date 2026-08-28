@@ -217,6 +217,10 @@ def _is_form_restricted_to_franchisors(doctype):
     return _form_visibility(doctype) == "Franchisors Only"
 
 
+def _is_form_restricted_to_coaches(doctype):
+    return _form_visibility(doctype) == "Coaches Only"
+
+
 def _is_form_hidden(doctype):
     return _form_visibility(doctype) == "Hidden"
 
@@ -230,8 +234,9 @@ def _form_doctype_meta(doctype):
     Form Visibility Rule here (not just in get_form_module_doctypes()'s
     picker) - every other function in this module (get_form_charts,
     get_form_report, get_form_submission, etc.) routes through this, so a
-    coach can't bypass a "Franchisors Only" rule just by calling the API
-    directly with the doctype name the UI never offered them.
+    coach can't bypass a "Franchisors Only" rule (or a franchisor bypass
+    a "Coaches Only" one) just by calling the API directly with the
+    doctype name the UI never offered them.
     """
     doctype = (doctype or "").strip()
     if not doctype:
@@ -245,7 +250,10 @@ def _form_doctype_meta(doctype):
     if _is_form_hidden(doctype):
         frappe.throw(_("Unknown form."))
 
-    if _is_form_restricted_to_franchisors(doctype) and not is_franchisor_user():
+    if is_franchisor_user():
+        if _is_form_restricted_to_coaches(doctype):
+            frappe.throw(_("You do not have permission to view this form."), frappe.PermissionError)
+    elif _is_form_restricted_to_franchisors(doctype):
         frappe.throw(_("You do not have permission to view this form."), frappe.PermissionError)
 
     return frappe.get_meta(doctype)
@@ -515,7 +523,9 @@ def get_form_module_doctypes():
 
     rows = [row for row in rows if not _is_form_hidden(row.name)]
 
-    if not is_franchisor_user():
+    if is_franchisor_user():
+        rows = [row for row in rows if not _is_form_restricted_to_coaches(row.name)]
+    else:
         rows = [row for row in rows if not _is_form_restricted_to_franchisors(row.name)]
 
     return [{"value": row.name, "label": row.name} for row in rows]
@@ -674,24 +684,24 @@ def _upsert_form_visibility_rule(doctype, visibility):
 
 def sync_web_form_report_visibility(doc, method=None):
     """
-    Web Form.on_update hook (see hooks.py) - lets "Show In Dashboard
-    Reports" / "Also Show To Coaches" on the Web Form itself (see
+    Web Form.on_update hook (see hooks.py) - lets "Show In Coach Reports"
+    / "Show In Franchisor Reports" on the Web Form itself (see
     add_web_form_report_visibility_fields patch) drive the two things
     that actually control Reports-section visibility, without whoever
     built the form needing to know either exists:
 
     - get_form_module_doctypes() only discovers a DocType whose Module is
-      "Forms" - ticking "Show In Dashboard Reports" sets that here.
-    - Form Visibility Rule's "visibility" then decides who: "Everyone" if
-      "Also Show To Coaches" is ticked too, "Franchisors Only" if not.
+      "Forms" - ticking either box sets that here.
+    - Form Visibility Rule's "visibility" then decides who, from the two
+      boxes: both ticked -> "Everyone", coach only -> "Coaches Only",
+      franchisor only -> "Franchisors Only".
 
-    Unticking "Show In Dashboard Reports" sets the rule to "Hidden"
-    rather than reverting the DocType's Module - a straight revert could
-    fight whatever Module the DocType is meant to belong to for reasons
-    unrelated to this app, whereas "Hidden" already fully suppresses it
-    from the Form Results picker for everyone (see Form Visibility
-    Rule's own field description) and is just as reversible by ticking
-    the box again.
+    Unticking both sets the rule to "Hidden" rather than reverting the
+    DocType's Module - a straight revert could fight whatever Module the
+    DocType is meant to belong to for reasons unrelated to this app,
+    whereas "Hidden" already fully suppresses it from the Form Results
+    picker for everyone (see Form Visibility Rule's own field
+    description) and is just as reversible by ticking a box again.
     """
     target = doc.get("doc_type")
     if not target or not frappe.db.exists("DocType", target):
@@ -701,16 +711,26 @@ def sync_web_form_report_visibility(doc, method=None):
     if not meta_row or meta_row.istable or meta_row.issingle:
         return
 
-    if doc.get("custom_show_in_reports"):
-        if frappe.db.get_value("DocType", target, "module") != FORMS_MODULE:
-            frappe.db.set_value("DocType", target, "module", FORMS_MODULE)
-            frappe.clear_cache(doctype=target)
+    show_coach = bool(doc.get("custom_show_in_coach_reports"))
+    show_franchisor = bool(doc.get("custom_show_in_franchisor_reports"))
 
-        visibility = "Everyone" if doc.get("custom_show_on_coach_dashboard") else "Franchisors Only"
-        _upsert_form_visibility_rule(target, visibility)
-    else:
+    if not show_coach and not show_franchisor:
         if frappe.db.exists("Form Visibility Rule", target):
             _upsert_form_visibility_rule(target, "Hidden")
+        return
+
+    if frappe.db.get_value("DocType", target, "module") != FORMS_MODULE:
+        frappe.db.set_value("DocType", target, "module", FORMS_MODULE)
+        frappe.clear_cache(doctype=target)
+
+    if show_coach and show_franchisor:
+        visibility = "Everyone"
+    elif show_coach:
+        visibility = "Coaches Only"
+    else:
+        visibility = "Franchisors Only"
+
+    _upsert_form_visibility_rule(target, visibility)
 
 
 def _client_display_name(client_name):

@@ -46,3 +46,4 @@ def get_context(context):
     context.indemnity_rows = profile_context["indemnity_rows"]
 
     context.has_secret_key = coach_has_secret_key(coach.name)
+    context.expired_legal_items = []

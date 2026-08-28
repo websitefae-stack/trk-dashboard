@@ -613,6 +613,12 @@ def is_profile_page_for_dashboard(dashboard_type):
     return False
 
 
+def profile_url_for_dashboard(dashboard_type):
+    if dashboard_type == "session_worker":
+        return "/session_worker_db/profile"
+    return "/coach_db/profile"
+
+
 def enforce_legal_compliance(dashboard_type):
     if dashboard_type == "franchisor":
         return
@@ -634,15 +640,17 @@ def enforce_legal_compliance(dashboard_type):
     if is_profile_page_for_dashboard(dashboard_type):
         return
 
-    expired_text = ", ".join([
-        "{0} expired on {1}".format(item["label"], item["expiry_date"])
-        for item in expired_items
-    ])
-
-    frappe.throw(
-        _("Your dashboard access is blocked because legal document(s) have expired: {0}. Please update your profile.").format(expired_text),
-        frappe.PermissionError,
-    )
+    # Used to be a hard frappe.throw(PermissionError) here, which rendered
+    # Frappe's generic website "Not Permitted" error page - no sidebar, no
+    # working way back in, just a "Login" button that's meaningless to
+    # someone who's already logged in. Redirecting to their own Profile
+    # page instead means they land somewhere they can actually fix the
+    # problem - the DBS/Insurance/Indemnity upload sections live right
+    # there (see profile_body.html) - and since this same check runs at
+    # the top of every other page's get_context too, trying to navigate
+    # anywhere else just bounces them straight back here until they do.
+    frappe.local.flags.redirect_location = profile_url_for_dashboard(dashboard_type) + "?legal_expired=1"
+    raise frappe.Redirect
 
 
 # -------------------------------------------------------------------

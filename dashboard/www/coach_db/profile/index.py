@@ -1,7 +1,7 @@
 import frappe
 from frappe import _
 
-from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
+from dashboard.api.shared.permissions import redirect_if_wrong_dashboard, get_expired_legal_items
 from dashboard.api.shared.profile import (
     get_profile_context,
     get_profile_display_name,
@@ -62,6 +62,7 @@ def get_context(context):
 
         context.has_secret_key = coach_has_secret_key(coach.name)
         context.login_links = get_coach_login_links(coach)
+        context.expired_legal_items = []
 
     else:
         redirect_if_wrong_dashboard("coach")
@@ -85,3 +86,4 @@ def get_context(context):
 
         context.has_secret_key = coach_has_secret_key(coach.name)
         context.login_links = get_coach_login_links(coach)
+        context.expired_legal_items = get_expired_legal_items(coach, "coach")

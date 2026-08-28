@@ -5,6 +5,7 @@ from dashboard.api.shared.profile import (
     get_profile_context,
     get_profile_display_name,
 )
+from dashboard.api.shared.permissions import get_expired_legal_items
 from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
 
 
@@ -56,6 +57,7 @@ def get_context(context):
         context.dbs_update_service_rows = session_worker.get("dbs_update_service") or []
         context.insurance_rows = session_worker.get("insurance") or []
         context.indemnity_rows = session_worker.get("indemnity") or []
+        context.expired_legal_items = []
 
     else:
         profile_context = get_profile_context("session_worker")
@@ -74,6 +76,7 @@ def get_context(context):
         context.dbs_update_service_rows = profile_context["dbs_update_service_rows"]
         context.insurance_rows = profile_context["insurance_rows"]
         context.indemnity_rows = profile_context["indemnity_rows"]
+        context.expired_legal_items = get_expired_legal_items(session_worker, "session_worker")
 
     context.linked_coaches = []
 

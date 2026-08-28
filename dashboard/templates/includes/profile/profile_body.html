@@ -46,6 +46,23 @@
         </div>
       {% endif %}
 
+      {% if expired_legal_items %}
+        <div class="dashboard-card" style="background:#ac455c; color:#ffffff; border:none; margin-bottom:18px;">
+          <strong>Action needed - your dashboard is restricted to this page until this is fixed:</strong>
+
+          <ul style="margin:8px 0 0 20px; padding:0;">
+            {% for item in expired_legal_items %}
+              <li>{{ item.label }} expired on {{ frappe.utils.formatdate(item.expiry_date, "dd-MM-yyyy") }}</li>
+            {% endfor %}
+          </ul>
+
+          <div style="margin-top:10px;">
+            Upload an updated document under the "Legal Details" tab below - the rest of your dashboard will
+            unlock automatically as soon as it's on file.
+          </div>
+        </div>
+      {% endif %}
+
       <div class="dashboard-page-header">
         <div>
           <h1 class="dashboard-page-title">My Profile</h1>
