@@ -1026,13 +1026,32 @@ def _get_invoice_revenue_breakdown(dashboard_type, context, start_date, end_date
 
 
 @frappe.whitelist()
-def get_coach_revenue_by_client_type_report(from_date=None, to_date=None):
+def get_coach_revenue_report_filters():
+    """Coach and Client Type dropdown options for the report's filter row."""
+    from dashboard.api.shared.permissions import is_franchisor_user
+    from dashboard.api.shared.clients import get_client_types
+    from dashboard.api.shared.invoices import _get_coach_options
+
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to view this."), frappe.PermissionError)
+
+    return {
+        "coach_options": _get_coach_options(),
+        "client_type_options": get_client_types(),
+    }
+
+
+@frappe.whitelist()
+def get_coach_revenue_by_client_type_report(from_date=None, to_date=None, coach=None, client_type=None):
     """
     Franchisor-only report: every coach's invoiced revenue, broken down by
     each individual Client Type (Kid, Teen, Uni Student, School, Adult,
     Company, Franchise - whatever get_client_types() actually returns, so
     a new Client Type just shows up here with no code change needed) over
-    an optional date range.
+    an optional date range. Optionally narrowed to one coach and/or one
+    Client Type - the column list (and each row's total) only ever
+    reflects what's actually being shown, so filtering to "Kid" makes the
+    Total column equal the Kid column rather than staying the all-types sum.
 
     Reuses _get_invoice_filters() with COACH_DASHBOARD/coach_name - the
     exact same "which invoices belong to this coach" logic every other
@@ -1049,17 +1068,22 @@ def get_coach_revenue_by_client_type_report(from_date=None, to_date=None):
     if not is_franchisor_user():
         frappe.throw(_("You do not have permission to view this."), frappe.PermissionError)
 
-    client_types = get_client_types()
-    coaches = frappe.get_all("Coach", fields=["name", "coach_name"], order_by="coach_name asc")
+    coach_filter = (coach or "").strip()
+    client_type_filter = (client_type or "").strip()
+
+    client_types = [client_type_filter] if client_type_filter else get_client_types()
+
+    coach_where = {"name": coach_filter} if coach_filter else {}
+    coaches = frappe.get_all("Coach", filters=coach_where, fields=["name", "coach_name"], order_by="coach_name asc")
 
     rows = []
-    grand_totals = {client_type: 0.0 for client_type in client_types}
+    grand_totals = {ct: 0.0 for ct in client_types}
     grand_total = 0.0
 
-    for coach in coaches:
+    for coach_row in coaches:
         filters = _get_invoice_filters(
             dashboard_type=COACH_DASHBOARD,
-            context={"coach_name": coach.name},
+            context={"coach_name": coach_row.name},
             start_date=from_date,
             end_date=to_date,
             outstanding_only=False,
@@ -1101,29 +1125,37 @@ def get_coach_revenue_by_client_type_report(from_date=None, to_date=None):
             parent = item_row.get("parent")
             travel_by_invoice[parent] = travel_by_invoice.get(parent, 0.0) + flt(item_row.get("amount") or 0)
 
-        by_type = {client_type: 0.0 for client_type in client_types}
+        by_type = {ct: 0.0 for ct in client_types}
         coach_total = 0.0
 
         for invoice in invoices:
+            resolved_client_type = client_type_by_client.get(invoice.get("custom_client"), "") or "Unspecified"
+
+            # Filtered to one Client Type - any invoice for a different
+            # one is excluded entirely, not just left out of the column
+            # total, so the Total column matches the single column shown
+            # rather than staying the all-types sum.
+            if client_type_filter and resolved_client_type != client_type_filter:
+                continue
+
             amount = flt(invoice.get("grand_total") or invoice.get("rounded_total") or 0)
             travel_amount = travel_by_invoice.get(invoice.get("name"), 0.0)
             net_amount = amount - travel_amount
 
-            client_type = client_type_by_client.get(invoice.get("custom_client"), "") or "Unspecified"
-            by_type.setdefault(client_type, 0.0)
-            by_type[client_type] += net_amount
+            by_type.setdefault(resolved_client_type, 0.0)
+            by_type[resolved_client_type] += net_amount
             coach_total += net_amount
 
         if not coach_total and all(not v for v in by_type.values()):
             continue
 
-        for client_type, amount in by_type.items():
-            grand_totals[client_type] = grand_totals.get(client_type, 0.0) + amount
+        for ct, amount in by_type.items():
+            grand_totals[ct] = grand_totals.get(ct, 0.0) + amount
         grand_total += coach_total
 
         rows.append({
-            "coach": coach.name,
-            "coach_label": coach.coach_name or coach.name,
+            "coach": coach_row.name,
+            "coach_label": coach_row.coach_name or coach_row.name,
             "by_type": by_type,
             "total": coach_total,
         })
@@ -1132,18 +1164,21 @@ def get_coach_revenue_by_client_type_report(from_date=None, to_date=None):
     # not one of get_client_types()'s own options, so it's folded into the
     # column list here (and backfilled onto every row/grand total) rather
     # than only existing on whichever coach happened to hit it first.
+    # Never happens when filtered to one Client Type - that column list is
+    # deliberately pinned to just the one selected.
     all_client_types = list(client_types)
-    for row in rows:
-        for client_type in row["by_type"]:
-            if client_type not in all_client_types:
-                all_client_types.append(client_type)
+    if not client_type_filter:
+        for row in rows:
+            for ct in row["by_type"]:
+                if ct not in all_client_types:
+                    all_client_types.append(ct)
 
     for row in rows:
-        for client_type in all_client_types:
-            row["by_type"].setdefault(client_type, 0.0)
+        for ct in all_client_types:
+            row["by_type"].setdefault(ct, 0.0)
 
-    for client_type in all_client_types:
-        grand_totals.setdefault(client_type, 0.0)
+    for ct in all_client_types:
+        grand_totals.setdefault(ct, 0.0)
 
     return {
         "client_types": all_client_types,
@@ -1151,6 +1186,69 @@ def get_coach_revenue_by_client_type_report(from_date=None, to_date=None):
         "grand_totals": grand_totals,
         "grand_total": grand_total,
     }
+
+
+@frappe.whitelist()
+def export_coach_revenue_by_client_type_report_pdf(from_date=None, to_date=None, coach=None, client_type=None):
+    """
+    Same figures as get_coach_revenue_by_client_type_report(), as a
+    printable PDF rather than JSON - the CSV export covers the
+    spreadsheet case, this covers "hand a printable/emailable copy to
+    someone" (same duality as client_details.export_client_notes_pdf).
+    Calls the report function directly rather than re-querying, so the
+    two can never drift apart on what counts as revenue.
+    """
+    from frappe.utils.pdf import get_pdf
+
+    data = get_coach_revenue_by_client_type_report(
+        from_date=from_date, to_date=to_date, coach=coach, client_type=client_type
+    )
+
+    client_types = data["client_types"]
+    rows = data["rows"]
+
+    def money(value):
+        return "£{:,.2f}".format(flt(value or 0))
+
+    period = ""
+    if from_date and to_date:
+        period = " ({0} to {1})".format(from_date, to_date)
+    elif from_date:
+        period = " (from {0})".format(from_date)
+    elif to_date:
+        period = " (to {0})".format(to_date)
+
+    header_cells = "".join(f"<th>{frappe.utils.escape_html(ct)}</th>" for ct in client_types)
+
+    body_rows = "".join(
+        "<tr>"
+        f"<td>{frappe.utils.escape_html(row['coach_label'])}</td>"
+        + "".join(f"<td>{money(row['by_type'].get(ct))}</td>" for ct in client_types)
+        + f"<td><strong>{money(row['total'])}</strong></td>"
+        "</tr>"
+        for row in rows
+    ) or f'<tr><td colspan="{len(client_types) + 2}">No invoiced revenue found for this period.</td></tr>'
+
+    totals_row = (
+        "<tr style='font-weight:700;'><td>All Coaches</td>"
+        + "".join(f"<td>{money(data['grand_totals'].get(ct))}</td>" for ct in client_types)
+        + f"<td>{money(data['grand_total'])}</td></tr>"
+    )
+
+    html = f"""
+        <h2>Coach Revenue by Client Type{period}</h2>
+        <table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;width:100%;">
+            <thead>
+                <tr><th>Coach</th>{header_cells}<th>Total</th></tr>
+            </thead>
+            <tbody>{body_rows}</tbody>
+            <tfoot>{totals_row if rows else ""}</tfoot>
+        </table>
+    """
+
+    frappe.local.response.filename = "Coach Revenue by Client Type.pdf"
+    frappe.local.response.filecontent = get_pdf(html)
+    frappe.local.response.type = "download"
 
 
 MARKETING_FEE_RATE = 0.02

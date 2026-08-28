@@ -11,6 +11,20 @@
 
   <div class="trk-calendar-form-row">
     <div class="trk-calendar-field">
+      <label for="coachRevenueCoachSelect">Coach</label>
+      <select id="coachRevenueCoachSelect" class="dashboard-select">
+        <option value="">All Coaches</option>
+      </select>
+    </div>
+
+    <div class="trk-calendar-field">
+      <label for="coachRevenueClientTypeSelect">Client Type</label>
+      <select id="coachRevenueClientTypeSelect" class="dashboard-select">
+        <option value="">All Client Types</option>
+      </select>
+    </div>
+
+    <div class="trk-calendar-field">
       <label for="coachRevenueFromDate">From</label>
       <input type="date" id="coachRevenueFromDate" class="dashboard-input">
     </div>
@@ -24,6 +38,7 @@
   <div class="dashboard-detail-actions" style="margin: 14px 0 18px;">
     <button type="button" class="dashboard-btn dashboard-btn-primary" id="runCoachRevenueReportBtn">Run Report</button>
     <button type="button" class="dashboard-btn dashboard-btn-light" id="exportCoachRevenueReportBtn" style="display:none;">Export to Excel</button>
+    <button type="button" class="dashboard-btn dashboard-btn-light" id="exportCoachRevenuePdfBtn" style="display:none;">Download PDF</button>
   </div>
 
   <div id="coachRevenueEmpty" class="dashboard-empty">Run the report to see results.</div>

@@ -1149,22 +1149,60 @@
       + "<td>" + formatMoney(data.grand_total) + "</td>";
   }
 
+  function coachRevenueFilterArgs() {
+    return {
+      from_date: (el("coachRevenueFromDate") || {}).value || "",
+      to_date: (el("coachRevenueToDate") || {}).value || "",
+      coach: (el("coachRevenueCoachSelect") || {}).value || "",
+      client_type: (el("coachRevenueClientTypeSelect") || {}).value || ""
+    };
+  }
+
+  async function loadCoachRevenueFilterOptions() {
+    var coachSelect = el("coachRevenueCoachSelect");
+    var clientTypeSelect = el("coachRevenueClientTypeSelect");
+    if (!coachSelect && !clientTypeSelect) return;
+
+    try {
+      var data = await callApi("dashboard.api.shared.dashboard.get_coach_revenue_report_filters", {});
+
+      (data.coach_options || []).forEach(function (opt) {
+        if (!coachSelect) return;
+        var optionEl = document.createElement("option");
+        optionEl.value = opt.value;
+        optionEl.textContent = opt.label;
+        coachSelect.appendChild(optionEl);
+      });
+
+      (data.client_type_options || []).forEach(function (ct) {
+        if (!clientTypeSelect) return;
+        var optionEl = document.createElement("option");
+        optionEl.value = ct;
+        optionEl.textContent = ct;
+        clientTypeSelect.appendChild(optionEl);
+      });
+    } catch (error) {
+      console.error("Coach revenue filter options failed:", error);
+    }
+  }
+
   async function runCoachRevenueReport() {
     var btn = el("runCoachRevenueReportBtn");
     if (btn) { btn.disabled = true; btn.textContent = "Running..."; }
 
-    var fromDate = (el("coachRevenueFromDate") || {}).value || "";
-    var toDate = (el("coachRevenueToDate") || {}).value || "";
-
     try {
-      var data = await callApi("dashboard.api.shared.dashboard.get_coach_revenue_by_client_type_report", {
-        from_date: fromDate,
-        to_date: toDate
-      });
+      var data = await callApi(
+        "dashboard.api.shared.dashboard.get_coach_revenue_by_client_type_report",
+        coachRevenueFilterArgs()
+      );
       renderCoachRevenueReport(data);
 
+      var hasRows = (data.rows || []).length > 0;
       var exportBtn = el("exportCoachRevenueReportBtn");
-      if (exportBtn) exportBtn.style.display = (data.rows || []).length ? "" : "none";
+      if (exportBtn) exportBtn.style.display = hasRows ? "" : "none";
+
+      var pdfBtn = el("exportCoachRevenuePdfBtn");
+      if (pdfBtn) pdfBtn.style.display = hasRows ? "" : "none";
     } catch (error) {
       console.error("Coach revenue report failed:", error);
       window.alert(error.message || "Could not run the report.");
@@ -1183,6 +1221,43 @@
     ]);
 
     exportRowsToCsv("coach-revenue-by-client-type.csv", columns, coachRevenueState.rows);
+  }
+
+  async function exportCoachRevenuePdf() {
+    var btn = el("exportCoachRevenuePdfBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Generating..."; }
+
+    try {
+      var response = await fetch(
+        "/api/method/dashboard.api.shared.dashboard.export_coach_revenue_by_client_type_report_pdf",
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Frappe-CSRF-Token": getCsrfToken()
+          },
+          body: JSON.stringify(coachRevenueFilterArgs())
+        }
+      );
+
+      if (!response.ok) throw new Error("Could not generate PDF.");
+
+      var blob = await response.blob();
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement("a");
+      link.href = url;
+      link.download = "coach-revenue-by-client-type.pdf";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Coach revenue PDF export failed:", error);
+      window.alert(error.message || "Could not download the PDF.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Download PDF"; }
+    }
   }
 
   var coachLogState = { mileage: [], training: [] };
@@ -1505,6 +1580,11 @@
 
     var exportCoachRevenueBtn = el("exportCoachRevenueReportBtn");
     if (exportCoachRevenueBtn) exportCoachRevenueBtn.addEventListener("click", exportCoachRevenueReport);
+
+    var exportCoachRevenuePdfBtn = el("exportCoachRevenuePdfBtn");
+    if (exportCoachRevenuePdfBtn) exportCoachRevenuePdfBtn.addEventListener("click", exportCoachRevenuePdf);
+
+    if (el("coachRevenueCoachSelect") || el("coachRevenueClientTypeSelect")) loadCoachRevenueFilterOptions();
 
     initFormsReportPicker();
     initCoachLogs();
