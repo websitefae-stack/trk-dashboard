@@ -155,6 +155,17 @@ doc_events = {
             # already onboarding - see onboarding.sync_master_step_active_state.
             "dashboard.api.shared.onboarding.sync_master_step_active_state",
         ],
+        # Deleting the master step outright (not just unticking Active)
+        # used to leave every coach's own row for it stranded, silently
+        # inflating total_steps forever after - see
+        # onboarding.remove_coach_steps_on_master_step_delete.
+        "on_trash": "dashboard.api.shared.onboarding.remove_coach_steps_on_master_step_delete",
+    },
+    # Frappe Learning is a separate app - this doesn't touch its own
+    # controller, Frappe runs every registered app's hooks for a
+    # doctype alongside its own. See lms_certificates.py.
+    "LMS Certificate": {
+        "validate": "dashboard.api.shared.lms_certificates.block_certificate_before_course_complete",
     },
 }
 

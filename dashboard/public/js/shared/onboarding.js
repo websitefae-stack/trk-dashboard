@@ -272,6 +272,19 @@
     if (showCompletedRow) showCompletedRow.style.display = data.done_steps > 0 ? "flex" : "none";
   }
 
+  // onChange re-fetches and rebuilds the whole stage list from scratch
+  // (innerHTML swap, not a targeted DOM patch), which otherwise resets
+  // scroll to the top every single time - irritating on a long list
+  // where marking something done meant scrolling all the way back down
+  // to find where you were. Recording the scroll position immediately
+  // before the rebuild and reapplying it right after keeps you exactly
+  // where you were working.
+  async function runChangeKeepingScroll(onChange) {
+    var scrollY = window.scrollY;
+    await onChange();
+    window.scrollTo(0, scrollY);
+  }
+
   function bindStepActions(container, onChange) {
     container.querySelectorAll(".dashboard-onboarding-mark-done").forEach(function (btn) {
       btn.addEventListener("click", async function () {
@@ -279,7 +292,7 @@
         btn.textContent = "Saving...";
         try {
           await apiPost(API + ".mark_step_done", { step_name: btn.dataset.step });
-          onChange();
+          await runChangeKeepingScroll(onChange);
         } catch (error) {
           window.alert(error.message || "Could not update this step.");
           btn.disabled = false;
@@ -293,7 +306,7 @@
         select.disabled = true;
         try {
           await apiPost(API + ".mark_step_done_for_coach", { step_name: select.dataset.step, status: select.value });
-          onChange();
+          await runChangeKeepingScroll(onChange);
         } catch (error) {
           window.alert(error.message || "Could not update this step.");
         } finally {

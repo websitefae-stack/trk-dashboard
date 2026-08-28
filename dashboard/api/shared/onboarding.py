@@ -119,6 +119,26 @@ def sync_master_step_active_state(doc, method=None):
         frappe.log_error(frappe.get_traceback(), f"Master Step Active State Sync Failed - {doc.name}")
 
 
+def remove_coach_steps_on_master_step_delete(doc, method=None):
+    """
+    Coach Onboarding Master Step.on_trash hook - deleting the master step
+    outright (rather than unticking Active first) used to leave every
+    coach's own Coach Onboarding Step row for it stranded, pointing at a
+    master step that no longer exists. Those orphaned rows still counted
+    towards total_steps in get_my_onboarding_steps, which is why "how
+    many steps are there" could silently drift from the real current
+    list after a Desk cleanup. Same treatment as unticking Active.
+    """
+    if not frappe.db.exists("DocType", COACH_ONBOARDING_STEP_DOCTYPE):
+        return
+
+    try:
+        frappe.db.delete(COACH_ONBOARDING_STEP_DOCTYPE, {"onboarding_step": doc.name})
+        frappe.db.commit()
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Master Step Delete Cleanup Failed - {doc.name}")
+
+
 def _add_master_step_to_existing_coaches(doc):
     if not doc.stage:
         return
@@ -464,15 +484,25 @@ def _group_by_stage(rows):
 @frappe.whitelist()
 def coach_has_onboarding_steps():
     """
-    Cheap check for the sidebar - a coach who was never opted into the
-    onboarding journey (most existing coaches) shouldn't see the
-    Onboarding link at all, only coaches who actually have a checklist.
+    Sidebar check - a coach who was never opted into the onboarding
+    journey (most existing coaches) shouldn't see the Onboarding link at
+    all, and one who's fully finished it shouldn't either (all_done) -
+    the link disappearing is itself the "you're done" signal, nothing
+    left to keep checking back on. The franchisor's own overview/drill-
+    down keeps showing a completed coach regardless - this only ever
+    hides the coach's own sidebar link.
     """
     coach_name = get_current_coach_name(optional=True)
     if not coach_name:
-        return {"has_steps": False}
+        return {"has_steps": False, "all_done": False}
 
-    return {"has_steps": bool(frappe.db.exists(COACH_ONBOARDING_STEP_DOCTYPE, {"coach": coach_name}))}
+    if not frappe.db.exists(COACH_ONBOARDING_STEP_DOCTYPE, {"coach": coach_name}):
+        return {"has_steps": False, "all_done": False}
+
+    progress = get_my_onboarding_steps()
+    all_done = bool(progress["total_steps"]) and progress["done_steps"] >= progress["total_steps"]
+
+    return {"has_steps": True, "all_done": all_done}
 
 
 @frappe.whitelist()
