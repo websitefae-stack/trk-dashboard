@@ -9,6 +9,7 @@
  "field_order": [
   "step_name",
   "is_active",
+  "hidden_from_coach",
   "column_break_active",
   "owner_type",
   "column_break_stage",
@@ -40,6 +41,14 @@
    "in_list_view": 1,
    "label": "Active",
    "description": "Unticking retires this step without deleting it or the history of coaches who already completed it - it just stops being created for anyone newly starting onboarding."
+  },
+  {
+   "default": "0",
+   "fieldname": "hidden_from_coach",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Hidden From Coach",
+   "description": "An HQ-only task the coach never sees on their own onboarding page at all - not even as a locked/greyed-out row. Still shows in the franchisor drill-down so HQ can track and complete it."
   },
   {
    "fieldname": "column_break_active",

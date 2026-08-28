@@ -15,6 +15,7 @@
   "step_name",
   "stage",
   "owner_type",
+  "hidden_from_coach",
   "column_break_step_details",
   "stage_sort_order",
   "sort_order",
@@ -89,6 +90,13 @@
    "fieldtype": "Select",
    "label": "Owner",
    "options": "Coach\nHQ",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.hidden_from_coach",
+   "fieldname": "hidden_from_coach",
+   "fieldtype": "Check",
+   "label": "Hidden From Coach",
    "read_only": 1
   },
   {

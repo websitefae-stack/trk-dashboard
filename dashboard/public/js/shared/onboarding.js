@@ -131,6 +131,15 @@
       ? '<div class="dashboard-doc-list-meta">Unlocks once an earlier step is done</div>'
       : "";
 
+    // Only ever reaches this row function at all in hqMode - the coach's
+    // own page never receives a hidden_from_coach row in the first place
+    // (filtered server-side, see get_my_onboarding_steps) - so this note
+    // is purely to tell HQ why a task in their own drill-down won't show
+    // up on the coach's side.
+    var hiddenNote = (hqMode && step.hidden_from_coach)
+      ? '<div class="dashboard-doc-list-meta">Hidden from coach - HQ only</div>'
+      : "";
+
     var goLink = (!step.is_locked && step.link_url)
       ? '<a class="dashboard-btn dashboard-btn-light" href="' + escapeHtml(step.link_url) + '" target="_blank" rel="noopener noreferrer">Go</a>'
       : "";
@@ -176,6 +185,7 @@
           '<div class="dashboard-doc-list-title">' + escapeHtml(step.step_name) + "</div>" +
           (step.expected_result ? '<div class="dashboard-doc-list-meta">' + escapeHtml(step.expected_result) + "</div>" : "") +
           lockedNote +
+          hiddenNote +
         "</td>" +
         "<td>" + escapeHtml(step.owner_type) + "</td>" +
         "<td><span class=\"dashboard-badge " + (STATUS_CLASS[step.status] || "") + "\">" + escapeHtml(step.is_locked ? "Locked" : step.status) + "</span></td>" +
