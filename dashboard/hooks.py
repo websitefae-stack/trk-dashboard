@@ -142,7 +142,13 @@ doc_events = {
     # ANY save path (a direct Desk edit, not just the franchisor Manage
     # Step List screen). See onboarding.sync_master_step_link_fields.
     "Coach Onboarding Master Step": {
-        "on_update": "dashboard.api.shared.onboarding.sync_master_step_link_fields",
+        "on_update": [
+            "dashboard.api.shared.onboarding.sync_master_step_link_fields",
+            # Unticking Active removes this step from every coach's
+            # checklist outright, re-ticking adds it back onto everyone
+            # already onboarding - see onboarding.sync_master_step_active_state.
+            "dashboard.api.shared.onboarding.sync_master_step_active_state",
+        ],
     },
 }
 
