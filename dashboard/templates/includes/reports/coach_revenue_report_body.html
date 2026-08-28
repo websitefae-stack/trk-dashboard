@@ -1,0 +1,59 @@
+<div class="dashboard-card">
+  <div class="dashboard-detail-section-head">
+    <h2 class="dashboard-detail-section-title">Coach Revenue by Client Type</h2>
+  </div>
+
+  <p class="dashboard-help" style="margin-bottom:16px;">
+    Every coach's invoiced revenue for the period, split by Client Type (Kid, Teen, Uni Student, School,
+    Adult, etc.) - travel is netted out, so a coach's row total here matches the "Client" revenue figure
+    they see on their own dashboard.
+  </p>
+
+  <div class="trk-calendar-form-row">
+    <div class="trk-calendar-field">
+      <label for="coachRevenueCoachSelect">Coach</label>
+      <select id="coachRevenueCoachSelect" class="dashboard-select">
+        <option value="">All Coaches</option>
+      </select>
+    </div>
+
+    <div class="trk-calendar-field">
+      <label for="coachRevenueClientTypeSelect">Client Type</label>
+      <select id="coachRevenueClientTypeSelect" class="dashboard-select">
+        <option value="">All Client Types</option>
+      </select>
+    </div>
+
+    <div class="trk-calendar-field">
+      <label for="coachRevenueFromDate">From</label>
+      <input type="date" id="coachRevenueFromDate" class="dashboard-input">
+    </div>
+
+    <div class="trk-calendar-field">
+      <label for="coachRevenueToDate">To</label>
+      <input type="date" id="coachRevenueToDate" class="dashboard-input">
+    </div>
+  </div>
+
+  <div class="dashboard-detail-actions" style="margin: 14px 0 18px;">
+    <button type="button" class="dashboard-btn dashboard-btn-primary" id="runCoachRevenueReportBtn">Run Report</button>
+    <button type="button" class="dashboard-btn dashboard-btn-light" id="exportCoachRevenueReportBtn" style="display:none;">Export to Excel</button>
+    <button type="button" class="dashboard-btn dashboard-btn-light" id="exportCoachRevenuePdfBtn" style="display:none;">Download PDF</button>
+  </div>
+
+  <div id="coachRevenueEmpty" class="dashboard-empty">Run the report to see results.</div>
+
+  <div class="dashboard-table-wrap" id="coachRevenueResults" style="display:none;">
+    <table class="dashboard-table dashboard-table-compact">
+      <thead>
+        <tr id="coachRevenueHeaderRow">
+          <th>Coach</th>
+        </tr>
+      </thead>
+      <tbody id="coachRevenueTableBody"></tbody>
+      <tfoot>
+        <tr id="coachRevenueTotalsRow" style="font-weight:700;"></tr>
+      </tfoot>
+    </table>
+  </div>
+</div>

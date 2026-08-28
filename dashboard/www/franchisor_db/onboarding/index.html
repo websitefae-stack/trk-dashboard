@@ -35,20 +35,40 @@
         <div id="onboardingStepManagerContent"></div>
       </div>
 
-      <div class="dashboard-card" id="onboardingOverviewTable">
-        <table class="dashboard-table dashboard-doc-list-table">
-          <thead>
-            <tr>
-              <th>Coach</th>
-              <th>Current Stage</th>
-              <th>Progress</th>
-              <th>Waiting on HQ</th>
-            </tr>
-          </thead>
-          <tbody id="onboardingOverviewBody">
-            <tr><td colspan="4"><div class="dashboard-empty">Loading...</div></td></tr>
-          </tbody>
-        </table>
+      <div id="onboardingOverviewTable">
+        <h2 class="dashboard-detail-section-title">Still Onboarding</h2>
+        <div class="dashboard-card" style="margin-bottom:24px;">
+          <table class="dashboard-table dashboard-doc-list-table">
+            <thead>
+              <tr>
+                <th>Coach</th>
+                <th>Current Stage</th>
+                <th>Progress</th>
+                <th>Waiting on HQ</th>
+              </tr>
+            </thead>
+            <tbody id="onboardingOverviewBody">
+              <tr><td colspan="4"><div class="dashboard-empty">Loading...</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 class="dashboard-detail-section-title">Onboarding Complete</h2>
+        <div class="dashboard-card">
+          <table class="dashboard-table dashboard-doc-list-table">
+            <thead>
+              <tr>
+                <th>Coach</th>
+                <th>Current Stage</th>
+                <th>Progress</th>
+                <th>Waiting on HQ</th>
+              </tr>
+            </thead>
+            <tbody id="onboardingOverviewCompletedBody">
+              <tr><td colspan="4"><div class="dashboard-empty">Loading...</div></td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div id="onboardingOverviewDetail" style="display:none;">

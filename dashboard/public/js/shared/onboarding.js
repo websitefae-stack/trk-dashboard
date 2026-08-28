@@ -421,6 +421,7 @@
 
   async function loadOverview() {
     var body = el("onboardingOverviewBody");
+    var completedBody = el("onboardingOverviewCompletedBody");
     var table = el("onboardingOverviewTable");
     var detail = el("onboardingOverviewDetail");
     var manager = el("onboardingStepManagerSection");
@@ -435,20 +436,36 @@
       rows = await apiGet(API + ".get_all_coaches_onboarding_progress", {});
     } catch (error) {
       body.innerHTML = '<tr><td colspan="4"><div class="dashboard-empty">' + escapeHtml(error.message) + "</div></td></tr>";
+      if (completedBody) completedBody.innerHTML = "";
       return;
     }
 
     if (!rows.length) {
       body.innerHTML = '<tr><td colspan="4"><div class="dashboard-empty">No coaches are currently onboarding.</div></td></tr>';
+      if (completedBody) completedBody.innerHTML = '<tr><td colspan="4"><div class="dashboard-empty">No coaches have completed onboarding yet.</div></td></tr>';
       return;
     }
 
-    body.innerHTML = rows.map(renderOverviewRow).join("");
+    var inProgress = rows.filter(function (row) { return !(row.total_steps && row.done_steps >= row.total_steps); });
+    var completed = rows.filter(function (row) { return row.total_steps && row.done_steps >= row.total_steps; });
 
-    body.querySelectorAll(".dashboard-onboarding-view-coach").forEach(function (link) {
-      link.addEventListener("click", function (event) {
-        event.preventDefault();
-        loadCoachDetail(link.dataset.coach);
+    body.innerHTML = inProgress.length
+      ? inProgress.map(renderOverviewRow).join("")
+      : '<tr><td colspan="4"><div class="dashboard-empty">No coaches are currently onboarding.</div></td></tr>';
+
+    if (completedBody) {
+      completedBody.innerHTML = completed.length
+        ? completed.map(renderOverviewRow).join("")
+        : '<tr><td colspan="4"><div class="dashboard-empty">No coaches have completed onboarding yet.</div></td></tr>';
+    }
+
+    [body, completedBody].forEach(function (tbody) {
+      if (!tbody) return;
+      tbody.querySelectorAll(".dashboard-onboarding-view-coach").forEach(function (link) {
+        link.addEventListener("click", function (event) {
+          event.preventDefault();
+          loadCoachDetail(link.dataset.coach);
+        });
       });
     });
   }
