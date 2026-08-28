@@ -859,23 +859,31 @@ def get_all_coaches_onboarding_progress():
         entry = by_coach.setdefault(row.coach, {
             "coach": row.coach,
             "coach_label": coach_labels.get(row.coach, row.coach),
-            "total_steps": 0,
-            "done_steps": 0,
             "waiting_on_hq": 0,
             "current_stage": None,
         })
-        entry["total_steps"] += 1
-        if row.status == "Done":
-            entry["done_steps"] += 1
         if row.status == "Waiting on HQ":
             entry["waiting_on_hq"] += 1
         if row.status != "Done" and entry["current_stage"] is None:
             entry["current_stage"] = row.stage
 
-    results = list(by_coach.values())
-    for entry in results:
+    results = []
+    for coach_name, entry in by_coach.items():
+        # total_steps/done_steps deliberately come from
+        # get_my_onboarding_steps() - the exact same function that
+        # coach's own onboarding page (and HQ's own drill-down into it)
+        # uses - rather than a second, simpler count of raw Coach
+        # Onboarding Step rows. That raw count leaves out the dynamic
+        # Policies stage and Operations Manual step (neither has a
+        # static row behind it - see _dynamic_policies_stage/
+        # _dynamic_operations_manual_step), which is why this overview
+        # used to show a smaller total than the coach's own page.
+        progress = get_my_onboarding_steps(coach=coach_name)
+        entry["total_steps"] = progress["total_steps"]
+        entry["done_steps"] = progress["done_steps"]
         if entry["current_stage"] is None:
             entry["current_stage"] = "Complete"
+        results.append(entry)
 
     return results
 
