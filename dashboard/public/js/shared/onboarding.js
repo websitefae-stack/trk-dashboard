@@ -161,7 +161,7 @@
     } else if (isLmsStep) {
       actionCell = step.status === "Done"
         ? '<span class="dashboard-doc-list-meta">' + escapeHtml(formatDateTime(step.completed_on)) + "</span>"
-        : '<span class="dashboard-doc-list-meta">Complete the course to finish this step</span>';
+        : "";
     } else if (step.owner_type === "Coach" && step.status !== "Done" && !step.is_locked) {
       actionCell = '<button type="button" class="dashboard-btn dashboard-btn-primary dashboard-onboarding-mark-done" data-step="' + escapeHtml(step.name) + '">Mark Done</button>';
     } else if (step.status === "Done") {
