@@ -167,6 +167,13 @@ doc_events = {
     "LMS Certificate": {
         "validate": "dashboard.api.shared.lms_certificates.block_certificate_before_course_complete",
     },
+    # "Show In Dashboard Reports" / "Also Show To Coaches" on the Web Form
+    # itself (custom fields, see the add_web_form_report_visibility_fields
+    # patch) drive Reports-section visibility automatically - see
+    # form_reports.sync_web_form_report_visibility.
+    "Web Form": {
+        "on_update": "dashboard.api.shared.form_reports.sync_web_form_report_visibility",
+    },
 }
 
 # Safety net for the pending-booking queue (see pending_bookings.py) - picks
