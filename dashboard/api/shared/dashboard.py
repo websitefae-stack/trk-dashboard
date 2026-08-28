@@ -1189,6 +1189,106 @@ def get_coach_revenue_by_client_type_report(from_date=None, to_date=None, coach=
 
 
 @frappe.whitelist()
+def get_coach_revenue_invoice_list(from_date=None, to_date=None, coach=None, client_type=None):
+    """
+    The individual Sales Invoices behind one cell of
+    get_coach_revenue_by_client_type_report() - same coach-attribution
+    and travel-netting logic, so net_amount on each row here sums to
+    exactly that cell's figure. coach blank means every coach (the "All
+    Coaches" totals row's own drill-down) - uses the franchisor-wide
+    invoice filter rather than looping every coach, since that's exactly
+    "every client's invoice" with nothing coach-specific to attribute.
+    """
+    from dashboard.api.shared.permissions import is_franchisor_user
+
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to view this."), frappe.PermissionError)
+
+    coach = (coach or "").strip()
+    client_type = (client_type or "").strip()
+
+    if coach:
+        filters = _get_invoice_filters(
+            dashboard_type=COACH_DASHBOARD,
+            context={"coach_name": coach},
+            start_date=from_date,
+            end_date=to_date,
+            outstanding_only=False,
+        )
+    else:
+        filters = _get_invoice_filters(
+            dashboard_type=FRANCHISOR_DASHBOARD,
+            context={},
+            start_date=from_date,
+            end_date=to_date,
+            outstanding_only=False,
+        )
+
+    invoices = frappe.get_all(
+        "Sales Invoice",
+        filters=filters,
+        fields=["name", "custom_client", "posting_date", "grand_total", "rounded_total", "status"],
+        order_by="posting_date desc",
+        limit_page_length=10000,
+        ignore_permissions=True,
+    )
+
+    if not invoices:
+        return []
+
+    invoice_names = [invoice.name for invoice in invoices]
+    client_names = list({invoice.custom_client for invoice in invoices if invoice.custom_client})
+
+    client_type_by_client = {}
+    client_label_by_client = {}
+    if client_names:
+        for client_row in frappe.get_all(
+            "Client",
+            filters={"name": ["in", client_names]},
+            fields=["name", "client_type", "full_name"],
+            limit_page_length=len(client_names),
+            ignore_permissions=True,
+        ):
+            client_type_by_client[client_row.name] = client_row.client_type or ""
+            client_label_by_client[client_row.name] = client_row.full_name or client_row.name
+
+    travel_by_invoice = {}
+    for item_row in frappe.get_all(
+        "Sales Invoice Item",
+        filters={"parent": ["in", invoice_names], "item_code": TRAVEL_ITEM_CODE},
+        fields=["parent", "amount"],
+        limit_page_length=100000,
+        ignore_permissions=True,
+    ):
+        parent = item_row.get("parent")
+        travel_by_invoice[parent] = travel_by_invoice.get(parent, 0.0) + flt(item_row.get("amount") or 0)
+
+    rows = []
+    for invoice in invoices:
+        client_name = invoice.get("custom_client")
+        resolved_client_type = client_type_by_client.get(client_name, "") or "Unspecified"
+
+        if client_type and resolved_client_type != client_type:
+            continue
+
+        amount = flt(invoice.get("grand_total") or invoice.get("rounded_total") or 0)
+        travel_amount = travel_by_invoice.get(invoice.get("name"), 0.0)
+
+        rows.append({
+            "name": invoice.get("name"),
+            "client": client_name,
+            "client_label": client_label_by_client.get(client_name, client_name or "—"),
+            "client_type": resolved_client_type,
+            "posting_date": invoice.get("posting_date"),
+            "status": invoice.get("status"),
+            "grand_total": amount,
+            "net_amount": amount - travel_amount,
+        })
+
+    return rows
+
+
+@frappe.whitelist()
 def export_coach_revenue_by_client_type_report_pdf(from_date=None, to_date=None, coach=None, client_type=None):
     """
     Same figures as get_coach_revenue_by_client_type_report(), as a
