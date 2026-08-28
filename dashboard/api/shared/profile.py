@@ -240,6 +240,11 @@ def get_franchisor_name():
     )
 
 
+# Matches shared_topbar.html's own hardcoded Client Portal link - see the
+# get_coach_login_links docstring below for why this isn't frappe.utils.get_url().
+PUBLIC_SITE_URL = "https://theresilienthub.co.uk"
+
+
 def get_coach_login_links(coach):
     """
     "Your Logins" tab content on the coach profile page - every login/
@@ -250,10 +255,16 @@ def get_coach_login_links(coach):
     show since every coach has all three, just personalised where it
     matters (their own email address, their own enrolled LMS course).
 
-    link_url is always a full absolute URL (frappe.utils.get_url for
-    anything internal to this site) rather than the relative path used
-    elsewhere in the app - a QR code encoding a relative path is useless
-    once scanned outside a browser tab that already has this site open.
+    link_url is always a full absolute URL rather than the relative path
+    used elsewhere in the app - a QR code encoding a relative path is
+    useless once scanned outside a browser tab that already has this
+    site open. Built against the site's actual public custom domain
+    (matching shared_topbar.html's own Client Portal link) rather than
+    frappe.utils.get_url(), which resolves against whatever host Frappe
+    Cloud considers this site's primary one - not necessarily the same
+    custom domain a coach is actually browsing on, which sent Client
+    Portal to its sign-up page instead of the no-login page the topbar
+    link already reaches correctly.
     """
     links = []
 
@@ -290,7 +301,7 @@ def get_coach_login_links(coach):
         "label": "Training (LMS)",
         "detail": "Your courses",
         "how_to": "Log in with your @resilientkid.co.uk email address and the password HQ gave you.",
-        "link_url": frappe.utils.get_url(_get_coach_lms_path(coach)),
+        "link_url": PUBLIC_SITE_URL + _get_coach_lms_path(coach),
     })
 
     links.append({
@@ -298,7 +309,7 @@ def get_coach_login_links(coach):
         "label": "Client Portal",
         "detail": "What your clients see",
         "how_to": "Log in with your @resilientkid.co.uk email address and the password HQ gave you.",
-        "link_url": frappe.utils.get_url("/client_portal"),
+        "link_url": PUBLIC_SITE_URL + "/client_portal",
     })
 
     return links
