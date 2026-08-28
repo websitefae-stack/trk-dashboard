@@ -75,6 +75,9 @@
           {% if linked_coaches and not session_worker_is_view_mode %}
             <button type="button" class="dashboard-tab-btn" data-tab="supervision">Supervision</button>
           {% endif %}
+          {% if profile_role == "coach" %}
+            <button type="button" class="dashboard-tab-btn" data-tab="logins">Your Logins</button>
+          {% endif %}
         </div>
       </div>
 
@@ -776,6 +779,39 @@
           <div class="dashboard-table-wrap" id="supervisionAppointmentsWrap">
             <p class="dashboard-empty">Loading…</p>
           </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if profile_role == "coach" %}
+      <!-- LOGINS & LINKS TAB -->
+      <div class="dashboard-tab-panel" data-tab-panel="logins" style="display:none;">
+        <div class="dashboard-card">
+          <h3>Your Logins</h3>
+          <p class="dashboard-page-subtitle">
+            Everything you need to log into, in one place - theresilienthub.co.uk and the password HQ gave you gets
+            you here, and every login below uses that same email address and password unless it says otherwise.
+            Scan a QR code to open something on your phone instead.
+          </p>
+          <a href="/coach_db/onboarding{{ coach_view_query }}" class="dashboard-btn dashboard-btn-light">
+            &larr; See your full Onboarding checklist
+          </a>
+        </div>
+
+        <div class="dashboard-login-links-grid">
+          {% for link in login_links %}
+          <div class="dashboard-card dashboard-login-link-card">
+            <h4>{{ link.label }}</h4>
+            {% if link.detail %}<p class="dashboard-doc-list-meta">{{ link.detail }}</p>{% endif %}
+            <p class="dashboard-help">{{ link.how_to }}</p>
+            <div class="dashboard-login-link-actions">
+              <a href="{{ link.link_url }}" target="_blank" rel="noopener noreferrer" class="dashboard-btn dashboard-btn-primary">
+                Go to {{ link.label }}
+              </a>
+              <div class="dashboard-login-qr" data-qr-value="{{ link.link_url }}" data-qr-label="{{ link.label }}"></div>
+            </div>
+          </div>
+          {% endfor %}
         </div>
       </div>
       {% endif %}

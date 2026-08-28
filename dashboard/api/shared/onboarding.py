@@ -93,6 +93,67 @@ def sync_master_step_link_fields(doc, method=None):
         frappe.log_error(frappe.get_traceback(), f"Master Step Link Field Sync Failed - {doc.name}")
 
 
+def sync_master_step_active_state(doc, method=None):
+    """
+    Coach Onboarding Master Step.on_update hook. Unticking Active used to
+    only stop this step being provisioned to a coach newly starting
+    onboarding (see the is_active filter in _create_coach_onboarding_steps)
+    - a coach who already had the step kept it forever, "retired" or not.
+    Unticking now removes it from every coach's checklist outright,
+    regardless of its status there - "we no longer need this step" means
+    gone, not lingering as a stale row. Re-ticking adds it back onto
+    every coach already mid-onboarding who doesn't already have it, the
+    same backfill a one-off patch like add_print_materials_onboarding_step
+    would otherwise be needed for.
+    """
+    if not frappe.db.exists("DocType", COACH_ONBOARDING_STEP_DOCTYPE):
+        return
+
+    try:
+        if doc.is_active:
+            _add_master_step_to_existing_coaches(doc)
+        else:
+            frappe.db.delete(COACH_ONBOARDING_STEP_DOCTYPE, {"onboarding_step": doc.name})
+            frappe.db.commit()
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Master Step Active State Sync Failed - {doc.name}")
+
+
+def _add_master_step_to_existing_coaches(doc):
+    if not doc.stage:
+        return
+
+    onboarding_coaches = set(frappe.get_all(COACH_ONBOARDING_STEP_DOCTYPE, pluck="coach"))
+    already_have_it = set(frappe.get_all(
+        COACH_ONBOARDING_STEP_DOCTYPE, filters={"onboarding_step": doc.name}, pluck="coach",
+    ))
+
+    for coach_name in onboarding_coaches - already_have_it:
+        try:
+            frappe.get_doc({
+                "doctype": COACH_ONBOARDING_STEP_DOCTYPE,
+                "coach": coach_name,
+                "onboarding_step": doc.name,
+                "status": "Not Started",
+                "step_name": doc.step_name,
+                "stage": doc.stage,
+                "owner_type": doc.owner_type,
+                "stage_sort_order": doc.stage_sort_order,
+                "sort_order": doc.sort_order,
+                "expected_result": doc.expected_result,
+                "where_it_happens": doc.where_it_happens,
+                "link_url": doc.link_url,
+                "lms_course": doc.lms_course,
+                "lms_chapter": doc.lms_chapter,
+                "lms_lesson_number": doc.lms_lesson_number,
+                "depends_on_step": doc.depends_on,
+            }).insert(ignore_permissions=True)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"Master Step Reactivation Backfill Failed - {coach_name}")
+
+    frappe.db.commit()
+
+
 def _create_coach_onboarding_steps(coach_name):
     # Locks the Coach row for the rest of this function, so two nearly-
     # simultaneous requests for the same coach (e.g. two staff members

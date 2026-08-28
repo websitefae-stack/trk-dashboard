@@ -140,3 +140,38 @@
   margin-top: 8px;
   font-size: 13px;
 }
+
+.dashboard-login-links-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.dashboard-login-link-card h4 {
+  margin: 0 0 4px;
+  color: #1F4E4E;
+  font-size: 15px;
+}
+
+.dashboard-login-link-actions {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.dashboard-login-qr {
+  padding: 6px;
+  background: #ffffff;
+  border: 1px solid #D9E6E6;
+  border-radius: 8px;
+  line-height: 0;
+}
+
+.dashboard-login-qr img {
+  display: block;
+  width: 96px;
+  height: 96px;
+}
