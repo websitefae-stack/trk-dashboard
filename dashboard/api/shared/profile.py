@@ -240,6 +240,87 @@ def get_franchisor_name():
     )
 
 
+def get_coach_login_links(coach):
+    """
+    "Your Logins" tab content on the coach profile page - every login/
+    link a coach needs day to day, each with a short how-to-access line
+    and (rendered client-side, see login_links.js) a QR code for
+    switching to a phone. Facebook/Instagram only show up once HQ has
+    actually set one for this coach; Email/Training/Client Portal always
+    show since every coach has all three, just personalised where it
+    matters (their own email address, their own enrolled LMS course).
+
+    link_url is always a full absolute URL (frappe.utils.get_url for
+    anything internal to this site) rather than the relative path used
+    elsewhere in the app - a QR code encoding a relative path is useless
+    once scanned outside a browser tab that already has this site open.
+    """
+    links = []
+
+    if coach.get("facebook_url"):
+        links.append({
+            "key": "facebook",
+            "label": "Facebook",
+            "detail": "Your business page",
+            "how_to": "Log in with the Facebook account HQ set up for your business page.",
+            "link_url": coach.facebook_url,
+        })
+
+    if coach.get("instagram_url"):
+        links.append({
+            "key": "instagram",
+            "label": "Instagram",
+            "detail": "Your business page",
+            "how_to": "Log in with the Instagram account HQ set up for your business page.",
+            "link_url": coach.instagram_url,
+        })
+
+    email = coach.get("coach_email") or coach.get("user") or ""
+    links.append({
+        "key": "email",
+        "label": "Email",
+        "detail": email or "Your @resilientkid.co.uk address",
+        "how_to": "Go to Google and sign in with your @resilientkid.co.uk address and the password HQ gave you - "
+                   "set it up in whichever mail app you prefer from there.",
+        "link_url": "https://mail.google.com/",
+    })
+
+    links.append({
+        "key": "lms",
+        "label": "Training (LMS)",
+        "detail": "Your courses",
+        "how_to": "Log in with your @resilientkid.co.uk email address and the password HQ gave you.",
+        "link_url": frappe.utils.get_url(_get_coach_lms_path(coach)),
+    })
+
+    links.append({
+        "key": "client_portal",
+        "label": "Client Portal",
+        "detail": "What your clients see",
+        "how_to": "Log in with your @resilientkid.co.uk email address and the password HQ gave you.",
+        "link_url": frappe.utils.get_url("/client_portal"),
+    })
+
+    return links
+
+
+def _get_coach_lms_path(coach):
+    """
+    Best-effort only: Frappe LMS is a third-party app, not one of the
+    repos this app is built alongside, so its schema is probed rather
+    than assumed - falls back to the plain LMS courses list if it isn't
+    installed, or this coach isn't enrolled in anything yet.
+    """
+    fallback = "/lms"
+
+    user = coach.get("user") or coach.get("coach_email")
+    if not user or not frappe.db.exists("DocType", "LMS Enrollment"):
+        return fallback
+
+    course = frappe.db.get_value("LMS Enrollment", {"member": user}, "course")
+    return f"/lms/courses/{course}" if course else fallback
+
+
 def get_profile_context(role):
     profile_doc = get_profile_doc(role)
     config = get_role_config(role)

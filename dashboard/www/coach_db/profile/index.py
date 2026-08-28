@@ -6,6 +6,7 @@ from dashboard.api.shared.profile import (
     get_profile_context,
     get_profile_display_name,
     coach_has_secret_key,
+    get_coach_login_links,
 )
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 
@@ -60,6 +61,7 @@ def get_context(context):
         context.indemnity_rows = coach.get("indemnity") or []
 
         context.has_secret_key = coach_has_secret_key(coach.name)
+        context.login_links = get_coach_login_links(coach)
 
     else:
         redirect_if_wrong_dashboard("coach")
@@ -82,3 +84,4 @@ def get_context(context):
         context.indemnity_rows = profile_context["indemnity_rows"]
 
         context.has_secret_key = coach_has_secret_key(coach.name)
+        context.login_links = get_coach_login_links(coach)
