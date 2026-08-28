@@ -1025,6 +1025,134 @@ def _get_invoice_revenue_breakdown(dashboard_type, context, start_date, end_date
     }
 
 
+@frappe.whitelist()
+def get_coach_revenue_by_client_type_report(from_date=None, to_date=None):
+    """
+    Franchisor-only report: every coach's invoiced revenue, broken down by
+    each individual Client Type (Kid, Teen, Uni Student, School, Adult,
+    Company, Franchise - whatever get_client_types() actually returns, so
+    a new Client Type just shows up here with no code change needed) over
+    an optional date range.
+
+    Reuses _get_invoice_filters() with COACH_DASHBOARD/coach_name - the
+    exact same "which invoices belong to this coach" logic every other
+    coach revenue figure in this app is built on (Client.primary_coach,
+    plus a custom_income_owner_coach override for invoices raised on
+    another coach's behalf) - and nets travel line items out of each
+    invoice the same way _get_invoice_revenue_breakdown does, so a coach's
+    row total here lines up with the "Client" revenue figure they see on
+    their own dashboard, not the raw invoice grand total.
+    """
+    from dashboard.api.shared.permissions import is_franchisor_user
+    from dashboard.api.shared.clients import get_client_types
+
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to view this."), frappe.PermissionError)
+
+    client_types = get_client_types()
+    coaches = frappe.get_all("Coach", fields=["name", "coach_name"], order_by="coach_name asc")
+
+    rows = []
+    grand_totals = {client_type: 0.0 for client_type in client_types}
+    grand_total = 0.0
+
+    for coach in coaches:
+        filters = _get_invoice_filters(
+            dashboard_type=COACH_DASHBOARD,
+            context={"coach_name": coach.name},
+            start_date=from_date,
+            end_date=to_date,
+            outstanding_only=False,
+        )
+
+        invoices = frappe.get_all(
+            "Sales Invoice",
+            filters=filters,
+            fields=["name", "custom_client", "grand_total", "rounded_total"],
+            limit_page_length=10000,
+            ignore_permissions=True,
+        )
+
+        if not invoices:
+            continue
+
+        invoice_names = [invoice.name for invoice in invoices]
+        client_names = list({invoice.custom_client for invoice in invoices if invoice.custom_client})
+
+        client_type_by_client = {}
+        if client_names:
+            for client_row in frappe.get_all(
+                "Client",
+                filters={"name": ["in", client_names]},
+                fields=["name", "client_type"],
+                limit_page_length=len(client_names),
+                ignore_permissions=True,
+            ):
+                client_type_by_client[client_row.name] = client_row.client_type or ""
+
+        travel_by_invoice = {}
+        for item_row in frappe.get_all(
+            "Sales Invoice Item",
+            filters={"parent": ["in", invoice_names], "item_code": TRAVEL_ITEM_CODE},
+            fields=["parent", "amount"],
+            limit_page_length=100000,
+            ignore_permissions=True,
+        ):
+            parent = item_row.get("parent")
+            travel_by_invoice[parent] = travel_by_invoice.get(parent, 0.0) + flt(item_row.get("amount") or 0)
+
+        by_type = {client_type: 0.0 for client_type in client_types}
+        coach_total = 0.0
+
+        for invoice in invoices:
+            amount = flt(invoice.get("grand_total") or invoice.get("rounded_total") or 0)
+            travel_amount = travel_by_invoice.get(invoice.get("name"), 0.0)
+            net_amount = amount - travel_amount
+
+            client_type = client_type_by_client.get(invoice.get("custom_client"), "") or "Unspecified"
+            by_type.setdefault(client_type, 0.0)
+            by_type[client_type] += net_amount
+            coach_total += net_amount
+
+        if not coach_total and all(not v for v in by_type.values()):
+            continue
+
+        for client_type, amount in by_type.items():
+            grand_totals[client_type] = grand_totals.get(client_type, 0.0) + amount
+        grand_total += coach_total
+
+        rows.append({
+            "coach": coach.name,
+            "coach_label": coach.coach_name or coach.name,
+            "by_type": by_type,
+            "total": coach_total,
+        })
+
+    # A client with no client_type set at all lands in "Unspecified" -
+    # not one of get_client_types()'s own options, so it's folded into the
+    # column list here (and backfilled onto every row/grand total) rather
+    # than only existing on whichever coach happened to hit it first.
+    all_client_types = list(client_types)
+    for row in rows:
+        for client_type in row["by_type"]:
+            if client_type not in all_client_types:
+                all_client_types.append(client_type)
+
+    for row in rows:
+        for client_type in all_client_types:
+            row["by_type"].setdefault(client_type, 0.0)
+
+    for client_type in all_client_types:
+        grand_totals.setdefault(client_type, 0.0)
+
+    return {
+        "client_types": all_client_types,
+        "rows": rows,
+        "grand_totals": grand_totals,
+        "grand_total": grand_total,
+    }
+
+
 MARKETING_FEE_RATE = 0.02
 
 # (ceiling, rate) - the first tier whose ceiling the gross revenue doesn't

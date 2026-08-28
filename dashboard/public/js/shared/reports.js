@@ -1094,6 +1094,97 @@
     ], openPacksState.rows);
   }
 
+  var coachRevenueState = { client_types: [], rows: [] };
+
+  function formatMoney(value) {
+    var number = Number(value || 0);
+    try {
+      return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(number);
+    } catch (e) {
+      return "£" + number.toFixed(2);
+    }
+  }
+
+  function renderCoachRevenueReport(data) {
+    var empty = el("coachRevenueEmpty");
+    var results = el("coachRevenueResults");
+    var headerRow = el("coachRevenueHeaderRow");
+    var body = el("coachRevenueTableBody");
+    var totalsRow = el("coachRevenueTotalsRow");
+    if (!empty || !results || !headerRow || !body || !totalsRow) return;
+
+    var clientTypes = data.client_types || [];
+    var rows = data.rows || [];
+
+    coachRevenueState.client_types = clientTypes;
+    coachRevenueState.rows = rows;
+
+    if (!rows.length) {
+      empty.textContent = "No invoiced revenue found for this period.";
+      empty.style.display = "";
+      results.style.display = "none";
+      return;
+    }
+
+    empty.style.display = "none";
+    results.style.display = "";
+
+    headerRow.innerHTML = "<th>Coach</th>"
+      + clientTypes.map(function (ct) { return "<th>" + escapeHtml(ct) + "</th>"; }).join("")
+      + "<th>Total</th>";
+
+    body.innerHTML = rows.map(function (row) {
+      return "<tr>"
+        + "<td>" + escapeHtml(row.coach_label || row.coach) + "</td>"
+        + clientTypes.map(function (ct) {
+            return "<td>" + formatMoney((row.by_type || {})[ct]) + "</td>";
+          }).join("")
+        + "<td><strong>" + formatMoney(row.total) + "</strong></td>"
+        + "</tr>";
+    }).join("");
+
+    var grandTotals = data.grand_totals || {};
+    totalsRow.innerHTML = "<td>All Coaches</td>"
+      + clientTypes.map(function (ct) { return "<td>" + formatMoney(grandTotals[ct]) + "</td>"; }).join("")
+      + "<td>" + formatMoney(data.grand_total) + "</td>";
+  }
+
+  async function runCoachRevenueReport() {
+    var btn = el("runCoachRevenueReportBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Running..."; }
+
+    var fromDate = (el("coachRevenueFromDate") || {}).value || "";
+    var toDate = (el("coachRevenueToDate") || {}).value || "";
+
+    try {
+      var data = await callApi("dashboard.api.shared.dashboard.get_coach_revenue_by_client_type_report", {
+        from_date: fromDate,
+        to_date: toDate
+      });
+      renderCoachRevenueReport(data);
+
+      var exportBtn = el("exportCoachRevenueReportBtn");
+      if (exportBtn) exportBtn.style.display = (data.rows || []).length ? "" : "none";
+    } catch (error) {
+      console.error("Coach revenue report failed:", error);
+      window.alert(error.message || "Could not run the report.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Run Report"; }
+    }
+  }
+
+  function exportCoachRevenueReport() {
+    var columns = [
+      { label: "Coach", value: function (r) { return r.coach_label || r.coach; } }
+    ].concat(coachRevenueState.client_types.map(function (ct) {
+      return { label: ct, value: function (r) { return (r.by_type || {})[ct] || 0; } };
+    })).concat([
+      { label: "Total", value: function (r) { return r.total || 0; } }
+    ]);
+
+    exportRowsToCsv("coach-revenue-by-client-type.csv", columns, coachRevenueState.rows);
+  }
+
   var coachLogState = { mileage: [], training: [] };
 
   function currentCoachLogFilter() {
@@ -1408,6 +1499,12 @@
 
     var exportPacksBtn = el("exportOpenPacksReportBtn");
     if (exportPacksBtn) exportPacksBtn.addEventListener("click", exportOpenPacksReport);
+
+    var coachRevenueBtn = el("runCoachRevenueReportBtn");
+    if (coachRevenueBtn) coachRevenueBtn.addEventListener("click", runCoachRevenueReport);
+
+    var exportCoachRevenueBtn = el("exportCoachRevenueReportBtn");
+    if (exportCoachRevenueBtn) exportCoachRevenueBtn.addEventListener("click", exportCoachRevenueReport);
 
     initFormsReportPicker();
     initCoachLogs();

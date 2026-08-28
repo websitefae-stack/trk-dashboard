@@ -7,6 +7,7 @@
     <button type="button" class="dashboard-tab-btn" data-forms-report-tab="coach_logs">Coach Logs</button>
     {% if dashboard_type == "franchisor" %}
       <button type="button" class="dashboard-tab-btn" data-forms-report-tab="client_locations">Client Locations</button>
+      <button type="button" class="dashboard-tab-btn" data-forms-report-tab="coach_revenue">Coach Revenue by Client Type</button>
     {% endif %}
   </div>
 </div>
@@ -223,6 +224,10 @@
 {% if dashboard_type == "franchisor" %}
   <div class="dashboard-tab-panel" data-forms-report-panel="client_locations" style="display:none;">
     {% include "dashboard/templates/includes/reports/client_locations_report_body.html" %}
+  </div>
+
+  <div class="dashboard-tab-panel" data-forms-report-panel="coach_revenue" style="display:none;">
+    {% include "dashboard/templates/includes/reports/coach_revenue_report_body.html" %}
   </div>
 {% endif %}
 
