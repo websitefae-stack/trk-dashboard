@@ -21,6 +21,12 @@ ONBOARDING_STEP_DOCTYPE = "Coach Onboarding Master Step"
 # (stage_sort_order, stage_label, [(sort_order, step_name, owner_type, where_it_happens, expected_result), ...])
 STAGES = [
     (2, "Stage 2 - Get Ready", [
+        # "Clothing sizes collected and ordered" is NOT listed here - it's
+        # an HQ-only task the coach never sees at all (hidden_from_coach),
+        # a field this STAGES tuple format has no slot for. Added directly
+        # via add_hq_only_clothing_sizes_step.py instead, same treatment
+        # Operations Manual gets for being pulled dynamically rather than
+        # fitting this shape.
         (1, "Email account created", "HQ", "Manual / External (email provider)",
          "Coach has a working @resilientkid email."),
         (2, "\"Your Logins\" hub set up", "HQ", "Frappe",

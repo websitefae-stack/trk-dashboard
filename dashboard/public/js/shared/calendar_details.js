@@ -353,8 +353,13 @@
     setHtml("trkDetailSessionProgress", getSessionProgressHtml(data));
     setHtml("trkDetailBookingWarning", getBookingWarningHtml(data));
 
+    // Shown for a Client Lead too (Initial Consultation bookings before
+    // there's a real Client yet) - see has_client_lead in get_event_details
+    // and the same fallback in send_booking_confirmation_email, since
+    // that's the only way that person finds out their appointment time
+    // and Meet link without a Client Portal login.
     const emailBtn = el("trkDetailEmailBtn");
-    if (emailBtn) emailBtn.style.display = data.client_name ? "" : "none";
+    if (emailBtn) emailBtn.style.display = (data.client_name || data.has_client_lead) ? "" : "none";
 
     setValue("trkClientNoteSessionDate", data.session_date || "");
     updateNoteDateDisplay();

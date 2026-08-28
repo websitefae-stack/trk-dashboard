@@ -106,6 +106,19 @@
   opacity: 0.55;
 }
 
+/* HQ drill-down only (see renderStepRow's hqStatusClass) - the coach's
+   own page never gets these, it hides completed rows instead. Light
+   tints, not the solid doc-status-* badge colours, so the row highlight
+   reads as background context rather than competing with the actual
+   status badge/text in the row. */
+.dashboard-onboarding-row-done {
+  background: #EAF7EE;
+}
+
+.dashboard-onboarding-row-outstanding {
+  background: #FBEAEA;
+}
+
 .dashboard-onboarding-status-select {
   min-width: 150px;
 }

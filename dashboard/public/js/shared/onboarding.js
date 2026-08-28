@@ -131,6 +131,15 @@
       ? '<div class="dashboard-doc-list-meta">Unlocks once an earlier step is done</div>'
       : "";
 
+    // Only ever reaches this row function at all in hqMode - the coach's
+    // own page never receives a hidden_from_coach row in the first place
+    // (filtered server-side, see get_my_onboarding_steps) - so this note
+    // is purely to tell HQ why a task in their own drill-down won't show
+    // up on the coach's side.
+    var hiddenNote = (hqMode && step.hidden_from_coach)
+      ? '<div class="dashboard-doc-list-meta">Hidden from coach - HQ only</div>'
+      : "";
+
     var goLink = (!step.is_locked && step.link_url)
       ? '<a class="dashboard-btn dashboard-btn-light" href="' + escapeHtml(step.link_url) + '" target="_blank" rel="noopener noreferrer">Go</a>'
       : "";
@@ -170,12 +179,25 @@
       actionCell = '<span class="dashboard-doc-list-meta">Owned by ' + escapeHtml(step.owner_type) + "</span>";
     }
 
+    // HQ's drill-down shows every step always (see renderCoachDetailStages
+    // - hideCompleted is never true there any more) and leans on colour
+    // instead: light green once done, light red while still outstanding,
+    // so a stage that's mostly finished doesn't read as "still lots to
+    // do" at a glance the way a plain list would.
+    var hqStatusClass = hqMode
+      ? (isStepDone(step) ? "dashboard-onboarding-row-done" : "dashboard-onboarding-row-outstanding")
+      : "";
+
     return (
-      '<tr class="' + (step.is_locked ? "dashboard-onboarding-row-locked" : "") + '">' +
+      '<tr class="' +
+        (step.is_locked ? "dashboard-onboarding-row-locked" : "") +
+        (hqStatusClass ? " " + hqStatusClass : "") +
+      '">' +
         "<td>" +
           '<div class="dashboard-doc-list-title">' + escapeHtml(step.step_name) + "</div>" +
           (step.expected_result ? '<div class="dashboard-doc-list-meta">' + escapeHtml(step.expected_result) + "</div>" : "") +
           lockedNote +
+          hiddenNote +
         "</td>" +
         "<td>" + escapeHtml(step.owner_type) + "</td>" +
         "<td><span class=\"dashboard-badge " + (STATUS_CLASS[step.status] || "") + "\">" + escapeHtml(step.is_locked ? "Locked" : step.status) + "</span></td>" +
@@ -285,14 +307,13 @@
   // Coach's own page
   // -------------------------------------------------------------------
 
-  // Hides completed steps by default so a long-in-progress journey shows
-  // what's still due instead of a list dominated by everything already
-  // finished - persisted per-browser (not per-account) since it's purely
-  // a display preference, not something anyone else needs to see. Coach
-  // page and franchisor drill-down use separate keys since they're
-  // realistically different people/sessions and independently useful.
+  // Hides completed steps by default on the coach's own page, so a
+  // long-in-progress journey shows what's still due instead of a list
+  // dominated by everything already finished - persisted per-browser,
+  // since it's purely a display preference, not something anyone else
+  // needs to see. HQ's drill-down never hides anything (colour-coded
+  // instead, see renderCoachDetailStages), so there's only one key.
   var COACH_HIDE_COMPLETED_STORAGE_KEY = "trk_onboarding_show_completed";
-  var HQ_HIDE_COMPLETED_STORAGE_KEY = "trk_onboarding_show_completed_hq";
 
   function getShowCompletedPreference(storageKey) {
     try {
@@ -426,9 +447,11 @@
     var content = el("onboardingOverviewDetailContent");
     if (!content || !lastCoachDetailData) return;
 
-    var hideCompleted = !getShowCompletedPreference(HQ_HIDE_COMPLETED_STORAGE_KEY);
+    // HQ sees every step always, coloured by done/outstanding instead of
+    // completed ones being hidden - the coach's own page still hides them
+    // (renderMyOnboardingStages), this is deliberately HQ-only.
     content.innerHTML = lastCoachDetailData.stages
-      .map(function (stage) { return renderStage(stage, true, hideCompleted); })
+      .map(function (stage) { return renderStage(stage, true, false); })
       .join("");
     bindStepActions(content, function () { loadCoachDetail(lastCoachDetailName); });
   }
@@ -686,15 +709,6 @@
     var manageBtn = el("onboardingManageStepsBtn");
     if (manageBtn) {
       manageBtn.addEventListener("click", showStepManager);
-    }
-
-    var hqCheckbox = el("onboardingOverviewShowCompletedCheckbox");
-    if (hqCheckbox) {
-      hqCheckbox.checked = getShowCompletedPreference(HQ_HIDE_COMPLETED_STORAGE_KEY);
-      hqCheckbox.addEventListener("change", function () {
-        setShowCompletedPreference(HQ_HIDE_COMPLETED_STORAGE_KEY, hqCheckbox.checked);
-        renderCoachDetailStages();
-      });
     }
 
     var managerBackBtn = el("onboardingStepManagerBackBtn");

@@ -54,3 +54,4 @@ dashboard.patches.set_access_emails_lms_chapter_title
 dashboard.patches.migrate_lms_chapter_title_to_link
 dashboard.patches.backfill_master_step_link_fields_to_coach_rows
 dashboard.patches.remove_coach_steps_for_inactive_master_steps
+dashboard.patches.add_hq_only_clothing_sizes_step

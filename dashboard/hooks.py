@@ -24,6 +24,12 @@ web_include_css = [
 web_include_js = [
     "/assets/dashboard/js/shared/dashboard_sidebar.js?v=3",
     "/assets/dashboard/js/shared/pagination.js",
+    # Site-wide so it also reaches Frappe Learning's lesson pages (a
+    # separate app on this same site) - see the file's own docstring for
+    # why this lives here rather than as a change to Learning itself.
+    # Inert on every other page: it only ever acts on a share.descript.com
+    # link, which nothing outside a lesson would ever contain.
+    "/assets/dashboard/js/shared/descript_embed.js?v=1",
 ]
 
 website_context = {

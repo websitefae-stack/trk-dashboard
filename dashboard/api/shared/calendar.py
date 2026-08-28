@@ -813,6 +813,9 @@ def _get_event_fields():
         # with it.
         fields.append("custom_google_meet_url")
 
+    if _event_has_field("custom_client_lead"):
+        fields.append("custom_client_lead")
+
     return fields
 
 
@@ -1945,12 +1948,21 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
     if lead:
         lead_label = frappe.db.get_value("Lead", lead, "lead_name") or frappe.db.get_value("Lead", lead, "first_name") or lead
 
+    # Whether there's a real Client Lead link (custom_client_lead) - the
+    # current mechanism every new Initial Consultation booking actually
+    # populates, distinct from the legacy "Lead: <name>" description-
+    # parsed lead/lead_label above. This is what the Email Booking
+    # Confirmation button's visibility keys off, since it's what
+    # send_booking_confirmation_email actually resolves a recipient from.
+    has_client_lead = bool(_get_display_lead(event_doc)) if not display_client else False
+
     return {
         "name": event_doc.get("name"),
         "client_name": display_client,
         "client_label": _get_client_display_name(display_client) if display_client else event_doc.get("subject") or "Session",
         "lead_name": lead or "",
         "lead_label": lead_label,
+        "has_client_lead": has_client_lead,
         "appointment_type": session_type,
         "status": raw_status,
         "ui_status": ui_status,
@@ -1990,13 +2002,54 @@ def _is_online_location(location):
     return any(keyword in location for keyword in ONLINE_LOCATION_KEYWORDS)
 
 
-def _booking_confirmation_context(event_doc, client):
+def _get_display_lead(event_doc):
+    """
+    The Client Lead a calendar item is booked against, for the (very
+    common for an Initial Consultation) case where nothing has been
+    converted to a real Client yet - see _get_display_client's docstring
+    for the Client equivalent. custom_client_lead is only ever set on
+    Initial Consultation bookings (see create_booking()), so this is
+    None for every other appointment type, same as _get_display_client
+    is blank for one with no client linked.
+    """
+    if not _event_has_field("custom_client_lead"):
+        return ""
+    return (event_doc.get("custom_client_lead") or "").strip()
+
+
+def _get_lead_email_options(lead_name):
+    """
+    Client Lead equivalent of invoices.get_client_email_options - just
+    the one primary enquiry contact (contact_name/contact_email), since
+    that's all that exists before a lead is ever converted to a full
+    Client intake. Same {value, label} shape so the booking email modal
+    doesn't need to know which kind of contact it's populated from.
+    """
+    if not lead_name or not frappe.db.exists("Client Lead", lead_name):
+        return []
+
+    lead = frappe.db.get_value("Client Lead", lead_name, ["contact_name", "contact_email"], as_dict=True)
+    if not lead or not lead.contact_email:
+        return []
+
+    label = f"{lead.contact_name} ({lead.contact_email})" if lead.contact_name else lead.contact_email
+    return [{"value": lead.contact_email, "label": label}]
+
+
+def _booking_confirmation_context(event_doc, client=None, lead=None):
     starts_on = event_doc.get("starts_on")
     start_dt = get_datetime(starts_on) if starts_on else None
     location = event_doc.get("location") or ""
 
+    if client:
+        contact_name = _get_client_display_name(client)
+    elif lead:
+        contact_name = frappe.db.get_value("Client Lead", lead, "contact_name") or ""
+    else:
+        contact_name = ""
+
     return {
-        "contact_name": _get_client_display_name(client),
+        "contact_name": contact_name,
         "appointment_type": event_doc.get("custom_appointment_type") or "",
         "date": start_dt.strftime("%A %d %B %Y") if start_dt else "",
         "time": start_dt.strftime("%H:%M") if start_dt else "",
@@ -2028,6 +2081,13 @@ def get_booking_confirmation_email_defaults(event=None):
     the event is passed in explicitly by whichever specific appointment's
     Email button was clicked, so there's never any ambiguity about which
     booking it's for.
+
+    Falls back to the linked Client Lead's contact details when there's
+    no Client yet - the normal state for an Initial Consultation, where
+    an existing Client (who could otherwise just see this on their own
+    Client Portal login) doesn't exist yet, so emailing it directly is
+    the only way the person actually finds out their appointment time
+    and Meet link.
     """
     _require_logged_in_user()
 
@@ -2037,11 +2097,12 @@ def get_booking_confirmation_email_defaults(event=None):
 
     event_doc = _get_event_doc(event)
     client = _get_display_client(event_doc)
+    lead = "" if client else _get_display_lead(event_doc)
 
-    if not client:
-        frappe.throw(_("This appointment has no client linked, so there's no one to email."))
+    if not client and not lead:
+        frappe.throw(_("This appointment has no client or lead linked, so there's no one to email."))
 
-    context = _booking_confirmation_context(event_doc, client)
+    context = _booking_confirmation_context(event_doc, client=client, lead=lead)
 
     subject, message = render_email(
         BOOKING_CONFIRMATION_TEMPLATE,
@@ -2050,8 +2111,11 @@ def get_booking_confirmation_email_defaults(event=None):
         fallback_message=_BOOKING_CONFIRMATION_FALLBACK,
     )
 
-    from dashboard.api.shared.invoices import get_client_email_options
-    email_options = get_client_email_options(client_name=client)
+    if client:
+        from dashboard.api.shared.invoices import get_client_email_options
+        email_options = get_client_email_options(client_name=client)
+    else:
+        email_options = _get_lead_email_options(lead)
 
     return {
         "subject": subject,
@@ -2076,8 +2140,8 @@ def send_booking_confirmation_email(event=None, recipient=None, subject=None, me
     event_doc = _get_event_doc(event)
     client = _get_display_client(event_doc)
 
-    if not client:
-        frappe.throw(_("This appointment has no client linked, so there's no one to email."))
+    if not client and not _get_display_lead(event_doc):
+        frappe.throw(_("This appointment has no client or lead linked, so there's no one to email."))
 
     subject = (subject or "Your appointment is confirmed").strip()
     message = plain_text_to_email_html((message or "").strip())

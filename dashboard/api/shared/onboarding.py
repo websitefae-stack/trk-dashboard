@@ -32,7 +32,7 @@ ONBOARDING_STEP_DOCTYPE = "Coach Onboarding Master Step"
 COACH_STEP_FIELDS = [
     "name", "onboarding_step", "step_name", "stage", "owner_type", "status",
     "expected_result", "where_it_happens", "link_url",
-    "lms_course", "lms_chapter", "lms_lesson_number",
+    "lms_course", "lms_chapter", "lms_lesson_number", "hidden_from_coach",
     "depends_on_step", "stage_sort_order", "sort_order", "completed_on", "completed_by", "notes",
 ]
 
@@ -61,7 +61,7 @@ def provision_onboarding_steps(doc, method=None):
         frappe.log_error(frappe.get_traceback(), f"Onboarding Provisioning Failed - {doc.name}")
 
 
-MASTER_STEP_LIVE_FIELDS = ["link_url", "lms_course", "lms_chapter", "lms_lesson_number"]
+MASTER_STEP_LIVE_FIELDS = ["link_url", "lms_course", "lms_chapter", "lms_lesson_number", "hidden_from_coach"]
 
 
 def sync_master_step_link_fields(doc, method=None):
@@ -146,6 +146,7 @@ def _add_master_step_to_existing_coaches(doc):
                 "lms_course": doc.lms_course,
                 "lms_chapter": doc.lms_chapter,
                 "lms_lesson_number": doc.lms_lesson_number,
+                "hidden_from_coach": doc.hidden_from_coach,
                 "depends_on_step": doc.depends_on,
             }).insert(ignore_permissions=True)
         except Exception:
@@ -191,7 +192,7 @@ def _create_coach_onboarding_steps(coach_name):
         fields=[
             "name", "step_name", "stage", "owner_type", "stage_sort_order",
             "sort_order", "expected_result", "where_it_happens", "link_url",
-            "lms_course", "lms_chapter", "lms_lesson_number", "depends_on",
+            "lms_course", "lms_chapter", "lms_lesson_number", "hidden_from_coach", "depends_on",
         ],
         order_by="stage_sort_order asc, sort_order asc",
     )
@@ -213,6 +214,7 @@ def _create_coach_onboarding_steps(coach_name):
             "lms_course": step.lms_course,
             "lms_chapter": step.lms_chapter,
             "lms_lesson_number": step.lms_lesson_number,
+            "hidden_from_coach": step.hidden_from_coach,
             "depends_on_step": step.depends_on,
         }).insert(ignore_permissions=True)
 
@@ -253,6 +255,7 @@ _STEP_COPY_FIELDS = [
     ("lms_course", "lms_course"),
     ("lms_chapter", "lms_chapter"),
     ("lms_lesson_number", "lms_lesson_number"),
+    ("hidden_from_coach", "hidden_from_coach"),
     ("depends_on", "depends_on_step"),
 ]
 
@@ -446,6 +449,7 @@ def _group_by_stage(rows):
             "completed_on": row.completed_on,
             "notes": row.notes or "",
             "is_locked": _is_locked(row, done_step_names),
+            "hidden_from_coach": bool(row.hidden_from_coach),
         }
 
         if stage not in stage_index:
@@ -475,6 +479,19 @@ def coach_has_onboarding_steps():
 def get_my_onboarding_steps(coach=None):
     coach_name = _resolve_target_coach(coach)
 
+    # A franchisor drilled into someone else's checklist needs view_as/
+    # viewer on the document link too, or document_view has no way to
+    # know she's allowed to be looking at a coach she isn't - it just
+    # redirects her out. coalesce_str("coach", coach) here mirrors
+    # _resolve_target_coach()'s own check for "was an explicit coach
+    # actually asked for", not just "who ended up being resolved". Also
+    # what gates whether a Hidden From Coach step (an HQ-only task the
+    # coach never sees at all, not even locked/greyed-out - see
+    # sync_master_step_active_state's sibling hidden_from_coach field)
+    # is filtered out below or left in for HQ's own view of it.
+    is_drill_down = bool(coalesce_str("coach", coach)) and is_franchisor_user()
+    view_as_coach = coach_name if is_drill_down else None
+
     rows = frappe.get_all(
         COACH_ONBOARDING_STEP_DOCTYPE,
         filters={"coach": coach_name},
@@ -500,16 +517,15 @@ def get_my_onboarding_steps(coach=None):
 
     _repair_blank_rows(rows)
     _apply_lms_progress_overrides(rows, frappe.db.get_value("Coach", coach_name, "user"))
-    rows = sorted(rows, key=lambda row: (row.stage_sort_order or 0, row.sort_order or 0))
 
-    # A franchisor drilled into someone else's checklist needs view_as/
-    # viewer on the document link too, or document_view has no way to
-    # know she's allowed to be looking at a coach she isn't - it just
-    # redirects her out. coalesce_str("coach", coach) here mirrors
-    # _resolve_target_coach()'s own check for "was an explicit coach
-    # actually asked for", not just "who ended up being resolved".
-    is_drill_down = bool(coalesce_str("coach", coach)) and is_franchisor_user()
-    view_as_coach = coach_name if is_drill_down else None
+    # Hidden From Coach steps are an HQ-only task the coach never sees at
+    # all - not filtered from the counts either, since a coach's own
+    # progress percentage shouldn't be dragged down by something they
+    # can't even see or act on. HQ's own drill-down view keeps them.
+    if not is_drill_down:
+        rows = [row for row in rows if not row.hidden_from_coach]
+
+    rows = sorted(rows, key=lambda row: (row.stage_sort_order or 0, row.sort_order or 0))
 
     stages = _group_by_stage(rows)
     policy_stage = _dynamic_policies_stage(coach_name, view_as_coach=view_as_coach)
