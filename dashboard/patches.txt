@@ -64,3 +64,4 @@ dashboard.patches.add_hq_grant_lms_access_step
 dashboard.patches.add_franchise_lead_stage1_fields
 dashboard.patches.add_franchise_lead_nda_fields
 dashboard.patches.add_franchisee_nda_practice_document
+dashboard.patches.add_franchise_lead_nda_audit_fields

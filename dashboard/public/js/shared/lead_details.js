@@ -239,7 +239,22 @@
     try {
       const result = await apiPost(`${SHARED_API}.get_signed_nda`, { name });
       const content = el("ndaViewModalContent");
-      if (content) content.innerHTML = result.signed_html || "";
+      if (content) {
+        const auditRows = [
+          result.signed_at ? `Signed: ${escapeHtml(result.signed_at)}` : "",
+          result.signer_ip ? `IP address: ${escapeHtml(result.signer_ip)}` : "",
+          result.signer_user_agent ? `Browser/device: ${escapeHtml(result.signer_user_agent)}` : "",
+        ].filter(Boolean);
+
+        const auditBlock = auditRows.length
+          ? `<div style="margin-top:16px; padding:12px 14px; background:#F2F8F8; border-radius:10px; font-size:12px; color:#839898;">
+              <strong style="display:block; margin-bottom:4px; color:#434B49;">Signing Record</strong>
+              ${auditRows.join("<br>")}
+            </div>`
+          : "";
+
+        content.innerHTML = (result.signed_html || "") + auditBlock;
+      }
       const modal = el("ndaViewModal");
       if (modal) modal.classList.add("show");
     } catch (error) {

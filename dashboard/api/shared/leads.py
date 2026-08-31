@@ -748,14 +748,19 @@ def get_nda_sign_url(name=None):
 
 @frappe.whitelist()
 def get_signed_nda(name=None):
-    """Franchisor-only: the frozen signed snapshot, for viewing on the Lead Details page."""
+    """Franchisor-only: the frozen signed snapshot plus its audit trail, for the Lead Details page."""
     name = coalesce_str("name", name)
     doc = ensure_lead_access(name)
 
     if not doc.get("nda_signed_snapshot"):
         frappe.throw(_("This NDA hasn't been signed yet."))
 
-    return {"signed_html": doc.get("nda_signed_snapshot")}
+    return {
+        "signed_html": doc.get("nda_signed_snapshot"),
+        "signed_at": frappe.utils.format_datetime(doc.get("nda_signed_at"), "dd-MM-yyyy HH:mm") if doc.get("nda_signed_at") else "",
+        "signer_ip": doc.get("nda_signer_ip") or "",
+        "signer_user_agent": doc.get("nda_signer_user_agent") or "",
+    }
 
 
 @frappe.whitelist(allow_guest=True)
@@ -826,6 +831,16 @@ def sign_nda(token=None, recipient_name=None, recipient_address=None, signature_
     doc.nda_signed_snapshot = _render_nda_text(_nda_template_text(), context)
     doc.stage1_nda_done = 1
     doc.stage1_nda_date = today
+
+    # Audit trail - the same kind of evidence a real e-signature service
+    # records alongside a typed signature (who, when, from where), in
+    # case this is ever disputed. request_ip already accounts for a
+    # proxy in front of the site (X-Forwarded-For), not just the raw
+    # connecting address.
+    doc.nda_signed_at = frappe.utils.now_datetime()
+    doc.nda_signer_ip = frappe.local.request_ip
+    doc.nda_signer_user_agent = frappe.get_request_header("User-Agent") or ""
+
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 
