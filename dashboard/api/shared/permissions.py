@@ -513,28 +513,82 @@ def ensure_franchisor_can_access_coach(coach_name):
 # Legal compliance helpers
 # -------------------------------------------------------------------
 
+def _latest_dated_row(rows, number_field):
+    """
+    The row with the furthest-out expiry_date among `rows` that actually
+    has one set (rows with no expiry_date are ignored, same as the
+    original per-row behaviour) - or None if none of them do.
+    """
+    best = None
+    best_expiry = None
+
+    for row in rows or []:
+        expiry_date = row.get("expiry_date")
+        if not expiry_date:
+            continue
+
+        try:
+            expiry = frappe.utils.getdate(expiry_date)
+        except Exception:
+            continue
+
+        if best_expiry is None or expiry > best_expiry:
+            best_expiry = expiry
+            best = {"number": row.get(number_field) or "", "expiry_date": expiry_date, "expiry": expiry}
+
+    return best
+
+
 def get_expired_legal_items(doc, dashboard_type):
+    """
+    DBS and DBS Update Service are two ways of satisfying the same
+    background-check requirement, not two independent ones - being
+    subscribed to the Update Service is what lets an original DBS stay
+    valid indefinitely without being reissued, so a coach/session worker
+    is only actually out of compliance once BOTH have lapsed. Checking
+    each table's rows in isolation (the original behaviour) meant an old,
+    superseded DBS row alone could block access even while a genuinely
+    current DBS Update Service covered them. Insurance/Indemnity have no
+    such relationship, so those stay a plain per-row check.
+    """
     expired = []
     today = frappe.utils.getdate(frappe.utils.today())
 
     if dashboard_type == "coach":
-        legal_tables = [
-            ("DBS", "dbs", "dbs_number"),
-            ("DBS Update Service", "dbs_update_services", "dbs_number"),
+        dbs_update_field = "dbs_update_services"
+        plain_tables = [
             ("Insurance", "insurance", "insurance_number"),
             ("Indemnity", "indemnity", "indemnity_number"),
         ]
     elif dashboard_type == "session_worker":
-        legal_tables = [
-            ("DBS", "dbs", "dbs_number"),
-            ("DBS Update Service", "dbs_update_service", "dbs_number"),
+        dbs_update_field = "dbs_update_service"
+        plain_tables = [
             ("Insurance", "insurance", "insurance_number"),
             ("Indemnity", "indemnity", "indemnity_number"),
         ]
     else:
         return expired
 
-    for label, table_field, number_field in legal_tables:
+    dbs_best = _latest_dated_row(doc.get("dbs"), "dbs_number")
+    update_best = _latest_dated_row(doc.get(dbs_update_field), "dbs_number")
+
+    # Whichever of the two has the later expiry decides compliance for the
+    # combined DBS requirement - if that's still in the future, neither
+    # counts as expired even if the OTHER one, on its own, has lapsed.
+    dbs_family_best = max(
+        (row for row in (dbs_best, update_best) if row),
+        key=lambda row: row["expiry"],
+        default=None,
+    )
+
+    if dbs_family_best and dbs_family_best["expiry"] < today:
+        expired.append({
+            "label": "DBS",
+            "number": dbs_family_best["number"],
+            "expiry_date": dbs_family_best["expiry_date"],
+        })
+
+    for label, table_field, number_field in plain_tables:
         for row in doc.get(table_field) or []:
             expiry_date = row.get("expiry_date")
 
