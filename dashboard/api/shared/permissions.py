@@ -558,13 +558,13 @@ def get_expired_legal_items(doc, dashboard_type):
         dbs_update_field = "dbs_update_services"
         plain_tables = [
             ("Insurance", "insurance", "insurance_number"),
-            ("Indemnity", "indemnity", "indemnity_number"),
+            ("ICO Certificate", "indemnity", "indemnity_number"),
         ]
     elif dashboard_type == "session_worker":
         dbs_update_field = "dbs_update_service"
         plain_tables = [
             ("Insurance", "insurance", "insurance_number"),
-            ("Indemnity", "indemnity", "indemnity_number"),
+            ("ICO Certificate", "indemnity", "indemnity_number"),
         ]
     else:
         return expired
