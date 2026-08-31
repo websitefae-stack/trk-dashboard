@@ -10,6 +10,16 @@
   // linked appointment before deleting, without a redundant extra fetch.
   let currentLead = null;
 
+  // Mirrors leads.STAGE1_MILESTONES's order/fieldnames exactly - a
+  // (fieldname, label) pair per Stage 1 - Decide & Commit milestone.
+  const STAGE1_MILESTONES = [
+    ["stage1_call_done", "Call With Ashley (Founder) / Franchise Call"],
+    ["stage1_nda_done", "Sign NDA"],
+    ["stage1_discovery_day_done", "Discovery Day"],
+    ["stage1_intent_deposit_dbs_done", "Intent to Proceed + Deposit + DBS/Insurance Submitted"],
+    ["stage1_agreement_invoice_done", "Franchisee Agreement Signed + Final Invoice Paid"],
+  ];
+
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
     return meta && meta.content ? meta.content : "";
@@ -103,6 +113,61 @@
     }).join("");
   }
 
+  function renderStage1(lead) {
+    const section = el("leadStage1Section");
+    const list = el("leadStage1List");
+    if (!section || !list) return;
+
+    if (!lead.is_franchise_lead || !lead.stage1) {
+      section.style.display = "none";
+      return;
+    }
+
+    section.style.display = "";
+
+    list.innerHTML = STAGE1_MILESTONES.map(([fieldname, label]) => {
+      const milestone = lead.stage1[fieldname] || { done: 0, date: "" };
+      const checked = milestone.done ? "checked" : "";
+      const dateValue = escapeHtml(milestone.date || "");
+
+      return `
+        <div class="dashboard-lead-stage1-row" data-milestone="${escapeHtml(fieldname)}">
+          <label class="dashboard-lead-stage1-label">
+            <input type="checkbox" class="dashboard-lead-stage1-check" ${checked}>
+            ${escapeHtml(label)}
+          </label>
+          <input type="date" class="dashboard-input dashboard-lead-stage1-date" value="${dateValue}"
+            ${milestone.done ? "" : "disabled"}>
+        </div>
+      `;
+    }).join("");
+  }
+
+  async function saveStage1Milestone(row) {
+    const fieldname = row.dataset.milestone;
+    const checkbox = row.querySelector(".dashboard-lead-stage1-check");
+    const dateField = row.querySelector(".dashboard-lead-stage1-date");
+    const name = getValue("leadDocname");
+    if (!fieldname || !checkbox || !dateField || !name) return;
+
+    dateField.disabled = !checkbox.checked;
+
+    if (checkbox.checked && !dateField.value) {
+      dateField.value = todayIso();
+    }
+
+    try {
+      await apiPost(`${SHARED_API}.update_franchise_pipeline`, {
+        name,
+        milestone: fieldname,
+        done: checkbox.checked ? 1 : 0,
+        milestone_date: dateField.value || "",
+      });
+    } catch (error) {
+      window.alert(error.message || "Could not save this.");
+    }
+  }
+
   function renderIntakeAnswers(answers) {
     const section = el("leadIntakeAnswersSection");
     const list = el("leadIntakeAnswersList");
@@ -176,6 +241,7 @@
 
     renderIntakeAnswers(lead.intake_answers || []);
     renderNotes(lead.notes || []);
+    renderStage1(lead);
 
     const callSection = el("leadCallSection");
     if (callSection) {
@@ -791,6 +857,14 @@
 
     const statusField = el("lead_status");
     if (statusField) statusField.addEventListener("change", toggleDeclineField);
+
+    const stage1List = el("leadStage1List");
+    if (stage1List) {
+      stage1List.addEventListener("change", function (event) {
+        const row = event.target.closest(".dashboard-lead-stage1-row");
+        if (row) saveStage1Milestone(row);
+      });
+    }
 
     const noteDateField = el("leadNewNoteDate");
     if (noteDateField && !noteDateField.value) noteDateField.value = todayIso();

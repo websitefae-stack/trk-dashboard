@@ -176,6 +176,29 @@ doc_events = {
     },
 }
 
+# Locks a Frappe LMS course down to "enrolled/staff only" via its own
+# "Restricted" custom field, without touching the course's own Published
+# checkbox (unpublishing blocks it for EVERYONE, enrolled or not - see
+# lms_access.py's own module docstring for why). has_permission/
+# permission_query_conditions are both LMS Course hooks this app is
+# adding from scratch (Frappe Learning defines neither for LMS Course
+# itself, unlike Course Lesson, which this mirrors); the two
+# override_whitelisted_methods entries replace LMS's own course-details/
+# course-outline fetches, which read the course directly rather than
+# through the permission-checked query layer those two hooks cover.
+has_permission = {
+    "LMS Course": "dashboard.api.shared.lms_access.lms_course_has_permission",
+}
+
+permission_query_conditions = {
+    "LMS Course": "dashboard.api.shared.lms_access.lms_course_permission_query_conditions",
+}
+
+override_whitelisted_methods = {
+    "lms.lms.utils.get_course_details": "dashboard.api.shared.lms_access.get_course_details_override",
+    "lms.lms.utils.get_course_outline": "dashboard.api.shared.lms_access.get_course_outline_override",
+}
+
 # Safety net for the pending-booking queue (see pending_bookings.py) - picks
 # up any Pending Booking whose background job never ran (e.g. the worker
 # that would have processed it crashed first) instead of letting it sit
