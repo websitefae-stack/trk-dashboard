@@ -173,11 +173,16 @@ LEGAL_RECORD_CONFIG = {
         "file_field": "insurance_file",
         "insurer_field": "insurer_name",
     },
+    # Field names on the underlying child table are still "indemnity"/
+    # "indemnity_number"/"indemnity_file" (that table isn't owned by this
+    # app - see legal_parentfields above - so nothing there was renamed),
+    # but this is shown throughout the dashboard as "ICO Certificate" now
+    # per Ashley's request, not Indemnity. insurer_field deliberately
+    # dropped - an ICO registration has no insurer, unlike Insurance.
     "indemnity": {
-        "label": "Indemnity",
+        "label": "ICO Certificate",
         "number_field": "indemnity_number",
         "file_field": "indemnity_file",
-        "insurer_field": "insurer_name",
     },
 }
 

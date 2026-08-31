@@ -76,7 +76,7 @@ LEGAL_LABELS = {
     "dbs": "DBS",
     "dbs_update_service": "DBS Update Service",
     "insurance": "Insurance",
-    "indemnity": "Indemnity",
+    "indemnity": "ICO Certificate",
 }
 
 BILLING_FIELD_CONFIG = [

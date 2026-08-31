@@ -257,7 +257,7 @@
             <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="dbs">Add DBS</button>
             <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="dbs_update_service">Add Update Service</button>
             <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="insurance">Add Insurance</button>
-            <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="indemnity">Add Indemnity</button>
+            <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="indemnity">Add ICO Certificate</button>
           </div>
 
           {% set legal_sections = [
@@ -300,16 +300,15 @@
             },
             {
               "type": "indemnity",
-              "title": "Indemnity",
-              "number_label": "Indemnity Number",
-              "file_label": "Indemnity File",
+              "title": "ICO Certificate",
+              "number_label": "ICO Registration Number",
+              "file_label": "ICO Certificate File",
               "file_name": "indemnity_file",
               "rows": indemnity_rows,
               "number_field": "indemnity_number",
               "file_field": "indemnity_file",
-              "empty": "No indemnity records found.",
-              "colspan": 6,
-              "has_insurer": 1
+              "empty": "No ICO Certificate records found.",
+              "colspan": 5
             }
           ] %}
 
