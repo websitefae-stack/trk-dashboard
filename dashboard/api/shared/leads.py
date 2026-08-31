@@ -351,6 +351,8 @@ def get_lead(name=None):
             }
             for done_field, date_field in STAGE1_MILESTONES
         }
+        row["nda_signed"] = 1 if doc.get("nda_signed_snapshot") else 0
+        row["nda_link_generated"] = 1 if doc.get("nda_token") else 0
 
     for fieldname in INTAKE_TEXT_FIELDS + INTAKE_DATE_FIELDS:
         row[fieldname] = doc.get(fieldname) or ""
@@ -667,6 +669,167 @@ def update_franchise_pipeline(name=None, milestone=None, done=None, milestone_da
     frappe.db.commit()
 
     return {"ok": True, "name": doc.name, milestone: doc.get(milestone), date_field: doc.get(date_field)}
+
+
+# -------------------------------------------------------------------
+# Franchisee NDA e-signing - a public, token-linked page (no login) a
+# franchisee opens to read and sign the NDA. See
+# add_franchise_lead_nda_fields.py / add_franchisee_nda_practice_document.py
+# for the fields and template this is built on.
+# -------------------------------------------------------------------
+
+NDA_PRACTICE_DOCUMENT_TITLE = "Franchisee Non-Disclosure Agreement"
+NDA_TERM_YEARS = 3
+NDA_BLANK_PLACEHOLDER = "_" * 24
+
+
+def _nda_template_text():
+    name = frappe.db.get_value(
+        "Practice Document", {"document_title": NDA_PRACTICE_DOCUMENT_TITLE}, "name"
+    )
+    if not name:
+        frappe.throw(_("The Franchisee NDA template hasn't been set up yet."))
+
+    return frappe.db.get_value("Practice Document", name, "document_text") or ""
+
+
+def _render_nda_text(template_text, context):
+    text = template_text
+    for key, value in context.items():
+        # Every value here is either franchisee-typed input or a plain
+        # formatted date, never trusted as HTML - this is rendered
+        # straight into an HTML template both for on-screen preview and
+        # as the permanent signed snapshot.
+        text = text.replace("{{ " + key + " }}", frappe.utils.escape_html(value or ""))
+    return text
+
+
+def _get_lead_by_nda_token(token):
+    token = (token or "").strip()
+    if not token:
+        frappe.throw(_("This link is invalid."))
+
+    lead_name = frappe.db.get_value("Client Lead", {"nda_token": token}, "name")
+    if not lead_name:
+        frappe.throw(_("This link is invalid."))
+
+    return frappe.get_doc(LEAD_DOCTYPE, lead_name)
+
+
+@frappe.whitelist()
+def get_nda_sign_url(name=None):
+    """
+    Franchisor-only: generates (the first time) or reuses this lead's NDA
+    sign link. nda_agreement_date is fixed the first time this is called
+    - it's the agreement's "made and entered into on" date and the
+    Franchisor's own signing date, which stay fixed even if the
+    franchisee doesn't actually open/sign the link until later.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not is_franchise_lead(doc.get("appointment_type")):
+        frappe.throw(_("This lead isn't a Franchisee Call - the NDA flow doesn't apply to it."))
+
+    if doc.get("nda_signed_snapshot"):
+        frappe.throw(_("This lead's NDA has already been signed."))
+
+    if not doc.get("nda_token"):
+        doc.nda_token = frappe.generate_hash(length=40)
+        doc.nda_agreement_date = frappe.utils.today()
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+
+    return {"url": get_url(f"/franchisee-nda?token={doc.nda_token}")}
+
+
+@frappe.whitelist()
+def get_signed_nda(name=None):
+    """Franchisor-only: the frozen signed snapshot, for viewing on the Lead Details page."""
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.get("nda_signed_snapshot"):
+        frappe.throw(_("This NDA hasn't been signed yet."))
+
+    return {"signed_html": doc.get("nda_signed_snapshot")}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_nda_preview(token=None):
+    """
+    Guest-accessible - what the public /franchisee-nda page shows. Blanks
+    not yet known (address/signature/franchisee date/term) render as
+    underscores, matching how the paper version looked before it was
+    filled in, rather than showing raw {{ }} placeholder syntax.
+    """
+    token = coalesce_str("token", token)
+    doc = _get_lead_by_nda_token(token)
+
+    if doc.get("nda_signed_snapshot"):
+        return {"already_signed": True, "signed_html": doc.get("nda_signed_snapshot")}
+
+    context = {
+        "agreement_date": frappe.utils.formatdate(doc.get("nda_agreement_date"), "dd-MM-yyyy"),
+        "recipient_name": doc.get("contact_name") or NDA_BLANK_PLACEHOLDER,
+        "recipient_address": NDA_BLANK_PLACEHOLDER,
+        "franchisee_signature": NDA_BLANK_PLACEHOLDER,
+        "franchisee_date": NDA_BLANK_PLACEHOLDER,
+        "term_date": NDA_BLANK_PLACEHOLDER,
+    }
+
+    return {
+        "already_signed": False,
+        "preview_html": _render_nda_text(_nda_template_text(), context),
+        "recipient_name": doc.get("contact_name") or "",
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def sign_nda(token=None, recipient_name=None, recipient_address=None, signature_name=None):
+    token = coalesce_str("token", token)
+    recipient_name = coalesce_str("recipient_name", recipient_name)
+    recipient_address = coalesce_str("recipient_address", recipient_address)
+    signature_name = coalesce_str("signature_name", signature_name)
+
+    doc = _get_lead_by_nda_token(token)
+
+    if doc.get("nda_signed_snapshot"):
+        frappe.throw(_("This NDA has already been signed."))
+
+    if not recipient_name:
+        frappe.throw(_("Please enter your full name."))
+    if not recipient_address:
+        frappe.throw(_("Please enter your address."))
+    if not signature_name:
+        frappe.throw(_("Please type your name to sign."))
+
+    today = frappe.utils.getdate(frappe.utils.today())
+    term_date = frappe.utils.add_years(today, NDA_TERM_YEARS)
+
+    context = {
+        "agreement_date": frappe.utils.formatdate(doc.get("nda_agreement_date"), "dd-MM-yyyy"),
+        "recipient_name": recipient_name,
+        "recipient_address": recipient_address,
+        "franchisee_signature": signature_name,
+        "franchisee_date": frappe.utils.formatdate(today, "dd-MM-yyyy"),
+        "term_date": frappe.utils.formatdate(term_date, "dd-MM-yyyy"),
+    }
+
+    doc.nda_recipient_name = recipient_name
+    doc.nda_recipient_address = recipient_address
+    doc.nda_signature_name = signature_name
+    doc.nda_term_expiry = term_date
+    doc.nda_signed_snapshot = _render_nda_text(_nda_template_text(), context)
+    doc.stage1_nda_done = 1
+    doc.stage1_nda_date = today
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True}
 
 
 @frappe.whitelist()

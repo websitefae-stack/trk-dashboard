@@ -141,6 +141,8 @@
         </div>
       `;
     }).join("");
+
+    renderNdaBlock(lead);
   }
 
   async function saveStage1Milestone(row) {
@@ -165,6 +167,83 @@
       });
     } catch (error) {
       window.alert(error.message || "Could not save this.");
+    }
+  }
+
+  function renderNdaBlock(lead) {
+    const block = el("leadNdaBlock");
+    if (!block) return;
+
+    if (lead.nda_signed) {
+      block.innerHTML = `
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="viewSignedNdaBtn">View Signed NDA</button>
+      `;
+      const viewBtn = el("viewSignedNdaBtn");
+      if (viewBtn) viewBtn.addEventListener("click", viewSignedNda);
+      return;
+    }
+
+    block.innerHTML = `
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="getNdaLinkBtn">
+        ${lead.nda_link_generated ? "Get NDA Sign Link Again" : "Generate NDA Sign Link"}
+      </button>
+      <div id="ndaLinkResult" style="margin-top:10px; display:none;">
+        <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">
+          Copy this link and send it to the franchisee to sign:
+        </label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="ndaLinkInput" class="dashboard-input" readonly style="flex:1;">
+          <button type="button" class="dashboard-btn dashboard-btn-secondary" id="copyNdaLinkBtn">Copy</button>
+        </div>
+      </div>
+    `;
+
+    const getLinkBtn = el("getNdaLinkBtn");
+    if (getLinkBtn) getLinkBtn.addEventListener("click", getNdaSignLink);
+
+    const copyBtn = el("copyNdaLinkBtn");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", () => {
+        const input = el("ndaLinkInput");
+        if (!input) return;
+        input.select();
+        navigator.clipboard?.writeText(input.value).catch(() => {});
+      });
+    }
+  }
+
+  async function getNdaSignLink() {
+    const name = getValue("leadDocname");
+    const btn = el("getNdaLinkBtn");
+    if (!name) return;
+
+    if (btn) { btn.disabled = true; btn.textContent = "Generating..."; }
+
+    try {
+      const result = await apiPost(`${SHARED_API}.get_nda_sign_url`, { name });
+      const resultBlock = el("ndaLinkResult");
+      const input = el("ndaLinkInput");
+      if (input) input.value = result.url || "";
+      if (resultBlock) resultBlock.style.display = "";
+    } catch (error) {
+      window.alert(error.message || "Could not generate the sign link.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Get NDA Sign Link Again"; }
+    }
+  }
+
+  async function viewSignedNda() {
+    const name = getValue("leadDocname");
+    if (!name) return;
+
+    try {
+      const result = await apiPost(`${SHARED_API}.get_signed_nda`, { name });
+      const content = el("ndaViewModalContent");
+      if (content) content.innerHTML = result.signed_html || "";
+      const modal = el("ndaViewModal");
+      if (modal) modal.classList.add("show");
+    } catch (error) {
+      window.alert(error.message || "Could not load the signed NDA.");
     }
   }
 
@@ -863,6 +942,14 @@
       stage1List.addEventListener("change", function (event) {
         const row = event.target.closest(".dashboard-lead-stage1-row");
         if (row) saveStage1Milestone(row);
+      });
+    }
+
+    const ndaViewModalClose = el("ndaViewModalClose");
+    if (ndaViewModalClose) {
+      ndaViewModalClose.addEventListener("click", () => {
+        const modal = el("ndaViewModal");
+        if (modal) modal.classList.remove("show");
       });
     }
 
