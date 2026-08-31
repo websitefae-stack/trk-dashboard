@@ -91,29 +91,24 @@ def lms_course_has_permission(doc, ptype="read", user=None):
 def lms_course_permission_query_conditions(user=None):
     """
     LMS Course get_permission_query_conditions hook - the list-read
-    counterpart of lms_course_has_permission above, so a Restricted
-    course drops out of get_courses()/get_featured_home_courses()/
-    get_popular_courses() (all plain frappe.get_all("LMS Course", ...)
-    calls, so this applies to them automatically) for anyone it isn't
-    Moderator/instructor/enrolled for.
+    counterpart of lms_course_has_permission above, EXCEPT deliberately
+    stricter: a Restricted course drops out of every course-LISTING query
+    (get_courses()/get_featured_home_courses()/get_popular_courses() -
+    all plain frappe.get_all("LMS Course", ...) calls, so this applies to
+    them automatically) for literally everyone except a true
+    Administrator, enrolled or not. "Hidden" means hidden from browsing,
+    full stop - an enrolled member still opens it exactly as before (that
+    goes through lms_course_has_permission / get_course_details_override
+    instead, neither of which this touches), either via a direct link or
+    via My Courses (LMS Enrollment-driven, never touches LMS Course as a
+    list query at all - unaffected by this).
     """
     user = user or frappe.session.user
 
-    if user == "Administrator" or "Moderator" in frappe.get_roles(user):
+    if user == "Administrator":
         return ""
 
-    escaped_user = frappe.db.escape(user)
-
-    return (
-        f"(`tabLMS Course`.{RESTRICTED_FIELD} != 1"
-        f" or `tabLMS Course`.name in ("
-        f"     select parent from `tabCourse Instructor`"
-        f"     where instructor = {escaped_user} and parenttype = 'LMS Course'"
-        f" )"
-        f" or `tabLMS Course`.name in ("
-        f"     select course from `tabLMS Enrollment` where member = {escaped_user}"
-        f" ))"
-    )
+    return f"`tabLMS Course`.{RESTRICTED_FIELD} != 1"
 
 
 @frappe.whitelist(allow_guest=True)  # matches the original's own allow_guest - guest_access_allowed()
