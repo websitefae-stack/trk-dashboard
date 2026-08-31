@@ -107,6 +107,23 @@ CLIENT_FIELD_LABELS = {
 
 LEAD_DOCTYPE = "Client Lead"
 
+# The 5 Stage 1 - Decide & Commit milestones (see
+# add_franchise_lead_stage1_fields patch) - only meaningful on a
+# Franchisee Call lead (is_franchise_lead below), franchisor-only to
+# view/edit. (done_field, date_field) pairs, in pipeline order.
+STAGE1_MILESTONES = [
+    ("stage1_call_done", "stage1_call_date"),
+    ("stage1_nda_done", "stage1_nda_date"),
+    ("stage1_discovery_day_done", "stage1_discovery_day_date"),
+    ("stage1_intent_deposit_dbs_done", "stage1_intent_deposit_dbs_date"),
+    ("stage1_agreement_invoice_done", "stage1_agreement_invoice_date"),
+]
+
+
+def is_franchise_lead(appointment_type):
+    return "franchisee call" in (appointment_type or "").strip().lower()
+
+
 LEAD_STATUSES = ["New", "Intake Sent", "Converted", "Declined"]
 
 DECLINE_STATUSES = {"Declined"}
@@ -324,6 +341,16 @@ def get_lead(name=None):
     row["call"] = _get_lead_call_info(doc.event)
     row["location_address"] = doc.get("location_address") or ""
     row["is_client_conversion"] = 1 if creates_client_on_conversion(doc.get("appointment_type")) else 0
+    row["is_franchise_lead"] = 1 if is_franchise_lead(doc.get("appointment_type")) else 0
+
+    if row["is_franchise_lead"]:
+        row["stage1"] = {
+            done_field: {
+                "done": int(doc.get(done_field) or 0),
+                "date": doc.get(date_field) or "",
+            }
+            for done_field, date_field in STAGE1_MILESTONES
+        }
 
     for fieldname in INTAKE_TEXT_FIELDS + INTAKE_DATE_FIELDS:
         row[fieldname] = doc.get(fieldname) or ""
@@ -603,6 +630,43 @@ def update_lead_status(name=None, status=None, decline_reason=None):
     frappe.db.commit()
 
     return {"ok": True, "name": doc.name, "status": doc.status}
+
+
+@frappe.whitelist()
+def update_franchise_pipeline(name=None, milestone=None, done=None, milestone_date=None):
+    """
+    Ticks (or unticks) one Stage 1 - Decide & Commit milestone on a
+    Franchisee Call lead. Franchisor-only - this is HQ's own recruitment
+    pipeline, not something a coach's lead view ever shows or edits.
+    Unticking clears the date rather than leaving a stale one behind, so
+    the date field never shows a value the tick box disagrees with.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to update this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    milestone = coalesce_str("milestone", milestone)
+    milestone_date = coalesce_str("milestone_date", milestone_date)
+    done = coalesce_raw("done", done)
+    is_done = str(done).lower() in ["1", "true", "yes", "on"]
+
+    valid_fields = {done_field for done_field, _date_field in STAGE1_MILESTONES}
+    if milestone not in valid_fields:
+        frappe.throw(_("Unknown Stage 1 milestone."))
+
+    doc = ensure_lead_access(name)
+
+    if not is_franchise_lead(doc.get("appointment_type")):
+        frappe.throw(_("This lead isn't a Franchisee Call - Stage 1 doesn't apply to it."))
+
+    date_field = dict(STAGE1_MILESTONES)[milestone]
+
+    doc.set(milestone, 1 if is_done else 0)
+    doc.set(date_field, milestone_date if is_done else None)
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True, "name": doc.name, milestone: doc.get(milestone), date_field: doc.get(date_field)}
 
 
 @frappe.whitelist()

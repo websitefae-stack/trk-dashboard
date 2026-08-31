@@ -61,3 +61,4 @@ dashboard.patches.rename_web_form_report_visibility_fields
 dashboard.patches.backfill_master_step_owner_and_stage_to_coach_rows
 dashboard.patches.add_lms_course_restricted_field
 dashboard.patches.add_hq_grant_lms_access_step
+dashboard.patches.add_franchise_lead_stage1_fields
