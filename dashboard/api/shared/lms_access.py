@@ -128,7 +128,7 @@ def lms_course_permission_query_conditions(user=None):
 @frappe.whitelist(allow_guest=True)  # matches the original's own allow_guest - guest_access_allowed()
 # (checked inside the real function) still governs whether a guest gets past this point at all,
 # and _user_has_lms_course_access below never grants a Guest access to a restricted course anyway.
-def get_course_details_override(course: str):
+def get_course_details_override(course: str = None):
     """
     Replaces lms.lms.utils.get_course_details (see
     override_whitelisted_methods in hooks.py) - that function reads the
@@ -138,7 +138,18 @@ def get_course_details_override(course: str):
     gate for a Restricted course too, published or not, then always
     defers to the real function for the actual response - so a course
     that passes never renders any differently than it always has.
+
+    course defaults to None (the original has no default at all,
+    course: str with nothing after it) because the LMS frontend
+    sometimes calls this before it actually has a course id yet - seen
+    for real as a Guest hitting a course page and firing this with no
+    course in the request at all, which crashed with a TypeError before
+    this had a default to fall back on. Same story on
+    get_course_outline_override below.
     """
+    if not course:
+        return {}
+
     from lms.lms.utils import get_course_details as _original_get_course_details
 
     if _course_is_restricted(course) and not _user_has_lms_course_access(course):
@@ -148,8 +159,11 @@ def get_course_details_override(course: str):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_course_outline_override(course: str, progress: bool = False):
+def get_course_outline_override(course: str = None, progress: bool = False):
     """Same reasoning as get_course_details_override, for the chapter/lesson title list."""
+    if not course:
+        return []
+
     from lms.lms.utils import get_course_outline as _original_get_course_outline
 
     if _course_is_restricted(course) and not _user_has_lms_course_access(course):
