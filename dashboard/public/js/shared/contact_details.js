@@ -432,6 +432,140 @@
     toggleCustomerField();
   }
     
+  const CONTACT_DETAILS_API = "dashboard.api.shared.contact_details";
+
+  function getContactDocname() {
+    return el("contactDocname") ? el("contactDocname").value : "";
+  }
+
+  async function openContactStatementModal() {
+    const contact = getContactDocname();
+    if (!contact) return;
+
+    const modal = el("contactStatementModal");
+    const statusEl = el("contactStatementStatus");
+    const previewWrap = el("contactStatementPreviewWrap");
+    const previewBox = el("contactStatementPreview");
+    const recipientField = el("contactStatementRecipient");
+    const subjectField = el("contactStatementSubject");
+    const messageField = el("contactStatementMessage");
+    const ccField = el("contactStatementCc");
+
+    if (statusEl) statusEl.textContent = "Loading...";
+    if (previewWrap) previewWrap.style.display = "none";
+    if (previewBox) previewBox.innerHTML = "";
+    if (recipientField) recipientField.value = "";
+    if (subjectField) subjectField.value = "";
+    if (messageField) messageField.value = "";
+    if (ccField) ccField.value = "";
+
+    if (modal) modal.classList.add("show");
+
+    try {
+      const result = await apiPost(CONTACT_DETAILS_API + ".get_contact_statement_email_defaults", {
+        contact_name: contact,
+        scope: getScope()
+      });
+      const defaults = result.message || result || {};
+      if (recipientField) recipientField.value = defaults.recipient || "";
+      if (subjectField) subjectField.value = defaults.subject || "";
+      if (messageField) messageField.value = defaults.message || "";
+      if (statusEl) statusEl.textContent = "";
+    } catch (error) {
+      if (statusEl) statusEl.textContent = "";
+      showError(error.message || "Could not load statement details.");
+      closeContactStatementModal();
+    }
+  }
+
+  function closeContactStatementModal() {
+    const modal = el("contactStatementModal");
+    if (modal) modal.classList.remove("show");
+  }
+
+  async function previewContactStatement() {
+    const contact = getContactDocname();
+    const previewBox = el("contactStatementPreview");
+    const previewWrap = el("contactStatementPreviewWrap");
+    const previewBtn = el("previewContactStatement");
+    if (!contact || !previewBox) return;
+
+    if (previewBtn) {
+      previewBtn.disabled = true;
+      previewBtn.textContent = "Loading...";
+    }
+
+    try {
+      const result = await apiPost(CONTACT_DETAILS_API + ".get_contact_statement_preview", {
+        contact_name: contact,
+        scope: getScope()
+      });
+      const data = result.message || result || {};
+      previewBox.innerHTML = data.html || "";
+      if (previewWrap) previewWrap.style.display = "";
+    } catch (error) {
+      showError(error.message || "Could not build a preview.");
+    } finally {
+      if (previewBtn) {
+        previewBtn.disabled = false;
+        previewBtn.textContent = "Preview";
+      }
+    }
+  }
+
+  async function sendContactStatement() {
+    const contact = getContactDocname();
+    const recipientField = el("contactStatementRecipient");
+    const subjectField = el("contactStatementSubject");
+    const messageField = el("contactStatementMessage");
+    const ccField = el("contactStatementCc");
+    const statusEl = el("contactStatementStatus");
+    const sendBtn = el("sendContactStatement");
+
+    const recipient = recipientField ? recipientField.value.trim() : "";
+    const subject = subjectField ? subjectField.value.trim() : "";
+    const message = messageField ? messageField.value.trim() : "";
+
+    if (!recipient) {
+      showError("Enter an email address to send to.");
+      return;
+    }
+
+    if (sendBtn) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = "Sending...";
+    }
+    if (statusEl) statusEl.textContent = "";
+
+    try {
+      await apiPost(CONTACT_DETAILS_API + ".send_contact_statement_email", {
+        contact_name: contact,
+        scope: getScope(),
+        recipient: recipient,
+        subject: subject,
+        message: message,
+        cc: ccField ? ccField.value.trim() : ""
+      });
+      showSuccess("Statement sent");
+      closeContactStatementModal();
+    } catch (error) {
+      showError(error.message || "Could not send the statement.");
+    } finally {
+      if (sendBtn) {
+        sendBtn.disabled = false;
+        sendBtn.textContent = "Send Statement";
+      }
+    }
+  }
+
+  function initContactStatementModal() {
+    el("openContactStatementModal")?.addEventListener("click", openContactStatementModal);
+    el("closeContactStatementModal")?.addEventListener("click", closeContactStatementModal);
+    el("cancelContactStatementModal")?.addEventListener("click", closeContactStatementModal);
+    el("previewContactStatement")?.addEventListener("click", previewContactStatement);
+    el("sendContactStatement")?.addEventListener("click", sendContactStatement);
+  }
+
   function init() {
     if (!el("contactDetailsForm")) return;
 
@@ -442,6 +576,7 @@
     initBillingContactToggle();
     initRefreshBack();
     initChangeRequest();
+    initContactStatementModal();
     forceNewContactDetailsVisible();
   }
 

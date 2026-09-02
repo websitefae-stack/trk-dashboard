@@ -194,6 +194,220 @@ def get_contact_invoices(linked_clients):
         "docstatus": row.docstatus,
     } for row in invoices]
 
+
+# -------------------------------------------------------------------
+# Contact statement - one combined "Statement of Account" across every
+# Client this Contact is a billing contact for (a parent with several
+# children each as their own Client record, say), unlike
+# invoices.render_client_statement_html which is necessarily one Client
+# at a time. Mirrors that function's own layout/letterhead handling
+# closely (imported directly rather than duplicated) but adds a Client
+# column to the invoice table, since rows here can belong to different
+# Clients.
+# -------------------------------------------------------------------
+
+def _get_contact_outstanding_invoices(contact_name, scope):
+    if not contact_name or not frappe.db.exists("Contact", contact_name):
+        frappe.throw(_("Contact not found."))
+
+    contact = frappe.get_doc("Contact", contact_name)
+    linked_clients = get_linked_clients(contact, scope)
+    billing_client_names = [row["name"] for row in linked_clients if row.get("is_billing_client")]
+
+    if not billing_client_names:
+        frappe.throw(_("This contact isn't the billing contact for any client."))
+
+    invoices = frappe.get_all(
+        "Sales Invoice",
+        filters={
+            "custom_client": ["in", billing_client_names],
+            "docstatus": 1,
+            "outstanding_amount": [">", 0],
+        },
+        fields=["name", "custom_client", "posting_date", "outstanding_amount", "currency"],
+        order_by="posting_date asc",
+        limit_page_length=0,
+        ignore_permissions=True,
+    )
+
+    if not invoices:
+        frappe.throw(_("This contact has no outstanding invoices to include in a statement."))
+
+    client_label_map = {row["name"]: row["display_name"] for row in linked_clients}
+    currency = invoices[0].currency or "GBP"
+    total_outstanding = sum(_contact_statement_to_float(invoice.outstanding_amount) for invoice in invoices)
+
+    return contact, invoices, total_outstanding, currency, client_label_map
+
+
+def _contact_statement_to_float(value):
+    from dashboard.api.shared.invoices import _to_float
+    return _to_float(value)
+
+
+def render_contact_statement_html(contact_name, scope):
+    """
+    Same "Statement of Account" document render_client_statement_html
+    produces, spanning every linked Client's outstanding invoices instead
+    of just one - used both for the Preview button and as the emailed
+    PDF, so the two can never drift apart.
+    """
+    from html import escape as _html_escape
+    from dashboard.api.shared.invoices import _statement_letterhead_html
+
+    contact, invoices, total_outstanding, currency, client_label_map = _get_contact_outstanding_invoices(
+        contact_name, scope
+    )
+
+    contact_label = contact_display_name(contact)
+    sender_name = frappe.utils.get_fullname(frappe.session.user) or "The Resilient Kid Team"
+    company_label = "The Resilient Kid"
+
+    # A real Sales Invoice belonging to one of this contact's clients, so
+    # the letterhead's Jinja (doc.custom_client, doc.company, ...)
+    # resolves correctly and picks a real client's logo.
+    letterhead_doc = frappe.get_doc("Sales Invoice", invoices[0].name)
+
+    rows_html = "".join(
+        "<tr>"
+        f"<td style=\"padding:10px 6px;border-bottom:1px solid #E6EFEF;\">{_html_escape(invoice.name)}</td>"
+        f"<td style=\"padding:10px 6px;border-bottom:1px solid #E6EFEF;\">"
+        f"{_html_escape(client_label_map.get(invoice.custom_client) or invoice.custom_client)}</td>"
+        f"<td style=\"padding:10px 6px;border-bottom:1px solid #E6EFEF;\">"
+        f"{frappe.utils.formatdate(invoice.posting_date, 'dd-MM-yyyy') if invoice.posting_date else '—'}</td>"
+        f"<td style=\"padding:10px 6px;border-bottom:1px solid #E6EFEF;text-align:right;\">"
+        f"{frappe.utils.fmt_money(_contact_statement_to_float(invoice.outstanding_amount), currency=invoice.currency or currency)}</td>"
+        "</tr>"
+        for invoice in invoices
+    )
+
+    return f"""
+    <div style="font-family: Arial, Helvetica, sans-serif; color:#263238; max-width:720px; margin:0 auto;">
+      {_statement_letterhead_html(letterhead_doc)}
+      <h2 style="margin:28px 0 4px;">Statement of Account</h2>
+      <p style="margin:0 0 24px;color:#607d7d;">{frappe.utils.formatdate(frappe.utils.nowdate(), "d MMMM yyyy")}</p>
+
+      <p style="margin:0 0 4px;font-weight:bold;">{_html_escape(contact_label)}</p>
+      <p style="margin:0 0 28px;color:#607d7d;">{_html_escape(company_label)}</p>
+
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:8px 6px;border-bottom:2px solid #263238;">Invoice</th>
+            <th style="text-align:left;padding:8px 6px;border-bottom:2px solid #263238;">Client</th>
+            <th style="text-align:left;padding:8px 6px;border-bottom:2px solid #263238;">Date</th>
+            <th style="text-align:right;padding:8px 6px;border-bottom:2px solid #263238;">Amount Owed</th>
+          </tr>
+        </thead>
+        <tbody>{rows_html}</tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3" style="padding:14px 6px;font-weight:bold;">Total Outstanding</td>
+            <td style="padding:14px 6px;text-align:right;font-weight:bold;">
+              {frappe.utils.fmt_money(total_outstanding, currency=currency)}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <p style="margin-top:36px;">Warm regards,<br>{_html_escape(sender_name)}<br>{_html_escape(company_label)}</p>
+    </div>
+    """
+
+
+@frappe.whitelist()
+def get_contact_statement_preview(contact_name=None, scope="coach"):
+    ensure_logged_in()
+    ensure_contact_access(contact_name, scope)
+
+    return {"html": render_contact_statement_html(contact_name, scope)}
+
+
+@frappe.whitelist()
+def get_contact_statement_email_defaults(contact_name=None, scope="coach"):
+    ensure_logged_in()
+    ensure_contact_access(contact_name, scope)
+
+    contact, _invoices, total_outstanding, currency, _client_label_map = _get_contact_outstanding_invoices(
+        contact_name, scope
+    )
+
+    contact_label = contact_display_name(contact)
+    sender_name = frappe.utils.get_fullname(frappe.session.user) or "The Resilient Kid Team"
+
+    subject = "Your account statement - The Resilient Kid"
+    message = (
+        f"Hi {contact_label},\n"
+        "\n"
+        "Please find your account statement attached, showing a total "
+        f"outstanding balance of {frappe.utils.fmt_money(total_outstanding, currency=currency)} "
+        "across your account.\n"
+        "\n"
+        "Warm regards,\n"
+        f"{sender_name}\n"
+        "The Resilient Kid"
+    )
+
+    return {
+        "subject": subject,
+        "message": message,
+        "recipient": contact.get("email_id") or "",
+    }
+
+
+@frappe.whitelist()
+def send_contact_statement_email(contact_name=None, scope="coach", recipient=None, subject=None, message=None, cc=None):
+    """
+    Sends the Email Statement compose modal's contents - the covering
+    note as the email body, plus the combined Statement of Account
+    attached as a PDF, generated from the exact same HTML the Preview
+    button shows.
+    """
+    from frappe.utils.pdf import get_pdf
+    from dashboard.api.shared.email_templates import plain_text_to_email_html, parse_email_list
+
+    ensure_logged_in()
+    ensure_contact_access(contact_name, scope)
+
+    recipient = (recipient or "").strip()
+    if not recipient:
+        frappe.throw(_("Recipient email is required."))
+
+    subject = (subject or "Your account statement").strip()
+    message = plain_text_to_email_html((message or "").strip())
+
+    statement_html = render_contact_statement_html(contact_name, scope)
+    pdf_content = get_pdf(statement_html)
+
+    attachments = [{
+        "fname": f"Statement - {contact_display_name(frappe.get_doc('Contact', contact_name))}.pdf",
+        "fcontent": pdf_content,
+    }]
+
+    # Default to whoever's actually sending this, not the shared outgoing
+    # account - otherwise every reply lands in office's inbox regardless
+    # of who actually emailed it (same reasoning as
+    # invoices.send_client_statement_email).
+    reply_to = frappe.session.user
+
+    kwargs = {
+        "recipients": [recipient],
+        "subject": subject,
+        "message": message,
+        "now": True,
+        "reply_to": reply_to,
+        "attachments": attachments,
+    }
+
+    cc_list = parse_email_list(cc)
+    if cc_list:
+        kwargs["cc"] = cc_list
+
+    frappe.sendmail(**kwargs)
+
+    return {"ok": 1}
+
+
 def get_address_values_for_contact(contact):
     address_name = contact.get("address")
 

@@ -49,6 +49,11 @@ def _user_has_lms_course_access(course_name, user=None):
     Same three-way check lms.lms.utils.get_course_details already applies
     to an unpublished course - reused here so a Restricted course behaves
     identically for anyone who'd have been let through that gate anyway.
+    Also always lets a Desk admin (System Manager) through - this is a
+    website/LMS-facing restriction, never meant to lock Ashley/office out
+    of managing the course record itself in Desk. Without this, only the
+    literal "Administrator" user and whoever holds the LMS-specific
+    Moderator role could even open a Restricted course record at all.
     """
     from lms.lms.utils import can_modify_course, get_membership
 
@@ -57,7 +62,9 @@ def _user_has_lms_course_access(course_name, user=None):
     if user == "Administrator":
         return True
 
-    if "Moderator" in frappe.get_roles(user):
+    roles = frappe.get_roles(user)
+
+    if "System Manager" in roles or "Moderator" in roles:
         return True
 
     if can_modify_course(course_name):
@@ -92,20 +99,27 @@ def lms_course_permission_query_conditions(user=None):
     """
     LMS Course get_permission_query_conditions hook - the list-read
     counterpart of lms_course_has_permission above, EXCEPT deliberately
-    stricter: a Restricted course drops out of every course-LISTING query
-    (get_courses()/get_featured_home_courses()/get_popular_courses() -
-    all plain frappe.get_all("LMS Course", ...) calls, so this applies to
-    them automatically) for literally everyone except a true
-    Administrator, enrolled or not. "Hidden" means hidden from browsing,
-    full stop - an enrolled member still opens it exactly as before (that
-    goes through lms_course_has_permission / get_course_details_override
+    stricter on the LMS/website side: a Restricted course drops out of
+    every course-LISTING query (get_courses()/get_featured_home_courses()/
+    get_popular_courses() - all plain frappe.get_all("LMS Course", ...)
+    calls, so this applies to them automatically, and Frappe's own
+    Awesomebar/global search - see frappe.utils.global_search.search,
+    which checks has_permission per result) for anyone who isn't a Desk
+    admin, enrolled or not. "Hidden" means hidden from browsing, full
+    stop - an enrolled member still opens it exactly as before (that goes
+    through lms_course_has_permission / get_course_details_override
     instead, neither of which this touches), either via a direct link or
     via My Courses (LMS Enrollment-driven, never touches LMS Course as a
     list query at all - unaffected by this).
+
+    System Manager bypasses this the same as Administrator - Desk's own
+    LMS Course list view (/app/lms-course) is a list query same as any
+    other, so without this a Restricted course would vanish from Ashley's
+    own backend list too, not just the public site.
     """
     user = user or frappe.session.user
 
-    if user == "Administrator":
+    if user == "Administrator" or "System Manager" in frappe.get_roles(user):
         return ""
 
     return f"`tabLMS Course`.{RESTRICTED_FIELD} != 1"
