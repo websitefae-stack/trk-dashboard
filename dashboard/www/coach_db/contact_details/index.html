@@ -359,8 +359,11 @@
             <section class="dashboard-detail-section">
               <div class="dashboard-detail-section-head">
                 <h2 class="dashboard-detail-section-title">Invoices</h2>
+                <button type="button" class="dashboard-btn dashboard-btn-light" id="openContactStatementModal">
+                  Send Statement
+                </button>
               </div>
-          
+
               <div class="dashboard-table-wrap">
                 <table class="dashboard-table dashboard-contact-invoice-table">
                   <thead>
@@ -419,6 +422,55 @@
           </div>
           {% endif %}
         </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-calendar-modal-backdrop" id="contactStatementModal">
+    <div class="trk-calendar-modal">
+      <div class="trk-calendar-modal-head">
+        <h3>Email Statement</h3>
+        <button type="button" class="trk-calendar-icon-btn" id="closeContactStatementModal">✕</button>
+      </div>
+
+      <div class="trk-calendar-modal-body">
+        <p class="dashboard-help" style="margin-bottom:14px;">
+          Attaches a Statement of Account covering every outstanding invoice across all of this contact's
+          linked clients, not just one.
+        </p>
+
+        <div class="trk-calendar-field">
+          <label for="contactStatementRecipient">Send To</label>
+          <input type="text" id="contactStatementRecipient" class="dashboard-input" placeholder="Email address">
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="contactStatementCc">Cc</label>
+          <input type="text" id="contactStatementCc" class="dashboard-input" placeholder="Optional, comma separated">
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="contactStatementSubject">Subject</label>
+          <input type="text" id="contactStatementSubject" class="dashboard-input">
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="contactStatementMessage">Message</label>
+          <textarea id="contactStatementMessage" class="dashboard-input" rows="8"></textarea>
+        </div>
+
+        <div class="dashboard-help" id="contactStatementStatus"></div>
+
+        <div id="contactStatementPreviewWrap" style="display:none; margin-top:14px;">
+          <label style="display:block; font-weight:600; font-size:13px; margin-bottom:6px;">Attached Statement Preview</label>
+          <div id="contactStatementPreview" style="border:1px solid #D9E6E6; border-radius:10px; padding:16px; max-height:400px; overflow:auto;"></div>
+        </div>
+      </div>
+
+      <div class="trk-calendar-modal-foot">
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelContactStatementModal">Cancel</button>
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="previewContactStatement">Preview</button>
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendContactStatement">Send Statement</button>
       </div>
     </div>
   </div>
