@@ -446,6 +446,7 @@ def update_my_profile(role, coach=None):
         "photo",
         config["doctype"],
         profile_doc.name,
+        is_private=0,
     )
 
     if photo_url and profile_doc.meta.has_field("photo"):
@@ -792,7 +793,16 @@ def _get_status_from_expiry(expiry_date):
         return "Expired"
 
 
-def _save_optional_file(fieldname, attached_to_doctype, attached_to_name):
+def _save_optional_file(fieldname, attached_to_doctype, attached_to_name, is_private=1):
+    """
+    is_private defaults to 1 (the existing behaviour) since most callers of
+    this helper are legal documents (DBS, insurance, ICO certificate) that
+    must stay behind login. The coach profile photo passes is_private=0
+    instead - it's rendered on the public resilient_domains coach-profile
+    pages, an unauthenticated site on a different domain, so a private File
+    (which requires a logged-in Frappe session to serve) would 404/hang
+    there even though it displays fine inside the dashboard itself.
+    """
     if not getattr(frappe, "request", None):
         return ""
 
@@ -809,7 +819,7 @@ def _save_optional_file(fieldname, attached_to_doctype, attached_to_name):
         "attached_to_doctype": attached_to_doctype,
         "attached_to_name": attached_to_name,
         "content": uploaded_file.stream.read(),
-        "is_private": 1,
+        "is_private": is_private,
     })
 
     file_doc.save(ignore_permissions=True)
