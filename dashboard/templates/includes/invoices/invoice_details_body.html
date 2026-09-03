@@ -68,6 +68,10 @@
       margin-bottom: 20px;
     }
 
+    #outstandingInvoiceWarning {
+      margin-bottom: 20px;
+    }
+
     .invoice-payment-summary {
       padding-top: 24px;
       padding-bottom: 24px;
@@ -104,6 +108,12 @@
       border: 1px solid #f4b400;
       background: #fff8e1;
       color: #5f4700;
+    }
+
+    .invoice-outstanding-warning {
+      border: 1px solid #d32f2f;
+      background: #fdecea;
+      color: #611a15;
     }
 
     .invoice-modal-backdrop {
@@ -241,6 +251,8 @@
   </div>
 
   <div id="openPackageWarning" class="dashboard-card invoice-package-warning" hidden></div>
+
+  <div id="outstandingInvoiceWarning" class="dashboard-card invoice-outstanding-warning" hidden></div>
 
   {% if docname %}
     <section class="dashboard-card invoice-payment-summary">
