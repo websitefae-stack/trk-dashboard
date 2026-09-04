@@ -1525,7 +1525,7 @@ def get_link_options(doctype, txt=None, limit_page_length=200):
 # =====================================================
 
 @frappe.whitelist()
-def get_client_invoice_defaults(client_name=None):
+def get_client_invoice_defaults(client_name=None, exclude_docname=None):
     _require_logged_in_user()
 
     client_name = (client_name or "").strip()
@@ -1564,6 +1564,25 @@ def get_client_invoice_defaults(client_name=None):
     client_type = client.get("client_type") or ""
     allow_bank_override = client_type in BANK_OVERRIDE_CLIENT_TYPES
 
+    outstanding_filters = {
+        "custom_client": client_name,
+        "docstatus": 1,
+        "outstanding_amount": [">", 0],
+    }
+
+    exclude_docname = (exclude_docname or "").strip()
+    if exclude_docname:
+        outstanding_filters["name"] = ["!=", exclude_docname]
+
+    outstanding_invoices = frappe.get_all(
+        "Sales Invoice",
+        filters=outstanding_filters,
+        fields=["name", "posting_date", "outstanding_amount", "currency"],
+        order_by="posting_date asc",
+        limit_page_length=20,
+        ignore_permissions=True,
+    )
+
     return {
         "client_name": client_name,
         "client_label": _client_display_name(client_name),
@@ -1586,6 +1605,7 @@ def get_client_invoice_defaults(client_name=None):
         "travel_miles_one_way": float(client.get("travel_miles_one_way") or 0),
         "travel_charge_per_session": float(client.get("travel_charge_per_session") or 0),
         "open_balances": open_balances,
+        "outstanding_invoices": outstanding_invoices,
     }
 
 

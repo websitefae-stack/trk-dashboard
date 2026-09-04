@@ -66,3 +66,4 @@ dashboard.patches.add_franchise_lead_nda_fields
 dashboard.patches.add_franchisee_nda_practice_document
 dashboard.patches.add_franchise_lead_nda_audit_fields
 dashboard.patches.make_existing_coach_photos_public
+dashboard.patches.add_blog_post_hero_image_field

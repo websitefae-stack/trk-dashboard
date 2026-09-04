@@ -430,13 +430,15 @@
       setSingleCustomerOption("", "");
       clearResolvedFields();
       renderOpenPackageWarning([]);
+      renderOutstandingInvoiceWarning([]);
       removeTravelRow();
       return null;
     }
 
     try {
       const result = await apiPost(SHARED_API + ".get_client_invoice_defaults", {
-        client_name: clientName
+        client_name: clientName,
+        exclude_docname: el("invoiceDocname")?.value || ""
       });
 
       const data = result.message || {};
@@ -470,6 +472,7 @@
       if (emailRecipient) emailRecipient.value = data.contact_email || "";
 
       renderOpenPackageWarning(data.open_balances || []);
+      renderOutstandingInvoiceWarning(data.outstanding_invoices || []);
       await updateTravelRow();
 
       return data;
@@ -517,6 +520,51 @@
     });
 
     html += `</tbody></table>`;
+
+    box.innerHTML = html;
+    box.hidden = false;
+  }
+
+  function renderOutstandingInvoiceWarning(rows) {
+    const box = el("outstandingInvoiceWarning");
+    if (!box) return;
+
+    if (!rows || !rows.length) {
+      box.hidden = true;
+      box.innerHTML = "";
+      return;
+    }
+
+    const currency = rows[0].currency || "GBP";
+    const total = rows.reduce((sum, row) => sum + (parseFloat(row.outstanding_amount) || 0), 0);
+
+    let html = `
+      <strong>This client already has unpaid invoices.</strong><br>
+      Please check they're up to date before sending another one.
+      <table style="width:100%;margin-top:10px;font-size:13px;">
+        <thead>
+          <tr>
+            <th style="text-align:left;">Invoice</th>
+            <th style="text-align:left;">Date</th>
+            <th style="text-align:left;">Outstanding</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    rows.forEach((row) => {
+      html += `
+        <tr>
+          <td>${row.name || ""}</td>
+          <td>${row.posting_date || ""}</td>
+          <td>${currency} ${(parseFloat(row.outstanding_amount) || 0).toFixed(2)}</td>
+        </tr>
+      `;
+    });
+
+    html += `</tbody></table>
+      <div style="margin-top:8px;font-weight:700;">Total outstanding: ${currency} ${total.toFixed(2)}</div>
+    `;
 
     box.innerHTML = html;
     box.hidden = false;
