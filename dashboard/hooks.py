@@ -174,6 +174,14 @@ doc_events = {
     "Web Form": {
         "on_update": "dashboard.api.shared.form_reports.sync_web_form_report_visibility",
     },
+    # Frappe Blog is a separate app too, same story as LMS Certificate
+    # above - Custom Hero Image (see add_blog_post_hero_image_field
+    # patch) needs to be public to render on the public blog post page,
+    # but Desk's Attach Image uploader leaves that choice to whoever
+    # uploads it. See blog.ensure_hero_image_public.
+    "Blog Post": {
+        "validate": "dashboard.api.shared.blog.ensure_hero_image_public",
+    },
 }
 
 # Locks a Frappe LMS course down to "enrolled/staff only" via its own
