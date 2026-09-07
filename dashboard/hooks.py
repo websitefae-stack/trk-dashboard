@@ -184,16 +184,19 @@ doc_events = {
     },
 }
 
-# Locks a Frappe LMS course down to "enrolled/staff only" via its own
-# "Restricted" custom field, without touching the course's own Published
-# checkbox (unpublishing blocks it for EVERYONE, enrolled or not - see
+# Two independent LMS Course settings - "Show on Website" (opt-in
+# public listing visibility) and "Restricted" (enrolled/staff-only
+# open access), neither touching the course's own Published checkbox
+# (unpublishing blocks it for EVERYONE, enrolled or not - see
 # lms_access.py's own module docstring for why). has_permission/
 # permission_query_conditions are both LMS Course hooks this app is
 # adding from scratch (Frappe Learning defines neither for LMS Course
-# itself, unlike Course Lesson, which this mirrors); the two
-# override_whitelisted_methods entries replace LMS's own course-details/
-# course-outline fetches, which read the course directly rather than
-# through the permission-checked query layer those two hooks cover.
+# itself, unlike Course Lesson, which this mirrors); the
+# override_whitelisted_methods entries below replace LMS's own
+# course-details/course-outline/listing/category fetches, which either
+# read the course directly or call frappe.get_all() (which always
+# ignores permissions - see lms_access.py) rather than going through
+# the permission-checked query layer those two hooks cover.
 has_permission = {
     "LMS Course": "dashboard.api.shared.lms_access.lms_course_has_permission",
 }
@@ -205,6 +208,12 @@ permission_query_conditions = {
 override_whitelisted_methods = {
     "lms.lms.utils.get_course_details": "dashboard.api.shared.lms_access.get_course_details_override",
     "lms.lms.utils.get_course_outline": "dashboard.api.shared.lms_access.get_course_outline_override",
+    # The public course listing itself - see get_courses_override's own
+    # docstring for why permission_query_conditions above never reached
+    # it (frappe.get_all() always ignores permissions, full stop).
+    "lms.lms.utils.get_courses": "dashboard.api.shared.lms_access.get_courses_override",
+    "lms.lms.utils.get_course_count": "dashboard.api.shared.lms_access.get_course_count_override",
+    "lms.lms.utils.get_course_categories": "dashboard.api.shared.lms_access.get_course_categories_override",
 }
 
 # Safety net for the pending-booking queue (see pending_bookings.py) - picks
