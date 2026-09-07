@@ -74,12 +74,23 @@ def _apply_public_listing_visibility(filters):
     """
     Adds the Show on Website requirement (and Restricted exclusion, as a
     second safety net in case a course is ever both) directly to a
-    filters dict bound for get_courses()/get_course_count()/
-    get_course_categories() (see their overrides below) - a Desk admin
-    still sees everything, same as browsing the site logged in as
-    Administrator always has.
+    filters dict bound for get_courses()/get_course_count() (see their
+    overrides below) - a Desk admin still sees everything, same as
+    browsing the site logged in as Administrator always has.
+
+    Skipped entirely when filters asks for "enrolled" or "created"
+    courses (LMS's own My Courses / "courses I teach" tabs - see
+    update_course_filters() in lms.lms.utils, which turns either into a
+    name IN (...) filter of its own right after this runs) - being
+    enrolled in (or teaching) a course is what makes it "yours" to see,
+    regardless of whether it's on the public listing. Without this,
+    someone added to a Restricted course, or a hidden one, couldn't see
+    their own course on their own My Courses page.
     """
     filters = dict(filters or {})
+
+    if filters.get("enrolled") or filters.get("created"):
+        return filters
 
     if _is_lms_admin():
         return filters
