@@ -1355,6 +1355,56 @@ def _format_conversation_for_user(doc, user):
         frappe.session.user = original_user
 
 
+def _resolve_view_as_user(view_as, viewer):
+    """
+    A franchisor browsing to Coach/Session Worker > (someone) > Notifications
+    is asking to see THAT person's notifications, not their own - shared by
+    every notifications endpoint that needs to honour view_as/viewer
+    (originally only get_notification_detail had this; get_notification_
+    list_for_page/get_notification_summary_for_page never did, so a
+    franchisor viewing a coach's Notifications page saw their own
+    notifications list instead of the coach's, even though opening a card
+    would then correctly load that coach's copy of it).
+
+    Returns the impersonated user, or None if view_as/viewer weren't both
+    given (the normal, non-view-mode case for every other caller).
+    """
+    if not (view_as and viewer == "franchisor"):
+        return None
+
+    if frappe.db.exists("Coach", view_as):
+        from dashboard.api.shared.coach_view_mode import get_coach_view_mode
+
+        view_mode = get_coach_view_mode(scope=viewer, coach_name=view_as)
+
+        if not view_mode.get("is_view_mode"):
+            frappe.throw(_("You do not have permission to view this coach."), frappe.PermissionError)
+
+        view_user = _get_coach_user_from_docname(view_mode.get("view_coach_name"))
+
+        if not view_user:
+            frappe.throw(_("Coach user not found."), frappe.PermissionError)
+
+        return view_user
+
+    if frappe.db.exists("Session Worker", view_as):
+        from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
+
+        view_mode = get_session_worker_view_mode(scope=viewer, worker_name=view_as)
+
+        if not view_mode.get("is_view_mode"):
+            frappe.throw(_("You do not have permission to view this session worker."), frappe.PermissionError)
+
+        view_user = _get_session_worker_user_from_docname(view_mode.get("view_worker_name"))
+
+        if not view_user:
+            frappe.throw(_("Session worker user not found."), frappe.PermissionError)
+
+        return view_user
+
+    return None
+
+
 @frappe.whitelist()
 def get_notification_detail(name=None, view_as=None, viewer=None):
     ensure_logged_in()
@@ -1366,56 +1416,15 @@ def get_notification_detail(name=None, view_as=None, viewer=None):
     if not name:
         frappe.throw(_("Notification not found."))
 
-    if view_as and viewer == "franchisor":
-        if frappe.db.exists("Coach", view_as):
-            from dashboard.api.shared.coach_view_mode import get_coach_view_mode
+    view_user = _resolve_view_as_user(view_as, viewer)
 
-            view_mode = get_coach_view_mode(
-                scope=viewer,
-                coach_name=view_as,
-            )
+    if view_user:
+        doc = ensure_notification_access_for_user(name, view_user)
 
-            if not view_mode.get("is_view_mode"):
-                frappe.throw(_("You do not have permission to view this coach."), frappe.PermissionError)
+        if doc.doctype == CONVERSATION_DOCTYPE:
+            return _format_conversation_for_user(doc, view_user)
 
-            view_user = _get_coach_user_from_docname(
-                view_mode.get("view_coach_name")
-            )
-
-            if not view_user:
-                frappe.throw(_("Coach user not found."), frappe.PermissionError)
-
-            doc = ensure_notification_access_for_user(name, view_user)
-
-            if doc.doctype == CONVERSATION_DOCTYPE:
-                return _format_conversation_for_user(doc, view_user)
-
-            return _format_notification_log(doc.as_dict())
-
-        if frappe.db.exists("Session Worker", view_as):
-            from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
-
-            view_mode = get_session_worker_view_mode(
-                scope=viewer,
-                worker_name=view_as,
-            )
-
-            if not view_mode.get("is_view_mode"):
-                frappe.throw(_("You do not have permission to view this session worker."), frappe.PermissionError)
-
-            view_user = _get_session_worker_user_from_docname(
-                view_mode.get("view_worker_name")
-            )
-
-            if not view_user:
-                frappe.throw(_("Session worker user not found."), frappe.PermissionError)
-
-            doc = ensure_notification_access_for_user(name, view_user)
-
-            if doc.doctype == CONVERSATION_DOCTYPE:
-                return _format_conversation_for_user(doc, view_user)
-
-            return _format_notification_log(doc.as_dict())
+        return _format_notification_log(doc.as_dict())
 
     doc = ensure_notification_access(name)
 
@@ -1901,10 +1910,18 @@ def _kanban_bucket_for(row):
 
 
 @frappe.whitelist()
-def get_dashboard_notification_summary():
+def get_dashboard_notification_summary(view_as=None, viewer=None):
     ensure_logged_in()
 
-    notifications = get_notifications(status="All", limit=500)
+    view_as = _coalesce_str("view_as", view_as)
+    viewer = _coalesce_str("viewer", viewer)
+    view_user = _resolve_view_as_user(view_as, viewer)
+
+    notifications = (
+        get_notifications_for_user(view_user, status="All", limit=500)
+        if view_user
+        else get_notifications(status="All", limit=500)
+    )
 
     unread_count = 0
     open_count = 0
@@ -1938,10 +1955,10 @@ def get_dashboard_notification_summary():
         "latest": latest,
     }
 
-def get_notification_summary_for_page(limit=5):
+def get_notification_summary_for_page(limit=5, view_as=None, viewer=None):
     ensure_logged_in()
 
-    summary = get_dashboard_notification_summary()
+    summary = get_dashboard_notification_summary(view_as=view_as, viewer=viewer)
 
     latest = summary.get("latest") or []
     latest = latest[:int(limit or 5)]
@@ -1954,7 +1971,14 @@ def get_notification_summary_for_page(limit=5):
 
 
 @frappe.whitelist()
-def get_notification_list_for_page(status="All", limit=20):
+def get_notification_list_for_page(status="All", limit=20, view_as=None, viewer=None):
+    view_as = _coalesce_str("view_as", view_as)
+    viewer = _coalesce_str("viewer", viewer)
+    view_user = _resolve_view_as_user(view_as, viewer)
+
+    if view_user:
+        return get_notifications_for_user(view_user, status=status, limit=limit)
+
     return get_notifications(status=status, limit=limit)
 
 

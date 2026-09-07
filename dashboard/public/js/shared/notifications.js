@@ -436,15 +436,30 @@
     renderBoard(filtered);
   }
 
+  // A franchisor browsing to Coach/Session Worker > (someone) > Notifications
+  // wants THAT person's notifications, not their own - the initial
+  // server-rendered page already gets this right (see coach_db/
+  // notifications/index.py), but this file's own client-side refetch
+  // didn't pass view_as/viewer at all, so it immediately overwrote the
+  // correct server-rendered list with the franchisor's own notifications
+  // the moment the page finished loading.
+  function getViewAsParams() {
+    const params = new URLSearchParams(window.location.search);
+    const viewAs = params.get("view_as");
+    const viewer = params.get("viewer");
+
+    return viewAs && viewer ? { view_as: viewAs, viewer: viewer } : {};
+  }
+
   async function loadNotifications() {
     const board = el("notificationsKanbanBoard");
     if (!board) return;
 
     try {
-      const rows = await callApi("dashboard.api.shared.notifications.get_notification_list_for_page", {
+      const rows = await callApi("dashboard.api.shared.notifications.get_notification_list_for_page", Object.assign({
         status: "All",
         limit: 500,
-      });
+      }, getViewAsParams()));
 
       allNotifications = Array.isArray(rows) ? rows : [];
       applyFilters();
