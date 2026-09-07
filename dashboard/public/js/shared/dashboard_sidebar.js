@@ -58,6 +58,14 @@
     document.body.classList.remove("dashboard-menu-open");
   }
 
+  function getViewAsParams() {
+    const params = new URLSearchParams(window.location.search);
+    const viewAs = params.get("view_as");
+    const viewer = params.get("viewer");
+
+    return viewAs && viewer ? { view_as: viewAs, viewer: viewer } : {};
+  }
+
   async function loadNotificationBadges() {
     const badges = qsa(".js-notification-badge");
 
@@ -66,7 +74,7 @@
     try {
       const data = await callApi(
         "dashboard.api.shared.notifications.get_dashboard_notification_summary",
-        {}
+        getViewAsParams()
       );
 
       if (!data) return;
