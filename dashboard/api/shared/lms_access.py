@@ -1,27 +1,45 @@
 """
-Locks a Frappe LMS course down to "enrolled/staff only" without touching
-the course's own Published checkbox - Ashley found the hard way that
-unpublishing a course blocks it for EVERYONE, including people already
-enrolled in it (lms.lms.utils.get_course_details only checks membership
-when the course is unpublished; when published it skips that check
-entirely for everyone). So this uses its own field instead, and applies
-the exact same "enrolled, instructor/moderator, or nothing" gate LMS
-itself already uses for Course Lesson (see course_lesson.py's own
-has_permission/get_permission_query_conditions in the Learning app - this
-mirrors that pattern for LMS Course, which has neither natively) plus two
-LMS-owned whitelisted functions that read the course directly rather than
-through Frappe's permission-checked query layer.
+Two independent visibility gates for a Frappe LMS course, neither of
+which touches the course's own Published checkbox - Ashley found the
+hard way that unpublishing a course blocks it for EVERYONE, including
+people already enrolled in it (lms.lms.utils.get_course_details only
+checks membership when the course is unpublished; when published it
+skips that check entirely for everyone).
+
+- Restricted (custom_hq_restricted): "enrolled/staff only" - blocks
+  actually OPENING the course for anyone who isn't enrolled, an
+  instructor, or staff. Applies the same "enrolled, instructor/
+  moderator, or nothing" gate LMS itself already uses for Course Lesson
+  (see course_lesson.py's own has_permission/get_permission_query_
+  conditions in the Learning app - this mirrors that pattern for LMS
+  Course, which has neither natively).
+- Unlisted (custom_unlisted): "hidden from browsing, open to anyone
+  with the link" - e.g. a course that only ships bundled with a
+  physical product, opened via a QR code on the packaging. No
+  enrollment or login gate at all - it just never appears in the
+  public course listing, search, or category filter.
 
 What's covered:
 - LMS Course's own has_permission/get_permission_query_conditions (this
-  file, registered in hooks.py) - blocks a direct document read, and
-  hides a restricted course from every course-listing query that goes
-  through frappe.get_all/get_list without ignore_permissions (the public
-  browse page, the featured/popular home-page widgets).
+  file, registered in hooks.py) - blocks a direct document read for a
+  Restricted course (never Unlisted - that's link-open by design). Also
+  covers Desk's own LMS Course list view and Frappe's global/Awesomebar
+  search (frappe.utils.global_search.search checks has_permission per
+  result) - but NOT the public course listing itself, see below.
+- get_courses / get_course_count (lms.lms.utils) - the public course
+  listing and its pagination count. These call frappe.get_all(), which
+  ALWAYS forces ignore_permissions=True regardless of what the caller
+  passes (see frappe/__init__.py - it's not "get_list without
+  ignore_permissions", it's structurally different) - so
+  permission_query_conditions never applied to them at all, restricted
+  or unlisted courses included, and stayed visible on the public browse
+  page regardless of either flag. Overridden here (see hooks.py's
+  override_whitelisted_methods) to inject a real filter before calling
+  through to the originals instead.
 - get_course_details (lms.lms.utils) - the course "landing page" data
   fetch, called with frappe.db.get_value directly rather than through
   the permission-checked query layer, so it needs its own override (see
-  hooks.py's override_whitelisted_methods) to apply the same gate.
+  hooks.py's override_whitelisted_methods) to apply the Restricted gate.
 - get_course_outline (lms.lms.utils) - the chapter/lesson title list
   that powers the sidebar, same reasoning, same override treatment.
 
@@ -36,12 +54,36 @@ to duplicate that.
 import frappe
 
 RESTRICTED_FIELD = "custom_hq_restricted"
+UNLISTED_FIELD = "custom_unlisted"
 
 
 def _course_is_restricted(course_name):
     if not course_name:
         return False
     return bool(frappe.db.get_value("LMS Course", course_name, RESTRICTED_FIELD))
+
+
+def _is_lms_admin(user=None):
+    user = user or frappe.session.user
+    return user == "Administrator" or "System Manager" in frappe.get_roles(user)
+
+
+def _hide_from_public_listing(filters):
+    """
+    Adds Restricted/Unlisted exclusions directly to a filters dict bound
+    for get_courses()/get_course_count() (see their overrides below) -
+    both courses stay out of the public listing/search/pagination count
+    for anyone but a Desk admin, regardless of which of the two is set.
+    """
+    filters = dict(filters or {})
+
+    if _is_lms_admin():
+        return filters
+
+    filters[RESTRICTED_FIELD] = ["!=", 1]
+    filters[UNLISTED_FIELD] = ["!=", 1]
+
+    return filters
 
 
 def _user_has_lms_course_access(course_name, user=None):
@@ -98,19 +140,17 @@ def lms_course_has_permission(doc, ptype="read", user=None):
 def lms_course_permission_query_conditions(user=None):
     """
     LMS Course get_permission_query_conditions hook - the list-read
-    counterpart of lms_course_has_permission above, EXCEPT deliberately
-    stricter on the LMS/website side: a Restricted course drops out of
-    every course-LISTING query (get_courses()/get_featured_home_courses()/
-    get_popular_courses() - all plain frappe.get_all("LMS Course", ...)
-    calls, so this applies to them automatically, and Frappe's own
-    Awesomebar/global search - see frappe.utils.global_search.search,
-    which checks has_permission per result) for anyone who isn't a Desk
-    admin, enrolled or not. "Hidden" means hidden from browsing, full
-    stop - an enrolled member still opens it exactly as before (that goes
-    through lms_course_has_permission / get_course_details_override
-    instead, neither of which this touches), either via a direct link or
-    via My Courses (LMS Enrollment-driven, never touches LMS Course as a
-    list query at all - unaffected by this).
+    counterpart of lms_course_has_permission above. Covers Desk's own
+    LMS Course list view (a permission-checked frappe.get_list query
+    same as any other doctype's) and Frappe's Awesomebar/global search
+    (frappe.utils.global_search.search checks has_permission per result,
+    not this directly, but it's the same "hide it" intent). Does NOT
+    cover the actual public course listing on the LMS site itself -
+    get_courses()/get_course_count() call frappe.get_all(), which always
+    forces ignore_permissions=True no matter what the caller passes, so
+    permission_query_conditions never runs against them at all; see
+    get_courses_override/get_course_count_override below for how that's
+    actually enforced instead.
 
     System Manager bypasses this the same as Administrator - Desk's own
     LMS Course list view (/app/lms-course) is a list query same as any
@@ -170,3 +210,29 @@ def get_course_outline_override(course: str = None, progress: bool = False):
         return []
 
     return _original_get_course_outline(course, progress=progress)
+
+
+@frappe.whitelist(allow_guest=True)  # nosemgrep - matches the originals' own allow_guest
+def get_courses_override(filters: dict = None, start: int = 0, limit_page_length=None):
+    """
+    Replaces lms.lms.utils.get_courses - the actual public course
+    listing. Injects the Restricted/Unlisted exclusion into filters (see
+    _hide_from_public_listing()) before deferring to the real function,
+    rather than trying to filter its (paginated, featured-courses-mixed-
+    in) return value after the fact.
+    """
+    from lms.lms.utils import get_courses as _original_get_courses
+
+    filters = _hide_from_public_listing(filters)
+
+    return _original_get_courses(filters=filters, start=start, limit_page_length=limit_page_length)
+
+
+@frappe.whitelist(allow_guest=True)  # nosemgrep
+def get_course_count_override(filters: dict = None):
+    """Same reasoning as get_courses_override, for the listing page's own pagination count."""
+    from lms.lms.utils import get_course_count as _original_get_course_count
+
+    filters = _hide_from_public_listing(filters)
+
+    return _original_get_course_count(filters=filters)

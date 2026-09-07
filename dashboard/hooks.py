@@ -205,6 +205,11 @@ permission_query_conditions = {
 override_whitelisted_methods = {
     "lms.lms.utils.get_course_details": "dashboard.api.shared.lms_access.get_course_details_override",
     "lms.lms.utils.get_course_outline": "dashboard.api.shared.lms_access.get_course_outline_override",
+    # The public course listing itself - see get_courses_override's own
+    # docstring for why permission_query_conditions above never reached
+    # it (frappe.get_all() always ignores permissions, full stop).
+    "lms.lms.utils.get_courses": "dashboard.api.shared.lms_access.get_courses_override",
+    "lms.lms.utils.get_course_count": "dashboard.api.shared.lms_access.get_course_count_override",
 }
 
 # Safety net for the pending-booking queue (see pending_bookings.py) - picks

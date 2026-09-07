@@ -70,3 +70,4 @@ dashboard.patches.add_blog_post_hero_image_field
 dashboard.patches.make_indemnity_insurer_name_optional
 dashboard.patches.backfill_conversation_archived_to_recipients
 dashboard.patches.fix_backfill_conversation_archived_regression
+dashboard.patches.add_lms_course_unlisted_field
