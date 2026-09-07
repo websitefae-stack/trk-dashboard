@@ -2799,6 +2799,24 @@ def _create_booking_impl(
         event.insert(ignore_permissions=True)
         created_events.append(event)
 
+        # The Package Booking Validation server script checks the
+        # client's Client Package Balance at the moment each event is
+        # inserted - but recalculate_client_package_balance() (the
+        # after_insert hook that keeps qty_available up to date) only
+        # ever ENQUEUES a background job (enqueue_after_commit=True), so
+        # within one recurring booking's own loop every occurrence's
+        # insert() saw the same, not-yet-decremented balance as the
+        # first. A client with 1 session left could get an entire 4 or
+        # 12-session series booked against them with nothing to actually
+        # bill it to. Recalculated synchronously here instead, so the
+        # NEXT occurrence's insert() (and its own server script check)
+        # sees the real remaining balance - the usual after_insert hook
+        # still fires too and just redoes the same (idempotent) work.
+        if event.get("custom_client_package_balance"):
+            from dashboard.api.shared.packages import _recalculate_one_balance
+
+            _recalculate_one_balance(event.get("custom_client_package_balance"))
+
         # Real link field for bookings made from the Leads section, replacing
         # the "Lead: <name>" description-parsing trick used by the legacy
         # freeform Initial Consultation flow above (_get_lead_for_event()).
