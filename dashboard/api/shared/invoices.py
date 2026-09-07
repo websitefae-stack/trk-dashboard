@@ -1583,6 +1583,16 @@ def get_client_invoice_defaults(client_name=None, exclude_docname=None):
         ignore_permissions=True,
     )
 
+    # Sales Invoice.posting_date comes back as a real datetime.date - fine
+    # for the normal frappe.call() JSON response (frappe's own json_handler
+    # serializes it), but this whole function also gets called directly,
+    # server-side, from the invoice details page's own get_context() to
+    # preload initial state via plain json.dumps() (no custom handler,
+    # TypeError: date is not JSON serializable) - stringified here so both
+    # callers get a value that's actually safe to serialize either way.
+    for invoice in outstanding_invoices:
+        invoice.posting_date = frappe.utils.formatdate(invoice.posting_date, "yyyy-mm-dd")
+
     return {
         "client_name": client_name,
         "client_label": _client_display_name(client_name),

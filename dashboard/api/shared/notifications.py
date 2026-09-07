@@ -857,11 +857,13 @@ def _format_conversation(doc):
         messages.extend(legacy_replies)
         messages.sort(key=lambda row: row.get("created_on") or "")
 
-    status = doc.get("status") or "Open"
-    can_archive = (
-        (doc.get("created_by_user") == frappe.session.user or _is_franchisor_user())
-        and status != "Archived"
-    )
+    # Archived is personal - "I'm done with this" - not a shared state of
+    # the conversation itself, so it comes from the CURRENT viewer's own
+    # recipient row rather than doc.status (which used to double as the
+    # Archived flag for everyone at once - see _set_my_archived_state()).
+    my_archived = int(recipient_row.get("archived") or 0) if recipient_row else 0
+    status = "Archived" if my_archived else (doc.get("status") or "Open")
+    can_archive = True
 
     created_by = doc.get("created_by_user") or ""
     is_sent_by_me = 1 if created_by and created_by == current_user else 0
@@ -873,7 +875,7 @@ def _format_conversation(doc):
         is_sent_by_me
         and int(doc.get("requires_response") or 0)
         and not has_reply_from_other
-        and status != "Archived"
+        and not my_archived
     ) else 0
 
     return {
@@ -1123,7 +1125,14 @@ def _conversation_matches_status(doc, status):
     if not status or status == "All":
         return True
 
-    if status in ["Open", "Waiting", "In Progress", "Done", "Archived"]:
+    # Archived is per-viewer (see _format_conversation()) - doc.status
+    # itself is never set to "Archived" going forward, but checked via
+    # the formatted, viewer-aware status rather than the raw field
+    # regardless, in case old data still has it.
+    if status == "Archived":
+        return _format_conversation(doc).get("status") == "Archived"
+
+    if status in ["Open", "Waiting", "In Progress", "Done"]:
         return (doc.get("status") or "Open") == status
 
     if status in ["Read", "Unread"]:
@@ -1532,7 +1541,11 @@ def update_notification_status(name, status=None, read=None):
 
     old_status = doc.get("status") or "Open"
 
-    if status in ["Open", "Waiting", "In Progress", "Done", "Archived"]:
+    # "Archived" deliberately excluded - that's a per-recipient state now
+    # (see archive_notification/_set_my_archived_state), not this shared
+    # field, which used to move the card to Archived for every recipient
+    # the moment any one of them archived it.
+    if status in ["Open", "Waiting", "In Progress", "Done"]:
         doc.status = status
 
     if read is not None:
@@ -1556,6 +1569,37 @@ def update_notification_status(name, status=None, read=None):
     frappe.db.commit()
 
     return {"ok": True}
+
+
+def _set_my_archived_state(doc, archived):
+    """
+    Archiving is personal - "I'm done with this", not "this conversation
+    is globally closed" - so it lives on the current user's own
+    Dashboard Conversation Recipient row (already a per-recipient Check
+    field, just unused for this until now) rather than the shared
+    doc.status the Kanban board used to read this from, which moved the
+    card to Archived for every recipient the moment any one of them
+    archived it. Creates a row if the current user doesn't have one yet
+    (same fallback mark_notification_read() already uses) so a
+    franchisor with view access but no recipient row can still archive
+    their own copy.
+    """
+    row = _get_recipient_row(doc, frappe.session.user)
+
+    if row:
+        frappe.db.set_value(row.doctype, row.name, "archived", int(archived), update_modified=False)
+    else:
+        doc.append("recipients", {
+            "recipient_user": frappe.session.user,
+            "recipient_role": _get_current_role(),
+            "read": 1,
+            "read_on": now_datetime(),
+            "archived": int(archived),
+            "muted": 0,
+        })
+        doc.save(ignore_permissions=True)
+
+    frappe.db.commit()
 
 
 @frappe.whitelist()
@@ -1583,21 +1627,7 @@ def archive_notification(name=None):
             ),
         }
 
-    if doc.get("created_by_user") != frappe.session.user and not _is_franchisor_user():
-        frappe.throw(_("Only the conversation author can archive this conversation."), frappe.PermissionError)
-
-    doc.status = "Archived"
-    doc.save(ignore_permissions=True)
-
-    _create_conversation_message(
-        conversation=doc.name,
-        message="Conversation archived.",
-        message_type="Status Update",
-        sent_by=frappe.session.user,
-        role_type=_get_current_role(),
-    )
-
-    frappe.db.commit()
+    _set_my_archived_state(doc, 1)
 
     fresh_doc = frappe.get_doc(CONVERSATION_DOCTYPE, doc.name)
 
@@ -1632,21 +1662,7 @@ def unarchive_notification(name=None):
             ),
         }
 
-    if doc.get("created_by_user") != frappe.session.user and not _is_franchisor_user():
-        frappe.throw(_("Only the conversation author can restore this conversation."), frappe.PermissionError)
-
-    doc.status = "Open"
-    doc.save(ignore_permissions=True)
-
-    _create_conversation_message(
-        conversation=doc.name,
-        message="Conversation restored from archive.",
-        message_type="Status Update",
-        sent_by=frappe.session.user,
-        role_type=_get_current_role(),
-    )
-
-    frappe.db.commit()
+    _set_my_archived_state(doc, 0)
 
     fresh_doc = frappe.get_doc(CONVERSATION_DOCTYPE, doc.name)
 
@@ -1697,12 +1713,10 @@ def set_notification_due_date(name=None, due_date=None):
         frappe.throw(_("Only the conversation author can change this notification's due date."), frappe.PermissionError)
 
     doc.due_date = due_date or None
-
-    if doc.get("status") == "Archived":
-        doc.status = "Open"
-
     doc.save(ignore_permissions=True)
     frappe.db.commit()
+
+    _set_my_archived_state(doc, 0)
 
     fresh_doc = frappe.get_doc(CONVERSATION_DOCTYPE, doc.name)
 
@@ -1817,16 +1831,21 @@ def reply_to_notification(name=None, message=None, attachment=None):
         doc.save(ignore_permissions=True)
         doc.reload()
     
+    # A new reply is new work on this conversation, so it un-archives it
+    # for anyone who'd marked their own copy done - including the person
+    # replying, if they're somehow replying to their own archived copy.
     for row in doc.get("recipients") or []:
         if row.get("recipient_user") != frappe.session.user:
             frappe.db.set_value(row.doctype, row.name, {
                 "read": 0,
                 "read_on": None,
+                "archived": 0,
             }, update_modified=False)
         else:
             frappe.db.set_value(row.doctype, row.name, {
                 "read": 1,
                 "read_on": now_datetime(),
+                "archived": 0,
             }, update_modified=False)
 
     _create_conversation_message(
