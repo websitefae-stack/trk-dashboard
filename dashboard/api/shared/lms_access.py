@@ -106,8 +106,17 @@ def _apply_public_listing_visibility(filters):
         return filters
 
     if frappe.session.user != "Guest":
-        filters["enrolled"] = 1
-        return filters
+        # Replaces the filters outright rather than adding enrolled=1
+        # alongside them - "Live"/"New"/"Upcoming" are about a course's
+        # OWN publish timing, meaningless once this is "just show me my
+        # own courses" instead, and left in place they still reach
+        # update_course_filters() too (e.g. "live" separately sets
+        # featured=0 and turns on the featured-courses side-query),
+        # untested combinations this never needed to risk. title (the
+        # search box) is the one exception worth carrying over - search
+        # should still narrow within someone's own courses.
+        title = filters.get("title")
+        return {"enrolled": 1, "title": title} if title else {"enrolled": 1}
 
     filters[SHOW_ON_WEBSITE_FIELD] = 1
     filters[RESTRICTED_FIELD] = ["!=", 1]
