@@ -310,3 +310,49 @@ def get_course_categories_override():
         order_by="category asc",
         limit_page_length=0,
     )
+
+
+@frappe.whitelist()
+def debug_course_visibility():
+    """
+    Temporary diagnostic - visit /api/method/dashboard.api.shared.
+    lms_access.debug_course_visibility while logged in as whoever is
+    seeing no courses on /lms/courses. Shows exactly what this file's
+    own logic is doing for that real session, rather than reasoning
+    about it from LMS's source code with no way to check it against
+    what's actually happening in production. Login required (not
+    allow_guest) since the whole point is to see it as a specific,
+    already-logged-in person.
+
+    Safe to delete once the actual /lms/courses problem is found - this
+    isn't meant to stay.
+    """
+    from lms.lms.utils import get_courses as _original_get_courses
+
+    user = frappe.session.user
+
+    enrollments = frappe.get_all(
+        "LMS Enrollment", filters={"member": user}, fields=["name", "course", "progress"]
+    )
+
+    filters_in = {}
+    filters_out = _apply_public_listing_visibility(filters_in)
+
+    try:
+        courses = _original_get_courses(filters=dict(filters_out), start=0, limit_page_length=20)
+        courses_error = None
+    except Exception as e:
+        courses = None
+        courses_error = f"{type(e).__name__}: {e}"
+
+    return {
+        "session_user": user,
+        "is_lms_admin": _is_lms_admin(),
+        "user_roles": frappe.get_roles(user),
+        "enrollment_count": len(enrollments),
+        "enrollments": enrollments,
+        "filters_this_file_would_send_to_get_courses": filters_out,
+        "get_courses_result_count": len(courses) if courses is not None else None,
+        "get_courses_result": courses,
+        "get_courses_error": courses_error,
+    }
