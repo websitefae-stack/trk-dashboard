@@ -72,20 +72,30 @@ def _is_lms_admin(user=None):
 
 def _apply_public_listing_visibility(filters):
     """
-    Adds the Show on Website requirement (and Restricted exclusion, as a
-    second safety net in case a course is ever both) directly to a
-    filters dict bound for get_courses()/get_course_count() (see their
-    overrides below) - a Desk admin still sees everything, same as
-    browsing the site logged in as Administrator always has.
+    Gates what frappe.get_all("LMS Course", ...) actually returns from
+    get_courses()/get_course_count() (see their overrides below), and
+    who gets which gate:
 
-    Skipped entirely when filters asks for "enrolled" or "created"
-    courses (LMS's own My Courses / "courses I teach" tabs - see
-    update_course_filters() in lms.lms.utils, which turns either into a
-    name IN (...) filter of its own right after this runs) - being
-    enrolled in (or teaching) a course is what makes it "yours" to see,
-    regardless of whether it's on the public listing. Without this,
-    someone added to a Restricted course, or a hidden one, couldn't see
-    their own course on their own My Courses page.
+    - A Desk admin sees everything, same as browsing logged in as
+      Administrator/System Manager always has.
+    - Anyone else already logged in (a client, coach, franchisee -
+      basically anyone with an account) gets ONLY their own enrolled
+      courses, full stop, regardless of what filters/tab the LMS
+      frontend itself sent. /lms/courses is their own course dashboard,
+      not a public catalogue - that's what resilient_domains' own
+      trh-courses page is for. Without this, clicking the LMS app's own
+      "Courses" breadcrumb (which just requests the generic default
+      listing, no "enrolled" tab selected) sent a logged-in client
+      straight into the Show on Website gate below and showed them
+      nothing, even for courses they're actually enrolled in.
+    - An actual Guest gets the real public-listing gate: Show on
+      Website required, Restricted excluded.
+
+    filters already asking for "enrolled" or "created" (LMS's own My
+    Courses / "courses I teach" tabs - see update_course_filters() in
+    lms.lms.utils, which turns either into its own name IN (...) filter
+    right after this runs) are left alone either way - already scoped
+    to "mine", nothing to add.
     """
     filters = dict(filters or {})
 
@@ -93,6 +103,10 @@ def _apply_public_listing_visibility(filters):
         return filters
 
     if _is_lms_admin():
+        return filters
+
+    if frappe.session.user != "Guest":
+        filters["enrolled"] = 1
         return filters
 
     filters[SHOW_ON_WEBSITE_FIELD] = 1
@@ -262,8 +276,22 @@ def get_course_categories_override():
     parameter to extend them, so this reimplements its one query
     directly (same shape, Show on Website/Restricted added) rather than
     calling through to it - there's nothing else to defer to.
+
+    Deliberately NOT using _apply_public_listing_visibility() here -
+    its "logged-in user -> only their enrolled courses" behaviour turns
+    into filters["enrolled"] = 1, which only means something to
+    get_courses()/get_course_count() (via update_course_filters()
+    resolving it into a real name IN (...) condition) - passed straight
+    to frappe.get_all() as done here, "enrolled" isn't a real LMS Course
+    field at all and would error. The category dropdown stays scoped to
+    the public listing regardless of who's logged in - a Desk admin
+    still sees every category.
     """
-    filters = _apply_public_listing_visibility({"published": 1, "category": ["is", "set"]})
+    filters = {"published": 1, "category": ["is", "set"]}
+
+    if not _is_lms_admin():
+        filters[SHOW_ON_WEBSITE_FIELD] = 1
+        filters[RESTRICTED_FIELD] = ["!=", 1]
 
     return frappe.get_all(
         "LMS Course",
