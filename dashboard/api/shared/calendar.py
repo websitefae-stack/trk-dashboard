@@ -2603,8 +2603,24 @@ def _create_booking_impl(
         # alone won't find it again on that coach's own calendar. Stamp
         # custom_coach explicitly so every booking is attributable
         # regardless of who actually saves it.
-        if dashboard_type == COACH_DASHBOARD and _event_has_field("custom_coach"):
-            booking_coach_name = context.get("coach_name")
+        #
+        # The franchisor dashboard's own context (_get_context_for_dashboard)
+        # never carries a coach_name - it's franchisor-wide, not tied to any
+        # one coach - so a School Visit etc booked onto the franchisor's own
+        # "Me" calendar previously left custom_coach unset here entirely,
+        # relying only on coach_calendar_sync's after_insert auto-assign
+        # fallback (which looks the owner up as a Coach after the fact) to
+        # ever make it syncable. Resolving it here too, from calendar_owner,
+        # means it's set synchronously in the same transaction as everything
+        # else instead of depending on that separate hook running correctly.
+        if _event_has_field("custom_coach"):
+            if dashboard_type == COACH_DASHBOARD:
+                booking_coach_name = context.get("coach_name")
+            elif dashboard_type == FRANCHISOR_DASHBOARD:
+                booking_coach_name = frappe.db.get_value("Coach", {"user": calendar_owner}, "name")
+            else:
+                booking_coach_name = None
+
             if booking_coach_name:
                 event.custom_coach = booking_coach_name
 
