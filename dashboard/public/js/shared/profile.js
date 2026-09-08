@@ -296,7 +296,40 @@
 
     form.addEventListener("submit", async function (event) {
       event.preventDefault();
-      await saveProfile();
+
+      // Was just "await saveProfile();" with nothing done with the
+      // result - on success nothing confirmed it or reloaded to show
+      // the saved values, and on failure the rejection had no catch at
+      // all, so an error saved nowhere but the console. Both looked
+      // identical to a coach: click Save Changes, nothing appears to
+      // happen. Now matches editProfileBtn's own save flow exactly.
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const originalLabel = submitBtn ? submitBtn.textContent : "";
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Saving...";
+      }
+
+      try {
+        await saveProfile();
+        await saveBankingDetailsIfAllowed();
+
+        setTimeout(function () {
+          window.location.reload();
+        }, 500);
+      } catch (error) {
+        const message = el(config.messageId) || el("bankingDetailsMessage");
+
+        if (message) {
+          message.textContent = error.message || "Could not save.";
+        }
+
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalLabel;
+        }
+      }
     });
   }
 
