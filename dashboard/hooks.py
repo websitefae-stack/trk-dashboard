@@ -182,6 +182,15 @@ doc_events = {
     "Blog Post": {
         "validate": "dashboard.api.shared.blog.ensure_hero_image_public",
     },
+    # Stirling Children's Wellbeing Scale - a custom (Desk-style) DocType
+    # created by patches/create_stirling_wellbeing_scale_form.py, the same
+    # way every other Reports-section form on this site is built. It has
+    # no file-based controller of its own (custom=1 DocTypes don't get
+    # one), so the wellbeing/social-desirability scoring lives here
+    # instead - see wellbeing_forms.compute_stirling_wellbeing_score.
+    "Stirling Wellbeing Response": {
+        "validate": "dashboard.api.shared.wellbeing_forms.compute_stirling_wellbeing_score",
+    },
 }
 
 # Two independent LMS Course settings - "Show on Website" (opt-in

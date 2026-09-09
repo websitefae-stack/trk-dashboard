@@ -840,6 +840,24 @@
       + '</ul>';
   }
 
+  function renderFormChartSummary(summary) {
+    if (!summary || !summary.count) {
+      return '<div class="form-chart-empty">No answers yet.</div>';
+    }
+
+    return '<div class="form-chart-summary">'
+      + '<div class="form-chart-summary-average">' + summary.average + '</div>'
+      + '<div class="form-chart-summary-range">Range ' + summary.min + '–' + summary.max
+      + ' across ' + summary.count + (summary.count === 1 ? ' response' : ' responses') + '</div>'
+      + '</div>';
+  }
+
+  function formChartSubtitle(kind) {
+    if (kind === "chart") return "Answer breakdown";
+    if (kind === "summary") return "Average score";
+    return "Individual answers";
+  }
+
   function renderFormModuleCharts(data) {
     var wrap = el("formModuleChartsResults");
     if (!wrap) return;
@@ -861,13 +879,15 @@
         // around a circle with no meaningful order.
         var useBars = question.fieldtype === "Rating" || chartData.length > 6;
         body = useBars ? renderFormChartBars(chartData, question) : renderFormChartPie(chartData, question);
+      } else if (question.kind === "summary") {
+        body = renderFormChartSummary(question.summary);
       } else {
         body = renderFormChartAnswerList(question.answers);
       }
 
       return '<div class="form-chart-card">'
         + '<div class="form-chart-title">' + escapeHtml(question.label) + '</div>'
-        + '<div class="form-chart-subtitle">' + (question.kind === "chart" ? "Answer breakdown" : "Individual answers") + '</div>'
+        + '<div class="form-chart-subtitle">' + formChartSubtitle(question.kind) + '</div>'
         + body
         + '</div>';
     }).join("");

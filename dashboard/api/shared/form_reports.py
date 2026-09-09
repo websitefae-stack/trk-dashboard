@@ -368,6 +368,7 @@ def _form_date_range_filters(from_date, to_date):
 
 _CHART_CATEGORICAL_FIELDTYPES = {"Select", "Check", "Rating"}
 _CHART_MAX_LINK_CATEGORIES = 12
+_CHART_NUMERIC_FIELDTYPES = {"Int", "Float", "Currency", "Percent"}
 
 
 def _rating_star_count(value, df):
@@ -411,7 +412,10 @@ def _chart_bucket_for_field(df, doctype, filters):
     """
     Returns ("chart", [{"label", "count", "percent"}, ...]) for a
     categorical question (Select, Check, or a Link with few enough distinct
-    values to plot), or ("list", [answer, answer, ...]) for free text (or a
+    values to plot), ("summary", {"average", "min", "max", "count"}) for a
+    plain number (e.g. a computed score field - a scattered list of raw
+    numbers is far less useful at a glance than "average 44.2 across 12
+    responses"), or ("list", [answer, answer, ...]) for free text (or a
     Link with too many distinct values to chart meaningfully).
     """
     rows = frappe.get_all(
@@ -422,6 +426,18 @@ def _chart_bucket_for_field(df, doctype, filters):
         limit_page_length=2000,
         ignore_permissions=True,
     )
+
+    if df.fieldtype in _CHART_NUMERIC_FIELDTYPES:
+        numbers = [row.get(df.fieldname) for row in rows if row.get(df.fieldname) is not None]
+        if not numbers:
+            return "summary", {"average": None, "min": None, "max": None, "count": 0}
+
+        return "summary", {
+            "average": round(sum(numbers) / len(numbers), 1),
+            "min": min(numbers),
+            "max": max(numbers),
+            "count": len(numbers),
+        }
 
     values = [_chart_field_value(row, df) for row in rows]
     values = [v for v in values if v is not None]
@@ -466,11 +482,12 @@ def get_form_charts(doctype=None, from_date=None, to_date=None):
     Every question on one form, summarised for "easily interpreted at a
     glance" viewing - a pie/bar-ready count breakdown for categorical
     questions (Select/Check, or a Link field with few enough distinct
-    answers), a plain answer list for free text. Works the same whether the
-    form is anonymous or person-linked - this view was specifically asked
-    for as the anonymous-forms answer, but is offered for every form since
-    "just collect the data" is just as useful alongside person-by-person
-    browsing on a linked form.
+    answers), average/min/max for a plain number (e.g. a computed score
+    field), or a plain answer list for free text. Works the same whether
+    the form is anonymous or person-linked - this view was specifically
+    asked for as the anonymous-forms answer, but is offered for every form
+    since "just collect the data" is just as useful alongside
+    person-by-person browsing on a linked form.
     """
     ensure_logged_in()
 
@@ -499,6 +516,7 @@ def get_form_charts(doctype=None, from_date=None, to_date=None):
             "kind": kind,
             "data": payload if kind == "chart" else None,
             "answers": payload if kind == "list" else None,
+            "summary": payload if kind == "summary" else None,
         })
 
     return {"total_submissions": total_submissions, "questions": questions}
