@@ -693,6 +693,53 @@ def _get_company_options():
     return _get_clients_by_type_options("Company")
 
 
+def _resolve_school_client_by_typed_name(typed_name):
+    """
+    A School Visit/Company Meeting/etc booking can be made by typing the
+    school's name instead of picking it from the dropdown (school_manual_name)
+    - which never links the booking to the actual Client record, leaving it
+    permanently unattributable until someone manually re-picks it later. Most
+    of the time there already IS a matching Client, just typed slightly
+    differently - "Langley" for "Langley School", say - so this tries to
+    resolve it automatically rather than leaving every typed booking unlinked
+    by default.
+
+    Matches exactly (case-insensitive) first, then falls back to "typed name
+    is the start of the Client's full name, followed by a space" (so
+    "Langley" matches "Langley School" or "Langley Primary School", but not
+    "Langleybury" or an unrelated name that merely shares a prefix mid-word).
+    Only ever returns a single, unambiguous match - if the typed name matches
+    more than one Client either way, this returns nothing rather than guess,
+    same as the equivalent one-off data backfill
+    (backfill_school_visit_client_links_prefix_match.py) does.
+    """
+    typed_name = (typed_name or "").strip().lower()
+    if not typed_name or not frappe.db.exists("DocType", "Client"):
+        return None
+
+    client_meta = frappe.get_meta("Client")
+    if not client_meta.has_field("client_type"):
+        return None
+
+    name_field = "full_name" if client_meta.has_field("full_name") else "name"
+    rows = frappe.get_all(
+        "Client",
+        filters={"client_type": ["in", ["School", "Company"]]},
+        fields=["name", name_field],
+        ignore_permissions=True,
+    )
+
+    prefix = typed_name + " "
+    matches = [
+        row["name"] for row in rows
+        if (row.get(name_field) or "").strip().lower() in (typed_name,)
+        or (row.get(name_field) or "").strip().lower().startswith(prefix)
+    ]
+    matches = list(dict.fromkeys(matches))
+
+    return matches[0] if len(matches) == 1 else None
+
+
 def _get_effective_client_type(row):
     # The stored client_type field is only ever (re)computed when a Client
     # record is saved through code that calls apply_age_and_client_type() -
@@ -2653,6 +2700,17 @@ def _create_booking_impl(
         if appointment_type in CLIENT_SESSION_TYPES and _event_has_field("custom_client"):
             event.custom_client = client
 
+        # A typed-in name (school_manual_name) instead of the dropdown never
+        # used to link the booking to any Client at all, leaving it stuck
+        # "NOT YET LINKED" until someone re-picked it by hand later - most
+        # of the time there already IS a matching Client, just typed a bit
+        # differently ("Langley" for "Langley School"), so this resolves it
+        # automatically wherever that's unambiguous. See
+        # _resolve_school_client_by_typed_name() for the matching rule.
+        resolved_school = school
+        if appointment_type in SCHOOL_LINKED_TYPES and not resolved_school and school_manual_name:
+            resolved_school = _resolve_school_client_by_typed_name(school_manual_name)
+
         # Only School Session/Company Session are pack-billed against the
         # selected school/company - they need custom_client set so the
         # Package Booking Validation server script can find its balance.
@@ -2662,8 +2720,8 @@ def _create_booking_impl(
         # both adds needless work to the save and risks a false "no
         # balance available" block on a booking that was never meant to
         # touch packages at all.
-        if appointment_type in PACK_LINKED_SCHOOL_TYPES and school and _event_has_field("custom_client"):
-            event.custom_client = school
+        if appointment_type in PACK_LINKED_SCHOOL_TYPES and resolved_school and _event_has_field("custom_client"):
+            event.custom_client = resolved_school
 
         # custom_visit_client is set for every SCHOOL_LINKED_TYPES booking
         # (including School Session/Company Session, redundantly alongside
@@ -2671,8 +2729,8 @@ def _create_booking_impl(
         # read "which client is this calendar item about" from for display,
         # email and linking purposes, without ever touching custom_client
         # for School Visit/Company Meeting (see comment above).
-        if appointment_type in SCHOOL_LINKED_TYPES and school and _event_has_field("custom_visit_client"):
-            event.custom_visit_client = school
+        if appointment_type in SCHOOL_LINKED_TYPES and resolved_school and _event_has_field("custom_visit_client"):
+            event.custom_visit_client = resolved_school
 
         _set_session_type(event, appointment_type)
 
