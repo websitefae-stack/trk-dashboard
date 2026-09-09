@@ -191,6 +191,11 @@ doc_events = {
     "Stirling Wellbeing Response": {
         "validate": "dashboard.api.shared.wellbeing_forms.compute_stirling_wellbeing_score",
     },
+    # "How I feel cared for at school" care languages quiz - same pattern
+    # as Stirling Wellbeing Response above. See care_language_form.py.
+    "Care Language Response": {
+        "validate": "dashboard.api.shared.care_language_form.compute_care_language_score",
+    },
 }
 
 # Two independent LMS Course settings - "Show on Website" (opt-in

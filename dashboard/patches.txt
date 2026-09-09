@@ -75,3 +75,4 @@ dashboard.patches.reapply_lms_course_show_on_website_backfill
 dashboard.patches.backfill_school_visit_client_links
 dashboard.patches.create_stirling_wellbeing_scale_form
 dashboard.patches.backfill_school_visit_client_links_prefix_match
+dashboard.patches.create_care_languages_quiz_form
