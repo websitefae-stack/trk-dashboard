@@ -196,6 +196,15 @@ doc_events = {
     "Care Language Response": {
         "validate": "dashboard.api.shared.care_language_form.compute_care_language_score",
     },
+    # "School experience" and "Relationships with staff" (Wellbeing
+    # Measurement for Schools, Anna Freud / CORC) - same pattern as the
+    # other Reports-section forms above.
+    "School Experience Response": {
+        "validate": "dashboard.api.shared.school_experience_form.compute_school_experience_score",
+    },
+    "Relationships With Staff Response": {
+        "validate": "dashboard.api.shared.staff_relationships_form.compute_staff_relationships_score",
+    },
 }
 
 # Two independent LMS Course settings - "Show on Website" (opt-in
