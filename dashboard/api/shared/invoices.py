@@ -372,6 +372,7 @@ def _get_client_fields():
         "primary_coach",
         "attending_coach",
         "session_worker",
+        "client_type",
         "company",
         "banking",
         "pricelist",
@@ -535,6 +536,27 @@ def _current_user_can_access_client(client_name):
     return (
         client.get("primary_coach") == current_coach_name
         or client.get("attending_coach") == current_coach_name
+    )
+
+
+def _linked_client_names():
+    """
+    Every Client name that's literally some Coach's own linked_client - the
+    batch equivalent of the single-invoice check inside
+    _current_user_can_allocate_payment, computed once per invoice list page
+    load rather than once per row (fetched via frappe.db.exists inside a
+    loop, which would mean one extra query per invoice on a page).
+    """
+    if not frappe.get_meta("Coach").has_field("linked_client"):
+        return set()
+
+    return set(
+        name for name in frappe.get_all(
+            "Coach",
+            filters={"linked_client": ["is", "set"]},
+            pluck="linked_client",
+        )
+        if name
     )
 
 
@@ -773,6 +795,7 @@ def _get_clients_for_invoice_scope(current_coach, selected_coach=None, dashboard
 def _get_invoice_fields():
     fields = [
         "name",
+        "owner",
         "posting_date",
         "due_date",
         "custom_client",
@@ -807,7 +830,7 @@ def _invoice_status_class(status):
     return "dashboard-status-archived"
 
 
-def _normalise_invoice_row(row, client_map, dashboard_type):
+def _normalise_invoice_row(row, client_map, dashboard_type, linked_client_names=None):
     client_name = row.get("custom_client")
     client_row = client_map.get(client_name) if client_name else None
 
@@ -815,6 +838,21 @@ def _normalise_invoice_row(row, client_map, dashboard_type):
 
     posting_date = row.get("posting_date")
     sent_on = row.get("custom_invoice_sent_on")
+
+    # Same "is this actually an inter-account invoice" detection as
+    # _current_user_can_allocate_payment (client_type "Franchise", or the
+    # client is literally some Coach's own linked_client - checked
+    # independently since client_type can silently regress, see that
+    # function's docstring) - reused here so the "Allocate Payment" button
+    # itself is hidden from anyone it would just reject, instead of only
+    # being blocked after they click it.
+    client_type = (client_row or {}).get("client_type")
+    is_inter_account = client_type == "Franchise" or client_name in (linked_client_names or set())
+    can_allocate_payment = (
+        not is_inter_account
+        or _is_franchisor_user()
+        or row.get("owner") == frappe.session.user
+    )
 
     return {
         "name": row.get("name"),
@@ -840,6 +878,7 @@ def _normalise_invoice_row(row, client_map, dashboard_type):
         "company": row.get("company") or "",
         "docstatus": row.get("docstatus") or 0,
         "details_url": f"{base_url}?name={row.get('name')}",
+        "can_allocate_payment": can_allocate_payment,
     }
 
 
@@ -1084,8 +1123,9 @@ def _get_invoices_for_clients(client_rows, dashboard_type, owner_coach_name=None
         ignore_permissions=True,
     )
 
+    linked_client_names = _linked_client_names()
     invoices = [
-        _normalise_invoice_row(row, client_map, dashboard_type)
+        _normalise_invoice_row(row, client_map, dashboard_type, linked_client_names)
         for row in invoice_rows
     ]
 

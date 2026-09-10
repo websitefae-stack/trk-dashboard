@@ -658,7 +658,8 @@
     const paymentBtn = el("openAllocatePayment");
     if (paymentBtn) {
       const outstanding = parseMoneyValue(el("invoice_outstanding_amount")?.value || "0");
-      paymentBtn.style.display = submitted && hasName && outstanding > 0 ? "" : "none";
+      const canAllocate = paymentBtn.dataset.canAllocatePayment === "1";
+      paymentBtn.style.display = submitted && hasName && outstanding > 0 && canAllocate ? "" : "none";
     }
     
     if (!submitted || cancelled) {
