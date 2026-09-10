@@ -156,7 +156,14 @@ def _apply_client_filter_args(filters, filter_args):
     if client_type and client_type != "All":
         filters.append(["client_type", "=", client_type])
 
-    if status and status != "All":
+    # No status picked at all (as opposed to explicitly picking "All
+    # statuses") defaults to hiding Archived clients - otherwise every
+    # archived client HQ has ever added clutters the list by default, with
+    # "All statuses" as the explicit way to still see them alongside
+    # everything else and "Archived" to see only them.
+    if not status:
+        filters.append(["status", "!=", "Archived"])
+    elif status != "All":
         filters.append(["status", "=", status])
 
     # Franchise-type clients represent coaches themselves (for cross-coach/

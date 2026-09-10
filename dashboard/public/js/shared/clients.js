@@ -17,6 +17,10 @@
     countEl.textContent = `${visible} client${visible === 1 ? "" : "s"}`;
   }
 
+  function isCoachClientsPage() {
+    return window.location.pathname.indexOf("/coach_db/clients") !== -1;
+  }
+
   function clientMatches(row, filters) {
     const haystack = [
       row.dataset.name || "",
@@ -32,20 +36,31 @@
 
     if (filters.search && !haystack.includes(filters.search)) return false;
 
-    if (filters.status && filters.status !== "All" && row.dataset.status !== filters.status) {
-      return false;
-    }
-
-    if (filters.type && filters.type !== "All" && row.dataset.type !== filters.type) {
-      return false;
-    }
-
     // Franchise-type rows represent coaches themselves (for cross-coach/HQ
     // invoicing) and aren't assigned to any one coach or session worker, so
     // those two filters must never hide them - otherwise the "show only my
     // clients" default (which auto-selects the current user in the Coach
     // filter) silently hides every other coach's record.
     const isFranchiseRow = row.dataset.type === "Franchise";
+
+    // No status explicitly picked defaults to hiding Archived clients -
+    // "All statuses" is the explicit way to still see them.
+    if (!filters.status) {
+      if (row.dataset.status === "Archived") return false;
+    } else if (filters.status !== "All" && row.dataset.status !== filters.status) {
+      return false;
+    }
+
+    // Same idea for Client Type on the coach dashboard specifically - a
+    // coach's own list defaults to hiding the Franchise-type rows (other
+    // coaches'/HQ's own inter-account billing records, not real clients of
+    // theirs) unless "All types" is explicitly picked. Franchisor keeps
+    // seeing them by default, unchanged - HQ needs that visibility.
+    if (!filters.type) {
+      if (isFranchiseRow && isCoachClientsPage()) return false;
+    } else if (filters.type !== "All" && row.dataset.type !== filters.type) {
+      return false;
+    }
 
     if (
       !isFranchiseRow &&
@@ -76,8 +91,8 @@
   function getFilters() {
     return {
       search: (getFilterValue("clientSearch", "") || "").trim().toLowerCase(),
-      status: getFilterValue("statusFilter", "All"),
-      type: getFilterValue("clientTypeFilter", "All"),
+      status: getFilterValue("statusFilter", ""),
+      type: getFilterValue("clientTypeFilter", ""),
       sessionWorker: getFilterValue("sessionWorkerFilter", "All"),
       coach: getFilterValue("coachFilter", "All"),
       clientScope: getFilterValue("clientScopeFilter", "All")
@@ -112,13 +127,18 @@
 
     const searchValue = (getFilterValue("clientSearch", "") || "").trim();
     const clientType = getFilterValue("clientTypeFilter", "All");
-    const status = getFilterValue("statusFilter", "All");
+    const status = getFilterValue("statusFilter", "");
     const sessionWorker = getFilterValue("sessionWorkerFilter", "All");
     const coach = getFilterValue("coachFilter", "All");
 
     if (searchValue) { params.set("search", searchValue); } else { params.delete("search"); }
     if (clientType && clientType !== "All") { params.set("client_type", clientType); } else { params.delete("client_type"); }
-    if (status && status !== "All") { params.set("status", status); } else { params.delete("status"); }
+    // Unlike the other filters here, "All" is a real, distinct choice for
+    // status (see statusFilter's own options) - the default (no status
+    // param at all) means "hide archived", so an explicit "All statuses"
+    // pick has to stay in the URL rather than being treated the same as
+    // not having picked anything.
+    if (status) { params.set("status", status); } else { params.delete("status"); }
     if (sessionWorker && sessionWorker !== "All") { params.set("session_worker", sessionWorker); } else { params.delete("session_worker"); }
     if (coach && coach !== "All") { params.set("coach", coach); } else { params.delete("coach"); }
 

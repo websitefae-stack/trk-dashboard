@@ -255,10 +255,10 @@ def get_coach_login_links(coach):
     "Your Logins" tab content on the coach profile page - every login/
     link a coach needs day to day, each with a short how-to-access line
     and (rendered client-side, see login_links.js) a QR code for
-    switching to a phone. Facebook/Instagram only show up once HQ has
-    actually set one for this coach; Email/Training/Client Portal always
-    show since every coach has all three, just personalised where it
-    matters (their own email address, their own enrolled LMS course).
+    switching to a phone. Facebook/Instagram/LinkedIn only show up once
+    HQ has actually set one for this coach; Email/Training/Client Portal
+    always show since every coach has all three, just personalised where
+    it matters (their own email address, their own enrolled LMS course).
 
     link_url is always a full absolute URL rather than the relative path
     used elsewhere in the app - a QR code encoding a relative path is
@@ -289,6 +289,15 @@ def get_coach_login_links(coach):
             "detail": "Your business page",
             "how_to": "Log in with the Instagram account HQ set up for your business page.",
             "link_url": coach.instagram_url,
+        })
+
+    if coach.get("linkedin_url"):
+        links.append({
+            "key": "linkedin",
+            "label": "LinkedIn",
+            "detail": "Your business page",
+            "how_to": "Log in with the LinkedIn account HQ set up for your business page.",
+            "link_url": coach.linkedin_url,
         })
 
     email = coach.get("coach_email") or coach.get("user") or ""
