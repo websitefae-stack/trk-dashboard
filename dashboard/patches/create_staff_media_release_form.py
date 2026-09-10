@@ -140,6 +140,7 @@ CUSTOM_CSS = """
 
 def _doctype_fields():
     fields = [
+        {"fieldname": "form_top_section", "fieldtype": "Section Break"},
         {"fieldname": "staff_name", "fieldtype": "Data", "label": "First and Last Name"},
         {
             "fieldname": "role_job_title",

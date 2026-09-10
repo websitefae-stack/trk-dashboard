@@ -111,6 +111,7 @@ CUSTOM_CSS = """
 
 def _doctype_fields():
     fields = [
+        {"fieldname": "form_top_section", "fieldtype": "Section Break"},
         {"fieldname": "school_name", "fieldtype": "Data", "label": "School Name", "reqd": 1},
         {"fieldname": "school_address", "fieldtype": "Small Text", "label": "School Address", "reqd": 1},
         {"fieldname": "school_phone", "fieldtype": "Data", "label": "School Phone Number", "reqd": 1},

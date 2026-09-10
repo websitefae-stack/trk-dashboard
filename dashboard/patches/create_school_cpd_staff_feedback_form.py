@@ -114,6 +114,7 @@ CUSTOM_CSS = """
 
 def _doctype_fields():
     fields = [
+        {"fieldname": "form_top_section", "fieldtype": "Section Break"},
         {"fieldname": "full_name", "fieldtype": "Data", "label": "Your Full Name"},
         {"fieldname": "email_address", "fieldtype": "Data", "options": "Email", "label": "Your Email Address"},
         {"fieldname": "school_name", "fieldtype": "Data", "label": "School Name"},
