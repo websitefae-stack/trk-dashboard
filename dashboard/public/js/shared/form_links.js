@@ -70,6 +70,39 @@
     });
   }
 
+  var allLinksCache = [];
+
+  function renderLinks(links, emptyMessage) {
+    var container = el("formLinksList");
+    if (!container) return;
+
+    if (!links.length) {
+      container.innerHTML = '<div class="dashboard-empty">' + escapeHtml(emptyMessage) + "</div>";
+      return;
+    }
+
+    container.innerHTML = links.map(renderLink).join("");
+    bindCopyButtons(container);
+  }
+
+  function initLinksSearch() {
+    var input = el("formLinksSearch");
+    if (!input) return;
+
+    input.addEventListener("input", Dashboard.debounce(function () {
+      var query = input.value.trim().toLowerCase();
+
+      var filtered = query
+        ? allLinksCache.filter(function (link) {
+            return (link.title || "").toLowerCase().indexOf(query) !== -1
+              || (link.description || "").toLowerCase().indexOf(query) !== -1;
+          })
+        : allLinksCache;
+
+      renderLinks(filtered, query ? "No links match your search." : "No links are available to you yet.");
+    }, 200));
+  }
+
   async function loadFormLinks() {
     var container = el("formLinksList");
     if (!container) return;
@@ -94,20 +127,14 @@
       return;
     }
 
-    var links = data.message || [];
-
-    if (!links.length) {
-      container.innerHTML = '<div class="dashboard-empty">No links are available to you yet.</div>';
-      return;
-    }
-
-    container.innerHTML = links.map(renderLink).join("");
-    bindCopyButtons(container);
+    allLinksCache = data.message || [];
+    renderLinks(allLinksCache, "No links are available to you yet.");
   }
 
   function initLinksPage() {
     if (!el("linksPage")) return;
     loadFormLinks();
+    initLinksSearch();
   }
 
   if (document.readyState === "loading") {

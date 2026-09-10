@@ -227,7 +227,8 @@ def _create_web_form():
         "hide_footer": 1,
         "custom_css": CUSTOM_CSS,
         "custom_show_in_franchisor_reports": 1,
-        "custom_show_in_coach_reports": 0,
+        "custom_show_in_coach_reports": 1,
+        "custom_brand_access_school": 1,
     })
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
