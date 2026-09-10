@@ -84,6 +84,7 @@ CUSTOM_CSS = """
 
 def _doctype_fields():
     return [
+        {"fieldname": "form_top_section", "fieldtype": "Section Break"},
         {"fieldname": "full_name", "fieldtype": "Data", "label": "Your Full Name and Surname", "reqd": 1},
         {
             "fieldname": "personal_email",
