@@ -1628,52 +1628,6 @@ def _get_outstanding_internal_invoices(dashboard_type, context, limit=8):
     return invoices
 
 
-def _user_can_access_invoice(invoice_name, dashboard_type, context):
-    row = frappe.db.get_value(
-        "Sales Invoice",
-        invoice_name,
-        ["name", "custom_client"],
-        as_dict=True,
-    )
-
-    if not row:
-        return False
-
-    if dashboard_type == FRANCHISOR_DASHBOARD:
-        return True
-
-    if dashboard_type != COACH_DASHBOARD:
-        return False
-
-    client_row = _get_client_row(row.get("custom_client"))
-
-    if not client_row:
-        return False
-
-    if context.get("is_dashboard_admin"):
-        return True
-
-    coach_name = (context.get("coach_name") or "").strip()
-
-    # An "internal invoice" (HQ invoicing a coach for their own fees) is
-    # raised against Coach.linked_client - the coach it's about needs to be
-    # able to open it regardless of how that Client record's client_type or
-    # primary_coach happen to be set up, since those are independent of the
-    # actual invoice-owner relationship (see _get_outstanding_internal_invoices).
-    if coach_name and frappe.get_meta("Coach").has_field("linked_client"):
-        own_linked_client = frappe.db.get_value("Coach", coach_name, "linked_client")
-        if own_linked_client and own_linked_client == row.get("custom_client"):
-            return True
-
-    # Franchise-type clients represent coaches themselves (for cross-coach/
-    # HQ invoicing) and aren't tied to a specific primary/attending coach -
-    # every coach needs access regardless of assignment.
-    client_type = frappe.db.get_value("Client", row.get("custom_client"), "client_type")
-    if client_type == "Franchise":
-        return True
-
-    return (client_row.get("primary_coach") or "").strip() == coach_name
-
 
 def _resolve_paid_to_account(invoice_doc, client_row):
     # An invoice-specific bank account override (e.g. Emily invoicing on
@@ -1703,8 +1657,6 @@ def _resolve_paid_to_account(invoice_doc, client_row):
 @frappe.whitelist()
 def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None, amount_paid=None):
     user = _require_logged_in_user()
-    dashboard_type = _normalise_dashboard_type(dashboard_type)
-    context = _get_context_for_dashboard(dashboard_type)
 
     invoice = _coalesce_str("invoice", invoice)
     payment_date = _coalesce_str("payment_date", payment_date) or today()
@@ -1713,7 +1665,22 @@ def mark_invoice_paid(invoice=None, payment_date=None, dashboard_type=None, amou
     if not invoice:
         frappe.throw(_("Please select an invoice."))
 
-    if not _user_can_access_invoice(invoice, dashboard_type, context):
+    # Was _user_can_access_invoice(invoice, dashboard_type, context) - two
+    # real problems with that: (1) dashboard_type is a caller-supplied
+    # request parameter, not a verified identity - any logged-in coach
+    # could call this endpoint directly with dashboard_type="franchisor"
+    # and be granted blanket permission to mark ANY invoice on the site as
+    # paid; (2) its Franchise-client carve-out (every coach can access an
+    # inter-account invoice, needed so any coach can *raise* one) let any
+    # coach mark ANY inter-account invoice as paid too, including one HQ
+    # raised against them or one raised against someone else entirely -
+    # exactly how a payment that was never made gets marked off and the
+    # real balance lost track of. _current_user_can_allocate_payment()
+    # checks the real session user against FRANCHISOR_USERS directly and
+    # restricts an inter-account invoice to whoever actually raised it.
+    from dashboard.api.shared.invoices import _current_user_can_allocate_payment
+
+    if not _current_user_can_allocate_payment(invoice):
         frappe.throw(_("You do not have permission to mark this invoice as paid."), frappe.PermissionError)
 
     invoice_doc = frappe.get_doc("Sales Invoice", invoice)

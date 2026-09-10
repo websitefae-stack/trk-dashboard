@@ -555,6 +555,48 @@ def _current_user_can_access_invoice(invoice_name):
     return _current_user_can_access_client(invoice.get("custom_client"))
 
 
+def _current_user_can_allocate_payment(invoice_name):
+    """
+    Marking an invoice as paid is a far more sensitive action than merely
+    being able to see or raise one, and _current_user_can_access_invoice()
+    is too loose to gate it: its Franchise-client carve-out (see
+    _current_user_can_access_client) deliberately lets every coach raise
+    an inter-account invoice against another coach or HQ, since who's
+    being invoiced isn't tied to a primary/attending coach the way a real
+    client is. Reusing that same check for payment allocation meant any
+    coach could mark ANY inter-account invoice as paid - including one HQ
+    raised against them, or one raised against a completely different
+    coach - which is exactly how a payment that was never actually made
+    gets marked off and the real balance lost track of.
+
+    For an inter-account invoice (client_type "Franchise"), only the
+    invoice's own creator (whoever actually raised it - HQ raising it
+    against a coach, or one coach raising it against another) may
+    allocate payment to it, with franchisor/HQ users always allowed
+    through as a backstop regardless of who raised it. A normal client
+    invoice keeps the existing assigned-coach access rule unchanged - this
+    only tightens the inter-account case that was actually reported.
+    """
+    if not invoice_name or not frappe.db.exists("Sales Invoice", invoice_name):
+        return False
+
+    if _is_franchisor_user():
+        return True
+
+    invoice = frappe.db.get_value(
+        "Sales Invoice", invoice_name, ["custom_client", "owner"], as_dict=True
+    )
+    if not invoice:
+        return False
+
+    client_type = frappe.db.get_value("Client", invoice.get("custom_client"), "client_type")
+
+    if client_type != "Franchise":
+        return _current_user_can_access_client(invoice.get("custom_client"))
+
+    return invoice.get("owner") == frappe.session.user
+
+
 def _get_allowed_clients_for_user():
     if _is_franchisor_user():
         return None
@@ -2811,7 +2853,7 @@ def allocate_invoice_payment(invoice_name=None, posting_date=None, amount=None, 
     if not invoice_name:
         frappe.throw(_("Invoice is required."))
 
-    if not _current_user_can_access_invoice(invoice_name):
+    if not _current_user_can_allocate_payment(invoice_name):
         frappe.throw(_("You do not have permission to allocate payment to this invoice."), frappe.PermissionError)
 
     invoice = frappe.get_doc("Sales Invoice", invoice_name)
