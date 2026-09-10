@@ -2245,7 +2245,23 @@ def share_event_with_admins(doc, method=None):
     saving entirely. Running the actual share in its own job after the
     transaction commits (enqueue_after_commit) means this can never block
     or break someone's save, no matter what goes wrong inside it.
+
+    A single doc.insert() fires both after_insert and on_update, so this
+    runs twice for every new Event - each call independently enqueueing
+    its own job. Redis-backed job_id/deduplicate can't catch that with
+    enqueue_after_commit: neither call's job is actually registered until
+    commit, so both checks run before either has landed. That let two
+    jobs race to create/update the same admin DocShare rows for the same
+    Event, and the loser's own doc.save() hit a TimestampMismatchError -
+    confirmed in the Error Log, dozens of times over. Tracked per-request
+    instead, same fix already used for this exact double-fire in
+    coach_calendar_sync's own event_hooks._enqueue().
     """
+    scheduled = frappe.local.flags.setdefault("share_event_with_admins_scheduled", set())
+    if doc.name in scheduled:
+        return
+    scheduled.add(doc.name)
+
     try:
         frappe.enqueue(
             "dashboard.api.shared.calendar.share_event_with_admins_job",
