@@ -85,3 +85,4 @@ dashboard.patches.create_school_training_equipment_form
 dashboard.patches.create_parent_media_consent_form
 dashboard.patches.create_school_staff_pre_training_form
 dashboard.patches.create_school_cpd_staff_feedback_form
+dashboard.patches.create_staff_media_release_form
