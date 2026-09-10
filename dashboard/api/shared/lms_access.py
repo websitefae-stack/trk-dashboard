@@ -53,10 +53,29 @@ marked "Include In Preview" on a published course) - nothing here needs
 to duplicate that.
 """
 
+import inspect
+
 import frappe
 
 RESTRICTED_FIELD = "custom_hq_restricted"
 SHOW_ON_WEBSITE_FIELD = "custom_show_on_website"
+
+
+def _call_with_supported_kwargs(func, **kwargs):
+    """
+    Calls func with only the kwargs it actually accepts - this site's
+    deployed LMS version (installed from GitHub rather than the
+    marketplace, well behind upstream) predates limit_page_length being
+    added to get_courses()/get_course_count(), so passing it
+    unconditionally threw a TypeError on every single call and silently
+    broke /lms/courses entirely, for everyone, regardless of admin status
+    (confirmed live via debug_course_visibility below). Filtering to only
+    the parameters the installed version actually has keeps this working
+    on the current version and the future updated one without needing to
+    know in advance which one is running.
+    """
+    accepted = set(inspect.signature(func).parameters)
+    return func(**{key: value for key, value in kwargs.items() if key in accepted})
 
 
 def _course_is_restricted(course_name):
@@ -285,17 +304,28 @@ def get_courses_override(filters: dict = None, start: int = 0, limit_page_length
 
     filters = _apply_public_listing_visibility(filters)
 
-    return _original_get_courses(filters=filters, start=start, limit_page_length=limit_page_length)
+    return _call_with_supported_kwargs(
+        _original_get_courses, filters=filters, start=start, limit_page_length=limit_page_length
+    )
 
 
 @frappe.whitelist(allow_guest=True)  # nosemgrep
 def get_course_count_override(filters: dict = None):
-    """Same reasoning as get_courses_override, for the listing page's own pagination count."""
-    from lms.lms.utils import get_course_count as _original_get_course_count
-
+    """
+    Same reasoning as get_courses_override, for the listing page's own
+    pagination count. get_course_count() may not exist at all on an
+    older installed version (it's a newer addition upstream) - falls
+    back to counting LMS Course directly with the same filters if so,
+    rather than throwing.
+    """
     filters = _apply_public_listing_visibility(filters)
 
-    return _original_get_course_count(filters=filters)
+    try:
+        from lms.lms.utils import get_course_count as _original_get_course_count
+    except ImportError:
+        return frappe.db.count("LMS Course", filters=filters)
+
+    return _call_with_supported_kwargs(_original_get_course_count, filters=filters)
 
 
 @frappe.whitelist(allow_guest=True)  # nosemgrep
@@ -361,7 +391,9 @@ def debug_course_visibility():
     filters_out = _apply_public_listing_visibility(filters_in)
 
     try:
-        courses = _original_get_courses(filters=dict(filters_out), start=0, limit_page_length=20)
+        courses = _call_with_supported_kwargs(
+            _original_get_courses, filters=dict(filters_out), start=0, limit_page_length=20
+        )
         courses_error = None
     except Exception as e:
         courses = None

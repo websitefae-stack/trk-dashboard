@@ -15,11 +15,12 @@ from dashboard.api.shared.clients import get_coach_label
 from dashboard.api.shared.utils import coalesce_str, coalesce_raw
 from dashboard.api.shared.notifications import create_trk_notification, FRANCHISOR_USERS
 from dashboard.api.shared.appointment_types import creates_client_on_conversion
-from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, parse_email_list, INTAKE_INVITE_TEMPLATE
+from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, parse_email_list, INTAKE_INVITE_TEMPLATE, PODCAST_INVITE_TEMPLATE
 from dashboard.api.shared.item_access import _get_coach_login
 
 
 INTAKE_ROUTE = "client-intake"
+PODCAST_ROUTE = "podcast-guest-information"
 
 # The actual intake form is the "Intake Doctype" Web Form (built and owned
 # directly in Frappe Desk, not by this app). There's no reliable link field
@@ -122,6 +123,10 @@ STAGE1_MILESTONES = [
 
 def is_franchise_lead(appointment_type):
     return "franchisee call" in (appointment_type or "").strip().lower()
+
+
+def is_podcast_lead(appointment_type):
+    return "podcast" in (appointment_type or "").strip().lower()
 
 
 LEAD_STATUSES = ["New", "Intake Sent", "Converted", "Declined"]
@@ -337,7 +342,7 @@ def get_lead(name=None):
     row["intake_completed_on"] = doc.get("intake_completed_on")
     row["converted_client"] = doc.get("converted_client") or ""
     row["converted_contact"] = doc.get("converted_contact") or ""
-    row["intake_url"] = _intake_url(doc.name) if doc.get("intake_sent_on") else ""
+    row["intake_url"] = _intake_url(doc) if doc.get("intake_sent_on") else ""
     row["call"] = _get_lead_call_info(doc.event)
     row["location_address"] = doc.get("location_address") or ""
     row["is_client_conversion"] = 1 if creates_client_on_conversion(doc.get("appointment_type")) else 0
@@ -878,11 +883,16 @@ def add_lead_note(name=None, note=None, note_date=None):
     return {"ok": True, "notes": _get_lead_notes(doc)}
 
 
-def _intake_url(name):
+def _intake_url(doc):
     # No query param to pre-fill - the submission is matched back to this
     # Client Lead by name afterwards instead (see
     # sync_intake_doctype_submission()), since there's no field on the Web
     # Form a guest could sensibly be asked to fill in to link the two up.
+    # A podcast-booking lead gets the Podcast Guest Booking Form instead of
+    # the usual client intake form - it asks nothing relevant to signing up
+    # a client, and vice versa.
+    if is_podcast_lead(doc.get("appointment_type")):
+        return get_url(f"/{PODCAST_ROUTE}")
     return get_url(f"/{INTAKE_ROUTE}/new")
 
 
@@ -890,7 +900,7 @@ def _intake_email_context(doc):
     return {
         "contact_name": frappe.utils.escape_html(doc.contact_name or ""),
         "client_name": frappe.utils.escape_html(doc.client_name or "your young person"),
-        "intake_url": _intake_url(doc.name),
+        "intake_url": _intake_url(doc),
     }
 
 
@@ -903,8 +913,25 @@ _INTAKE_FALLBACK_MESSAGE = (
     "{{ intake_url }}"
 )
 
+_PODCAST_FALLBACK_MESSAGE = (
+    "Hi {{ contact_name }},\n"
+    "\n"
+    "Thanks for your interest in joining The Resilient Kid Podcast! Please complete "
+    "the short form below so we can start planning your episode:\n"
+    "\n"
+    "{{ intake_url }}"
+)
+
 
 def _render_intake_email(doc):
+    if is_podcast_lead(doc.get("appointment_type")):
+        return render_email(
+            PODCAST_INVITE_TEMPLATE,
+            _intake_email_context(doc),
+            fallback_subject="Your Resilient Kid Podcast guest form",
+            fallback_message=_PODCAST_FALLBACK_MESSAGE,
+        )
+
     return render_email(
         INTAKE_INVITE_TEMPLATE,
         _intake_email_context(doc),
@@ -931,7 +958,7 @@ def get_intake_email_defaults(name=None):
         "subject": subject,
         "message": message,
         "recipient": doc.contact_email,
-        "intake_url": _intake_url(doc.name),
+        "intake_url": _intake_url(doc),
     }
 
 
@@ -942,7 +969,7 @@ def send_intake_form(name=None, subject=None, message=None, cc=None, sender=None
     if not doc.contact_email:
         frappe.throw(_("This lead has no contact email address to send the intake form to."))
 
-    intake_url = _intake_url(doc.name)
+    intake_url = _intake_url(doc)
     subject = (subject or "").strip()
     message = (message or "").strip()
 
