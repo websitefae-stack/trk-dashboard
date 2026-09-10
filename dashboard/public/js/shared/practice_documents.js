@@ -416,13 +416,55 @@
     }
   }
 
+  async function loadAllocationContacts(clientName) {
+    var select = el("docAllocateRecipientContact");
+    if (!select) return;
+
+    if (!clientName) {
+      select.innerHTML = '<option value="">Select a client first...</option>';
+      return;
+    }
+
+    select.innerHTML = '<option value="">Loading contacts...</option>';
+
+    try {
+      var contacts = await apiGet("dashboard.api.shared.client_details.get_client_contacts", {
+        client_name: clientName
+      });
+
+      if (!contacts || !contacts.length) {
+        select.innerHTML = '<option value="">This client has no contacts on file</option>';
+        return;
+      }
+
+      select.innerHTML = '<option value="">Select who to share with...</option>' + contacts.map(function (contact) {
+        var label = contact.display_name || contact.contact;
+        if (contact.relationship) label += " — " + contact.relationship;
+        if (contact.email) label += " (" + contact.email + ")";
+        return '<option value="' + escapeHtml(contact.contact) + '">' + escapeHtml(label) + "</option>";
+      }).join("");
+    } catch (error) {
+      select.innerHTML = '<option value="">Could not load contacts</option>';
+    }
+  }
+
+  function bindAllocationClientChange() {
+    var select = el("docAllocateClient");
+    if (!select || select.dataset.contactLoadBound === "1") return;
+
+    select.dataset.contactLoadBound = "1";
+    select.addEventListener("change", function () {
+      loadAllocationContacts(select.value);
+    });
+  }
+
   function bindAllocateForm() {
     var button = el("docAllocateSubmit");
     if (!button) return;
 
     button.addEventListener("click", async function () {
       var client = el("docAllocateClient").value;
-      var recipientType = el("docAllocateRecipientType").value;
+      var recipientContact = el("docAllocateRecipientContact").value;
       var message = el("docAllocateMessage").value;
       var successBox = el("docAllocateSuccess");
 
@@ -433,8 +475,8 @@
         return;
       }
 
-      if (!recipientType) {
-        window.alert("Choose a recipient type.");
+      if (!recipientContact) {
+        window.alert("Choose who to share this with.");
         return;
       }
 
@@ -445,7 +487,7 @@
         var requirementName = getRequirementName();
         var payload = {
           client: client,
-          recipient_type: recipientType,
+          recipient_contact: recipientContact,
           message: message
         };
 
@@ -660,6 +702,7 @@
     if (!el("documentViewPage")) return;
     bindCompletionButtons();
     bindAllocateForm();
+    bindAllocationClientChange();
     loadDocumentView();
   }
 
