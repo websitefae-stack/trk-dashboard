@@ -569,13 +569,27 @@ def _current_user_can_allocate_payment(invoice_name):
     coach - which is exactly how a payment that was never actually made
     gets marked off and the real balance lost track of.
 
-    For an inter-account invoice (client_type "Franchise"), only the
-    invoice's own creator (whoever actually raised it - HQ raising it
-    against a coach, or one coach raising it against another) may
-    allocate payment to it, with franchisor/HQ users always allowed
-    through as a backstop regardless of who raised it. A normal client
-    invoice keeps the existing assigned-coach access rule unchanged - this
-    only tightens the inter-account case that was actually reported.
+    For an inter-account invoice, only the invoice's own creator (whoever
+    actually raised it - HQ raising it against a coach, or one coach
+    raising it against another) may allocate payment to it, with
+    franchisor/HQ users always allowed through as a backstop regardless of
+    who raised it. A normal client invoice keeps the existing
+    assigned-coach access rule unchanged - this only tightens the
+    inter-account case that was actually reported.
+
+    An inter-account invoice is detected two ways, not just client_type
+    "Franchise" - confirmed live: a coach could still mark their own
+    HQ-raised invoice as paid despite this check, because a separate,
+    older bug (apply_age_and_client_type(), see
+    patches/restore_franchise_client_type_for_linked_clients.py) can
+    silently reset a linked_client's client_type back to a plain age
+    bracket on an unrelated save, at which point this fell through to the
+    normal assigned-coach rule - and a linked_client's own "coach" is
+    routinely set to the coach it represents, so that rule handed them
+    exactly the access this function exists to deny. Checking "is this
+    Client literally some Coach's own linked_client" directly, independent
+    of whatever client_type currently says, closes that regardless of
+    whether that field is correct at the moment this runs.
     """
     if not invoice_name or not frappe.db.exists("Sales Invoice", invoice_name):
         return False
@@ -589,10 +603,16 @@ def _current_user_can_allocate_payment(invoice_name):
     if not invoice:
         return False
 
-    client_type = frappe.db.get_value("Client", invoice.get("custom_client"), "client_type")
+    client = invoice.get("custom_client")
+    client_type = frappe.db.get_value("Client", client, "client_type")
+    is_someones_linked_client = bool(
+        client
+        and frappe.get_meta("Coach").has_field("linked_client")
+        and frappe.db.exists("Coach", {"linked_client": client})
+    )
 
-    if client_type != "Franchise":
-        return _current_user_can_access_client(invoice.get("custom_client"))
+    if client_type != "Franchise" and not is_someones_linked_client:
+        return _current_user_can_access_client(client)
 
     return invoice.get("owner") == frappe.session.user
 
