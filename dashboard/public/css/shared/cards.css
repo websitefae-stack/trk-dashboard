@@ -143,9 +143,21 @@
 
 .dashboard-login-links-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   margin-top: 16px;
+}
+
+@media (max-width: 900px) {
+  .dashboard-login-links-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .dashboard-login-links-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .dashboard-login-link-card h4 {
@@ -172,6 +184,12 @@
 
 .dashboard-login-qr img {
   display: block;
-  width: 96px;
-  height: 96px;
+  width: 140px;
+  height: 140px;
+}
+
+.dashboard-login-qr-download {
+  margin-top: 8px;
+  display: inline-block;
+  font-size: 12px;
 }

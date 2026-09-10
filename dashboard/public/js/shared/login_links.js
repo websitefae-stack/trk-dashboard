@@ -22,11 +22,32 @@
       /* eslint-disable no-new */
       new QRCode(el, {
         text: value,
-        width: 96,
-        height: 96,
+        width: 140,
+        height: 140,
         correctLevel: QRCode.CorrectLevel.M
       });
+
+      wireDownloadLink(el);
     });
+  }
+
+  // qrcodejs draws into a hidden <canvas> and then copies it into a
+  // visible <img> (see vendor/qrcodejs/qrcode.min.js) via
+  // canvas.toDataURL("image/png") - that data URL is exactly what a
+  // plain download link needs as its href, no server round-trip required.
+  function wireDownloadLink(qrEl) {
+    var link = qrEl.parentElement && qrEl.parentElement.querySelector(".dashboard-login-qr-download");
+    if (!link) return;
+
+    var img = qrEl.querySelector("img");
+    if (!img || !img.src) return;
+
+    link.href = img.src;
+    var label = qrEl.dataset.qrLabel || "login";
+    link.setAttribute(
+      "download",
+      label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-qr-code.png"
+    );
   }
 
   document.addEventListener("DOMContentLoaded", renderLoginQrCodes);
