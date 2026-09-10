@@ -2671,6 +2671,23 @@ def _create_booking_impl(
             if booking_coach_name:
                 event.custom_coach = booking_coach_name
 
+        # Same reasoning as the Coach/Franchisor stamp above, for a Session
+        # Worker booking a non-client type (Personal, Internal Training,
+        # Holiday, Event / Stall, a School Visit with no school picked, ...)
+        # onto their own calendar. CLIENT_SESSION_TYPES still get
+        # custom_session_worker from the client's own assigned worker further
+        # below, which takes priority over this generic stamp where it
+        # applies - this only ever fills the gap a client-less booking would
+        # otherwise leave, which previously depended entirely on
+        # coach_calendar_sync's after_insert auto-assign fallback (owner ->
+        # Session Worker, after the fact) to ever become syncable at all.
+        if dashboard_type == SESSION_WORKER_DASHBOARD and _event_has_field("custom_session_worker"):
+            booking_session_worker_name = frappe.db.get_value(
+                "Session Worker", {"user": calendar_owner}, "name"
+            )
+            if booking_session_worker_name:
+                event.custom_session_worker = booking_session_worker_name
+
         if appointment_type == "Therapy Session":
             event.subject = f"{client_name} - Therapy Session"
         elif appointment_type == "Parent Check-In":
