@@ -700,6 +700,55 @@ def _upsert_form_visibility_rule(doctype, visibility):
     frappe.db.commit()
 
 
+PUBLIC_SITE_URL = "https://theresilienthub.co.uk"
+
+
+@frappe.whitelist()
+def get_form_links():
+    """
+    Shareable public URLs for every Forms-module Web Form the current
+    user is allowed to see - reuses the exact same Form Visibility Rule
+    that already drives Reports-section access (see
+    sync_web_form_report_visibility), so a form set to "Show In
+    Franchisor Reports" only is also franchisor-only here, with nothing
+    to configure twice. These forms are anonymous/no-login-required by
+    design (see e.g. patches/create_care_languages_quiz_form.py), so the
+    rule here is about who the dashboard shows the link to and can share
+    it onward, not about restricting who could technically submit it.
+    """
+    ensure_logged_in()
+
+    is_franchisor = is_franchisor_user()
+    allowed_visibilities = {"Everyone"}
+    allowed_visibilities.add("Franchisors Only" if is_franchisor else "Coaches Only")
+
+    rules = frappe.get_all(
+        "Form Visibility Rule",
+        filters={"visibility": ["in", list(allowed_visibilities)]},
+        fields=["form_doctype"],
+    )
+    doctypes = [row.form_doctype for row in rules if row.form_doctype]
+    if not doctypes:
+        return []
+
+    web_forms = frappe.get_all(
+        "Web Form",
+        filters={"doc_type": ["in", doctypes], "published": 1},
+        fields=["name", "title", "route", "doc_type", "introduction_text"],
+        order_by="title asc",
+    )
+
+    return [
+        {
+            "title": wf.title or wf.name,
+            "description": wf.introduction_text or "",
+            "url": PUBLIC_SITE_URL + "/" + (wf.route or ""),
+        }
+        for wf in web_forms
+        if wf.route
+    ]
+
+
 def sync_web_form_report_visibility(doc, method=None):
     """
     Web Form.on_update hook (see hooks.py) - lets "Show In Coach Reports"
