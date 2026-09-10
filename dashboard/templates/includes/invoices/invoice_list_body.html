@@ -106,7 +106,7 @@
                   View
                 </a>
 
-                {% if inv.docstatus == 1 and inv.outstanding_amount and inv.outstanding_amount > 0 %}
+                {% if inv.docstatus == 1 and inv.outstanding_amount and inv.outstanding_amount > 0 and inv.can_allocate_payment %}
                   <a
                     class="dashboard-link-btn"
                     href="{{ dashboard_base_path }}/invoice_details?name={{ inv.name }}&payment=1"

@@ -232,7 +232,7 @@
         Email Invoice
       </button>
 
-      <button type="button" class="dashboard-btn dashboard-btn-primary" id="openAllocatePayment" style="display:none;">
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="openAllocatePayment" data-can-allocate-payment="{{ 1 if can_allocate_payment else 0 }}" style="display:none;">
         Allocate Payment
       </button>
 

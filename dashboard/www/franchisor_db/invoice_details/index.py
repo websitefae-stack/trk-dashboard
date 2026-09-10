@@ -117,6 +117,9 @@ def get_context(context):
     context.docname = docname
     context.is_new = 1 if is_new else 0
     context.page_title = doc.name or "New Invoice"
+    context.can_allocate_payment = (
+        invoice_api._current_user_can_allocate_payment(docname) if docname else False
+    )
 
     context.current_user_email = frappe.session.user if "@" in (frappe.session.user or "") else ""
     context.current_user_phone = _current_user_phone()

@@ -122,6 +122,7 @@ def get_invoices_for_view_coach(coach_name, coach_view_query=""):
     )
 
     client_map = {row.get("name"): row for row in client_rows if row.get("name")}
+    linked_client_names = invoice_api._linked_client_names()
 
     rows = []
 
@@ -130,6 +131,7 @@ def get_invoices_for_view_coach(coach_name, coach_view_query=""):
             invoice,
             client_map,
             invoice_api.COACH_DASHBOARD,
+            linked_client_names,
         )
 
         row["details_url"] = (

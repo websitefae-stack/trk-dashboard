@@ -20,10 +20,15 @@
 
       el.dataset.qrRendered = "1";
       /* eslint-disable no-new */
+      // Rendered well above the 140px display size (see cards.css) so the
+      // downloaded PNG still looks sharp blown up for a flyer or social
+      // media post, not just crisp at the small on-screen size - the CSS
+      // width/height on the <img> controls how big it looks on the page,
+      // this controls the actual pixel data underneath.
       new QRCode(el, {
         text: value,
-        width: 140,
-        height: 140,
+        width: 500,
+        height: 500,
         correctLevel: QRCode.CorrectLevel.M
       });
 
@@ -31,18 +36,29 @@
     });
   }
 
-  // qrcodejs draws into a hidden <canvas> and then copies it into a
-  // visible <img> (see vendor/qrcodejs/qrcode.min.js) via
-  // canvas.toDataURL("image/png") - that data URL is exactly what a
-  // plain download link needs as its href, no server round-trip required.
+  // qrcodejs draws the QR pattern onto a <canvas> synchronously, then
+  // separately (and asynchronously the first time, behind a data-URI
+  // support check - see vendor/qrcodejs/qrcode.min.js) copies it into a
+  // visible <img> via canvas.toDataURL("image/png"). Reading img.src right
+  // after construction can catch it before that copy has happened, leaving
+  // the download link pointing at nothing (href="#") - it then "downloads"
+  // the current page instead of the QR code. Reading straight off the
+  // canvas instead sidesteps that timing gap entirely, since the canvas
+  // itself is already fully drawn by the time this runs.
   function wireDownloadLink(qrEl) {
     var link = qrEl.parentElement && qrEl.parentElement.querySelector(".dashboard-login-qr-download");
     if (!link) return;
 
-    var img = qrEl.querySelector("img");
-    if (!img || !img.src) return;
+    var canvas = qrEl.querySelector("canvas");
+    var dataUrl = canvas ? canvas.toDataURL("image/png") : null;
 
-    link.href = img.src;
+    if (!dataUrl) {
+      var img = qrEl.querySelector("img");
+      if (img && img.src && img.src.indexOf("data:") === 0) dataUrl = img.src;
+    }
+    if (!dataUrl) return;
+
+    link.href = dataUrl;
     var label = qrEl.dataset.qrLabel || "login";
     link.setAttribute(
       "download",
