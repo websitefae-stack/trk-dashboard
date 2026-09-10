@@ -22,7 +22,7 @@ fields no longer exist to read.
 import frappe
 from frappe.utils import now_datetime
 
-from dashboard.api.shared.permissions import ensure_logged_in, get_allowed_client_names
+from dashboard.api.shared.permissions import ensure_logged_in, get_allowed_client_names, ensure_office_user, is_franchisor_user
 from dashboard.api.shared.notifications import create_trk_notification
 from dashboard.api.shared.item_access import _get_coach_login, _get_linked_item_codes, _get_coach_names_with_access_to_items
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
@@ -69,6 +69,20 @@ def _is_admin(user):
 	if user == "Administrator":
 		return True
 	return "System Manager" in frappe.get_roles(user)
+
+
+def _current_user_is_franchisor_admin(is_view_mode):
+	"""
+	Franchisor/HQ browsing under their own identity (never while "viewing
+	as" a coach - a franchisor in view mode must only ever see exactly what
+	that coach sees, same as every other document read in this file) can
+	open any Published Practice Document from the dashboard, matching what
+	they already have unrestricted access to in Desk - this just makes that
+	reachable from the "search all documents" list without needing Desk.
+	"""
+	if is_view_mode:
+		return False
+	return is_franchisor_user()
 
 
 def _resolve_effective_user(view_as=None, viewer=None):
@@ -237,6 +251,47 @@ def get_my_documents_by_type(view_as=None, viewer=None):
 	return {"types": types, "documents": documents}
 
 
+@frappe.whitelist()
+def get_all_documents_for_franchisor():
+	"""
+	The full Published Practice Document catalog, for franchisor/HQ's
+	"search all documents" box - unlike get_my_documents_by_type (one row
+	per Coach Document Requirement assignment, so the same master document
+	would repeat once per coach it's assigned to), this is the master
+	document list itself: every document that exists, regardless of
+	resource_availability, document_purpose or who it's been assigned to.
+	Franchisor already has this reach in Desk; this just makes it
+	searchable from the dashboard without needing to leave it.
+	"""
+	ensure_office_user()
+
+	rows = frappe.get_all(
+		PRACTICE_DOCUMENT_DOCTYPE,
+		filters={"status": "Published"},
+		fields=[
+			"name", "document_title", "document_code", "version",
+			"document_type", "mandatory", "resource_availability", "document_file",
+		],
+		order_by="modified desc",
+		ignore_permissions=True,
+	)
+
+	linked_labels = _get_linked_item_labels_by_document([row.name for row in rows])
+
+	types = _document_type_options()
+	documents = {document_type: [] for document_type in types}
+	documents.setdefault("Other", [])
+
+	for row in rows:
+		row["kind"] = "resource"
+		row["document_version"] = row.get("version")
+		row["linked_items"] = linked_labels.get(row.name, [])
+		key = row.document_type if row.document_type in documents else "Other"
+		documents[key].append(row)
+
+	return {"types": types, "documents": documents}
+
+
 def _is_resource_reachable(source):
 	"""
 	True for anything _get_visible_resource_documents() would have listed -
@@ -265,12 +320,13 @@ def get_resource_document(practice_document, view_as=None, viewer=None):
 		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
 	source = frappe.get_doc(PRACTICE_DOCUMENT_DOCTYPE, practice_document)
+	franchisor_admin = _current_user_is_franchisor_admin(is_view_mode)
 
-	if not _is_resource_reachable(source):
+	if not _is_resource_reachable(source) and not franchisor_admin:
 		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
 	if not _can_user_see_resource(source.as_dict(), user=user):
-		if is_view_mode or not _is_admin(user):
+		if (is_view_mode or not _is_admin(user)) and not franchisor_admin:
 			frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
 	return {
@@ -340,12 +396,13 @@ def get_resource_document_file(practice_document, file_url=None, view_as=None, v
 		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
 	source = frappe.get_doc(PRACTICE_DOCUMENT_DOCTYPE, practice_document)
+	franchisor_admin = _current_user_is_franchisor_admin(is_view_mode)
 
-	if not _is_resource_reachable(source):
+	if not _is_resource_reachable(source) and not franchisor_admin:
 		frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
 	if not _can_user_see_resource(source.as_dict(), user=user):
-		if is_view_mode or not _is_admin(user):
+		if (is_view_mode or not _is_admin(user)) and not franchisor_admin:
 			frappe.throw("You do not have permission to access this document.", frappe.PermissionError)
 
 	if not file_url:

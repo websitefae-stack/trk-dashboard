@@ -2,7 +2,7 @@
 
 <div
   class="dashboard-page"
-  id="documentsPage"
+  id="linksPage"
   data-view-mode="{{ coach_is_view_mode or 0 }}"
   data-view-as="{{ coach_view_coach_name or '' }}"
 >
@@ -27,27 +27,12 @@
 
       <div class="dashboard-page-header">
         <div>
-          <h1 class="dashboard-page-title">Documents</h1>
-          <p class="dashboard-page-subtitle">Policies, procedures, guidance and other documents assigned to you</p>
+          <h1 class="dashboard-page-title">Links</h1>
+          <p class="dashboard-page-subtitle">Shareable links for forms and questionnaires you have access to</p>
         </div>
       </div>
 
-      <div class="dashboard-card dashboard-filter-bar">
-        <div class="dashboard-filter-field dashboard-filter-search">
-          <label for="documentSearch">Search documents</label>
-          <input
-            type="text"
-            class="dashboard-input"
-            id="documentSearch"
-            placeholder="Search by document name or code"
-          >
-        </div>
-      </div>
-
-      <div class="dashboard-tabs" id="documentTypeTabs" role="tablist"></div>
-
-      <div id="documentTypePanels"></div>
-      <div id="documentSearchResults" style="display:none;"></div>
+      <div id="formLinksList"></div>
 
     </div>
   </div>

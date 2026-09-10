@@ -1,6 +1,6 @@
 {% include "dashboard/templates/includes/head/franchisor_head.html" %}
 
-<div class="dashboard-page" id="documentsPage">
+<div class="dashboard-page" id="documentsPage" data-franchisor="1">
   {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
 
   <div class="dashboard-main">
@@ -15,8 +15,21 @@
         </div>
       </div>
 
+      <div class="dashboard-card dashboard-filter-bar">
+        <div class="dashboard-filter-field dashboard-filter-search">
+          <label for="documentSearch">Search all documents</label>
+          <input
+            type="text"
+            class="dashboard-input"
+            id="documentSearch"
+            placeholder="Search every document in the system by name or code"
+          >
+        </div>
+      </div>
+
       <div class="dashboard-tabs" id="documentTypeTabs" role="tablist"></div>
       <div id="documentTypePanels"></div>
+      <div id="documentSearchResults" style="display:none;"></div>
 
     </div>
   </div>

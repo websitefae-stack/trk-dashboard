@@ -212,6 +212,100 @@
     if (firstTargetId) activateTab(firstTargetId);
   }
 
+  // My-documents data (already permission-scoped by the server) is cached
+  // here so search can filter it instantly without a round-trip. The
+  // franchisor's "search all documents" box needs a different, wider
+  // dataset - fetched once, lazily, on first use rather than on every
+  // page load, since most franchisor visits to this page won't search at
+  // all.
+  var myDocumentsCache = null;
+  var allDocumentsCache = null;
+
+  function flattenDocuments(documents) {
+    var rows = [];
+    Object.keys(documents || {}).forEach(function (documentType) {
+      (documents[documentType] || []).forEach(function (row) {
+        rows.push(row);
+      });
+    });
+    return rows;
+  }
+
+  function documentMatchesQuery(row, query) {
+    var haystack = [
+      row.document_title, row.document_code, row.document_type
+    ].filter(Boolean).join(" ").toLowerCase();
+    return haystack.indexOf(query) !== -1;
+  }
+
+  function renderSearchResults(rows) {
+    var wrap = el("documentSearchResults");
+    if (!wrap) return;
+
+    wrap.innerHTML = rows.length
+      ? (
+          '<div class="dashboard-card">' +
+            '<table class="dashboard-table dashboard-doc-list-table">' +
+              "<thead><tr><th>Document</th><th>Due Date</th><th>Status</th><th class=\"dashboard-text-right\">Action</th></tr></thead>" +
+              "<tbody>" + rows.map(renderDocumentRow).join("") + "</tbody>" +
+            "</table>" +
+          "</div>"
+        )
+      : '<div class="dashboard-empty">No documents match your search.</div>';
+  }
+
+  async function loadAllDocumentsForFranchisor() {
+    if (allDocumentsCache) return allDocumentsCache;
+    var data = await apiGet(API + ".get_all_documents_for_franchisor", {});
+    allDocumentsCache = flattenDocuments(data.documents || {});
+    return allDocumentsCache;
+  }
+
+  function isFranchisorDocumentsPage() {
+    var page = el("documentsPage");
+    return !!(page && page.dataset.franchisor === "1");
+  }
+
+  function setSearchMode(isSearching) {
+    var tabsWrap = el("documentTypeTabs");
+    var panelsWrap = el("documentTypePanels");
+    var resultsWrap = el("documentSearchResults");
+
+    if (tabsWrap) tabsWrap.style.display = isSearching ? "none" : "";
+    if (panelsWrap) panelsWrap.style.display = isSearching ? "none" : "";
+    if (resultsWrap) resultsWrap.style.display = isSearching ? "" : "none";
+  }
+
+  function initDocumentSearch() {
+    var input = el("documentSearch");
+    if (!input) return;
+
+    var searching = false;
+
+    input.addEventListener("input", Dashboard.debounce(async function () {
+      var query = input.value.trim().toLowerCase();
+
+      if (!query) {
+        setSearchMode(false);
+        return;
+      }
+
+      setSearchMode(true);
+
+      var rows;
+      try {
+        rows = isFranchisorDocumentsPage()
+          ? await loadAllDocumentsForFranchisor()
+          : (myDocumentsCache || []);
+      } catch (error) {
+        renderSearchResults([]);
+        return;
+      }
+
+      renderSearchResults(rows.filter(function (row) { return documentMatchesQuery(row, query); }));
+    }, 250));
+  }
+
   async function loadDocuments() {
     var tabsWrap = el("documentTypeTabs");
     var panelsWrap = el("documentTypePanels");
@@ -229,6 +323,7 @@
 
     var types = data.types || [];
     var documents = data.documents || {};
+    myDocumentsCache = flattenDocuments(documents);
 
     if (!types.length) {
       tabsWrap.innerHTML = "";
@@ -257,6 +352,7 @@
   function initDocumentsListPage() {
     if (!el("documentsPage")) return;
     loadDocuments();
+    initDocumentSearch();
   }
 
   // -------------------------------------------------------------------
