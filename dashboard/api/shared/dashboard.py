@@ -513,6 +513,105 @@ def _get_upcoming_birthdays(client_rows, days_ahead=14):
     return upcoming
 
 
+def _linked_client_names():
+    """Every Client name that's literally some Coach's own linked_client -
+    used to keep a coach's internal billing record out of the client
+    birthdays list once their real birthday is already covered by
+    _get_coach_birthday_rows, so it doesn't show up twice."""
+    if not _has_doctype("Coach") or not frappe.get_meta("Coach").has_field("linked_client"):
+        return set()
+
+    return set(
+        name for name in frappe.get_all(
+            "Coach",
+            filters={"linked_client": ["is", "set"]},
+            pluck="linked_client",
+        )
+        if name
+    )
+
+
+def _get_coach_birthday_rows():
+    """
+    Every Coach's own date of birth - from Coach.date_of_birth directly
+    when that field exists, else falling back to their linked_client's
+    Client.date_of_birth (the internal record HQ<->coach invoicing uses -
+    see invoices.py's _current_user_can_allocate_payment). That fallback
+    is exactly where a coach's birthday was already coming from before
+    this existed, which is why it only ever reached whoever happened to
+    be primary/attending coach on that particular linked_client (often
+    Ashley, since she typically sets these accounts up) rather than every
+    coach - a colleague's birthday shouldn't depend on who created their
+    billing record.
+    """
+    if not _has_doctype("Coach"):
+        return []
+
+    meta = frappe.get_meta("Coach")
+    has_own_dob = meta.has_field("date_of_birth")
+    has_linked_client = meta.has_field("linked_client")
+
+    fields = ["name", "coach_name"]
+    if has_own_dob:
+        fields.append("date_of_birth")
+    if has_linked_client:
+        fields.append("linked_client")
+
+    coaches = frappe.get_all("Coach", fields=fields, ignore_permissions=True)
+
+    linked_dob_by_client = {}
+    if has_linked_client:
+        linked_client_names = [row.get("linked_client") for row in coaches if row.get("linked_client")]
+        if linked_client_names:
+            for row in frappe.get_all(
+                "Client",
+                filters={"name": ["in", linked_client_names]},
+                fields=["name", "date_of_birth"],
+                ignore_permissions=True,
+            ):
+                linked_dob_by_client[row.name] = row.date_of_birth
+
+    rows = []
+    for coach in coaches:
+        dob = coach.get("date_of_birth") if has_own_dob else None
+        if not dob and has_linked_client:
+            dob = linked_dob_by_client.get(coach.get("linked_client"))
+
+        if not dob:
+            continue
+
+        rows.append({
+            "name": coach.get("name"),
+            "label": coach.get("coach_name") or coach.get("name"),
+            "date_of_birth": dob,
+        })
+
+    return rows
+
+
+def _get_upcoming_coach_birthdays(days_ahead=14):
+    today_date = getdate(nowdate())
+    window_end = add_to_date(today_date, days=days_ahead)
+
+    upcoming = []
+
+    for row in _get_coach_birthday_rows():
+        dob = getdate(row.get("date_of_birth"))
+        next_birthday = _next_birthday(dob, today_date)
+
+        if not next_birthday or next_birthday > window_end:
+            continue
+
+        upcoming.append({
+            "client": row.get("name"),
+            "client_label": row.get("label"),
+            "date": next_birthday.strftime("%Y-%m-%d"),
+            "turning_age": next_birthday.year - dob.year,
+        })
+
+    return upcoming
+
+
 # =========================================================
 # SESSION WORKER EXISTING SUMMARY HELPERS
 # =========================================================
@@ -2050,7 +2149,21 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
         "new_clients_previous_month": _count_clients_added(client_rows, previous_month_start, previous_month_end),
 
         "upcoming_appointments": _get_upcoming_appointments(dashboard_type, context, limit=8),
-        "upcoming_birthdays": _get_upcoming_birthdays(client_rows, days_ahead=14),
+        # Every coach's own birthday is pooled in here alongside client
+        # birthdays, visible on every coach's and the franchisor's
+        # dashboard alike - unlike client birthdays above, this list is
+        # never scoped down to "my own" (see _get_coach_birthday_rows), so
+        # every coach sees every colleague's, not just whoever happens to
+        # be assigned as their linked_client's coach. Linked_client rows
+        # are excluded from the client side to avoid double-listing a
+        # coach's own birthday once it's already covered there.
+        "upcoming_birthdays": sorted(
+            _get_upcoming_birthdays(
+                [row for row in client_rows if row.get("name") not in _linked_client_names()],
+                days_ahead=14,
+            ) + _get_upcoming_coach_birthdays(days_ahead=14),
+            key=lambda item: item["date"],
+        ),
 
         "revenue_total_current": revenue_current["total"],
         "revenue_total_previous": revenue_previous["total"],

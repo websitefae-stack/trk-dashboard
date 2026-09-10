@@ -66,8 +66,30 @@ def _course_is_restricted(course_name):
 
 
 def _is_lms_admin(user=None):
+    """
+    Anyone who should see the full course listing on /lms/courses rather
+    than being collapsed down to "just my enrolled courses" by
+    _apply_public_listing_visibility below - not just the literal
+    Administrator/System Manager accounts. Without the franchisor check,
+    office@theresilienthub.co.uk (the shared HQ login Chantelle and
+    others use to build/manage courses) saw nothing at all on
+    /lms/courses, since it holds neither role - it's a franchisor-level
+    dashboard account, not a Frappe System Manager. Moderator is LMS's
+    own site-wide "can manage every course" role (already trusted
+    elsewhere in this file, see _user_has_lms_course_access), so it
+    belongs here too.
+    """
     user = user or frappe.session.user
-    return user == "Administrator" or "System Manager" in frappe.get_roles(user)
+
+    if user == "Administrator":
+        return True
+
+    if "System Manager" in frappe.get_roles(user) or "Moderator" in frappe.get_roles(user):
+        return True
+
+    from dashboard.api.shared.permissions import is_franchisor_user
+
+    return user == frappe.session.user and is_franchisor_user()
 
 
 def _apply_public_listing_visibility(filters):

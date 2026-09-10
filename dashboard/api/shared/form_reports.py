@@ -704,6 +704,40 @@ def _upsert_form_visibility_rule(doctype, visibility):
 
 PUBLIC_SITE_URL = "https://theresilienthub.co.uk"
 
+# Mirrors practice_documents.py's PRACTICE_DOCUMENT_BRAND_FIELDS - same
+# brand values, same Coach Brand Access child table, just for Web Form
+# instead of Practice Document (see add_web_form_brand_access_fields.py).
+WEB_FORM_BRAND_FIELDS = {
+    "custom_brand_access_kid": "Kid",
+    "custom_brand_access_teen": "Teen",
+    "custom_brand_access_people": "People",
+    "custom_brand_access_school": "School",
+    "custom_brand_access_franchise": "Franchise",
+}
+
+
+def _get_web_form_brand_values(web_form_row):
+    return {
+        brand_value
+        for fieldname, brand_value in WEB_FORM_BRAND_FIELDS.items()
+        if web_form_row.get(fieldname)
+    }
+
+
+def _get_current_coach_brand_values():
+    if not frappe.db.exists("DocType", "Coach Brand Access"):
+        return set()
+
+    coach_name = get_current_coach_name(optional=True)
+    if not coach_name:
+        return set()
+
+    return set(frappe.get_all(
+        "Coach Brand Access",
+        filters={"parent": coach_name, "parenttype": "Coach"},
+        pluck="brand_access",
+    ))
+
 
 def _strip_html_to_text(value):
     """
@@ -734,6 +768,14 @@ def get_form_links():
     design (see e.g. patches/create_care_languages_quiz_form.py), so the
     rule here is about who the dashboard shows the link to and can share
     it onward, not about restricting who could technically submit it.
+
+    On top of that, a form can also be scoped to coaches with a specific
+    Brand Access (see add_web_form_brand_access_fields.py) - the same
+    Kid/Teen/People/School/Franchise brands, and the same Coach Brand
+    Access child table, Practice Document's Workshop Resources already
+    use. A form with no brand box ticked is unrestricted (same
+    convention as Practice Document). Franchisor users always bypass
+    this, same as they bypass everything else brand-scoped.
     """
     ensure_logged_in()
 
@@ -753,9 +795,19 @@ def get_form_links():
     web_forms = frappe.get_all(
         "Web Form",
         filters={"doc_type": ["in", doctypes], "published": 1},
-        fields=["name", "title", "route", "doc_type", "introduction_text"],
+        fields=(
+            ["name", "title", "route", "doc_type", "introduction_text"]
+            + list(WEB_FORM_BRAND_FIELDS.keys())
+        ),
         order_by="title asc",
     )
+
+    if not is_franchisor:
+        coach_brand_values = _get_current_coach_brand_values()
+        web_forms = [
+            wf for wf in web_forms
+            if not _get_web_form_brand_values(wf) or (_get_web_form_brand_values(wf) & coach_brand_values)
+        ]
 
     return [
         {

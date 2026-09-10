@@ -78,3 +78,5 @@ dashboard.patches.backfill_school_visit_client_links_prefix_match
 dashboard.patches.create_care_languages_quiz_form
 dashboard.patches.create_school_experience_form
 dashboard.patches.create_staff_relationships_form
+dashboard.patches.add_web_form_brand_access_fields
+dashboard.patches.create_school_cpd_training_booking_form
