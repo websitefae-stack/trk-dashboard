@@ -25,7 +25,7 @@
 
     return (
       '<div class="dashboard-card" style="margin-bottom:14px;">' +
-        '<div class="dashboard-doc-list-title">' + escapeHtml(link.title) + "</div>" +
+        '<h3 class="dashboard-form-link-title">' + escapeHtml(link.title) + "</h3>" +
         (link.description
           ? '<div class="dashboard-doc-list-meta" style="margin-bottom:8px;">' + escapeHtml(link.description) + "</div>"
           : "") +

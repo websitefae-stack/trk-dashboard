@@ -9,6 +9,8 @@ existing lead/client detail pages rather than duplicating their full
 answer rendering here.
 """
 
+import re
+
 import frappe
 from frappe import _
 
@@ -703,6 +705,23 @@ def _upsert_form_visibility_rule(doctype, visibility):
 PUBLIC_SITE_URL = "https://theresilienthub.co.uk"
 
 
+def _strip_html_to_text(value):
+    """
+    Web Form introduction_text is rich-text HTML from the form builder
+    (e.g. '<div class="ql-editor..."><p>...</p><p><br></p>...</div>') -
+    the Links list shows it as a plain description, not raw markup.
+    Block-level boundaries are turned into spaces first so stripping the
+    tags doesn't jam adjacent paragraphs together into one word.
+    """
+    if not value:
+        return ""
+
+    text = re.sub(r"(?i)<(br|/p|/div|/li|/h[1-6])\s*/?>", " ", value)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
 @frappe.whitelist()
 def get_form_links():
     """
@@ -741,7 +760,7 @@ def get_form_links():
     return [
         {
             "title": wf.title or wf.name,
-            "description": wf.introduction_text or "",
+            "description": _strip_html_to_text(wf.introduction_text),
             "url": PUBLIC_SITE_URL + "/" + (wf.route or ""),
         }
         for wf in web_forms

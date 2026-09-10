@@ -864,6 +864,14 @@ def add_lead_note(name=None, note=None, note_date=None):
         "added_by": frappe.session.user,
         "added_on": now_datetime(),
     })
+
+    # doc.save() re-validates the whole Client Lead, not just the note row
+    # just appended - if some mandatory field (e.g. a "Client" field added
+    # to the Notes table via Customize Form at some point, on a site
+    # that's drifted from what's in this repo) can't be filled in before
+    # conversion, adding a note must not be blocked by it. This doc was
+    # already valid before this call; the only new thing here is the note.
+    doc.flags.ignore_mandatory = True
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 
