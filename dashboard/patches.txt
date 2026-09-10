@@ -88,3 +88,4 @@ dashboard.patches.create_school_cpd_staff_feedback_form
 dashboard.patches.create_staff_media_release_form
 dashboard.patches.create_podcast_guest_booking_form
 dashboard.patches.create_podcast_invite_email_template
+dashboard.patches.create_franchise_termination_form
