@@ -2245,7 +2245,23 @@ def share_event_with_admins(doc, method=None):
     saving entirely. Running the actual share in its own job after the
     transaction commits (enqueue_after_commit) means this can never block
     or break someone's save, no matter what goes wrong inside it.
+
+    A single doc.insert() fires both after_insert and on_update, so this
+    runs twice for every new Event - each call independently enqueueing
+    its own job. Redis-backed job_id/deduplicate can't catch that with
+    enqueue_after_commit: neither call's job is actually registered until
+    commit, so both checks run before either has landed. That let two
+    jobs race to create/update the same admin DocShare rows for the same
+    Event, and the loser's own doc.save() hit a TimestampMismatchError -
+    confirmed in the Error Log, dozens of times over. Tracked per-request
+    instead, same fix already used for this exact double-fire in
+    coach_calendar_sync's own event_hooks._enqueue().
     """
+    scheduled = frappe.local.flags.setdefault("share_event_with_admins_scheduled", set())
+    if doc.name in scheduled:
+        return
+    scheduled.add(doc.name)
+
     try:
         frappe.enqueue(
             "dashboard.api.shared.calendar.share_event_with_admins_job",
@@ -2670,6 +2686,23 @@ def _create_booking_impl(
 
             if booking_coach_name:
                 event.custom_coach = booking_coach_name
+
+        # Same reasoning as the Coach/Franchisor stamp above, for a Session
+        # Worker booking a non-client type (Personal, Internal Training,
+        # Holiday, Event / Stall, a School Visit with no school picked, ...)
+        # onto their own calendar. CLIENT_SESSION_TYPES still get
+        # custom_session_worker from the client's own assigned worker further
+        # below, which takes priority over this generic stamp where it
+        # applies - this only ever fills the gap a client-less booking would
+        # otherwise leave, which previously depended entirely on
+        # coach_calendar_sync's after_insert auto-assign fallback (owner ->
+        # Session Worker, after the fact) to ever become syncable at all.
+        if dashboard_type == SESSION_WORKER_DASHBOARD and _event_has_field("custom_session_worker"):
+            booking_session_worker_name = frappe.db.get_value(
+                "Session Worker", {"user": calendar_owner}, "name"
+            )
+            if booking_session_worker_name:
+                event.custom_session_worker = booking_session_worker_name
 
         if appointment_type == "Therapy Session":
             event.subject = f"{client_name} - Therapy Session"
