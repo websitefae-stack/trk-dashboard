@@ -7,6 +7,7 @@ from dashboard.api.shared.profile import (
     get_profile_display_name,
     get_franchisor_name,
     coach_has_secret_key,
+    get_coach_login_links,
 )
 
 
@@ -47,3 +48,4 @@ def get_context(context):
 
     context.has_secret_key = coach_has_secret_key(coach.name)
     context.expired_legal_items = []
+    context.login_links = get_coach_login_links(coach)

@@ -74,7 +74,8 @@
           <div class="dashboard-filter-field">
             <label for="statusFilter">Status</label>
             <select class="dashboard-select" id="statusFilter">
-              <option value="All" {% if not selected_status or selected_status == "All" %}selected{% endif %}>All statuses</option>
+              <option value="" {% if not selected_status %}selected{% endif %}>Active (hide archived)</option>
+              <option value="All" {% if selected_status == "All" %}selected{% endif %}>All statuses (incl. archived)</option>
               <option value="Active" {% if selected_status == "Active" %}selected{% endif %}>Active</option>
               <option value="On Hold" {% if selected_status == "On Hold" %}selected{% endif %}>On Hold</option>
               <option value="Archived" {% if selected_status == "Archived" %}selected{% endif %}>Archived</option>

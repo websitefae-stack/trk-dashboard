@@ -92,7 +92,7 @@
           {% if linked_coaches and not session_worker_is_view_mode %}
             <button type="button" class="dashboard-tab-btn" data-tab="supervision">Supervision</button>
           {% endif %}
-          {% if profile_role == "coach" %}
+          {% if profile_role == "coach" or profile_role == "franchisor" %}
             <button type="button" class="dashboard-tab-btn" data-tab="logins">Your Logins</button>
           {% endif %}
         </div>
@@ -799,7 +799,7 @@
       </div>
       {% endif %}
 
-      {% if profile_role == "coach" %}
+      {% if profile_role == "coach" or profile_role == "franchisor" %}
       <!-- LOGINS & LINKS TAB -->
       <div class="dashboard-tab-panel" data-tab-panel="logins" style="display:none;">
         <div class="dashboard-card">
@@ -809,9 +809,11 @@
             you here, and every login below uses that same email address and password unless it says otherwise.
             Scan a QR code to open something on your phone instead.
           </p>
+          {% if profile_role == "coach" %}
           <a href="/coach_db/onboarding{{ coach_view_query }}" class="dashboard-btn dashboard-btn-light">
             &larr; See your full Onboarding checklist
           </a>
+          {% endif %}
         </div>
 
         <div class="dashboard-login-links-grid">

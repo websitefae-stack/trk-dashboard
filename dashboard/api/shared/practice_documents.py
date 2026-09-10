@@ -531,7 +531,31 @@ def get_allocation_target_clients():
 
 
 @frappe.whitelist()
-def allocate_document_to_client(requirement_name=None, practice_document=None, client=None, recipient_type=None, message=None):
+def _infer_recipient_type(relationship, is_billing_contact):
+	"""
+	recipient_type is still a required field on Client Document Share (used
+	for reporting/filtering) even now that the actual recipient is picked
+	as a specific Contact rather than a type - this derives it from the
+	contact's own relationship to the client, defaulting to "Other
+	Authorised Contact" for anything it can't confidently map, rather than
+	failing the whole allocation over what's just a secondary label.
+	"""
+	relationship = (relationship or "").strip().lower()
+
+	if is_billing_contact:
+		return "Billing Contact"
+	if any(word in relationship for word in ("mother", "father", "parent", "guardian")):
+		return "Parent or Guardian"
+	if "self" in relationship or "adult" in relationship:
+		return "Adult Client"
+	if "school" in relationship:
+		return "School Contact"
+	if "compan" in relationship:
+		return "Company Contact"
+	return "Other Authorised Contact"
+
+
+def allocate_document_to_client(requirement_name=None, practice_document=None, client=None, recipient_contact=None, message=None):
 	"""
 	Records that a coach/franchisor/session worker has decided to share
 	this document with a client - creates a Client Document Share row
@@ -540,6 +564,15 @@ def allocate_document_to_client(requirement_name=None, practice_document=None, c
 	(Internal Compliance/Both documents someone was assigned) or directly
 	from a Practice Document (pure Client Resource documents, which never
 	get a requirement row at all).
+
+	recipient_contact names a specific one of the client's own Contacts
+	(see client_details.get_client_contacts, which the frontend calls to
+	list them) - a client can have more than one contact of the same kind
+	(two parents, say), and sharing used to only ever record a generic
+	recipient_type with nothing actually tying the share to which one of
+	them it was meant for, so it always went to (or was assumed sent to)
+	every contact of that type rather than the one specific person it was
+	meant for.
 	"""
 	if requirement_name:
 		requirement = _get_owned_requirement(requirement_name)
@@ -573,8 +606,29 @@ def allocate_document_to_client(requirement_name=None, practice_document=None, c
 	if client not in (get_allowed_client_names() or []):
 		frappe.throw("You do not have permission to access this client.", frappe.PermissionError)
 
-	if not recipient_type:
-		frappe.throw("Choose a recipient type.")
+	if not recipient_contact:
+		frappe.throw("Choose who to share this with.")
+
+	from dashboard.api.shared.client_details import get_contact_data
+
+	client_doc = frappe.get_doc("Client", client)
+	contact_row = next(
+		(row for row in (client_doc.get("client_contacts") or []) if row.get("contact") == recipient_contact),
+		None,
+	)
+
+	if not contact_row:
+		frappe.throw("That contact is not linked to this client.")
+
+	contact_data = get_contact_data(recipient_contact)
+	recipient_name = contact_row.get("contact_name") or contact_data.get("display_name") or recipient_contact
+	recipient_email = contact_row.get("email_id") or contact_data.get("email") or ""
+
+	if not recipient_email:
+		frappe.throw("This contact has no email address to share the document with.")
+
+	relationship = contact_row.get("relationship_type") or contact_row.get("relationship") or contact_row.get("relation") or ""
+	is_billing_contact = bool(contact_row.get("is_billing_contact"))
 
 	share = frappe.new_doc(CLIENT_DOCUMENT_SHARE_DOCTYPE)
 	share.practice_document = practice_document_name
@@ -589,7 +643,10 @@ def allocate_document_to_client(requirement_name=None, practice_document=None, c
 	share.session_worker = session_worker
 
 	share.client = client
-	share.recipient_type = recipient_type
+	share.recipient_contact = recipient_contact
+	share.recipient_name = recipient_name
+	share.recipient_email = recipient_email
+	share.recipient_type = _infer_recipient_type(relationship, is_billing_contact)
 	share.delivery_method = "Secure Portal Link"
 	share.coach_message = message or ""
 	share.status = "Prepared"

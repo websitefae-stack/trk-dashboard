@@ -255,10 +255,10 @@ def get_coach_login_links(coach):
     "Your Logins" tab content on the coach profile page - every login/
     link a coach needs day to day, each with a short how-to-access line
     and (rendered client-side, see login_links.js) a QR code for
-    switching to a phone. Facebook/Instagram only show up once HQ has
-    actually set one for this coach; Email/Training/Client Portal always
-    show since every coach has all three, just personalised where it
-    matters (their own email address, their own enrolled LMS course).
+    switching to a phone. Facebook/Instagram/LinkedIn only show up once
+    HQ has actually set one for this coach; Email/Training/Client Portal
+    always show since every coach has all three, just personalised where
+    it matters (their own email address, their own enrolled LMS course).
 
     link_url is always a full absolute URL rather than the relative path
     used elsewhere in the app - a QR code encoding a relative path is
@@ -291,6 +291,15 @@ def get_coach_login_links(coach):
             "link_url": coach.instagram_url,
         })
 
+    if coach.get("linkedin_url"):
+        links.append({
+            "key": "linkedin",
+            "label": "LinkedIn",
+            "detail": "Your business page",
+            "how_to": "Log in with the LinkedIn account HQ set up for your business page.",
+            "link_url": coach.linkedin_url,
+        })
+
     email = coach.get("coach_email") or coach.get("user") or ""
     links.append({
         "key": "email",
@@ -317,7 +326,130 @@ def get_coach_login_links(coach):
         "link_url": PUBLIC_SITE_URL + "/client_portal",
     })
 
+    # Digital business card - not a login at all (guest-accessible on
+    # purpose, see get_coach_vcard), just reusing the same "here's a QR
+    # code, scan it on your phone" mechanism this whole tab already has.
+    # Someone else scans this one, not the coach themself - the how_to
+    # reflects that instead of the "log in with..." wording every other
+    # entry here uses.
+    links.append({
+        "key": "vcard",
+        "label": "My Digital Business Card",
+        "detail": "Share your contact details",
+        "how_to": "Show this QR code to someone so they can scan it and save your contact details straight to "
+                   "their phone.",
+        "link_url": PUBLIC_SITE_URL + "/api/method/dashboard.api.shared.profile.get_coach_vcard?coach=" + coach.name,
+    })
+
     return links
+
+
+def _vcard_escape(value):
+    return (value or "").replace("\\", "\\\\").replace(",", "\\,").replace(";", "\\;").replace("\n", "\\n")
+
+
+def _fold_vcard_line(line):
+    """
+    RFC 2425/2426 line folding: a raw line over 75 octets has to be split
+    across multiple physical lines, each continuation starting with a
+    single space, or strict vCard parsers reject the file outright. The
+    base64 PHOTO line is the only one ever long enough for this to matter
+    in practice.
+    """
+    if len(line) <= 75:
+        return line
+
+    parts = [line[:75]]
+    rest = line[75:]
+    while rest:
+        parts.append(" " + rest[:74])
+        rest = rest[74:]
+
+    return "\r\n".join(parts)
+
+
+def _get_coach_photo_for_vcard(file_url):
+    """
+    Best-effort: a vCard PHOTO is embedded inline as base64 (a PHOTO;VALUE=URI
+    reference isn't reliably fetched by every phone's contacts app, base64
+    is what actually shows up as the saved contact's photo everywhere), so
+    this reads the coach's own profile photo File document's raw bytes
+    rather than linking to it. Returns (base64_string, TYPE) or (None,
+    None) if there's no photo or it can't be read - a missing/broken photo
+    should never be the reason the rest of the card fails to generate.
+    """
+    if not file_url:
+        return None, None
+
+    try:
+        file_doc = frappe.get_doc("File", {"file_url": file_url})
+        content = file_doc.get_content()
+        if not content:
+            return None, None
+
+        import base64
+        extension = (file_url.rsplit(".", 1)[-1] or "").strip().lower()
+        vcard_type = {"jpg": "JPEG", "jpeg": "JPEG", "png": "PNG", "gif": "GIF", "webp": "JPEG"}.get(extension, "JPEG")
+
+        return base64.b64encode(content).decode("ascii"), vcard_type
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "get_coach_photo_for_vcard")
+        return None, None
+
+
+@frappe.whitelist(allow_guest=True)
+def get_coach_vcard(coach=None):
+    """
+    Serves a downloadable .vcf "digital business card" for a Coach or
+    Franchisor (both are Coach doctype records - see ROLE_PROFILE_CONFIG)
+    with phone/email/photo/website/social links, so scanning the QR code
+    built from this in "Your Logins" (get_coach_login_links) saves it
+    straight into the scanning phone's own contacts - no typing, no
+    account needed. Deliberately allow_guest: the person scanning this is
+    never expected to be logged in - that's the entire point of it.
+    """
+    if not coach or not frappe.db.exists("Coach", coach):
+        frappe.throw(_("Coach not found"), frappe.DoesNotExistError)
+
+    doc = frappe.get_doc("Coach", coach)
+
+    full_name = (doc.get("coach_name") or "").strip() or "The Resilient Kid Coach"
+    email = doc.get("coach_email") or doc.get("user") or ""
+    phone = doc.get("phone") or ""
+
+    lines = [
+        "BEGIN:VCARD",
+        "VERSION:3.0",
+        f"FN:{_vcard_escape(full_name)}",
+        f"N:{_vcard_escape(full_name)};;;;",
+        "ORG:The Resilient Kid",
+    ]
+
+    if phone:
+        lines.append(f"TEL;TYPE=CELL:{_vcard_escape(phone)}")
+
+    if email:
+        lines.append(f"EMAIL;TYPE=INTERNET:{_vcard_escape(email)}")
+
+    lines.append(f"URL;TYPE=Website:{PUBLIC_SITE_URL}")
+
+    for fieldname, label in (("facebook_url", "Facebook"), ("instagram_url", "Instagram"), ("linkedin_url", "LinkedIn")):
+        value = doc.get(fieldname)
+        if value:
+            lines.append(f"URL;TYPE={label}:{_vcard_escape(value)}")
+
+    photo_b64, photo_type = _get_coach_photo_for_vcard(doc.get("photo"))
+    if photo_b64:
+        lines.append(f"PHOTO;ENCODING=b;TYPE={photo_type}:{photo_b64}")
+
+    lines.append("END:VCARD")
+
+    vcard_text = "\r\n".join(_fold_vcard_line(line) for line in lines) + "\r\n"
+
+    frappe.response["type"] = "download"
+    frappe.response["filename"] = f"{full_name}.vcf"
+    frappe.response["filecontent"] = vcard_text.encode("utf-8")
+    frappe.response["content_type"] = "text/vcard; charset=utf-8"
 
 
 def _get_coach_lms_path(coach):
