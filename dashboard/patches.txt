@@ -84,3 +84,4 @@ dashboard.patches.add_coach_date_of_birth_field
 dashboard.patches.create_school_training_equipment_form
 dashboard.patches.create_parent_media_consent_form
 dashboard.patches.create_school_staff_pre_training_form
+dashboard.patches.create_school_cpd_staff_feedback_form
