@@ -5,15 +5,10 @@ currently on /trh-franchise (built directly on the live site, outside
 any repo), which captures name/email and hands off to MailerLite
 entirely outside Frappe.
 
-Submitting this form is also the Email Sequence engine's trigger point
-(see patches/create_email_sequence_doctypes.py) - Ashley sets up an
-Email Sequence in Desk with trigger_doctype = "Franchise Brochure
-Request", trigger_email_field = "email", and it enrols automatically,
-no code change needed. Deliberately does NOT create a Client Lead -
-downloading the brochure is a much lighter-touch action than completing
-the Information Sheet (which does create one, see
-franchise_info_sheet.py), so this stays out of Ashley's Leads pipeline
-until someone actually shows real interest.
+Deliberately does NOT create a Client Lead - downloading the brochure is
+a much lighter-touch action than completing the Information Sheet
+(which does create one, see franchise_info_sheet.py), so this stays out
+of Ashley's Leads pipeline until someone actually shows real interest.
 
 Hub-branded, franchisor-only visibility. success_message links straight
 to the (noindex, direct-link-only) brochure page at
