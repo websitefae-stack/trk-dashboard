@@ -20,4 +20,4 @@ Last updated: 2026-07-27
 - ERPNext (if installed)
 -
 
-<!-- deploy trigger: 2026-09-07a -->
+<!-- deploy trigger: 2026-09-11a -->
