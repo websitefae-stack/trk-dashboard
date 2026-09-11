@@ -1,36 +1,35 @@
 """
-Creates "Podcast Guest Booking Form" as a real DocType + Web Form, same
-pattern as the other standalone forms (see
-create_school_cpd_training_booking_form.py), but Hub-branded rather
-than School-branded (TRHub_Logo.jpg at the top, not a school wordmark)
-and franchisor-only - this is sent to prospective podcast guests by
-Ashley personally, not something coaches need to see or share, so
-custom_show_in_coach_reports stays off and no Brand Access is set.
-
-Two file-upload fields (PDF sheet, headshot) use the "Attach" fieldtype -
-both optional, matching the source form (neither was marked required).
+Creates "Help Us Reach 1 Million Kids" as a real DocType + Web Form,
+same pattern as the other standalone forms (see
+create_podcast_guest_booking_form.py) - a referral form for anyone to
+introduce a school to The Resilient Kid, not tied to any existing
+client or contact. Hub-branded, franchisor-only visibility (not shown
+to coaches on the Links page).
 
 Plain response capture, not a scored assessment - no validate hook
-needed.
+needed. Every field is required, matching the source form. Includes
+the leading Section Break and title-wrap CSS rule from the start (see
+prepend_section_break_to_standalone_forms.py /
+fix_standalone_form_titles_and_css.py for why both matter).
 
 Runs automatically on the next `bench migrate` - no manual step needed.
 """
 
 import frappe
 
-DOCTYPE_NAME = "Podcast Guest Booking"
-WEB_FORM_ROUTE = "podcast-guest-information"
+DOCTYPE_NAME = "Reach 1 Million Kids Referral"
+WEB_FORM_ROUTE = "reach-1-million-kids"
 
-PDF_SHEET_OPTIONS = "Yes\nNo\nMaybe"
+HEAR_MORE_OPTIONS = "Yes\nNo"
 
 INTRODUCTION_TEXT = (
-    "<p><strong>Contact information - Please read the following:</strong></p>"
-    "<p>Round table - the format for this podcast is an open, honest and frank chat. It "
-    "is informal, however, we want the audience to have the feeling of coming away with "
-    "info, shared experience or a signpost to help. You might be coming to this with a "
-    "lived experience, so only share what you feel happy with. You may be coming as an "
-    "expert in your field, please don't promote your work - Ashley will give you an "
-    "opportunity at the end of the podcast.</p>"
+    "<p><em>Your mission, should you choose to accept it&hellip;</em></p>"
+    "<p><strong>Connect The Resilient Kid with ONE school.</strong></p>"
+    "<p>We're on a mission to reach 1 million children with practical tools that help "
+    "them understand their brains, regulate their emotions and build resilience.</p>"
+    "<p>Know a headteacher, SENCO, pastoral lead, teacher or school that needs to know "
+    "about us?</p>"
+    "<p>Make the introduction below.</p>"
 )
 
 CUSTOM_CSS = """
@@ -109,59 +108,29 @@ CUSTOM_CSS = """
 def _doctype_fields():
     return [
         {"fieldname": "form_top_section", "fieldtype": "Section Break"},
-        {"fieldname": "email", "fieldtype": "Data", "options": "Email", "label": "Email", "reqd": 1},
-        {"fieldname": "guest_name", "fieldtype": "Data", "label": "Name"},
-        {"fieldname": "phone_number", "fieldtype": "Data", "label": "Phone Number"},
+        {"fieldname": "referrer_name", "fieldtype": "Data", "label": "Your Name", "reqd": 1},
         {
-            "fieldname": "unavailable_days_times",
-            "fieldtype": "Small Text",
-            "label": "Any Particular Days and Times You Are NOT Available?",
-            "description": "They are mostly recorded on Thurs/Fridays.",
+            "fieldname": "referrer_email",
+            "fieldtype": "Data",
+            "options": "Email",
+            "label": "Your Email",
+            "description": "So we can thank you and enter you into a prize draw.",
+            "reqd": 1,
         },
-        {"fieldname": "location", "fieldtype": "Data", "label": "Where Are You Located?", "reqd": 1},
-        {"fieldname": "website_address", "fieldtype": "Data", "label": "Website Address"},
+        {"fieldname": "school_name", "fieldtype": "Data", "label": "School Name", "reqd": 1},
         {
-            "fieldname": "social_media_links",
+            "fieldname": "connection_details",
             "fieldtype": "Small Text",
-            "label": "Links to Social Media (Facebook, Instagram, LinkedIn, etc) - List Them Below",
+            "label": "Who Should We Connect With?",
+            "description": "Name/email if you know it - or simply tell us anything that might help.",
             "reqd": 1,
         },
         {
-            "fieldname": "interview_topic",
-            "fieldtype": "Small Text",
-            "label": "Interview Topic - What Are You Bringing to the Table?",
-            "reqd": 1,
-        },
-        {
-            "fieldname": "areas_of_expertise",
-            "fieldtype": "Small Text",
-            "label": "What Topics Do You Feel You Have Experience/Expertise On?",
-        },
-        {
-            "fieldname": "top_tips",
-            "fieldtype": "Small Text",
-            "label": "Any Top Tips That You Would Want to Share? (optional)",
-        },
-        {
-            "fieldname": "signpost",
-            "fieldtype": "Small Text",
-            "label": "What Would You Like to Signpost If Any (book, course, socials etc.)",
-        },
-        {
-            "fieldname": "has_pdf_sheet",
+            "fieldname": "wants_to_hear_more",
             "fieldtype": "Select",
-            "label": "Have You Got a PDF Sheet? (optional)",
-            "options": PDF_SHEET_OPTIONS,
-        },
-        {
-            "fieldname": "pdf_sheet_upload",
-            "fieldtype": "Attach",
-            "label": "If Yes, Please Upload It Here",
-        },
-        {
-            "fieldname": "headshot_upload",
-            "fieldtype": "Attach",
-            "label": "Please Upload Your Headshot",
+            "label": "I'd Like to Hear More From The Resilient Kid Too.",
+            "options": HEAR_MORE_OPTIONS,
+            "reqd": 1,
         },
     ]
 
@@ -205,7 +174,7 @@ def _create_web_form():
 
     doc = frappe.get_doc({
         "doctype": "Web Form",
-        "title": "Podcast Guest Booking Form",
+        "title": "Help Us Reach 1 Million Kids",
         "route": WEB_FORM_ROUTE,
         "doc_type": DOCTYPE_NAME,
         "module": "Dashboard",
@@ -216,7 +185,7 @@ def _create_web_form():
         "introduction_text": INTRODUCTION_TEXT,
         "button_label": "Submit",
         "success_title": "Thank you!",
-        "success_message": "Thanks - we'll be in touch about your podcast slot.",
+        "success_message": "Thanks for the introduction - we'll take it from here.",
         "web_form_fields": _doctype_fields(),
         "hide_navbar": 1,
         "hide_footer": 1,

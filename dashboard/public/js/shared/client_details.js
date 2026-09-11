@@ -2303,14 +2303,23 @@
       const status = el("clientFileUploadStatus");
       if (status) status.textContent = "Uploading...";
 
+      const franchisorOnlyCheckbox = el("clientFileFranchisorOnly");
+
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("is_private", 1);
-      formData.append("doctype", "Client");
-      formData.append("docname", getClientName());
+      formData.append("client", getClientName());
+      if (franchisorOnlyCheckbox && franchisorOnlyCheckbox.checked) {
+        formData.append("franchisor_only", "1");
+      }
 
       try {
-        const response = await fetch("/api/method/upload_file", {
+        // Goes through this app's own upload_client_file rather than
+        // Frappe's raw core upload_file endpoint - lets a franchisor tag
+        // a file (e.g. a franchisee's contract) as hidden from the coach
+        // dashboard, and applies this app's own client-access check
+        // directly rather than depending on Frappe's own doctype
+        // permission setup lining up for every caller.
+        const response = await fetch("/api/method/dashboard.api.shared.client_details.upload_client_file", {
           method: "POST",
           credentials: "same-origin",
           headers: { "X-Frappe-CSRF-Token": getCsrfToken() },

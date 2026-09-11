@@ -84,6 +84,21 @@ doc_events = {
         "after_insert": "dashboard.api.shared.leads.sync_intake_doctype_submission",
         "on_update": "dashboard.api.shared.leads.sync_intake_doctype_submission",
     },
+    # A prospective franchisee filling in the Information Sheet (after
+    # downloading the brochure) should land in Ashley's Leads pipeline
+    # straight away, even before she's booked a call with them - see
+    # franchise_info_sheet.sync_franchise_info_sheet_to_lead.
+    "Franchise Information Sheet Response": {
+        "after_insert": "dashboard.api.shared.franchise_info_sheet.sync_franchise_info_sheet_to_lead",
+    },
+    # The Email Sequence engine's trigger - fires on every single new
+    # document on the site (see email_sequences.check_sequence_triggers's
+    # own docstring for why this is deliberate), so a new automated
+    # sequence never needs a code change, just an Email Sequence record
+    # in Desk naming whichever doctype should trigger it.
+    "*": {
+        "after_insert": "dashboard.api.shared.email_sequences.check_sequence_triggers",
+    },
     # Bridges the webshop app's "Contact Us" enquiry (a plain core Lead)
     # into this app's own Client Lead board and notifies Ashley/office -
     # see webshop_lead_sync.py's module docstring for why this needs both
@@ -256,5 +271,6 @@ scheduler_events = {
     # reopens their record - see refresh_all_client_ages_and_types().
     "daily": [
         "dashboard.api.shared.client_details.refresh_all_client_ages_and_types",
+        "dashboard.api.shared.email_sequences.process_due_sequence_steps",
     ],
 }

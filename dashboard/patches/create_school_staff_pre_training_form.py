@@ -135,6 +135,17 @@ CUSTOM_CSS = """
     background: #9A4795 !important;
     border-color: #9A4795 !important;
 }
+
+/* Let the form title wrap onto multiple lines instead of being cut off
+   with an ellipsis - the full form name should always be readable. */
+.web-form-container .ellipsis,
+.web-form-container h1,
+.web-form-container .title {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    word-break: break-word !important;
+}
 """
 
 
@@ -297,7 +308,7 @@ def _create_web_form():
 
     doc = frappe.get_doc({
         "doctype": "Web Form",
-        "title": "Resilient Kid - Pre-Training Questionnaire for School Staff",
+        "title": "Pre-Training Questionnaire for School Staff",
         "route": WEB_FORM_ROUTE,
         "doc_type": DOCTYPE_NAME,
         "module": "Dashboard",

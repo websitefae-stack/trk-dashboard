@@ -1186,14 +1186,24 @@ def get_client_invoices(client_name):
     )
 
 
-def get_client_files(client_name):
+def get_client_files(client_name, hide_franchisor_only=False):
     if not client_name:
         return []
 
+    has_franchisor_only_field = frappe.get_meta("File").has_field("custom_franchisor_only")
+
+    filters = {"attached_to_doctype": "Client", "attached_to_name": client_name}
+    fields = ["name", "file_name", "file_url", "file_size", "creation", "attached_to_field"]
+
+    if has_franchisor_only_field:
+        fields.append("custom_franchisor_only")
+        if hide_franchisor_only:
+            filters["custom_franchisor_only"] = ["!=", 1]
+
     rows = frappe.get_all(
         "File",
-        filters={"attached_to_doctype": "Client", "attached_to_name": client_name},
-        fields=["name", "file_name", "file_url", "file_size", "creation", "attached_to_field"],
+        filters=filters,
+        fields=fields,
         order_by="creation desc",
         limit_page_length=200,
         ignore_permissions=True,
@@ -1211,9 +1221,54 @@ def get_client_files(client_name):
             "file_size": row.get("file_size") or 0,
             "creation": row.get("creation"),
             "is_intake_form": row.get("attached_to_field") == "intake_form" or file_name.lower().startswith("intake form"),
+            "is_franchisor_only": bool(row.get("custom_franchisor_only")),
         })
 
     return files
+
+
+@frappe.whitelist()
+def upload_client_file(client=None, franchisor_only=None):
+    """
+    Replaces posting straight to Frappe's core /api/method/upload_file
+    (which the Files tab used to do directly - see client_details.js's
+    initFileUpload) with an app-owned endpoint, for two reasons: it lets
+    a franchisor tag a file (e.g. a franchisee's contract, uploaded to
+    their own linked_client record) as visible only on the franchisor
+    dashboard - see get_client_files - and it applies this app's own
+    ensure_client_access check rather than depending on Frappe's core
+    doctype-level permission system to line up correctly for every
+    caller.
+    """
+    client = (client or "").strip()
+
+    if not client or not frappe.db.exists("Client", client):
+        frappe.throw(_("Client not found."))
+
+    ensure_client_access(client)
+
+    uploaded = frappe.request.files.get("file") if frappe.request else None
+    if not uploaded:
+        frappe.throw(_("No file was uploaded."))
+
+    from frappe.utils.file_manager import save_file
+
+    file_doc = save_file(
+        uploaded.filename,
+        uploaded.stream.read(),
+        "Client",
+        client,
+        is_private=1,
+    )
+
+    wants_franchisor_only = str(franchisor_only or "").strip().lower() in ("1", "true", "yes")
+
+    if wants_franchisor_only and is_franchisor_user() and frappe.get_meta("File").has_field("custom_franchisor_only"):
+        frappe.db.set_value("File", file_doc.name, "custom_franchisor_only", 1)
+
+    frappe.db.commit()
+
+    return {"ok": True, "file_name": file_doc.name}
 
 def get_coach_defaults_from_coach(coach_name):
     coach_name = (coach_name or "").strip()
@@ -1788,7 +1843,11 @@ def get_client_context_data(client_name=None, is_new=False, base_url="/coach_db"
         ) if is_existing_client else [],
         "package_balances": get_package_balances(doc.name if is_existing_client else ""),
         "client_invoices": get_client_invoices(doc.name if is_existing_client else ""),
-        "client_files": get_client_files(doc.name if is_existing_client else ""),
+        "client_files": get_client_files(
+            doc.name if is_existing_client else "",
+            hide_franchisor_only=(base_url != "/franchisor_db"),
+        ),
+        "is_franchisor_dashboard": base_url == "/franchisor_db",
         "travel_charged": int(doc.get("travel_charged") or 0),
         "travel_miles_one_way": doc.get("travel_miles_one_way") or 0,
         "travel_charge_per_session": doc.get("travel_charge_per_session") or 0,

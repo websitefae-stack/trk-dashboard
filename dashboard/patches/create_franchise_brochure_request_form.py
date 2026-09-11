@@ -1,24 +1,34 @@
 """
-Creates "Franchise Termination Questionnaire" as a real DocType + Web
-Form, same pattern as the other standalone forms (see
-create_podcast_guest_booking_form.py) - Hub-branded, franchisor-only
-visibility (not shown to coaches on the Links page), sent to a
-franchisee who's leaving, to help with offboarding.
+Creates "Franchise Brochure Request" as a real DocType + Web Form, same
+pattern as the other standalone forms - replaces the MailerLite popup
+currently on /trh-franchise (built directly on the live site, outside
+any repo), which captures name/email and hands off to MailerLite
+entirely outside Frappe.
 
-Plain response capture, not a scored assessment - no validate hook
-needed. Every field is required, matching the source form.
+Submitting this form is also the Email Sequence engine's trigger point
+(see patches/create_email_sequence_doctypes.py) - Ashley sets up an
+Email Sequence in Desk with trigger_doctype = "Franchise Brochure
+Request", trigger_email_field = "email", and it enrols automatically,
+no code change needed. Deliberately does NOT create a Client Lead -
+downloading the brochure is a much lighter-touch action than completing
+the Information Sheet (which does create one, see
+franchise_info_sheet.py), so this stays out of Ashley's Leads pipeline
+until someone actually shows real interest.
+
+Hub-branded, franchisor-only visibility. success_message links straight
+to the (noindex, direct-link-only) brochure page at
+resilient_domains' /franchise-brochure.
 
 Runs automatically on the next `bench migrate` - no manual step needed.
+Ashley still needs to update /trh-franchise's "Download Brochure" button
+to link here instead of opening the MailerLite popup - that page isn't
+in any repo this session has access to.
 """
 
 import frappe
 
-DOCTYPE_NAME = "Franchise Termination Response"
-WEB_FORM_ROUTE = "franchise-termination-questionnaire"
-
-INTRODUCTION_TEXT = (
-    "<p>Please complete the following questions to help us with your offboarding.</p>"
-)
+DOCTYPE_NAME = "Franchise Brochure Request"
+WEB_FORM_ROUTE = "franchise-brochure-request"
 
 CUSTOM_CSS = """
 /* Hub logo at top */
@@ -96,45 +106,8 @@ CUSTOM_CSS = """
 def _doctype_fields():
     return [
         {"fieldname": "form_top_section", "fieldtype": "Section Break"},
-        {"fieldname": "full_name", "fieldtype": "Data", "label": "Your Full Name and Surname", "reqd": 1},
-        {
-            "fieldname": "personal_email",
-            "fieldtype": "Data",
-            "options": "Email",
-            "label": "Your Personal Email Address",
-            "reqd": 1,
-        },
-        {
-            "fieldname": "client_status",
-            "fieldtype": "Small Text",
-            "label": "Where Are You Up to With Each Client?",
-            "reqd": 1,
-        },
-        {
-            "fieldname": "client_departure_messaging",
-            "fieldtype": "Small Text",
-            "label": "What Are You Telling Clients About Your Departure?",
-            "reqd": 1,
-        },
-        {
-            "fieldname": "public_social_messaging",
-            "fieldtype": "Small Text",
-            "label": "What Should We Say Publicly or on Social Media?",
-            "reqd": 1,
-        },
-        {
-            "fieldname": "upcoming_sessions_events",
-            "fieldtype": "Small Text",
-            "label": "Do You Have Any Upcoming Sessions/Events Booked?",
-            "reqd": 1,
-        },
-        {
-            "fieldname": "logins_and_accounts",
-            "fieldtype": "Small Text",
-            "label": "Please List Any Login Details or Accounts We Might Need Access To",
-            "description": "e.g. Canva, Meta Business Suite.",
-            "reqd": 1,
-        },
+        {"fieldname": "full_name", "fieldtype": "Data", "label": "Full Name", "reqd": 1},
+        {"fieldname": "email", "fieldtype": "Data", "options": "Email", "label": "Email Address", "reqd": 1},
     ]
 
 
@@ -177,7 +150,7 @@ def _create_web_form():
 
     doc = frappe.get_doc({
         "doctype": "Web Form",
-        "title": "Franchise Termination Questionnaire",
+        "title": "Get the Franchise Brochure",
         "route": WEB_FORM_ROUTE,
         "doc_type": DOCTYPE_NAME,
         "module": "Dashboard",
@@ -185,10 +158,12 @@ def _create_web_form():
         "published": 1,
         "login_required": 0,
         "anonymous": 1,
-        "introduction_text": INTRODUCTION_TEXT,
-        "button_label": "Submit",
-        "success_title": "Thank you!",
-        "success_message": "Your answers have been received - thank you.",
+        "introduction_text": "<p>Pop your details below and we'll send you straight to the brochure.</p>",
+        "button_label": "Get the Brochure",
+        "success_title": "Here you go!",
+        "success_message": (
+            '<p>Thanks! <a href="/franchise-brochure">Click here to view the brochure</a>.</p>'
+        ),
         "web_form_fields": _doctype_fields(),
         "hide_navbar": 1,
         "hide_footer": 1,
