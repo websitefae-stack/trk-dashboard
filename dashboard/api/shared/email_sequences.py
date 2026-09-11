@@ -28,8 +28,15 @@ ENROLLMENT_DOCTYPE = "Email Sequence Enrollment"
 
 # Never let a sequence trigger off the engine's own bookkeeping -
 # otherwise an Email Sequence Enrollment being created could itself
-# match a trigger_doctype and spiral.
+# match a trigger_doctype and spiral. Also skip Frappe's own schema/
+# metadata doctypes outright - creating a brand new DocType (or a
+# Custom Field, Property Setter, etc.) is itself a document insert
+# ("doc.doctype" is "DocType", not whatever's being defined), which
+# this hook has no business reacting to, and which can happen before
+# the doctype being defined even has a database table yet (see the
+# try/except below - that's exactly what broke a live migrate).
 _ENGINE_DOCTYPES = {SEQUENCE_DOCTYPE, STEP_DOCTYPE, ENROLLMENT_DOCTYPE}
+_META_DOCTYPES = {"DocType", "DocField", "DocPerm", "Custom Field", "Property Setter", "Web Form", "Web Form Field"}
 
 
 def _first_step_delay(sequence_name):
@@ -44,9 +51,28 @@ def _first_step_delay(sequence_name):
 
 
 def check_sequence_triggers(doc, method=None):
-    if doc.doctype in _ENGINE_DOCTYPES:
+    if doc.doctype in _ENGINE_DOCTYPES or doc.doctype in _META_DOCTYPES:
         return
 
+    try:
+        _enrol_matching_sequences(doc)
+    except Exception:
+        # This hook runs on every single document insert on the site, so
+        # it must never be able to take an unrelated insert down with it.
+        # The concrete case that bit us live: a brand new doctype's own
+        # DocType record can exist (frappe.db.exists("DocType", ...)
+        # below returns True immediately) before its actual database
+        # table has been created - schema sync for a new doctype is a
+        # separate migrate step that can run after this hook has already
+        # fired once for it (e.g. while ANOTHER new doctype is being
+        # inserted in the same migrate run, as happened here). Treat
+        # "the table isn't ready yet" - or anything else unexpected here
+        # - as a no-op rather than letting it propagate, and log it so
+        # it's still visible.
+        frappe.log_error(frappe.get_traceback(), "Email Sequence Trigger Check Failed")
+
+
+def _enrol_matching_sequences(doc):
     if not frappe.db.exists("DocType", SEQUENCE_DOCTYPE):
         return
 
