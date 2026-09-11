@@ -92,3 +92,4 @@ dashboard.patches.create_franchise_termination_form
 dashboard.patches.prepend_section_break_to_standalone_forms
 dashboard.patches.fix_standalone_form_titles_and_css
 dashboard.patches.create_reach_1_million_kids_form
+dashboard.patches.create_franchise_information_sheet_form
