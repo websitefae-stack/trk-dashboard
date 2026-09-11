@@ -97,3 +97,4 @@ dashboard.patches.add_linked_lead_to_franchise_info_sheet
 dashboard.patches.create_email_sequence_doctypes
 dashboard.patches.create_franchise_brochure_doctype
 dashboard.patches.create_franchise_brochure_request_form
+dashboard.patches.add_file_franchisor_only_field

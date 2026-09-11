@@ -691,6 +691,10 @@
                     <h2 class="dashboard-detail-section-title">Files</h2>
 
                     <div class="dashboard-detail-actions">
+                      <label class="dashboard-field-hint" style="display:flex; align-items:center; gap:6px; margin-right:8px;">
+                        <input type="checkbox" id="clientFileFranchisorOnly">
+                        Franchisor only
+                      </label>
                       <label class="dashboard-btn dashboard-btn-light dashboard-file-upload-btn">
                         Upload File
                         <input type="file" id="clientFileUploadInput" style="display:none;">
@@ -699,6 +703,7 @@
                   </div>
 
                   <div id="clientFileUploadStatus" class="dashboard-field-hint"></div>
+                  <div class="dashboard-field-hint">Tick "Franchisor only" before choosing a file to keep it hidden from the coach dashboard - e.g. a franchisee's contract.</div>
 
                   <div class="dashboard-table-wrap dashboard-client-detail-table-wrap">
                     <table class="dashboard-table dashboard-client-file-table">
@@ -718,6 +723,9 @@
                                 {{ f.file_name }}
                                 {% if f.is_intake_form %}
                                   <span class="dashboard-badge dashboard-status-active">Intake Form</span>
+                                {% endif %}
+                                {% if f.is_franchisor_only %}
+                                  <span class="dashboard-badge">Franchisor Only</span>
                                 {% endif %}
                               </td>
                               <td>{{ frappe.utils.format_datetime(f.creation, "dd-MM-yyyy HH:mm") if f.creation else "—" }}</td>
