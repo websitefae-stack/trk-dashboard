@@ -210,6 +210,22 @@ def _doctype_fields():
     return fields
 
 
+def _doctype_only_fields():
+    # Not part of web_form_fields - a public submitter never sees or
+    # sets this, it's written by
+    # franchise_info_sheet.sync_franchise_info_sheet_to_lead after the
+    # fact (see hooks.py's after_insert hook).
+    return [
+        {
+            "fieldname": "linked_lead",
+            "fieldtype": "Link",
+            "options": "Client Lead",
+            "label": "Linked Lead",
+            "read_only": 1,
+        },
+    ]
+
+
 def execute():
     _create_doctype()
     _create_web_form()
@@ -226,7 +242,7 @@ def _create_doctype():
         "custom": 1,
         "naming_rule": "Autoincrement",
         "autoname": "autoincrement",
-        "fields": _doctype_fields(),
+        "fields": _doctype_fields() + _doctype_only_fields(),
         "permissions": [
             {
                 "role": "System Manager",

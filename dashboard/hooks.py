@@ -84,6 +84,13 @@ doc_events = {
         "after_insert": "dashboard.api.shared.leads.sync_intake_doctype_submission",
         "on_update": "dashboard.api.shared.leads.sync_intake_doctype_submission",
     },
+    # A prospective franchisee filling in the Information Sheet (after
+    # downloading the brochure) should land in Ashley's Leads pipeline
+    # straight away, even before she's booked a call with them - see
+    # franchise_info_sheet.sync_franchise_info_sheet_to_lead.
+    "Franchise Information Sheet Response": {
+        "after_insert": "dashboard.api.shared.franchise_info_sheet.sync_franchise_info_sheet_to_lead",
+    },
     # Bridges the webshop app's "Contact Us" enquiry (a plain core Lead)
     # into this app's own Client Lead board and notifies Ashley/office -
     # see webshop_lead_sync.py's module docstring for why this needs both
