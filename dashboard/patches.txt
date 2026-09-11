@@ -90,3 +90,4 @@ dashboard.patches.create_podcast_guest_booking_form
 dashboard.patches.create_podcast_invite_email_template
 dashboard.patches.create_franchise_termination_form
 dashboard.patches.prepend_section_break_to_standalone_forms
+dashboard.patches.fix_standalone_form_titles_and_css
