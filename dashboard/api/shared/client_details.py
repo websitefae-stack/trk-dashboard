@@ -19,6 +19,8 @@ from dashboard.api.shared.directory import (
 
 from dashboard.api.shared.supervision_booking import get_coach_supervision_target
 
+from dashboard.api.shared.profile import LEGAL_RECORD_CONFIG, ROLE_PROFILE_CONFIG
+
 
 TEXTAREA_TYPES = {"Text", "Small Text", "Long Text", "Code", "Text Editor"}
 
@@ -1222,7 +1224,63 @@ def get_client_files(client_name, hide_franchisor_only=False):
             "creation": row.get("creation"),
             "is_intake_form": row.get("attached_to_field") == "intake_form" or file_name.lower().startswith("intake form"),
             "is_franchisor_only": bool(row.get("custom_franchisor_only")),
+            "is_coach_legal_document": False,
         })
+
+    # A franchisee is tracked as both a Coach and their own "Franchise"
+    # type Client record (see Coach.linked_client and the
+    # restore_franchise_client_type_for_linked_clients patch) - on the
+    # franchisor dashboard, that Client's Files tab should also surface
+    # the coach's own compliance documents (DBS, DBS Update Service,
+    # Insurance, ICO Certificate), since for a franchisee those ARE the
+    # client's compliance paperwork. Deliberately gated to
+    # not hide_franchisor_only (i.e. the franchisor dashboard only) - a
+    # coach who can see another franchisee's Client record for
+    # cross-invoicing has no business seeing that franchisee's legal
+    # documents.
+    if not hide_franchisor_only:
+        files.extend(_get_franchise_coach_legal_files(client_name))
+
+    files.sort(key=lambda f: f.get("creation") or datetime.datetime.min, reverse=True)
+
+    return files
+
+
+def _get_franchise_coach_legal_files(client_name):
+    if frappe.db.get_value("Client", client_name, "client_type") != "Franchise":
+        return []
+
+    coach_name = frappe.db.get_value("Coach", {"linked_client": client_name}, "name")
+    if not coach_name:
+        return []
+
+    coach = frappe.get_doc("Coach", coach_name)
+    legal_parentfields = ROLE_PROFILE_CONFIG["coach"]["legal_parentfields"]
+
+    files = []
+
+    for record_type, parentfield in legal_parentfields.items():
+        record_config = LEGAL_RECORD_CONFIG[record_type]
+        file_field = record_config["file_field"]
+
+        for child in coach.get(parentfield) or []:
+            file_url = child.get(file_field)
+            if not file_url:
+                continue
+
+            reference = child.get(record_config["number_field"]) or ""
+            label = f"{record_config['label']} ({reference})" if reference else record_config["label"]
+
+            files.append({
+                "name": child.name,
+                "file_name": label,
+                "file_url": file_url,
+                "file_size": 0,
+                "creation": child.creation,
+                "is_intake_form": False,
+                "is_franchisor_only": False,
+                "is_coach_legal_document": True,
+            })
 
     return files
 

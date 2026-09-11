@@ -727,6 +727,9 @@
                                 {% if f.is_franchisor_only %}
                                   <span class="dashboard-badge">Franchisor Only</span>
                                 {% endif %}
+                                {% if f.is_coach_legal_document %}
+                                  <span class="dashboard-badge">Coach Compliance Document</span>
+                                {% endif %}
                               </td>
                               <td>{{ frappe.utils.format_datetime(f.creation, "dd-MM-yyyy HH:mm") if f.creation else "—" }}</td>
                               <td class="dashboard-action-cell">
