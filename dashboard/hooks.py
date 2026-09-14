@@ -212,6 +212,16 @@ doc_events = {
     "Relationships With Staff Response": {
         "validate": "dashboard.api.shared.staff_relationships_form.compute_staff_relationships_score",
     },
+    # School Pipeline reply detection - office@theresilienthub.co.uk is a
+    # two-way connected Email Account, so an inbound reply to a school
+    # sequence/one-off email lands here as a received Communication,
+    # threaded back to the School it was sent about via
+    # reference_doctype/reference_name. See school_pipeline.py's module
+    # docstring. Scoped to the Communication doctype itself (not a
+    # wildcard hook), so this can never affect any other document type.
+    "Communication": {
+        "after_insert": "dashboard.api.shared.school_pipeline.handle_incoming_school_reply",
+    },
 }
 
 # Two independent LMS Course settings - "Show on Website" (opt-in
@@ -263,5 +273,6 @@ scheduler_events = {
     # reopens their record - see refresh_all_client_ages_and_types().
     "daily": [
         "dashboard.api.shared.client_details.refresh_all_client_ages_and_types",
+        "dashboard.api.shared.school_pipeline.process_due_school_sequences",
     ],
 }
