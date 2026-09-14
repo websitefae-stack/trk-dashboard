@@ -654,7 +654,15 @@
     if (emailBtn) {
       emailBtn.style.display = submitted && hasName ? "" : "none";
     }
-    
+
+    const downloadBtn = el("downloadInvoicePdf");
+    if (downloadBtn) {
+      downloadBtn.style.display = submitted && hasName ? "" : "none";
+      if (hasName) {
+        downloadBtn.href = "/api/method/dashboard.api.shared.invoices.download_invoice_pdf?docname=" + encodeURIComponent(el("invoiceDocname").value);
+      }
+    }
+
     const paymentBtn = el("openAllocatePayment");
     if (paymentBtn) {
       const outstanding = parseMoneyValue(el("invoice_outstanding_amount")?.value || "0");

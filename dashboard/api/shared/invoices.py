@@ -2890,6 +2890,35 @@ def send_invoice_email(docname, recipient=None, reply_to=None, subject=None, mes
 
     return {"ok": 1}
 
+
+@frappe.whitelist()
+def download_invoice_pdf(docname=None):
+    """
+    Same PDF a coach/franchisor already gets via Email Invoice - reuses
+    frappe.attach_print with the same letterhead as send_invoice_email
+    above, so the downloaded file matches what clients receive by email.
+    """
+    _require_logged_in_user()
+
+    if not docname:
+        frappe.throw(_("Invoice is required."))
+
+    if not _current_user_can_access_invoice(docname):
+        frappe.throw(_("You do not have permission to download this invoice."), frappe.PermissionError)
+
+    doc = frappe.get_doc("Sales Invoice", docname)
+
+    if doc.docstatus != 1:
+        frappe.throw(_("Only submitted invoices can be downloaded."))
+
+    printed = frappe.attach_print("Sales Invoice", doc.name, letterhead="Resilient Kid")
+
+    frappe.response["type"] = "download"
+    frappe.response["filename"] = printed["fname"]
+    frappe.response["filecontent"] = printed["fcontent"]
+    frappe.response["content_type"] = "application/pdf"
+
+
 def _get_bank_account_gl_account(bank_account_name):
     if not bank_account_name or not frappe.db.exists("Bank Account", bank_account_name):
         frappe.throw(_("Please select a valid bank account."))
