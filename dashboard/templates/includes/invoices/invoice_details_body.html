@@ -232,6 +232,17 @@
         Email Invoice
       </button>
 
+      <a
+        href="/api/method/dashboard.api.shared.invoices.download_invoice_pdf?docname={{ doc.name | urlencode }}"
+        class="dashboard-btn dashboard-btn-light"
+        id="downloadInvoicePdf"
+        target="_blank"
+        rel="noopener noreferrer"
+        {% if doc.docstatus != 1 %}style="display:none;"{% endif %}
+      >
+        Download
+      </a>
+
       <button type="button" class="dashboard-btn dashboard-btn-primary" id="openAllocatePayment" data-can-allocate-payment="{{ 1 if can_allocate_payment else 0 }}" style="display:none;">
         Allocate Payment
       </button>
