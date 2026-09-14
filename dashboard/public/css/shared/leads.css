@@ -2,6 +2,18 @@
    LEADS KANBAN BOARD
 ========================================================= */
 
+/* .dashboard-card has no width of its own, so it stretches to the full
+   page width regardless of how few columns the board actually has -
+   with only 4 pipeline stages that left a big empty stretch of white
+   card background to the right of the last column. Shrinking the card
+   to its content width fixes that; max-width keeps it responsive, and
+   the board's own overflow-x:auto still handles horizontal scrolling
+   if there are ever more columns than fit. */
+.dashboard-leads-card {
+  width: fit-content;
+  max-width: 100%;
+}
+
 .dashboard-leads-board {
   display: flex;
   gap: 14px;
