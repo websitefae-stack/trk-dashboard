@@ -1,0 +1,72 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">School Sequences</h1>
+          <p class="dashboard-page-subtitle">Reusable email sequences you can run against any group of schools.</p>
+        </div>
+
+        <div class="dashboard-page-actions">
+          <a class="dashboard-btn dashboard-btn-light" href="/franchisor_db/schools">Back to Schools</a>
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="newSequenceBtn">New Sequence</button>
+        </div>
+      </div>
+
+      <div class="dashboard-card" id="sequenceListCard">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Sequences</div>
+        </div>
+
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Active</th>
+                <th>Steps</th>
+                <th class="dashboard-action-col">Action</th>
+              </tr>
+            </thead>
+            <tbody id="sequenceListBody">
+              <tr><td colspan="4" class="dashboard-empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="dashboard-card" id="sequenceEditorCard" style="display:none;">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title" id="sequenceEditorTitle">New Sequence</div>
+        </div>
+
+        <input type="hidden" id="sequenceDocname">
+
+        <label for="sequenceNameInput">Sequence Name</label>
+        <input type="text" id="sequenceNameInput" class="dashboard-input">
+
+        <label for="sequenceDescriptionInput" style="margin-top:12px;">Description</label>
+        <input type="text" id="sequenceDescriptionInput" class="dashboard-input">
+
+        <label style="display:flex; align-items:center; gap:8px; margin-top:12px;">
+          <input type="checkbox" id="sequenceActiveInput" checked> Active
+        </label>
+
+        <h3 class="dashboard-detail-section-title" style="margin-top:20px;">Steps</h3>
+        <div id="sequenceStepsList"></div>
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="addStepBtn">Add Step</button>
+
+        <div style="margin-top:16px; display:flex; gap:8px;">
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelSequenceEdit">Cancel</button>
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveSequenceBtn">Save Sequence</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,76 @@
+/* =========================================================
+   SCHOOL PIPELINE
+========================================================= */
+
+.dashboard-schools-card {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.dashboard-school-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.dashboard-school-card-select {
+  padding-top: 2px;
+}
+
+.dashboard-school-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.dashboard-schools-bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: #F2F8F8;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #434B49;
+}
+
+.dashboard-school-contact-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1.4fr auto;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+@media (max-width: 700px) {
+  .dashboard-school-contact-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dashboard-school-timeline-item {
+  padding: 10px 0;
+  border-bottom: 1px solid #EDF2F2;
+}
+
+.dashboard-school-timeline-item:last-child {
+  border-bottom: 0;
+}
+
+.dashboard-school-timeline-meta {
+  color: #839898;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.dashboard-school-timeline-received {
+  border-left: 3px solid #258D3B;
+  padding-left: 10px;
+}
+
+.dashboard-school-timeline-sent {
+  border-left: 3px solid #D9E6E6;
+  padding-left: 10px;
+}

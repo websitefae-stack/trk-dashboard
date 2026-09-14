@@ -1,0 +1,87 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Schools</h1>
+          <p class="dashboard-page-subtitle">Outreach pipeline - add schools, run sequences, track what's happened.</p>
+        </div>
+
+        <div class="dashboard-page-actions">
+          <a class="dashboard-btn dashboard-btn-light" href="/franchisor_db/school_sequences">
+            Manage Sequences
+          </a>
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="addSchoolBtn">
+            Add School
+          </button>
+        </div>
+      </div>
+
+      <div class="dashboard-card dashboard-schools-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">School Pipeline</div>
+          <div class="dashboard-table-count" id="schoolsCount">Loading…</div>
+        </div>
+
+        <div id="schoolsBulkBar" class="dashboard-schools-bulk-bar" style="display:none;">
+          <span id="schoolsSelectedCount">0 selected</span>
+
+          <select id="schoolsBulkSequence" class="dashboard-select">
+            <option value="">Enrol in sequence…</option>
+          </select>
+          <input type="date" id="schoolsBulkStartDate" class="dashboard-input" title="Start date">
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="schoolsBulkEnroll">Enrol Selected</button>
+
+          <select id="schoolsBulkStage" class="dashboard-select">
+            <option value="">Move to stage…</option>
+            <option value="New">New</option>
+            <option value="In Sequence">In Sequence</option>
+            <option value="Idle">Idle</option>
+            <option value="Responded">Responded</option>
+            <option value="Call Booked">Call Booked</option>
+            <option value="Customer">Customer</option>
+            <option value="Declined">Declined</option>
+          </select>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="schoolsBulkMove">Move</button>
+
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="schoolsBulkClear">Clear Selection</button>
+        </div>
+
+        <div id="schoolsBoard" class="dashboard-leads-board">
+          <div class="dashboard-empty">Loading schools…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-modal-backdrop" id="addSchoolModal">
+  <div class="dashboard-modal">
+    <div class="dashboard-modal-head">
+      <h3>Add School</h3>
+      <button type="button" class="dashboard-modal-close" id="closeAddSchoolModal">×</button>
+    </div>
+
+    <div class="dashboard-modal-body">
+      <label for="newSchoolName">School Name</label>
+      <input type="text" id="newSchoolName" class="dashboard-input">
+
+      <label for="newSchoolWebsite">Website</label>
+      <input type="text" id="newSchoolWebsite" class="dashboard-input">
+
+      <div id="newSchoolContacts"></div>
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="addSchoolContactRow">Add Contact</button>
+    </div>
+
+    <div class="dashboard-modal-foot">
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelAddSchoolModal">Cancel</button>
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveNewSchool">Save</button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,117 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <input type="hidden" id="schoolDocname" value="{{ school_name_param }}">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title" id="schoolPageTitle">School</h1>
+          <p class="dashboard-page-subtitle" id="schoolPageSubtitle"></p>
+        </div>
+
+        <div class="dashboard-page-actions">
+          <a class="dashboard-btn dashboard-btn-light" href="/franchisor_db/schools">Back to Schools</a>
+          <select id="schoolStageSelect" class="dashboard-select">
+            <option value="New">New</option>
+            <option value="In Sequence">In Sequence</option>
+            <option value="Idle">Idle</option>
+            <option value="Responded">Responded</option>
+            <option value="Call Booked">Call Booked</option>
+            <option value="Customer">Customer</option>
+            <option value="Declined">Declined</option>
+          </select>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="convertToClientBtn">Convert to Client</button>
+        </div>
+      </div>
+
+      <div id="schoolLinkedClientNote" class="dashboard-field-hint" style="display:none; margin-bottom:12px;"></div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Details</div>
+        </div>
+
+        <label for="schoolWebsiteInput">Website</label>
+        <input type="text" id="schoolWebsiteInput" class="dashboard-input">
+
+        <label for="schoolNotesInput" style="margin-top:12px;">General Notes</label>
+        <textarea id="schoolNotesInput" class="dashboard-input" rows="3"></textarea>
+
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveSchoolDetailsBtn" style="margin-top:10px;">Save Details</button>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Contacts</div>
+        </div>
+
+        <div id="schoolContactsList"></div>
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="addContactRowBtn">Add Contact</button>
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveContactsBtn" style="margin-left:8px;">Save Contacts</button>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Sequences</div>
+        </div>
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+          <select id="enrollSequenceSelect" class="dashboard-select">
+            <option value="">Choose a sequence…</option>
+          </select>
+          <input type="date" id="enrollStartDate" class="dashboard-input">
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="enrollSchoolBtn">Enrol in Sequence</button>
+        </div>
+
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Sequence</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Started</th>
+                <th>Next Send</th>
+              </tr>
+            </thead>
+            <tbody id="enrollmentHistoryBody">
+              <tr><td colspan="5" class="dashboard-empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Send a Targeted Email</div>
+        </div>
+
+        <div id="oneOffContactChoices" style="margin-bottom:10px;"></div>
+
+        <label for="oneOffSubject">Subject</label>
+        <input type="text" id="oneOffSubject" class="dashboard-input">
+
+        <label for="oneOffMessage" style="margin-top:10px;">Message</label>
+        <textarea id="oneOffMessage" class="dashboard-input" rows="5"></textarea>
+
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendOneOffBtn" style="margin-top:10px;">Send</button>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Sent &amp; Received</div>
+        </div>
+
+        <div id="schoolTimeline">
+          <div class="dashboard-empty">Loading…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

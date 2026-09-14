@@ -6,6 +6,7 @@ from dashboard.api.shared.client_details import (
     get_client_context_data,
     get_franchisor_name,
 )
+from dashboard.api.shared.school_pipeline import get_school_for_client
 
 
 def get_context(context):
@@ -40,3 +41,13 @@ def get_context(context):
 
     for key, value in data.items():
         context[key] = value
+
+    # Only a client that actually came from (or was linked back to) the
+    # School Pipeline gets this tab - most clients aren't schools, so it
+    # stays out of the tab list entirely rather than showing up empty on
+    # every client record. See school_pipeline.py's module docstring.
+    linked_school = get_school_for_client(client_name) if client_name else None
+    context.linked_school = linked_school
+
+    if linked_school:
+        context.tabs.append({"label": "School Pipeline", "custom": "school_pipeline", "sections": []})
