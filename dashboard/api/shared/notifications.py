@@ -904,6 +904,7 @@ def _format_conversation(doc):
         "reference_name": reference_name,
         "requires_response": int(doc.get("requires_response") or 0),
         "due_date": doc.get("due_date"),
+        "reply_scope": doc.get("reply_scope") or "All",
         "sent_from": doc.get("created_by_user") or "",
         "client_link": client_link,
         "event_link": event_link,
@@ -1109,13 +1110,26 @@ def _get_notification_log_or_filters():
 
 
 def _current_user_can_see_conversation(doc):
+    """
+    Whether this conversation shows up in the CURRENT user's own
+    notification list (see get_notifications()) - not a permission check
+    on opening one directly by name (see ensure_notification_access(),
+    which still lets a franchisor open any specific conversation, e.g.
+    via a "view as" deep link).
+
+    Deliberately does NOT grant a blanket "franchisor sees everything"
+    here - that used to flood Ashley's own list with every coach's own
+    new-lead/intake-completed notifications and every reply on a
+    broadcast she wasn't actually part of, none of which are addressed
+    to her (they're created with that coach, not her, as the
+    recipient). A franchisor's default list is now "mine" - created by
+    them, or where they're an actual recipient - same as everywhere
+    else in this app (see _lead_filters_for_current_user()).
+    """
     if doc.get("created_by_user") == frappe.session.user:
         return True
 
     if _user_is_recipient(doc, frappe.session.user):
-        return True
-
-    if _is_franchisor_user():
         return True
 
     return False
@@ -2018,82 +2032,22 @@ def _find_recent_duplicate_conversation(title, message, notification_type, recip
     return ""
 
 
-@frappe.whitelist()
-def send_dashboard_notification(
-    recipient_users=None,
-    notification_type="Message",
-    message=None,
-    priority="Normal",
-    subject=None,
-    title=None,
-    linked_client=None,
-    linked_event=None,
-    reference_doctype=None,
-    reference_name=None,
-    requires_response=0,
-    due_date=None,
-    attachment=None,
+def _build_conversation_doc(
+    other_recipient_users,
+    title,
+    notification_type,
+    priority,
+    message,
+    linked_client,
+    linked_event,
+    reference_doctype,
+    reference_name,
+    requires_response,
+    due_date,
+    reply_scope,
 ):
-    
-    ensure_logged_in()
-
-    if not _conversation_enabled():
-        return _send_legacy_notification(
-            recipient_users=recipient_users,
-            notification_type=notification_type,
-            message=message,
-            priority=priority,
-            subject=subject,
-            due_date=_coalesce_str("due_date", due_date),
-            linked_client=_coalesce_str("linked_client", linked_client),
-            linked_event=_coalesce_str("linked_event", linked_event),
-        )
-
-    recipient_users = _normalise_recipient_users(_coalesce_raw("recipient_users", recipient_users))
-
-    notification_type = _coalesce_str("notification_type", notification_type or "Message")
-    message = _coalesce_str("message", message)
-    priority = _coalesce_str("priority", priority or "Normal")
-    title = _coalesce_str("title", title or subject or notification_type)
-    linked_client = _coalesce_str("linked_client", linked_client)
-    linked_event = _coalesce_str("linked_event", linked_event)
-    reference_doctype = _coalesce_str("reference_doctype", reference_doctype)
-    reference_name = _coalesce_str("reference_name", reference_name)
-    due_date = _coalesce_raw("due_date", due_date)
-    requires_response = _coalesce_raw("requires_response", requires_response)
-    attachment = _coalesce_str("attachment", attachment)
-
-    if not recipient_users:
-        frappe.throw(_("Please select at least one recipient."))
-
-    if not message:
-        frappe.throw(_("Please enter a message."))
-
-    allowed_users = _allowed_recipient_user_set()
-    invalid_users = [user for user in recipient_users if user not in allowed_users]
-
-    if invalid_users:
-        frappe.throw(_("One or more selected recipients are not allowed."), frappe.PermissionError)
-
-    duplicate_name = _find_recent_duplicate_conversation(
-        title=title or notification_type,
-        message=message,
-        notification_type=notification_type,
-        recipient_users=[
-            user for user in recipient_users
-            if user != frappe.session.user
-        ],
-    )
-    
-    if duplicate_name:
-        return {
-            "ok": True,
-            "message": "Notification sent.",
-            "created": [duplicate_name],
-            "name": duplicate_name,
-            "duplicate_prevented": 1,
-        }
-        
+    """Builds (but does not insert) one Conversation doc, with the
+    current user plus other_recipient_users as its recipients."""
     doc = frappe.new_doc(CONVERSATION_DOCTYPE)
     doc.title = title or notification_type
     doc.conversation_type = notification_type
@@ -2121,6 +2075,9 @@ def send_dashboard_notification(
     if _field_exists(CONVERSATION_DOCTYPE, "due_date"):
         doc.due_date = due_date
 
+    if _field_exists(CONVERSATION_DOCTYPE, "reply_scope"):
+        doc.reply_scope = reply_scope
+
     doc.append("recipients", {
         "recipient_user": frappe.session.user,
         "recipient_role": _get_current_role(),
@@ -2129,11 +2086,8 @@ def send_dashboard_notification(
         "archived": 0,
         "muted": 0,
     })
-    
-    for recipient_user in recipient_users:
-        if recipient_user == frappe.session.user:
-            continue
 
+    for recipient_user in other_recipient_users:
         doc.append("recipients", {
             "recipient_user": recipient_user,
             "recipient_role": _get_recipient_role(recipient_user),
@@ -2142,27 +2096,138 @@ def send_dashboard_notification(
             "muted": 0,
         })
 
-    if not doc.get("recipients"):
+    return doc
+
+
+@frappe.whitelist()
+def send_dashboard_notification(
+    recipient_users=None,
+    notification_type="Message",
+    message=None,
+    priority="Normal",
+    subject=None,
+    title=None,
+    linked_client=None,
+    linked_event=None,
+    reference_doctype=None,
+    reference_name=None,
+    requires_response=0,
+    due_date=None,
+    attachment=None,
+    reply_scope=None,
+):
+    """
+    reply_scope only matters when there's more than one other recipient:
+    "All" (the default) is today's behaviour - one shared thread, so
+    everyone in it sees every reply, including each other's. "Individual"
+    instead creates one private conversation per recipient (each just
+    between them and whoever sent it) - a reply from one recipient never
+    reaches any of the others, only the sender. With a single recipient,
+    the two are equivalent, so this is ignored.
+    """
+    ensure_logged_in()
+
+    if not _conversation_enabled():
+        return _send_legacy_notification(
+            recipient_users=recipient_users,
+            notification_type=notification_type,
+            message=message,
+            priority=priority,
+            subject=subject,
+            due_date=_coalesce_str("due_date", due_date),
+            linked_client=_coalesce_str("linked_client", linked_client),
+            linked_event=_coalesce_str("linked_event", linked_event),
+        )
+
+    recipient_users = _normalise_recipient_users(_coalesce_raw("recipient_users", recipient_users))
+
+    notification_type = _coalesce_str("notification_type", notification_type or "Message")
+    message = _coalesce_str("message", message)
+    priority = _coalesce_str("priority", priority or "Normal")
+    title = _coalesce_str("title", title or subject or notification_type)
+    linked_client = _coalesce_str("linked_client", linked_client)
+    linked_event = _coalesce_str("linked_event", linked_event)
+    reference_doctype = _coalesce_str("reference_doctype", reference_doctype)
+    reference_name = _coalesce_str("reference_name", reference_name)
+    due_date = _coalesce_raw("due_date", due_date)
+    requires_response = _coalesce_raw("requires_response", requires_response)
+    attachment = _coalesce_str("attachment", attachment)
+    reply_scope = "Individual" if _coalesce_str("reply_scope", reply_scope).strip().lower() == "individual" else "All"
+
+    if not recipient_users:
+        frappe.throw(_("Please select at least one recipient."))
+
+    if not message:
+        frappe.throw(_("Please enter a message."))
+
+    allowed_users = _allowed_recipient_user_set()
+    invalid_users = [user for user in recipient_users if user not in allowed_users]
+
+    if invalid_users:
+        frappe.throw(_("One or more selected recipients are not allowed."), frappe.PermissionError)
+
+    other_recipients = [user for user in recipient_users if user != frappe.session.user]
+
+    if not other_recipients:
         frappe.throw(_("Please select at least one recipient other than yourself."))
 
-    doc.insert(ignore_permissions=True)
-
-    _create_conversation_message(
-        conversation=doc.name,
-        message=message,
-        message_type="Message",
-        sent_by=frappe.session.user,
-        role_type=_get_current_role(),
-        attachment=attachment,
+    # Only actually splits into private threads when there's more than one
+    # other recipient and Individual was chosen - a single recipient is
+    # already inherently private, so there's nothing to split.
+    recipient_groups = (
+        [[user] for user in other_recipients]
+        if reply_scope == "Individual" and len(other_recipients) > 1
+        else [other_recipients]
     )
-    
+
+    created_names = []
+
+    for group in recipient_groups:
+        duplicate_name = _find_recent_duplicate_conversation(
+            title=title or notification_type,
+            message=message,
+            notification_type=notification_type,
+            recipient_users=group,
+        )
+
+        if duplicate_name:
+            created_names.append(duplicate_name)
+            continue
+
+        doc = _build_conversation_doc(
+            other_recipient_users=group,
+            title=title,
+            notification_type=notification_type,
+            priority=priority,
+            message=message,
+            linked_client=linked_client,
+            linked_event=linked_event,
+            reference_doctype=reference_doctype,
+            reference_name=reference_name,
+            requires_response=requires_response,
+            due_date=due_date,
+            reply_scope=reply_scope,
+        )
+        doc.insert(ignore_permissions=True)
+
+        _create_conversation_message(
+            conversation=doc.name,
+            message=message,
+            message_type="Message",
+            sent_by=frappe.session.user,
+            role_type=_get_current_role(),
+            attachment=attachment,
+        )
+
+        created_names.append(doc.name)
+
     frappe.db.commit()
 
     return {
         "ok": True,
         "message": "Notification sent.",
-        "created": [doc.name],
-        "name": doc.name,
+        "created": created_names,
+        "name": created_names[0] if created_names else None,
     }
 
 

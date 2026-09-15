@@ -18,6 +18,7 @@
   "linked_event",
   "requires_response",
   "due_date",
+  "reply_scope",
   "section_break_1",
   "reference_doctype",
   "reference_name",
@@ -104,6 +105,14 @@
    "fieldtype": "Date",
    "in_standard_filter": 1,
    "label": "Due Date"
+  },
+  {
+   "default": "All",
+   "description": "Only meaningful when this went to more than one recipient. \"All\" is one shared thread everyone in it can see, including each other's replies. \"Individual\" splits it into a private one-on-one thread per recipient, so a reply is only ever seen by them and whoever sent it.",
+   "fieldname": "reply_scope",
+   "fieldtype": "Select",
+   "label": "Reply Scope",
+   "options": "All\nIndividual"
   },
   {
    "fieldname": "section_break_1",

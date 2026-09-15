@@ -272,6 +272,22 @@
     setText("notificationDueDateText", formatDateOnly(data.due_date));
     setText("notificationRequiresResponseText", Number(data.requires_response || 0) ? "Yes" : "No");
 
+    const replyScopeField = el("notificationReplyScopeField");
+    const recipientCount = (data.recipients || []).length;
+    if (replyScopeField) {
+      if (recipientCount > 2) {
+        replyScopeField.style.display = "";
+        setText(
+          "notificationReplyScopeText",
+          data.reply_scope === "All"
+            ? "Shared - everyone in this message can see each other's replies"
+            : "Private - your reply only goes to whoever sent this"
+        );
+      } else {
+        replyScopeField.style.display = "none";
+      }
+    }
+
     setHtml(
       "notificationLinkedClientText",
       data.client
@@ -648,7 +664,8 @@
 
     if (toggleDetailsBtn && detailsMeta) {
       toggleDetailsBtn.addEventListener("click", function () {
-        detailsMeta.classList.toggle("is-hidden");
+        const nowHidden = detailsMeta.classList.toggle("is-hidden");
+        toggleDetailsBtn.textContent = nowHidden ? "Details" : "Hide Details";
       });
     }
 

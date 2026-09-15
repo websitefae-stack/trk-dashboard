@@ -489,6 +489,17 @@
     ].join("");
   }
 
+  function updateReplyScopeVisibility() {
+    const field = el("notificationReplyScopeField");
+    if (!field) return;
+    field.style.display = selectedRecipients().length > 1 ? "" : "none";
+  }
+
+  function selectedReplyScope() {
+    const checked = document.querySelector('input[name="notificationReplyScope"]:checked');
+    return checked ? checked.value : "Individual";
+  }
+
   async function loadRecipients() {
     const container = el("notificationRecipients");
 
@@ -508,6 +519,11 @@
       if (!container.innerHTML.trim()) {
         container.innerHTML = "No available recipients found.";
       }
+
+      container.querySelectorAll('input[name="notification_recipients"]').forEach(function (input) {
+        input.addEventListener("change", updateReplyScopeVisibility);
+      });
+      updateReplyScopeVisibility();
     } catch (error) {
       console.error("Could not load recipients", error);
       container.innerHTML = "Failed to load recipients.";
@@ -744,7 +760,8 @@
         linked_event: linkedEvent,
         requires_response: requiresResponse,
         due_date: dueDate,
-        attachment: attachment || (attachmentInput ? attachmentInput.value : "")
+        attachment: attachment || (attachmentInput ? attachmentInput.value : ""),
+        reply_scope: selectedReplyScope()
       });
 
       if (statusMessage) {
