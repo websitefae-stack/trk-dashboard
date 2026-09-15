@@ -110,9 +110,14 @@ def get_school_pipeline():
         # display only.
         active_by_school[row.school] = row
 
-    contact_counts = {}
-    for row in frappe.get_all(CONTACT_DOCTYPE, filters={"parenttype": SCHOOL_DOCTYPE}, fields=["parent"], ignore_permissions=True):
-        contact_counts[row.parent] = contact_counts.get(row.parent, 0) + 1
+    contact_names_by_school = {}
+    for row in frappe.get_all(
+        CONTACT_DOCTYPE,
+        filters={"parenttype": SCHOOL_DOCTYPE},
+        fields=["parent", "contact_name"],
+        ignore_permissions=True,
+    ):
+        contact_names_by_school.setdefault(row.parent, []).append(row.contact_name)
 
     step_totals_by_sequence = {}
 
@@ -133,6 +138,8 @@ def get_school_pipeline():
                 "next_send_date": active.next_send_date,
             }
 
+        contact_names = contact_names_by_school.get(school.name, [])
+
         result.append({
             "name": school.name,
             "school_name": school.school_name,
@@ -140,7 +147,8 @@ def get_school_pipeline():
             "website": school.website,
             "area": school.area,
             "linked_client": school.linked_client,
-            "contact_count": contact_counts.get(school.name, 0),
+            "contact_count": len(contact_names),
+            "contact_names": contact_names,
             "active_sequence": active_summary,
         })
 

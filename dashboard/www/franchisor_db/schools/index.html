@@ -32,6 +32,27 @@
           <div class="dashboard-table-count" id="schoolsCount">Loading…</div>
         </div>
 
+        <div id="schoolsFilterBar" class="dashboard-schools-filter-bar">
+          <input type="text" id="schoolsSearchInput" class="dashboard-input" placeholder="Search school or contact name…">
+
+          <select id="schoolsAreaFilter" class="dashboard-select">
+            <option value="">All Areas</option>
+          </select>
+
+          <select id="schoolsStageFilter" class="dashboard-select">
+            <option value="">All Stages</option>
+            <option value="New">New</option>
+            <option value="In Sequence">In Sequence</option>
+            <option value="Idle">Idle</option>
+            <option value="Responded">Responded</option>
+            <option value="Call Booked">Call Booked</option>
+            <option value="Customer">Customer</option>
+            <option value="Declined">Declined</option>
+          </select>
+
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="schoolsFilterClear">Clear</button>
+        </div>
+
         <div id="schoolsBulkBar" class="dashboard-schools-bulk-bar" style="display:none;">
           <span id="schoolsSelectedCount">0 selected</span>
 

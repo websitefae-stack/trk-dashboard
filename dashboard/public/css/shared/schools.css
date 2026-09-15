@@ -51,6 +51,24 @@
   color: #434B49;
 }
 
+.dashboard-schools-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.dashboard-schools-filter-bar #schoolsSearchInput {
+  flex: 1;
+  min-width: 200px;
+}
+
+.dashboard-schools-filter-bar .dashboard-select {
+  width: auto;
+  min-width: 140px;
+}
+
 .dashboard-school-contact-row {
   display: grid;
   grid-template-columns: 1.4fr 1fr 1.4fr auto;
