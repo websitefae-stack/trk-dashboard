@@ -2073,10 +2073,13 @@ def convert_lead_to_client(name=None):
     # Coach-level defaults (bank account, price list, company) the client
     # inherits from their assigned primary coach - previously never applied
     # on conversion, so every converted client needed these filled in by
-    # hand afterwards.
+    # hand afterwards. These must win over whatever the Client doctype's
+    # own field-level default put on the new doc (e.g. a blanket default
+    # Company) - a not-already-set check here would just leave that
+    # doctype default in place and never reach the coach's real value.
     coach_defaults = get_coach_defaults_from_coach(doc.coach)
     for fieldname in ["coach_banking_details", "banking", "pricelist", "price_list", "company"]:
-        if client_meta.has_field(fieldname) and not client.get(fieldname) and coach_defaults.get(fieldname):
+        if client_meta.has_field(fieldname) and coach_defaults.get(fieldname):
             client.set(fieldname, coach_defaults.get(fieldname))
 
     client.insert(ignore_permissions=True)
