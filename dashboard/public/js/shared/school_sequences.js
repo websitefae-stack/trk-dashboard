@@ -95,7 +95,9 @@
         <label>Use an existing Email Template</label>
         <select class="dashboard-select step-template-select">${templateOptionsHtml(step.email_template)}</select>
 
-        <div class="dashboard-field-hint" style="margin:6px 0;">Or write this step's email from scratch:</div>
+        <div class="dashboard-field-hint" style="margin:6px 0;">
+          Or write this step's email from scratch below. Either way, you can type <code>{{ contact_name }}</code> for the recipient's name and <code>{{ school_name }}</code> for the school's name, in the subject or message - e.g. "Hi {{ contact_name }}, just checking in with {{ school_name }}...".
+        </div>
 
         <label>Subject</label>
         <input type="text" class="dashboard-input step-subject" value="${escapeHtml(step.subject || "")}">

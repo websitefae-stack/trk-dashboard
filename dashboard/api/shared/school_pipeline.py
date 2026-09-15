@@ -30,7 +30,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, getdate, nowdate
 
-from dashboard.api.shared.email_templates import _body_fieldname, plain_text_to_email_html, render_email
+from dashboard.api.shared.email_templates import _body_fieldname, plain_text_to_email_html, render_email, wrap_branded_email_html
 from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user
 from dashboard.api.shared.profile import ASHLEY_USER, OFFICE_USER
 
@@ -78,10 +78,19 @@ def _split_name(full_name):
 def get_school_pipeline():
     _ensure_franchisor()
 
+    # School/School Sequence/etc. only grant Frappe's own "System Manager"
+    # doctype role permission (see create_school_pipeline_doctypes.py) -
+    # Ashley's franchisor account isn't necessarily a Desk System Manager,
+    # so frappe.get_all() would otherwise silently return zero rows for
+    # her (Frappe's default permission filtering on get_all, not an
+    # error - it just looks like the data isn't there). Every read in
+    # this file passes ignore_permissions=True for that reason; access
+    # is instead gated by _ensure_franchisor() above.
     schools = frappe.get_all(
         SCHOOL_DOCTYPE,
         fields=["name", "school_name", "stage", "website", "linked_client", "modified"],
         order_by="modified desc",
+        ignore_permissions=True,
     )
 
     active_by_school = {}
@@ -89,6 +98,7 @@ def get_school_pipeline():
         ENROLLMENT_DOCTYPE,
         filters={"status": "Active"},
         fields=["name", "school", "sequence", "current_step", "next_send_date"],
+        ignore_permissions=True,
     ):
         # A school should only ever have one Active enrollment at a time
         # (enroll_schools won't start a second one while one's still
@@ -97,7 +107,7 @@ def get_school_pipeline():
         active_by_school[row.school] = row
 
     contact_counts = {}
-    for row in frappe.get_all(CONTACT_DOCTYPE, filters={"parenttype": SCHOOL_DOCTYPE}, fields=["parent"]):
+    for row in frappe.get_all(CONTACT_DOCTYPE, filters={"parenttype": SCHOOL_DOCTYPE}, fields=["parent"], ignore_permissions=True):
         contact_counts[row.parent] = contact_counts.get(row.parent, 0) + 1
 
     step_totals_by_sequence = {}
@@ -147,6 +157,7 @@ def get_school(name=None):
         filters={"school": name},
         fields=["name", "sequence", "status", "current_step", "start_date", "next_send_date", "last_sent_on"],
         order_by="start_date desc",
+        ignore_permissions=True,
     )
     for row in enrollments:
         row["total_steps"] = frappe.db.count(STEP_DOCTYPE, {"parent": row.sequence, "parenttype": SEQUENCE_DOCTYPE})
@@ -157,6 +168,7 @@ def get_school(name=None):
         fields=["name", "sent_or_received", "subject", "content", "sender", "recipients", "cc", "communication_date"],
         order_by="communication_date asc",
         limit_page_length=200,
+        ignore_permissions=True,
     )
 
     return {
@@ -285,6 +297,7 @@ def get_sequences():
         SEQUENCE_DOCTYPE,
         fields=["name", "sequence_name", "description", "is_active"],
         order_by="modified desc",
+        ignore_permissions=True,
     )
     for row in sequences:
         row["step_count"] = frappe.db.count(STEP_DOCTYPE, {"parent": row.name, "parenttype": SEQUENCE_DOCTYPE})
@@ -465,9 +478,15 @@ def enroll_schools(school_names=None, sequence=None, start_date=None):
 
 @frappe.whitelist()
 def send_one_off_school_email(school=None, contact_emails=None, subject=None, message=None):
-    """The targeted-reply tool - pick one (or several) of a school's own
+    """
+    The targeted-reply tool - pick one (or several) of a school's own
     contacts and send them something directly, entirely separate from the
-    automatic sequence."""
+    automatic sequence. Sends one email per selected contact (not one
+    email to all of them) so {{ contact_name }} in the subject/message
+    can actually resolve to the right person for each - the whole point
+    of this tool being "target the Head only" or "target the SENCO
+    only" rather than the sequence's shared group send.
+    """
     _ensure_franchisor()
 
     school = (school or "").strip()
@@ -487,16 +506,23 @@ def send_one_off_school_email(school=None, contact_emails=None, subject=None, me
     if not subject or not message:
         frappe.throw(_("Subject and message are required."))
 
-    frappe.sendmail(
-        sender=OFFICE_USER,
-        recipients=contact_emails,
-        reply_to=OFFICE_USER,
-        subject=subject,
-        message=plain_text_to_email_html(message),
-        reference_doctype=SCHOOL_DOCTYPE,
-        reference_name=school,
-        now=True,
-    )
+    doc = frappe.get_doc(SCHOOL_DOCTYPE, school)
+    name_by_email = {c.email: c.contact_name for c in (doc.contacts or []) if c.email}
+
+    for email in contact_emails:
+        context = {"school_name": doc.school_name, "contact_name": name_by_email.get(email) or ""}
+
+        frappe.sendmail(
+            sender=OFFICE_USER,
+            recipients=[email],
+            reply_to=OFFICE_USER,
+            subject=frappe.render_template(subject, context),
+            message=wrap_branded_email_html(plain_text_to_email_html(frappe.render_template(message, context))),
+            reference_doctype=SCHOOL_DOCTYPE,
+            reference_name=school,
+            now=True,
+        )
+
     frappe.db.commit()
 
     return {"ok": 1}
@@ -505,7 +531,11 @@ def send_one_off_school_email(school=None, contact_emails=None, subject=None, me
 def _pick_recipients(contacts):
     """To: whoever's tagged Head (falls back to the first contact). Cc:
     everyone else - one combined email per step, not N separate sends,
-    per Ashley's "cc for all" on the automatic sequence."""
+    per Ashley's "cc for all" on the automatic sequence. Returns the
+    primary contact's own row (not just their email) so callers can
+    also pull their name for the {{ contact_name }} merge field - the
+    Cc'd contacts don't get their own name in the body, since this is
+    one shared email, not one per person."""
     contacts = [c for c in (contacts or []) if c.email]
     if not contacts:
         return None, []
@@ -514,7 +544,7 @@ def _pick_recipients(contacts):
     primary = head or contacts[0]
     rest = [c.email for c in contacts if c.email != primary.email]
 
-    return primary.email, rest
+    return primary, rest
 
 
 def process_due_school_sequences():
@@ -527,6 +557,7 @@ def process_due_school_sequences():
         ENROLLMENT_DOCTYPE,
         filters={"status": "Active", "next_send_date": ["<=", nowdate()]},
         pluck="name",
+        ignore_permissions=True,
     )
 
     for name in due_names:
@@ -561,9 +592,9 @@ def _send_next_school_step(enrollment_name):
             return
 
         school = frappe.get_doc(SCHOOL_DOCTYPE, enrollment.school)
-        to_email, cc_emails = _pick_recipients(school.contacts)
+        primary_contact, cc_emails = _pick_recipients(school.contacts)
 
-        if not to_email:
+        if not primary_contact:
             # No contacts to send to - park it rather than retrying (and
             # failing) the same due step every day forever.
             enrollment.status = "Cancelled"
@@ -589,7 +620,7 @@ def _send_next_school_step(enrollment_name):
 
         subject, message = render_email(
             step.email_template,
-            {"school_name": school.school_name},
+            {"school_name": school.school_name, "contact_name": primary_contact.contact_name or ""},
             fallback_subject="",
             fallback_message="",
         )
@@ -597,11 +628,11 @@ def _send_next_school_step(enrollment_name):
         if subject or message:
             frappe.sendmail(
                 sender=OFFICE_USER,
-                recipients=[to_email],
+                recipients=[primary_contact.email],
                 cc=cc_emails,
                 reply_to=OFFICE_USER,
                 subject=subject or sequence.sequence_name,
-                message=plain_text_to_email_html(message) if message else "",
+                message=wrap_branded_email_html(plain_text_to_email_html(message)) if message else "",
                 reference_doctype=SCHOOL_DOCTYPE,
                 reference_name=school.name,
                 now=True,
@@ -745,6 +776,8 @@ def convert_school_to_client(school=None, client=None, client_type="School"):
     client_meta = frappe.get_meta("Client")
 
     if client_meta.has_field("client_contacts"):
+        from dashboard.api.shared.client_details import sanitize_name_part
+
         existing_emails = {
             (row.get("email_id") or "").strip().lower()
             for row in (client_doc.get("client_contacts") or [])
@@ -764,7 +797,7 @@ def convert_school_to_client(school=None, client=None, client_type="School"):
 
             client_doc.append("client_contacts", {
                 "contact": contact.name,
-                "contact_name": row.contact_name,
+                "contact_name": sanitize_name_part(row.contact_name),
                 "email_id": row.email,
             })
 

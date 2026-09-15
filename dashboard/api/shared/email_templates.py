@@ -11,6 +11,10 @@ from html import unescape as _html_unescape
 
 import frappe
 
+from dashboard.api.shared.profile import PUBLIC_SITE_URL
+
+HUB_LOGO_URL = PUBLIC_SITE_URL + "/files/TRHub_Logo.jpg"
+
 BOOKING_CONFIRMATION_TEMPLATE = "Booking Confirmation - Resilient Kid"
 INTAKE_INVITE_TEMPLATE = "Client Intake Form Invite - Resilient Kid"
 PODCAST_INVITE_TEMPLATE = "Podcast Guest Form Invite - Resilient Kid"
@@ -175,6 +179,32 @@ def plain_text_to_email_html(message):
     return "<p>" + "</p><p>".join(
         line.strip() for line in message.splitlines() if line.strip()
     ) + "</p>"
+
+
+def wrap_branded_email_html(body_html):
+    """
+    Wraps an already-built message body (e.g. the output of
+    plain_text_to_email_html()) in a simple branded shell - The Resilient
+    Hub logo at the top, the message in the middle, a plain text footer
+    at the bottom - so an outgoing email reads as coming from the
+    business rather than a bare paragraph of text.
+    """
+    body_html = body_html or ""
+
+    return f"""
+    <div style="max-width:600px; margin:0 auto; font-family:Arial, Helvetica, sans-serif; color:#222222;">
+      <div style="text-align:center; padding:24px 0;">
+        <img src="{HUB_LOGO_URL}" alt="The Resilient Hub" style="max-width:220px; height:auto;">
+      </div>
+      <div style="padding:0 24px 24px; font-size:15px; line-height:1.6;">
+        {body_html}
+      </div>
+      <div style="border-top:1px solid #e0e0e0; padding:18px 24px; text-align:center; font-size:12px; color:#888888;">
+        <p style="margin:0 0 4px;">The Resilient Hub</p>
+        <p style="margin:0;"><a href="{PUBLIC_SITE_URL}" style="color:#888888;">{PUBLIC_SITE_URL.replace("https://", "")}</a></p>
+      </div>
+    </div>
+    """
 
 
 @frappe.whitelist()
