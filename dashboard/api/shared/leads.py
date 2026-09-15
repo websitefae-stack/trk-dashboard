@@ -1992,6 +1992,7 @@ def convert_lead_to_client(name=None):
 
     from dashboard.api.shared.client_details import (
         set_full_name_from_parts,
+        sanitize_name_part,
         apply_age_and_client_type,
         get_coach_defaults_from_coach,
     )
@@ -2095,7 +2096,7 @@ def convert_lead_to_client(name=None):
     if client_meta.has_field("client_contacts"):
         client.append("client_contacts", {
             "contact": contact.name,
-            "contact_name": doc.contact_name,
+            "contact_name": sanitize_name_part(doc.contact_name),
             "phone": doc.contact_mobile or "",
             "email_id": doc.contact_email or "",
         })
@@ -2118,7 +2119,7 @@ def convert_lead_to_client(name=None):
             if extra_contact_name:
                 client.append("client_contacts", {
                     "contact": extra_contact_name,
-                    "contact_name": full_name,
+                    "contact_name": sanitize_name_part(full_name),
                     "phone": mobile or "",
                     "email_id": email or "",
                 })

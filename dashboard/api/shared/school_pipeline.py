@@ -78,10 +78,19 @@ def _split_name(full_name):
 def get_school_pipeline():
     _ensure_franchisor()
 
+    # School/School Sequence/etc. only grant Frappe's own "System Manager"
+    # doctype role permission (see create_school_pipeline_doctypes.py) -
+    # Ashley's franchisor account isn't necessarily a Desk System Manager,
+    # so frappe.get_all() would otherwise silently return zero rows for
+    # her (Frappe's default permission filtering on get_all, not an
+    # error - it just looks like the data isn't there). Every read in
+    # this file passes ignore_permissions=True for that reason; access
+    # is instead gated by _ensure_franchisor() above.
     schools = frappe.get_all(
         SCHOOL_DOCTYPE,
         fields=["name", "school_name", "stage", "website", "linked_client", "modified"],
         order_by="modified desc",
+        ignore_permissions=True,
     )
 
     active_by_school = {}
@@ -89,6 +98,7 @@ def get_school_pipeline():
         ENROLLMENT_DOCTYPE,
         filters={"status": "Active"},
         fields=["name", "school", "sequence", "current_step", "next_send_date"],
+        ignore_permissions=True,
     ):
         # A school should only ever have one Active enrollment at a time
         # (enroll_schools won't start a second one while one's still
@@ -97,7 +107,7 @@ def get_school_pipeline():
         active_by_school[row.school] = row
 
     contact_counts = {}
-    for row in frappe.get_all(CONTACT_DOCTYPE, filters={"parenttype": SCHOOL_DOCTYPE}, fields=["parent"]):
+    for row in frappe.get_all(CONTACT_DOCTYPE, filters={"parenttype": SCHOOL_DOCTYPE}, fields=["parent"], ignore_permissions=True):
         contact_counts[row.parent] = contact_counts.get(row.parent, 0) + 1
 
     step_totals_by_sequence = {}
@@ -147,6 +157,7 @@ def get_school(name=None):
         filters={"school": name},
         fields=["name", "sequence", "status", "current_step", "start_date", "next_send_date", "last_sent_on"],
         order_by="start_date desc",
+        ignore_permissions=True,
     )
     for row in enrollments:
         row["total_steps"] = frappe.db.count(STEP_DOCTYPE, {"parent": row.sequence, "parenttype": SEQUENCE_DOCTYPE})
@@ -157,6 +168,7 @@ def get_school(name=None):
         fields=["name", "sent_or_received", "subject", "content", "sender", "recipients", "cc", "communication_date"],
         order_by="communication_date asc",
         limit_page_length=200,
+        ignore_permissions=True,
     )
 
     return {
@@ -285,6 +297,7 @@ def get_sequences():
         SEQUENCE_DOCTYPE,
         fields=["name", "sequence_name", "description", "is_active"],
         order_by="modified desc",
+        ignore_permissions=True,
     )
     for row in sequences:
         row["step_count"] = frappe.db.count(STEP_DOCTYPE, {"parent": row.name, "parenttype": SEQUENCE_DOCTYPE})
@@ -544,6 +557,7 @@ def process_due_school_sequences():
         ENROLLMENT_DOCTYPE,
         filters={"status": "Active", "next_send_date": ["<=", nowdate()]},
         pluck="name",
+        ignore_permissions=True,
     )
 
     for name in due_names:
@@ -762,6 +776,8 @@ def convert_school_to_client(school=None, client=None, client_type="School"):
     client_meta = frappe.get_meta("Client")
 
     if client_meta.has_field("client_contacts"):
+        from dashboard.api.shared.client_details import sanitize_name_part
+
         existing_emails = {
             (row.get("email_id") or "").strip().lower()
             for row in (client_doc.get("client_contacts") or [])
@@ -781,7 +797,7 @@ def convert_school_to_client(school=None, client=None, client_type="School"):
 
             client_doc.append("client_contacts", {
                 "contact": contact.name,
-                "contact_name": row.contact_name,
+                "contact_name": sanitize_name_part(row.contact_name),
                 "email_id": row.email,
             })
 
