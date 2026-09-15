@@ -1109,13 +1109,26 @@ def _get_notification_log_or_filters():
 
 
 def _current_user_can_see_conversation(doc):
+    """
+    Whether this conversation shows up in the CURRENT user's own
+    notification list (see get_notifications()) - not a permission check
+    on opening one directly by name (see ensure_notification_access(),
+    which still lets a franchisor open any specific conversation, e.g.
+    via a "view as" deep link).
+
+    Deliberately does NOT grant a blanket "franchisor sees everything"
+    here - that used to flood Ashley's own list with every coach's own
+    new-lead/intake-completed notifications and every reply on a
+    broadcast she wasn't actually part of, none of which are addressed
+    to her (they're created with that coach, not her, as the
+    recipient). A franchisor's default list is now "mine" - created by
+    them, or where they're an actual recipient - same as everywhere
+    else in this app (see _lead_filters_for_current_user()).
+    """
     if doc.get("created_by_user") == frappe.session.user:
         return True
 
     if _user_is_recipient(doc, frappe.session.user):
-        return True
-
-    if _is_franchisor_user():
         return True
 
     return False
