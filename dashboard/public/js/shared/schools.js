@@ -56,7 +56,7 @@
         </label>
         <div class="dashboard-school-card-body">
           <div class="dashboard-lead-card-client">${escapeHtml(school.school_name)}</div>
-          <div class="dashboard-field-hint">${school.contact_count} contact${school.contact_count === 1 ? "" : "s"}${school.linked_client ? " · Customer" : ""}</div>
+          <div class="dashboard-field-hint">${school.area ? escapeHtml(school.area) + " · " : ""}${school.contact_count} contact${school.contact_count === 1 ? "" : "s"}${school.linked_client ? " · Customer" : ""}</div>
           ${progress}
         </div>
       </div>
@@ -201,6 +201,7 @@
           <option value="">Role</option>
           <option value="SENCO">SENCO</option>
           <option value="Head">Head</option>
+          <option value="Deputy Head">Deputy Head</option>
           <option value="Reception">Reception</option>
           <option value="Other">Other</option>
         </select>
@@ -227,6 +228,7 @@
 
     if (el("newSchoolName")) el("newSchoolName").value = "";
     if (el("newSchoolWebsite")) el("newSchoolWebsite").value = "";
+    if (el("newSchoolArea")) el("newSchoolArea").value = "";
     if (el("newSchoolContacts")) el("newSchoolContacts").innerHTML = "";
     contactRowCount = 0;
     addContactRow();
@@ -261,6 +263,7 @@
         data: JSON.stringify({
           school_name: schoolName,
           website: el("newSchoolWebsite")?.value.trim() || "",
+          area: el("newSchoolArea")?.value.trim() || "",
           contacts,
         }),
       });

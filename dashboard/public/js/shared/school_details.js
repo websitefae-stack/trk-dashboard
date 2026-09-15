@@ -57,6 +57,7 @@
           <option value="" ${!contact.role ? "selected" : ""}>Role</option>
           <option value="SENCO" ${contact.role === "SENCO" ? "selected" : ""}>SENCO</option>
           <option value="Head" ${contact.role === "Head" ? "selected" : ""}>Head</option>
+          <option value="Deputy Head" ${contact.role === "Deputy Head" ? "selected" : ""}>Deputy Head</option>
           <option value="Reception" ${contact.role === "Reception" ? "selected" : ""}>Reception</option>
           <option value="Other" ${contact.role === "Other" ? "selected" : ""}>Other</option>
         </select>
@@ -107,6 +108,7 @@
     const payload = Object.assign({
       school_name: currentSchool.school_name,
       website: el("schoolWebsiteInput")?.value.trim() || "",
+      area: el("schoolAreaInput")?.value.trim() || "",
       notes: currentSchool.notes || "",
       contacts: readContactsFromForm(),
     }, overrides || {});
@@ -319,6 +321,7 @@
 
       if (el("schoolStageSelect")) el("schoolStageSelect").value = currentSchool.stage;
       if (el("schoolWebsiteInput")) el("schoolWebsiteInput").value = currentSchool.website || "";
+      if (el("schoolAreaInput")) el("schoolAreaInput").value = currentSchool.area || "";
       renderNotesLog(currentSchool.notes);
 
       const clientNote = el("schoolLinkedClientNote");

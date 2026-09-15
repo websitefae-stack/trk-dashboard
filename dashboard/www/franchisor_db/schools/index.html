@@ -78,6 +78,9 @@
       <label for="newSchoolWebsite">Website</label>
       <input type="text" id="newSchoolWebsite" class="dashboard-input">
 
+      <label for="newSchoolArea">Area</label>
+      <input type="text" id="newSchoolArea" class="dashboard-input">
+
       <div id="newSchoolContacts"></div>
       <button type="button" class="dashboard-btn dashboard-btn-light" id="addSchoolContactRow">Add Contact</button>
     </div>
@@ -98,7 +101,7 @@
 
     <div class="dashboard-modal-body">
       <div class="dashboard-field-hint" style="margin-bottom:12px;">
-        A CSV file, one row per contact: <strong>School Name</strong>, <strong>Website</strong> (optional), <strong>Contact Name</strong>, <strong>Contact Role</strong> (SENCO, Head, Reception or Other - optional), <strong>Contact Email</strong>. Several contacts for the same school are just several rows with the same School Name. If a school already exists (matched by name), new contacts are added to it rather than creating a duplicate - already-imported contacts are skipped, so it's safe to re-upload the same file after fixing a few rows.
+        A CSV file, one row per contact: <strong>School Name</strong>, <strong>Website</strong> (optional), <strong>Area</strong> (optional), <strong>Contact Name</strong>, <strong>Contact Role</strong> (SENCO, Head, Deputy Head, Reception or Other - optional), <strong>Contact Email</strong>. Several contacts for the same school are just several rows with the same School Name. If a school already exists (matched by name), new contacts are added to it rather than creating a duplicate - already-imported contacts are skipped, so it's safe to re-upload the same file after fixing a few rows.
       </div>
 
       <label for="importSchoolsFile">CSV File</label>
