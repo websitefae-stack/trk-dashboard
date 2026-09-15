@@ -1,5 +1,6 @@
 import datetime
 import json
+import re
 import frappe
 from frappe import _
 
@@ -287,10 +288,31 @@ def get_first_name_value(payload):
     return payload.get("name1") or payload.get("first_name") or ""
 
 
+_DISALLOWED_NAME_CHARS_RE = re.compile(r"[^\w'\- ]", re.UNICODE)
+
+
+def sanitize_name_part(value):
+    """
+    Frappe's core Name field validator (frappe.utils.validate_name) only
+    allows word characters, apostrophes, hyphens and spaces - anything
+    else (e.g. a nickname in parentheses, "Alaster (Ali)") throws
+    InvalidNameError and blocks the whole save. Strips whatever isn't
+    allowed (replacing with a space, not deleting outright, so words on
+    either side don't get glued together) rather than rejecting the
+    input, since these values come from free-text intake forms this app
+    doesn't control the wording of.
+    """
+    if not value:
+        return ""
+
+    cleaned = _DISALLOWED_NAME_CHARS_RE.sub(" ", value)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
 def set_full_name_from_parts(doc, payload):
-    first_name = get_first_name_value(payload)
-    middle_name = payload.get("middle_name") or ""
-    last_name = payload.get("last_name") or ""
+    first_name = sanitize_name_part(get_first_name_value(payload))
+    middle_name = sanitize_name_part(payload.get("middle_name") or "")
+    last_name = sanitize_name_part(payload.get("last_name") or "")
 
     full_name = get_display_name_from_parts(first_name, middle_name, last_name)
 
