@@ -92,7 +92,7 @@ def get_school_pipeline():
     # is instead gated by _ensure_franchisor() above.
     schools = frappe.get_all(
         SCHOOL_DOCTYPE,
-        fields=["name", "school_name", "stage", "website", "linked_client", "modified"],
+        fields=["name", "school_name", "stage", "website", "area", "linked_client", "modified"],
         order_by="modified desc",
         ignore_permissions=True,
     )
@@ -110,9 +110,14 @@ def get_school_pipeline():
         # display only.
         active_by_school[row.school] = row
 
-    contact_counts = {}
-    for row in frappe.get_all(CONTACT_DOCTYPE, filters={"parenttype": SCHOOL_DOCTYPE}, fields=["parent"], ignore_permissions=True):
-        contact_counts[row.parent] = contact_counts.get(row.parent, 0) + 1
+    contact_names_by_school = {}
+    for row in frappe.get_all(
+        CONTACT_DOCTYPE,
+        filters={"parenttype": SCHOOL_DOCTYPE},
+        fields=["parent", "contact_name"],
+        ignore_permissions=True,
+    ):
+        contact_names_by_school.setdefault(row.parent, []).append(row.contact_name)
 
     step_totals_by_sequence = {}
 
@@ -133,13 +138,17 @@ def get_school_pipeline():
                 "next_send_date": active.next_send_date,
             }
 
+        contact_names = contact_names_by_school.get(school.name, [])
+
         result.append({
             "name": school.name,
             "school_name": school.school_name,
             "stage": school.stage,
             "website": school.website,
+            "area": school.area,
             "linked_client": school.linked_client,
-            "contact_count": contact_counts.get(school.name, 0),
+            "contact_count": len(contact_names),
+            "contact_names": contact_names,
             "active_sequence": active_summary,
         })
 
@@ -187,6 +196,9 @@ def get_school(name=None):
         "name": doc.name,
         "school_name": doc.school_name,
         "website": doc.website,
+        "address": doc.address,
+        "telephone": doc.telephone,
+        "area": doc.area,
         "stage": doc.stage,
         "notes": doc.notes,
         "linked_client": doc.linked_client,
@@ -223,6 +235,9 @@ def save_school(docname=None, data=None):
 
     doc.school_name = school_name
     doc.website = (payload.get("website") or "").strip()
+    doc.address = (payload.get("address") or "").strip()
+    doc.telephone = (payload.get("telephone") or "").strip()
+    doc.area = (payload.get("area") or "").strip()
     doc.notes = payload.get("notes") or ""
 
     doc.set("contacts", [])
@@ -246,7 +261,14 @@ def save_school(docname=None, data=None):
     return {"ok": 1, "name": doc.name}
 
 
-VALID_CONTACT_ROLES = {"senco": "SENCO", "head": "Head", "reception": "Reception", "other": "Other"}
+VALID_CONTACT_ROLES = {
+    "senco": "SENCO",
+    "head": "Head",
+    "deputy head": "Deputy Head",
+    "deputy_head": "Deputy Head",
+    "reception": "Reception",
+    "other": "Other",
+}
 
 # Every header this accepts, per canonical column - matched case/space/
 # underscore-insensitively so "School Name", "school_name" and
@@ -256,6 +278,7 @@ IMPORT_COLUMN_ALIASES = {
     "school_name": "school_name",
     "school": "school_name",
     "website": "website",
+    "area": "area",
     "contact_name": "contact_name",
     "contactname": "contact_name",
     "name": "contact_name",
@@ -298,9 +321,18 @@ def import_schools_from_csv():
         frappe.throw(_("No file was uploaded."))
 
     raw = uploaded_file.stream.read()
-    try:
-        text = raw.decode("utf-8-sig")
-    except UnicodeDecodeError:
+    for encoding in ("utf-8-sig", "cp1252"):
+        try:
+            text = raw.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        # Always succeeds (every byte value maps to something in
+        # latin-1) - last resort for whatever's left, e.g. a genuinely
+        # unknown encoding. cp1252 above already covers the common case
+        # of a CSV exported from Excel with "smart quotes"/apostrophes
+        # that aren't valid UTF-8.
         text = raw.decode("latin-1")
 
     reader = csv.DictReader(io.StringIO(text))
@@ -326,7 +358,7 @@ def import_schools_from_csv():
         if key:
             existing_schools[key] = row.name
 
-    groups = []  # [(school_name, website, [contact_row, ...]), ...] in file order
+    groups = []  # [[school_name, website, area, [contact_row, ...]], ...] in file order
     groups_by_key = {}
     row_errors = []
 
@@ -335,6 +367,7 @@ def import_schools_from_csv():
 
         school_name = row.get("school_name", "")
         website = row.get("website", "")
+        area = row.get("area", "")
         contact_name = row.get("contact_name", "")
         email = row.get("email", "")
         role_raw = row.get("role", "")
@@ -351,11 +384,14 @@ def import_schools_from_csv():
         key = school_name.strip().lower()
         if key not in groups_by_key:
             groups_by_key[key] = len(groups)
-            groups.append([school_name.strip(), website, []])
+            groups.append([school_name.strip(), website, area, []])
         group = groups[groups_by_key[key]]
 
         if website and not group[1]:
             group[1] = website
+
+        if area and not group[2]:
+            group[2] = area
 
         if not contact_name and not email:
             # A school-only row (e.g. a school with no contacts yet) -
@@ -368,14 +404,14 @@ def import_schools_from_csv():
 
         role = VALID_CONTACT_ROLES.get(role_raw.strip().lower(), "") if role_raw else ""
 
-        group[2].append({"contact_name": contact_name, "email": email, "role": role})
+        group[3].append({"contact_name": contact_name, "email": email, "role": role})
 
     schools_created = 0
     schools_updated = 0
     contacts_added = 0
     contacts_skipped_duplicate = 0
 
-    for school_name, website, contact_rows in groups:
+    for school_name, website, area, contact_rows in groups:
         key = school_name.strip().lower()
         existing_name = existing_schools.get(key)
 
@@ -390,6 +426,9 @@ def import_schools_from_csv():
 
         if website and not doc.website:
             doc.website = website
+
+        if area and not doc.area:
+            doc.area = area
 
         existing_emails = {(c.email or "").strip().lower() for c in (doc.contacts or [])}
 

@@ -56,17 +56,51 @@
         </label>
         <div class="dashboard-school-card-body">
           <div class="dashboard-lead-card-client">${escapeHtml(school.school_name)}</div>
-          <div class="dashboard-field-hint">${school.contact_count} contact${school.contact_count === 1 ? "" : "s"}${school.linked_client ? " · Customer" : ""}</div>
+          <div class="dashboard-field-hint">${school.area ? escapeHtml(school.area) + " · " : ""}${school.contact_count} contact${school.contact_count === 1 ? "" : "s"}${school.linked_client ? " · Customer" : ""}</div>
           ${progress}
         </div>
       </div>
     `;
   }
 
+  function getFilteredSchools() {
+    const search = (el("schoolsSearchInput")?.value || "").trim().toLowerCase();
+    const area = el("schoolsAreaFilter")?.value || "";
+    const stage = el("schoolsStageFilter")?.value || "";
+
+    return schools.filter((school) => {
+      if (area && school.area !== area) return false;
+      if (stage && school.stage !== stage) return false;
+
+      if (search) {
+        const nameMatch = (school.school_name || "").toLowerCase().includes(search);
+        const contactMatch = (school.contact_names || []).some((name) => (name || "").toLowerCase().includes(search));
+        if (!nameMatch && !contactMatch) return false;
+      }
+
+      return true;
+    });
+  }
+
+  function populateAreaFilterOptions() {
+    const select = el("schoolsAreaFilter");
+    if (!select) return;
+
+    const currentValue = select.value;
+    const areas = Array.from(new Set(schools.map((s) => (s.area || "").trim()).filter(Boolean))).sort();
+
+    select.innerHTML = '<option value="">All Areas</option>' +
+      areas.map((area) => `<option value="${escapeHtml(area)}">${escapeHtml(area)}</option>`).join("");
+
+    if (areas.includes(currentValue)) select.value = currentValue;
+  }
+
   function render() {
+    const filtered = getFilteredSchools();
+
     const byStage = {};
     STAGES.forEach((stage) => { byStage[stage] = []; });
-    schools.forEach((school) => {
+    filtered.forEach((school) => {
       (byStage[school.stage] || byStage.New).push(school);
     });
 
@@ -83,7 +117,11 @@
     `).join("");
 
     const countEl = el("schoolsCount");
-    if (countEl) countEl.textContent = `${schools.length} school${schools.length === 1 ? "" : "s"}`;
+    if (countEl) {
+      countEl.textContent = filtered.length === schools.length
+        ? `${schools.length} school${schools.length === 1 ? "" : "s"}`
+        : `${filtered.length} of ${schools.length} school${schools.length === 1 ? "" : "s"}`;
+    }
 
     board.querySelectorAll(".dashboard-school-card").forEach((card) => {
       card.addEventListener("click", function () {
@@ -135,6 +173,7 @@
     board.innerHTML = `<div class="dashboard-empty">Loading schools…</div>`;
     try {
       schools = await apiPost(`${API}.get_school_pipeline`, {});
+      populateAreaFilterOptions();
       render();
     } catch (error) {
       board.innerHTML = `<div class="dashboard-empty">${escapeHtml(error.message || "Could not load schools.")}</div>`;
@@ -142,6 +181,16 @@
   }
 
   function bindEvents() {
+  el("schoolsSearchInput")?.addEventListener("input", Dashboard.debounce(render, 200));
+  el("schoolsAreaFilter")?.addEventListener("change", render);
+  el("schoolsStageFilter")?.addEventListener("change", render);
+  el("schoolsFilterClear")?.addEventListener("click", function () {
+    if (el("schoolsSearchInput")) el("schoolsSearchInput").value = "";
+    if (el("schoolsAreaFilter")) el("schoolsAreaFilter").value = "";
+    if (el("schoolsStageFilter")) el("schoolsStageFilter").value = "";
+    render();
+  });
+
   el("schoolsBulkEnroll")?.addEventListener("click", async function () {
     const sequence = el("schoolsBulkSequence")?.value;
     const startDate = el("schoolsBulkStartDate")?.value;
@@ -201,6 +250,7 @@
           <option value="">Role</option>
           <option value="SENCO">SENCO</option>
           <option value="Head">Head</option>
+          <option value="Deputy Head">Deputy Head</option>
           <option value="Reception">Reception</option>
           <option value="Other">Other</option>
         </select>
@@ -227,6 +277,7 @@
 
     if (el("newSchoolName")) el("newSchoolName").value = "";
     if (el("newSchoolWebsite")) el("newSchoolWebsite").value = "";
+    if (el("newSchoolArea")) el("newSchoolArea").value = "";
     if (el("newSchoolContacts")) el("newSchoolContacts").innerHTML = "";
     contactRowCount = 0;
     addContactRow();
@@ -261,6 +312,7 @@
         data: JSON.stringify({
           school_name: schoolName,
           website: el("newSchoolWebsite")?.value.trim() || "",
+          area: el("newSchoolArea")?.value.trim() || "",
           contacts,
         }),
       });

@@ -75,7 +75,7 @@ def _create_school_contact_doctype():
                 "fieldname": "role",
                 "fieldtype": "Select",
                 "label": "Role",
-                "options": "\nSENCO\nHead\nReception\nOther",
+                "options": "\nSENCO\nHead\nDeputy Head\nReception\nOther",
                 "in_list_view": 1,
             },
             {"fieldname": "email", "fieldtype": "Data", "options": "Email", "label": "Email", "reqd": 1, "in_list_view": 1},
@@ -106,6 +106,9 @@ def _create_school_doctype():
         "fields": [
             {"fieldname": "school_name", "fieldtype": "Data", "label": "School Name", "reqd": 1, "in_list_view": 1},
             {"fieldname": "website", "fieldtype": "Data", "label": "Website"},
+            {"fieldname": "address", "fieldtype": "Small Text", "label": "Address"},
+            {"fieldname": "telephone", "fieldtype": "Data", "label": "Telephone"},
+            {"fieldname": "area", "fieldtype": "Data", "label": "Area", "in_list_view": 1, "in_standard_filter": 1},
             {
                 "fieldname": "stage",
                 "fieldtype": "Select",
