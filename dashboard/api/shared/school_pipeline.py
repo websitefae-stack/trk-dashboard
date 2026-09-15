@@ -28,7 +28,8 @@ from email.utils import parseaddr
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, getdate, nowdate
+from frappe.utils import add_days, escape_html, getdate, nowdate
+from werkzeug.utils import secure_filename
 
 from dashboard.api.shared.email_templates import _body_fieldname, plain_text_to_email_html, render_email, wrap_branded_email_html
 from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user
@@ -39,6 +40,7 @@ CONTACT_DOCTYPE = "School Contact"
 SEQUENCE_DOCTYPE = "School Sequence"
 STEP_DOCTYPE = "School Sequence Step"
 ENROLLMENT_DOCTYPE = "School Sequence Enrollment"
+BRANDING_DOCTYPE = "School Pipeline Branding"
 
 # Stages a school can already be past the point where the automatic
 # sequence machinery (starting/finishing a run) should be allowed to move
@@ -477,6 +479,90 @@ def enroll_schools(school_names=None, sequence=None, start_date=None):
 
 
 @frappe.whitelist()
+def get_email_branding():
+    """The logo + footer used to wrap every outgoing School Pipeline email
+    - see wrap_branded_email_html(). A Single, so there's always exactly
+    one record; frappe.get_single() creates it on first access rather
+    than throwing, so the franchisor dashboard never has to handle a
+    "not set up yet" state."""
+    _ensure_franchisor()
+    doc = frappe.get_single(BRANDING_DOCTYPE)
+    return {"logo_url": doc.logo or "", "footer_text": doc.footer_text or ""}
+
+
+@frappe.whitelist()
+def save_email_branding(footer_text=None):
+    _ensure_franchisor()
+    doc = frappe.get_single(BRANDING_DOCTYPE)
+
+    if footer_text is not None:
+        doc.footer_text = footer_text
+
+    uploaded_file = frappe.request.files.get("logo") if getattr(frappe, "request", None) else None
+    if uploaded_file:
+        filename = secure_filename(uploaded_file.filename or "logo")
+        file_doc = frappe.get_doc({
+            "doctype": "File",
+            "file_name": filename,
+            "attached_to_doctype": BRANDING_DOCTYPE,
+            "attached_to_name": BRANDING_DOCTYPE,
+            # Public - this logo is embedded in emails read by people with
+            # no Frappe login, so a private File (which requires a session
+            # to serve) would just show as a broken image for them.
+            "is_private": 0,
+            "content": uploaded_file.stream.read(),
+        })
+        file_doc.insert(ignore_permissions=True)
+        doc.logo = file_doc.file_url
+
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"logo_url": doc.logo or "", "footer_text": doc.footer_text or ""}
+
+
+@frappe.whitelist()
+def upload_school_pipeline_email_image():
+    """Uploads an image to embed inline in a School Pipeline email body
+    (sequence step or one-off email) - see the "Insert Image" button next
+    to those message boxes. Public, same reasoning as the logo above:
+    recipients viewing the email have no Frappe login."""
+    _ensure_franchisor()
+
+    uploaded_file = frappe.request.files.get("file") if getattr(frappe, "request", None) else None
+    if not uploaded_file:
+        frappe.throw(_("No file was uploaded."))
+
+    filename = secure_filename(uploaded_file.filename or "image")
+    file_doc = frappe.get_doc({
+        "doctype": "File",
+        "file_name": filename,
+        "is_private": 0,
+        "content": uploaded_file.stream.read(),
+    })
+    file_doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"url": file_doc.file_url}
+
+
+def _branded_email_kwargs():
+    """logo_url/footer_html for wrap_branded_email_html(), pulled from the
+    franchisor's own School Pipeline Branding settings - falls back to
+    wrap_branded_email_html()'s own defaults (the stock Resilient Hub logo
+    and footer) wherever a setting hasn't been configured yet."""
+    doc = frappe.get_single(BRANDING_DOCTYPE)
+
+    footer_html = None
+    if doc.footer_text:
+        lines = [line.strip() for line in doc.footer_text.splitlines() if line.strip()]
+        if lines:
+            footer_html = "".join(f'<p style="margin:0 0 4px;">{escape_html(line)}</p>' for line in lines)
+
+    return {"logo_url": doc.logo or None, "footer_html": footer_html}
+
+
+@frappe.whitelist()
 def send_one_off_school_email(school=None, contact_emails=None, subject=None, message=None):
     """
     The targeted-reply tool - pick one (or several) of a school's own
@@ -508,6 +594,7 @@ def send_one_off_school_email(school=None, contact_emails=None, subject=None, me
 
     doc = frappe.get_doc(SCHOOL_DOCTYPE, school)
     name_by_email = {c.email: c.contact_name for c in (doc.contacts or []) if c.email}
+    branding = _branded_email_kwargs()
 
     for email in contact_emails:
         context = {"school_name": doc.school_name, "contact_name": name_by_email.get(email) or ""}
@@ -517,7 +604,7 @@ def send_one_off_school_email(school=None, contact_emails=None, subject=None, me
             recipients=[email],
             reply_to=OFFICE_USER,
             subject=frappe.render_template(subject, context),
-            message=wrap_branded_email_html(plain_text_to_email_html(frappe.render_template(message, context))),
+            message=wrap_branded_email_html(plain_text_to_email_html(frappe.render_template(message, context)), **branding),
             reference_doctype=SCHOOL_DOCTYPE,
             reference_name=school,
             now=True,
@@ -632,7 +719,7 @@ def _send_next_school_step(enrollment_name):
                 cc=cc_emails,
                 reply_to=OFFICE_USER,
                 subject=subject or sequence.sequence_name,
-                message=wrap_branded_email_html(plain_text_to_email_html(message)) if message else "",
+                message=wrap_branded_email_html(plain_text_to_email_html(message), **_branded_email_kwargs()) if message else "",
                 reference_doctype=SCHOOL_DOCTYPE,
                 reference_name=school.name,
                 now=True,
