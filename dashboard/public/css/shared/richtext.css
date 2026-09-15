@@ -85,6 +85,14 @@
   margin: 0 0 12px;
 }
 
+/* Safety net regardless of which block element the browser actually
+   used (Enter in a contenteditable can produce <div> rather than <p>
+   depending on the browser) - any two block-level children in a row
+   still get visible space between them. */
+.dashboard-richtext-body > div + div {
+  margin-top: 12px;
+}
+
 .dashboard-richtext-body h2 {
   font-size: 20px;
   margin: 0 0 10px;

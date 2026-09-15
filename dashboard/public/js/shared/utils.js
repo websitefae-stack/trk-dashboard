@@ -160,9 +160,43 @@
       sel.addRange(range);
     }
 
+    function escapePastedText(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
     body.addEventListener("input", refreshEmptyState);
     body.addEventListener("blur", refreshEmptyState);
     refreshEmptyState();
+
+    // Pasting plain text (e.g. an email drafted elsewhere and copied in)
+    // otherwise lands as one unbroken run with no paragraph breaks at
+    // all - the browser's default paste-into-contenteditable behaviour
+    // doesn't reliably turn blank lines into separate blocks. This reads
+    // the plain text off the clipboard directly and rebuilds it as one
+    // <p> per paragraph (blank-line-separated, falling back to one per
+    // line if there are no blank lines) instead.
+    body.addEventListener("paste", function (e) {
+      var clipboardData = e.clipboardData || window.clipboardData;
+      if (!clipboardData) return;
+
+      e.preventDefault();
+
+      var text = clipboardData.getData("text/plain") || "";
+      var paragraphs = text.split(/\r\n\s*\r\n|\n\s*\n/);
+      if (paragraphs.length < 2) paragraphs = text.split(/\r\n|\n|\r/);
+
+      var html = paragraphs
+        .map(function (p) { return p.trim(); })
+        .filter(function (p) { return p.length > 0; })
+        .map(function (p) { return "<p>" + escapePastedText(p) + "</p>"; })
+        .join("");
+
+      document.execCommand("insertHTML", false, html || "<p></p>");
+      refreshEmptyState();
+    });
 
     if (headingSelect) {
       headingSelect.addEventListener("change", function () {
