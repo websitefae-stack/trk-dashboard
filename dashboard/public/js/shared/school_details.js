@@ -170,6 +170,19 @@
     }
   }
 
+  async function loadClientLinkOptions() {
+    const select = el("convertClientSelect");
+    if (!select) return;
+
+    try {
+      const clients = await apiPost("dashboard.api.shared.leads.get_client_link_options", {});
+      select.innerHTML = '<option value="">— Create a new client —</option>' +
+        clients.map((c) => `<option value="${escapeHtml(c.value)}">${escapeHtml(c.label)}</option>`).join("");
+    } catch (error) {
+      // Non-fatal - the button still works to create a new client.
+    }
+  }
+
   function renderEnrollments(enrollments) {
     const body = el("enrollmentHistoryBody");
     if (!body) return;
@@ -378,10 +391,22 @@
         return;
       }
 
-      if (!confirm(`Create a new Client for "${currentSchool.school_name}" and carry over all contacts?`)) return;
+      const selectedClient = el("convertClientSelect")?.value || "";
+      const selectedClientLabel = selectedClient
+        ? el("convertClientSelect").options[el("convertClientSelect").selectedIndex].text
+        : "";
+
+      const confirmMessage = selectedClient
+        ? `Link "${currentSchool.school_name}" to the existing client "${selectedClientLabel}" and carry over all contacts?`
+        : `Create a new Client for "${currentSchool.school_name}" and carry over all contacts?`;
+
+      if (!confirm(confirmMessage)) return;
 
       try {
-        const result = await apiPost(`${API}.convert_school_to_client`, { school: schoolName });
+        const result = await apiPost(`${API}.convert_school_to_client`, {
+          school: schoolName,
+          client: selectedClient || undefined,
+        });
         window.location.href = `/franchisor_db/client_details?name=${encodeURIComponent(result.client)}`;
       } catch (error) {
         alert(error.message || "Could not convert to a client.");
@@ -446,6 +471,7 @@
     }
     loadSchool();
     loadSequenceOptions();
+    loadClientLinkOptions();
   }
 
   if (document.readyState === "loading") {
