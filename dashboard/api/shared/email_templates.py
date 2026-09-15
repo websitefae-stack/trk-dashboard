@@ -166,14 +166,17 @@ def parse_email_list(value):
 def plain_text_to_email_html(message):
     """
     Wraps plain-text lines (real newlines, no markup) into <p> tags for
-    sendmail - unless the text already looks like it contains block-level
-    HTML (e.g. someone pasted markup straight into the plain Email
-    Template field), in which case it's sent through as-is rather than
-    being double-wrapped.
+    sendmail - unless the text already looks like it contains HTML (e.g.
+    the School Pipeline's rich text email composer, or someone pasting
+    markup straight into the plain Email Template field), in which case
+    it's sent through as-is rather than being double-wrapped. Uses the
+    same "does this contain a tag at all" check as _looks_like_html()
+    rather than only recognising a leading <p>/<div> - the rich text
+    composer's output can just as easily start with <h2>, <b> or <a>.
     """
     message = (message or "").strip()
 
-    if message[:10].lstrip().lower().startswith(("<p", "<div")):
+    if _looks_like_html(message):
         return message
 
     return "<p>" + "</p><p>".join(

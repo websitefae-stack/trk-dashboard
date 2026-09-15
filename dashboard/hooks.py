@@ -267,12 +267,21 @@ scheduler_events = {
             "dashboard.api.shared.booking_confirmations.send_pending_booking_confirmations",
             "dashboard.api.shared.booking_confirmations.send_pending_meet_link_followups",
         ],
+        # Was in the "daily" bucket below, which only fires once every 24
+        # hours - a school enrolled (or a step due) any time after that
+        # day's single run would then sit for up to a full day before its
+        # email actually went out. next_send_date is date-only (not a
+        # timestamp), so running this hourly instead can't cause a step to
+        # send more than once a day - it only shortens how long a due step
+        # waits to be picked up.
+        "0 * * * *": [
+            "dashboard.api.shared.school_pipeline.process_due_school_sequences",
+        ],
     },
     # Keeps every client's age-derived client_type (Kid/Teen/Uni Student/
     # Adult) moving with their real age automatically, even if nobody ever
     # reopens their record - see refresh_all_client_ages_and_types().
     "daily": [
         "dashboard.api.shared.client_details.refresh_all_client_ages_and_types",
-        "dashboard.api.shared.school_pipeline.process_due_school_sequences",
     ],
 }

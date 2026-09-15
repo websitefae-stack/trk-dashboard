@@ -120,8 +120,7 @@
         <input type="text" class="dashboard-input step-subject" value="${escapeHtml(step.subject || "")}">
 
         <label style="margin-top:8px;">Message</label>
-        <div class="step-message-toolbar">${Dashboard.emailComposerToolbarHtml()}</div>
-        <textarea class="dashboard-input step-message" rows="4">${escapeHtml(step.message || "")}</textarea>
+        <div class="step-message-richtext"></div>
       </div>
     `;
   }
@@ -133,6 +132,7 @@
   }
 
   function addStepRow(step) {
+    step = step || {};
     const wrap = el("sequenceStepsList");
     if (!wrap) return;
     wrap.insertAdjacentHTML("beforeend", stepRowHtml(step));
@@ -141,7 +141,11 @@
     const rows = wrap.querySelectorAll(".dashboard-detail-section");
     const newRow = rows[rows.length - 1];
     if (newRow) {
-      Dashboard.wireEmailComposerToolbar(newRow.querySelector(".step-message-toolbar"), newRow.querySelector(".step-message"));
+      const richtextContainer = newRow.querySelector(".step-message-richtext");
+      richtextContainer.innerHTML = Dashboard.richTextEditorHtml();
+      const editor = Dashboard.wireRichTextEditor(richtextContainer.querySelector(".dashboard-richtext"));
+      editor.setHtml(step.message || "");
+      newRow._messageEditor = editor;
     }
   }
 
@@ -150,7 +154,7 @@
       delay_days: parseInt(row.querySelector(".step-delay-days")?.value || "0", 10) || 0,
       email_template: row.querySelector(".step-template-select")?.value || "",
       subject: row.querySelector(".step-subject")?.value.trim() || "",
-      message: row.querySelector(".step-message")?.value || "",
+      message: row._messageEditor ? row._messageEditor.getHtml() : "",
     }));
   }
 

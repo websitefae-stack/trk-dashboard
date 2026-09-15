@@ -6,6 +6,7 @@
   const API = "dashboard.api.shared.school_pipeline";
 
   let schoolName;
+  let oneOffMessageEditor;
   let currentSchool = null;
 
   function getCsrfToken() {
@@ -350,7 +351,7 @@
     el("sendOneOffBtn")?.addEventListener("click", async function () {
       const emails = Array.from(document.querySelectorAll(".one-off-contact-checkbox:checked")).map((cb) => cb.value);
       const subject = el("oneOffSubject")?.value.trim() || "";
-      const message = el("oneOffMessage")?.value.trim() || "";
+      const message = oneOffMessageEditor ? oneOffMessageEditor.getHtml() : "";
 
       if (!emails.length) {
         alert("Choose at least one contact.");
@@ -364,7 +365,7 @@
       try {
         await apiPost(`${API}.send_one_off_school_email`, { school: schoolName, contact_emails: emails, subject, message });
         el("oneOffSubject").value = "";
-        el("oneOffMessage").value = "";
+        if (oneOffMessageEditor) oneOffMessageEditor.setHtml("");
         await loadSchool();
       } catch (error) {
         alert(error.message || "Could not send this email.");
@@ -379,10 +380,10 @@
     schoolName = docnameInput.value;
 
     bindEvents();
-    const oneOffToolbar = el("oneOffMessageToolbar");
-    if (oneOffToolbar) {
-      oneOffToolbar.innerHTML = Dashboard.emailComposerToolbarHtml();
-      Dashboard.wireEmailComposerToolbar(oneOffToolbar, el("oneOffMessage"));
+    const oneOffContainer = el("oneOffMessageEditor");
+    if (oneOffContainer) {
+      oneOffContainer.innerHTML = Dashboard.richTextEditorHtml();
+      oneOffMessageEditor = Dashboard.wireRichTextEditor(oneOffContainer.querySelector(".dashboard-richtext"));
     }
     loadSchool();
     loadSequenceOptions();
