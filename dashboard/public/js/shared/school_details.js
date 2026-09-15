@@ -108,6 +108,8 @@
     const payload = Object.assign({
       school_name: currentSchool.school_name,
       website: el("schoolWebsiteInput")?.value.trim() || "",
+      address: el("schoolAddressInput")?.value.trim() || "",
+      telephone: el("schoolTelephoneInput")?.value.trim() || "",
       area: el("schoolAreaInput")?.value.trim() || "",
       notes: currentSchool.notes || "",
       contacts: readContactsFromForm(),
@@ -178,7 +180,7 @@
 
     try {
       const clients = await apiPost("dashboard.api.shared.leads.get_client_link_options", {});
-      select.innerHTML = '<option value="">— Create a new client —</option>' +
+      select.innerHTML = '<option value="">Choose an existing client…</option>' +
         clients.map((c) => `<option value="${escapeHtml(c.value)}">${escapeHtml(c.label)}</option>`).join("");
     } catch (error) {
       // Non-fatal - the button still works to create a new client.
@@ -321,19 +323,22 @@
 
       if (el("schoolStageSelect")) el("schoolStageSelect").value = currentSchool.stage;
       if (el("schoolWebsiteInput")) el("schoolWebsiteInput").value = currentSchool.website || "";
+      if (el("schoolAddressInput")) el("schoolAddressInput").value = currentSchool.address || "";
+      if (el("schoolTelephoneInput")) el("schoolTelephoneInput").value = currentSchool.telephone || "";
       if (el("schoolAreaInput")) el("schoolAreaInput").value = currentSchool.area || "";
       renderNotesLog(currentSchool.notes);
 
-      const clientNote = el("schoolLinkedClientNote");
-      const convertBtn = el("convertToClientBtn");
+      const linkedView = el("schoolLinkedClientView");
+      const convertView = el("schoolConvertView");
+      const viewClientBtn = el("viewLinkedClientBtn");
+
       if (currentSchool.linked_client) {
-        if (clientNote) {
-          clientNote.style.display = "block";
-          clientNote.innerHTML = `Linked to Client <a href="/franchisor_db/client_details?name=${encodeURIComponent(currentSchool.linked_client)}">${escapeHtml(currentSchool.linked_client)}</a>.`;
-        }
-        if (convertBtn) convertBtn.textContent = "View Client";
-      } else if (clientNote) {
-        clientNote.style.display = "none";
+        if (linkedView) linkedView.style.display = "block";
+        if (convertView) convertView.style.display = "none";
+        if (viewClientBtn) viewClientBtn.href = `/franchisor_db/client_details?name=${encodeURIComponent(currentSchool.linked_client)}`;
+      } else {
+        if (linkedView) linkedView.style.display = "none";
+        if (convertView) convertView.style.display = "block";
       }
 
       renderContacts(currentSchool.contacts);
@@ -388,31 +393,51 @@
       }
     });
 
-    el("convertToClientBtn")?.addEventListener("click", async function () {
-      if (currentSchool?.linked_client) {
-        window.location.href = `/franchisor_db/client_details?name=${encodeURIComponent(currentSchool.linked_client)}`;
+    el("createNewClientBtn")?.addEventListener("click", async function () {
+      if (!confirm(`Create a new Client for "${currentSchool.school_name}" and carry over all contacts?`)) return;
+
+      try {
+        const result = await apiPost(`${API}.convert_school_to_client`, { school: schoolName });
+        window.location.href = `/franchisor_db/client_details?name=${encodeURIComponent(result.client)}`;
+      } catch (error) {
+        alert(error.message || "Could not create a client.");
+      }
+    });
+
+    el("linkExistingClientBtn")?.addEventListener("click", async function () {
+      const selectedClient = el("convertClientSelect")?.value || "";
+      if (!selectedClient) {
+        alert("Choose a client to link to first.");
         return;
       }
 
-      const selectedClient = el("convertClientSelect")?.value || "";
-      const selectedClientLabel = selectedClient
-        ? el("convertClientSelect").options[el("convertClientSelect").selectedIndex].text
-        : "";
+      const selectedClientLabel = el("convertClientSelect").options[el("convertClientSelect").selectedIndex].text;
 
-      const confirmMessage = selectedClient
-        ? `Link "${currentSchool.school_name}" to the existing client "${selectedClientLabel}" and carry over all contacts?`
-        : `Create a new Client for "${currentSchool.school_name}" and carry over all contacts?`;
-
-      if (!confirm(confirmMessage)) return;
+      if (!confirm(`Link "${currentSchool.school_name}" to the existing client "${selectedClientLabel}" and carry over all contacts?`)) return;
 
       try {
         const result = await apiPost(`${API}.convert_school_to_client`, {
           school: schoolName,
-          client: selectedClient || undefined,
+          client: selectedClient,
         });
         window.location.href = `/franchisor_db/client_details?name=${encodeURIComponent(result.client)}`;
       } catch (error) {
-        alert(error.message || "Could not convert to a client.");
+        alert(error.message || "Could not link this client.");
+      }
+    });
+
+    el("copyIntakeFormLinkBtn")?.addEventListener("click", async function () {
+      const link = el("schoolIntakeFormLink")?.value || "";
+      const btn = el("copyIntakeFormLinkBtn");
+      try {
+        await navigator.clipboard.writeText(link);
+        if (btn) {
+          const original = btn.textContent;
+          btn.textContent = "Copied!";
+          setTimeout(function () { btn.textContent = original; }, 1500);
+        }
+      } catch (error) {
+        el("schoolIntakeFormLink")?.select();
       }
     });
 

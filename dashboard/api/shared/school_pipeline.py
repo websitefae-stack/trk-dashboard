@@ -196,6 +196,8 @@ def get_school(name=None):
         "name": doc.name,
         "school_name": doc.school_name,
         "website": doc.website,
+        "address": doc.address,
+        "telephone": doc.telephone,
         "area": doc.area,
         "stage": doc.stage,
         "notes": doc.notes,
@@ -233,6 +235,8 @@ def save_school(docname=None, data=None):
 
     doc.school_name = school_name
     doc.website = (payload.get("website") or "").strip()
+    doc.address = (payload.get("address") or "").strip()
+    doc.telephone = (payload.get("telephone") or "").strip()
     doc.area = (payload.get("area") or "").strip()
     doc.notes = payload.get("notes") or ""
 

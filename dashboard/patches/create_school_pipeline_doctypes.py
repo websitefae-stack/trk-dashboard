@@ -106,6 +106,8 @@ def _create_school_doctype():
         "fields": [
             {"fieldname": "school_name", "fieldtype": "Data", "label": "School Name", "reqd": 1, "in_list_view": 1},
             {"fieldname": "website", "fieldtype": "Data", "label": "Website"},
+            {"fieldname": "address", "fieldtype": "Small Text", "label": "Address"},
+            {"fieldname": "telephone", "fieldtype": "Data", "label": "Telephone"},
             {"fieldname": "area", "fieldtype": "Data", "label": "Area", "in_list_view": 1, "in_standard_filter": 1},
             {
                 "fieldname": "stage",

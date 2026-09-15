@@ -99,3 +99,4 @@ dashboard.patches.create_franchise_brochure_request_form
 dashboard.patches.add_file_franchisor_only_field
 dashboard.patches.create_school_pipeline_doctypes
 dashboard.patches.add_school_area_and_deputy_head_role
+dashboard.patches.add_school_address_and_telephone

@@ -18,6 +18,30 @@
   padding-top: 2px;
 }
 
+.dashboard-school-convert-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.dashboard-school-convert-row .dashboard-select {
+  width: auto;
+  min-width: 220px;
+}
+
+.dashboard-school-intake-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.dashboard-school-intake-link-row .dashboard-input {
+  flex: 1;
+  min-width: 220px;
+}
+
 .dashboard-school-notes-log {
   display: flex;
   flex-direction: column;
