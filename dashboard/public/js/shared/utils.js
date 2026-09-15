@@ -73,58 +73,143 @@
   };
 
   /**
-   * HTML for a small "Insert Image" / "Insert Link" toolbar, meant to sit
-   * directly above a plain <textarea> email composer. The composer's own
-   * plain_text_to_email_html() (Python) passes any line that already
-   * looks like HTML straight through unescaped, so writing real <img>/<a>
-   * markup into the textarea is already enough to make it render in the
-   * sent email - these two buttons just insert that markup for you
-   * instead of you having to type it by hand. Pair with
-   * Dashboard.wireEmailComposerToolbar().
+   * HTML for a small rich text editor: a toolbar (style dropdown for
+   * paragraph/heading/subheading, bold, italic, insert link, insert
+   * image) over a bigger contenteditable body - used wherever a School
+   * Pipeline email is composed. Pair with Dashboard.wireRichTextEditor().
+   * @param {string} [placeholder]
    * @returns {string}
    */
-  Dashboard.emailComposerToolbarHtml = function () {
+  Dashboard.richTextEditorHtml = function (placeholder) {
     return (
-      '<div class="dashboard-email-toolbar" style="display:flex; gap:8px; margin-bottom:6px;">' +
-      '<button type="button" class="dashboard-btn dashboard-btn-light dashboard-email-insert-image-btn" style="padding:4px 10px; font-size:12px;">Insert Image</button>' +
-      '<button type="button" class="dashboard-btn dashboard-btn-light dashboard-email-insert-link-btn" style="padding:4px 10px; font-size:12px;">Insert Link</button>' +
-      '<input type="file" accept="image/*" class="dashboard-email-image-input" style="display:none;">' +
+      '<div class="dashboard-richtext">' +
+      '<div class="dashboard-richtext-toolbar">' +
+      '<select class="dashboard-richtext-heading-select">' +
+      '<option value="">Style…</option>' +
+      '<option value="P">Normal text</option>' +
+      '<option value="H2">Heading</option>' +
+      '<option value="H3">Subheading</option>' +
+      "</select>" +
+      '<button type="button" class="dashboard-richtext-btn dashboard-richtext-bold-btn" title="Bold"><b>B</b></button>' +
+      '<button type="button" class="dashboard-richtext-btn dashboard-richtext-italic-btn" title="Italic"><i>I</i></button>' +
+      '<button type="button" class="dashboard-richtext-btn dashboard-richtext-link-btn" title="Insert Link">Link</button>' +
+      '<button type="button" class="dashboard-richtext-btn dashboard-richtext-image-btn" title="Insert Image">Image</button>' +
+      '<input type="file" accept="image/*" class="dashboard-richtext-image-input" style="display:none;">' +
+      "</div>" +
+      '<div class="dashboard-richtext-body" contenteditable="true" data-placeholder="' +
+      (placeholder || "Write your email…") +
+      '"></div>' +
       "</div>"
     );
   };
 
   /**
-   * Wires up the buttons from Dashboard.emailComposerToolbarHtml() (must
-   * already be in the DOM inside `root`) to insert markup into `textarea`
-   * at the current cursor position - an uploaded image via
-   * upload_school_pipeline_email_image, or a hand-typed link.
-   * @param {Element|null} root - contains the toolbar buttons
-   * @param {HTMLTextAreaElement|null} textarea - where markup gets inserted
+   * Wires up the toolbar/body from Dashboard.richTextEditorHtml() (must
+   * already be in the DOM inside `root`), and returns a small controller
+   * so the caller never has to touch the contenteditable's innerHTML
+   * directly.
+   * @param {Element|null} root - the ".dashboard-richtext" wrapper
+   * @returns {{getHtml: function, setHtml: function, isEmpty: function, focus: function}}
    */
-  Dashboard.wireEmailComposerToolbar = function (root, textarea) {
-    if (!root || !textarea) return;
+  Dashboard.wireRichTextEditor = function (root) {
+    var noop = { getHtml: function () { return ""; }, setHtml: function () {}, isEmpty: function () { return true; }, focus: function () {} };
+    if (!root) return noop;
 
-    var insertImageBtn = root.querySelector(".dashboard-email-insert-image-btn");
-    var insertLinkBtn = root.querySelector(".dashboard-email-insert-link-btn");
-    var fileInput = root.querySelector(".dashboard-email-image-input");
+    var body = root.querySelector(".dashboard-richtext-body");
+    if (!body) return noop;
+
+    var headingSelect = root.querySelector(".dashboard-richtext-heading-select");
+    var boldBtn = root.querySelector(".dashboard-richtext-bold-btn");
+    var italicBtn = root.querySelector(".dashboard-richtext-italic-btn");
+    var linkBtn = root.querySelector(".dashboard-richtext-link-btn");
+    var imageBtn = root.querySelector(".dashboard-richtext-image-btn");
+    var fileInput = root.querySelector(".dashboard-richtext-image-input");
+
+    try {
+      document.execCommand("defaultParagraphSeparator", false, "p");
+    } catch (e) {
+      // Some browsers don't support this - contenteditable still works,
+      // it just may wrap lines in <div> instead of <p> (both render fine
+      // in an email, and plain_text_to_email_html() on the Python side
+      // already passes either straight through untouched).
+    }
 
     function getCsrfToken() {
       var meta = document.querySelector('meta[name="csrf-token"]');
       return meta && meta.content ? meta.content : "";
     }
 
-    function insertAtCursor(text) {
-      var start = textarea.selectionStart != null ? textarea.selectionStart : textarea.value.length;
-      var end = textarea.selectionEnd != null ? textarea.selectionEnd : textarea.value.length;
-      var value = textarea.value;
-      textarea.value = value.slice(0, start) + text + value.slice(end);
-      var cursor = start + text.length;
-      textarea.selectionStart = textarea.selectionEnd = cursor;
-      textarea.focus();
+    function refreshEmptyState() {
+      var isEmpty = body.textContent.trim() === "";
+      body.classList.toggle("is-empty", isEmpty);
     }
 
-    if (insertImageBtn && fileInput) {
-      insertImageBtn.addEventListener("click", function () {
+    function saveSelectionRange() {
+      var sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && body.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+        return sel.getRangeAt(0);
+      }
+      return null;
+    }
+
+    function restoreSelectionRange(range) {
+      body.focus();
+      if (!range) return;
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+
+    body.addEventListener("input", refreshEmptyState);
+    body.addEventListener("blur", refreshEmptyState);
+    refreshEmptyState();
+
+    if (headingSelect) {
+      headingSelect.addEventListener("change", function () {
+        var value = headingSelect.value;
+        headingSelect.value = "";
+        if (!value) return;
+        body.focus();
+        document.execCommand("formatBlock", false, value);
+      });
+    }
+
+    if (boldBtn) {
+      boldBtn.addEventListener("click", function () {
+        body.focus();
+        document.execCommand("bold");
+      });
+    }
+
+    if (italicBtn) {
+      italicBtn.addEventListener("click", function () {
+        body.focus();
+        document.execCommand("italic");
+      });
+    }
+
+    if (linkBtn) {
+      linkBtn.addEventListener("click", function () {
+        var range = saveSelectionRange();
+        var hasSelectedText = !!(range && !range.collapsed);
+        var url = prompt("Link URL (e.g. https://example.com):");
+        if (!url) return;
+
+        restoreSelectionRange(range);
+
+        if (hasSelectedText) {
+          document.execCommand("createLink", false, url);
+        } else {
+          var text = prompt("Link text:", url) || url;
+          var escapedText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          document.execCommand("insertHTML", false, '<a href="' + url.replace(/"/g, "&quot;") + '">' + escapedText + "</a>");
+        }
+        refreshEmptyState();
+      });
+    }
+
+    if (imageBtn && fileInput) {
+      imageBtn.addEventListener("click", function () {
         fileInput.click();
       });
 
@@ -132,12 +217,13 @@
         var file = fileInput.files && fileInput.files[0];
         if (!file) return;
 
+        var range = saveSelectionRange();
         var formData = new FormData();
         formData.append("file", file);
 
-        var originalLabel = insertImageBtn.textContent;
-        insertImageBtn.disabled = true;
-        insertImageBtn.textContent = "Uploading…";
+        var originalLabel = imageBtn.textContent;
+        imageBtn.disabled = true;
+        imageBtn.textContent = "Uploading…";
 
         fetch("/api/method/dashboard.api.shared.school_pipeline.upload_school_pipeline_email_image", {
           method: "POST",
@@ -154,30 +240,35 @@
             });
           })
           .then(function (result) {
-            insertAtCursor('<img src="' + result.url + '" style="max-width:100%;">');
+            restoreSelectionRange(range);
+            document.execCommand("insertHTML", false, '<img src="' + result.url + '">');
+            refreshEmptyState();
           })
           .catch(function (error) {
             alert(error.message || "Could not upload image.");
           })
           .finally(function () {
-            insertImageBtn.disabled = false;
-            insertImageBtn.textContent = originalLabel;
+            imageBtn.disabled = false;
+            imageBtn.textContent = originalLabel;
             fileInput.value = "";
           });
       });
     }
 
-    if (insertLinkBtn) {
-      insertLinkBtn.addEventListener("click", function () {
-        var url = prompt("Link URL (e.g. https://example.com):");
-        if (!url) return;
-        var text = prompt("Link text:", url) || url;
-        insertAtCursor(
-          '<a href="' + url.replace(/"/g, "&quot;") + '">' +
-          text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") +
-          "</a>"
-        );
-      });
-    }
+    return {
+      getHtml: function () {
+        return body.textContent.trim() === "" ? "" : body.innerHTML;
+      },
+      setHtml: function (html) {
+        body.innerHTML = html || "";
+        refreshEmptyState();
+      },
+      isEmpty: function () {
+        return body.textContent.trim() === "";
+      },
+      focus: function () {
+        body.focus();
+      },
+    };
   };
 })();
