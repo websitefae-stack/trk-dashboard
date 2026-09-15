@@ -5,10 +5,7 @@
 
   const API = "dashboard.api.shared.school_pipeline";
 
-  const docnameInput = el("schoolDocname");
-  if (!docnameInput) return;
-
-  const schoolName = docnameInput.value;
+  let schoolName;
   let currentSchool = null;
 
   function getCsrfToken() {
@@ -74,18 +71,22 @@
     `;
   }
 
+  function wireContactRemoveButtons(wrap) {
+    wrap.querySelectorAll(".school-contact-remove").forEach((btn) => {
+      btn.onclick = function () {
+        const row = btn.closest(".dashboard-school-contact-row");
+        row?.nextElementSibling?.remove();
+        row?.remove();
+      };
+    });
+  }
+
   function renderContacts(contacts) {
     const wrap = el("schoolContactsList");
     if (!wrap) return;
 
     wrap.innerHTML = (contacts || []).map(contactRowHtml).join("");
-    wrap.querySelectorAll(".school-contact-remove").forEach((btn) => {
-      btn.addEventListener("click", function () {
-        const row = btn.closest(".dashboard-school-contact-row");
-        row?.nextElementSibling?.remove();
-        row?.remove();
-      });
-    });
+    wireContactRemoveButtons(wrap);
   }
 
   function readContactsFromForm() {
@@ -117,63 +118,6 @@
     await loadSchool();
   }
 
-  el("saveSchoolDetailsBtn")?.addEventListener("click", async function () {
-    try {
-      await saveSchool();
-    } catch (error) {
-      alert(error.message || "Could not save.");
-    }
-  });
-
-  el("saveContactsBtn")?.addEventListener("click", async function () {
-    try {
-      await saveSchool();
-    } catch (error) {
-      alert(error.message || "Could not save contacts.");
-    }
-  });
-
-  el("addContactRowBtn")?.addEventListener("click", function () {
-    const wrap = el("schoolContactsList");
-    if (!wrap) return;
-    wrap.insertAdjacentHTML("beforeend", contactRowHtml({}));
-    wrap.querySelectorAll(".school-contact-remove").forEach((btn) => {
-      btn.onclick = function () {
-        const row = btn.closest(".dashboard-school-contact-row");
-        row?.nextElementSibling?.remove();
-        row?.remove();
-      };
-    });
-  });
-
-  // ---------- Stage ----------
-
-  el("schoolStageSelect")?.addEventListener("change", async function () {
-    try {
-      await apiPost(`${API}.set_school_stage`, { school: schoolName, stage: el("schoolStageSelect").value });
-    } catch (error) {
-      alert(error.message || "Could not update stage.");
-    }
-  });
-
-  // ---------- Convert to Client ----------
-
-  el("convertToClientBtn")?.addEventListener("click", async function () {
-    if (currentSchool?.linked_client) {
-      window.location.href = `/franchisor_db/client_details?name=${encodeURIComponent(currentSchool.linked_client)}`;
-      return;
-    }
-
-    if (!confirm(`Create a new Client for "${currentSchool.school_name}" and carry over all contacts?`)) return;
-
-    try {
-      const result = await apiPost(`${API}.convert_school_to_client`, { school: schoolName });
-      window.location.href = `/franchisor_db/client_details?name=${encodeURIComponent(result.client)}`;
-    } catch (error) {
-      alert(error.message || "Could not convert to a client.");
-    }
-  });
-
   // ---------- Enrollment ----------
 
   async function loadSequenceOptions() {
@@ -188,25 +132,6 @@
       // Non-fatal.
     }
   }
-
-  el("enrollSchoolBtn")?.addEventListener("click", async function () {
-    const sequence = el("enrollSequenceSelect")?.value;
-    if (!sequence) {
-      alert("Choose a sequence first.");
-      return;
-    }
-
-    try {
-      await apiPost(`${API}.enroll_schools`, {
-        school_names: [schoolName],
-        sequence,
-        start_date: el("enrollStartDate")?.value || undefined,
-      });
-      await loadSchool();
-    } catch (error) {
-      alert(error.message || "Could not enrol this school.");
-    }
-  });
 
   function renderEnrollments(enrollments) {
     const body = el("enrollmentHistoryBody");
@@ -246,30 +171,6 @@
       </label>
     `).join("");
   }
-
-  el("sendOneOffBtn")?.addEventListener("click", async function () {
-    const emails = Array.from(document.querySelectorAll(".one-off-contact-checkbox:checked")).map((cb) => cb.value);
-    const subject = el("oneOffSubject")?.value.trim() || "";
-    const message = el("oneOffMessage")?.value.trim() || "";
-
-    if (!emails.length) {
-      alert("Choose at least one contact.");
-      return;
-    }
-    if (!subject || !message) {
-      alert("Subject and message are required.");
-      return;
-    }
-
-    try {
-      await apiPost(`${API}.send_one_off_school_email`, { school: schoolName, contact_emails: emails, subject, message });
-      el("oneOffSubject").value = "";
-      el("oneOffMessage").value = "";
-      await loadSchool();
-    } catch (error) {
-      alert(error.message || "Could not send this email.");
-    }
-  });
 
   // ---------- Timeline ----------
 
@@ -333,6 +234,114 @@
     }
   }
 
-  loadSchool();
-  loadSequenceOptions();
+  // ---------- Event bindings ----------
+
+  function bindEvents() {
+    el("saveSchoolDetailsBtn")?.addEventListener("click", async function () {
+      try {
+        await saveSchool();
+      } catch (error) {
+        alert(error.message || "Could not save.");
+      }
+    });
+
+    el("saveContactsBtn")?.addEventListener("click", async function () {
+      try {
+        await saveSchool();
+      } catch (error) {
+        alert(error.message || "Could not save contacts.");
+      }
+    });
+
+    el("addContactRowBtn")?.addEventListener("click", function () {
+      const wrap = el("schoolContactsList");
+      if (!wrap) return;
+      wrap.insertAdjacentHTML("beforeend", contactRowHtml({}));
+      wireContactRemoveButtons(wrap);
+    });
+
+    el("schoolStageSelect")?.addEventListener("change", async function () {
+      try {
+        await apiPost(`${API}.set_school_stage`, { school: schoolName, stage: el("schoolStageSelect").value });
+      } catch (error) {
+        alert(error.message || "Could not update stage.");
+      }
+    });
+
+    el("convertToClientBtn")?.addEventListener("click", async function () {
+      if (currentSchool?.linked_client) {
+        window.location.href = `/franchisor_db/client_details?name=${encodeURIComponent(currentSchool.linked_client)}`;
+        return;
+      }
+
+      if (!confirm(`Create a new Client for "${currentSchool.school_name}" and carry over all contacts?`)) return;
+
+      try {
+        const result = await apiPost(`${API}.convert_school_to_client`, { school: schoolName });
+        window.location.href = `/franchisor_db/client_details?name=${encodeURIComponent(result.client)}`;
+      } catch (error) {
+        alert(error.message || "Could not convert to a client.");
+      }
+    });
+
+    el("enrollSchoolBtn")?.addEventListener("click", async function () {
+      const sequence = el("enrollSequenceSelect")?.value;
+      if (!sequence) {
+        alert("Choose a sequence first.");
+        return;
+      }
+
+      try {
+        await apiPost(`${API}.enroll_schools`, {
+          school_names: [schoolName],
+          sequence,
+          start_date: el("enrollStartDate")?.value || undefined,
+        });
+        await loadSchool();
+      } catch (error) {
+        alert(error.message || "Could not enrol this school.");
+      }
+    });
+
+    el("sendOneOffBtn")?.addEventListener("click", async function () {
+      const emails = Array.from(document.querySelectorAll(".one-off-contact-checkbox:checked")).map((cb) => cb.value);
+      const subject = el("oneOffSubject")?.value.trim() || "";
+      const message = el("oneOffMessage")?.value.trim() || "";
+
+      if (!emails.length) {
+        alert("Choose at least one contact.");
+        return;
+      }
+      if (!subject || !message) {
+        alert("Subject and message are required.");
+        return;
+      }
+
+      try {
+        await apiPost(`${API}.send_one_off_school_email`, { school: schoolName, contact_emails: emails, subject, message });
+        el("oneOffSubject").value = "";
+        el("oneOffMessage").value = "";
+        await loadSchool();
+      } catch (error) {
+        alert(error.message || "Could not send this email.");
+      }
+    });
+  }
+
+  function init() {
+    const docnameInput = el("schoolDocname");
+    if (!docnameInput) return;
+
+    schoolName = docnameInput.value;
+
+    bindEvents();
+    loadSchool();
+    loadSequenceOptions();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 })();

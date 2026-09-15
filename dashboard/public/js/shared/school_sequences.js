@@ -6,9 +6,6 @@
   const API = "dashboard.api.shared.school_pipeline";
   const TEMPLATE_API = "dashboard.api.shared.email_templates.get_email_template_options";
 
-  const listCard = el("sequenceListCard");
-  if (!listCard) return;
-
   let templateOptions = [];
 
   function getCsrfToken() {
@@ -109,20 +106,18 @@
     `;
   }
 
-  function addStepRow(step) {
-    const wrap = el("sequenceStepsList");
-    if (!wrap) return;
-    wrap.insertAdjacentHTML("beforeend", stepRowHtml(step));
-    wireStepRemoveButtons();
-  }
-
   function wireStepRemoveButtons() {
     document.querySelectorAll(".step-remove-btn").forEach((btn) => {
       btn.onclick = function () { btn.closest(".dashboard-detail-section")?.remove(); };
     });
   }
 
-  el("addStepBtn")?.addEventListener("click", function () { addStepRow({}); });
+  function addStepRow(step) {
+    const wrap = el("sequenceStepsList");
+    if (!wrap) return;
+    wrap.insertAdjacentHTML("beforeend", stepRowHtml(step));
+    wireStepRemoveButtons();
+  }
 
   function readSteps() {
     return Array.from(document.querySelectorAll("#sequenceStepsList > .dashboard-detail-section")).map((row) => ({
@@ -168,10 +163,7 @@
     }
   }
 
-  el("newSequenceBtn")?.addEventListener("click", function () { openEditor(null); });
-  el("cancelSequenceEdit")?.addEventListener("click", function () { showEditor(false); });
-
-  el("saveSequenceBtn")?.addEventListener("click", async function () {
+  async function saveSequence() {
     const sequenceName = el("sequenceNameInput")?.value.trim();
     if (!sequenceName) {
       alert("Sequence name is required.");
@@ -199,7 +191,7 @@
     } catch (error) {
       alert(error.message || "Could not save this sequence.");
     }
-  });
+  }
 
   async function loadTemplateOptions() {
     try {
@@ -209,8 +201,27 @@
     }
   }
 
-  (async function init() {
+  // ---------- Event bindings ----------
+
+  function bindEvents() {
+    el("addStepBtn")?.addEventListener("click", function () { addStepRow({}); });
+    el("newSequenceBtn")?.addEventListener("click", function () { openEditor(null); });
+    el("cancelSequenceEdit")?.addEventListener("click", function () { showEditor(false); });
+    el("saveSequenceBtn")?.addEventListener("click", saveSequence);
+  }
+
+  async function init() {
+    const listCard = el("sequenceListCard");
+    if (!listCard) return;
+
+    bindEvents();
     await loadTemplateOptions();
     await loadSequenceList();
-  })();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 })();
