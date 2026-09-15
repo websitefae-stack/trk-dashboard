@@ -6,9 +6,7 @@
   const API = "dashboard.api.shared.school_pipeline";
   const STAGES = ["New", "In Sequence", "Idle", "Responded", "Call Booked", "Customer", "Declined"];
 
-  const board = el("schoolsBoard");
-  if (!board) return;
-
+  let board;
   let schools = [];
   let selected = new Set();
 
@@ -53,7 +51,7 @@
 
     return `
       <div class="dashboard-lead-card dashboard-school-card" data-school="${escapeHtml(school.name)}">
-        <label class="dashboard-school-card-select" onclick="event.stopPropagation();">
+        <label class="dashboard-school-card-select">
           <input type="checkbox" class="school-select-checkbox" data-school="${escapeHtml(school.name)}" ${selected.has(school.name) ? "checked" : ""}>
         </label>
         <div class="dashboard-school-card-body">
@@ -91,6 +89,15 @@
       card.addEventListener("click", function () {
         window.location.href = `/franchisor_db/school_details?name=${encodeURIComponent(card.dataset.school)}`;
       });
+    });
+
+    board.querySelectorAll(".dashboard-school-card-select").forEach((label) => {
+      // Stops a click on the checkbox from also triggering the card's own
+      // click-to-navigate handler above - was an inline onclick, moved
+      // here since some site CSP configurations block inline handlers
+      // outright with no visible error, which is indistinguishable from
+      // the checkbox silently doing nothing at all.
+      label.addEventListener("click", function (event) { event.stopPropagation(); });
     });
 
     board.querySelectorAll(".school-select-checkbox").forEach((checkbox) => {
@@ -134,6 +141,7 @@
     }
   }
 
+  function bindEvents() {
   el("schoolsBulkEnroll")?.addEventListener("click", async function () {
     const sequence = el("schoolsBulkSequence")?.value;
     const startDate = el("schoolsBulkStartDate")?.value;
@@ -262,7 +270,20 @@
       alert(error.message || "Could not save this school.");
     }
   });
+  } // end bindEvents
 
-  loadSchools();
-  loadSequenceOptions();
+  function init() {
+    board = el("schoolsBoard");
+    if (!board) return;
+
+    bindEvents();
+    loadSchools();
+    loadSequenceOptions();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 })();

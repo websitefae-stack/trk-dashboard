@@ -587,7 +587,6 @@ def get_allocation_target_clients():
 	return rows
 
 
-@frappe.whitelist()
 def _infer_recipient_type(relationship, is_billing_contact):
 	"""
 	recipient_type is still a required field on Client Document Share (used
@@ -612,6 +611,7 @@ def _infer_recipient_type(relationship, is_billing_contact):
 	return "Other Authorised Contact"
 
 
+@frappe.whitelist()
 def allocate_document_to_client(requirement_name=None, practice_document=None, client=None, recipient_contact=None, message=None):
 	"""
 	Records that a coach/franchisor/session worker has decided to share
