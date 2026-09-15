@@ -9,6 +9,7 @@ from dashboard.api.shared.contacts import (
     is_franchisor_user,
 )
 from dashboard.api.shared.permissions import ensure_logged_in
+from dashboard.api.shared.practice_documents import get_contact_document_shares
 
 
 EDITABLE_CONTACT_FIELDS = [
@@ -451,6 +452,7 @@ def get_contact_context(scope, contact_name=None, is_new=False, view_coach_name=
             "is_new": 1,
             "linked_clients": [],
             "contact_invoices": [],
+            "contact_document_shares": [],
             "clients": frappe.get_all(
                 "Client",
                 fields=[
@@ -513,6 +515,7 @@ def get_contact_context(scope, contact_name=None, is_new=False, view_coach_name=
         "is_new": 0,
         "linked_clients": linked_clients,
         "contact_invoices": get_contact_invoices(linked_clients),
+        "contact_document_shares": get_contact_document_shares(contact.name),
         "contact_details_scope": scope,
         "contact_details_base_url": get_base_url_for_scope(scope),
         "contact_details_save_method": "dashboard.api.shared.contact_details.save_contact",

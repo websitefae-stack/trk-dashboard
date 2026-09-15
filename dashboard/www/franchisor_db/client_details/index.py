@@ -7,6 +7,7 @@ from dashboard.api.shared.client_details import (
     get_franchisor_name,
 )
 from dashboard.api.shared.school_pipeline import get_school_for_client
+from dashboard.api.shared.practice_documents import get_client_document_shares
 
 
 def get_context(context):
@@ -51,3 +52,11 @@ def get_context(context):
 
     if linked_school:
         context.tabs.append({"label": "School Pipeline", "custom": "school_pipeline", "sections": []})
+
+    # Only a client with at least one document actually shared gets this
+    # tab - see practice_documents.get_client_document_shares.
+    if client_name and not is_new:
+        shares = get_client_document_shares(client_name)
+        context.client_document_shares = shares
+        if shares:
+            context.tabs.append({"label": "Resources", "custom": "resources", "sections": []})
