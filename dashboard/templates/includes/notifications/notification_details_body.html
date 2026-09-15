@@ -34,14 +34,14 @@
           </button>
 
           <button type="button" class="dashboard-btn dashboard-btn-light" id="toggleNotificationDetails">
-            Details
+            Hide Details
           </button>
         </div>
       </div>
 
       <input type="hidden" id="notificationDocname" value="{{ notification_docname or '' }}">
 
-      <div id="notificationDetailsMeta" class="dashboard-detail-grid notification-detail-grid-compact is-hidden">
+      <div id="notificationDetailsMeta" class="dashboard-detail-grid notification-detail-grid-compact">
         <div class="dashboard-detail-field">
           <label>Type</label>
           <div class="dashboard-html-block" id="notificationTypeText">—</div>
@@ -65,6 +65,11 @@
         <div class="dashboard-detail-field">
           <label>Requires Response</label>
           <div class="dashboard-html-block" id="notificationRequiresResponseText">—</div>
+        </div>
+
+        <div class="dashboard-detail-field" id="notificationReplyScopeField" style="display:none;">
+          <label>Replies</label>
+          <div class="dashboard-html-block" id="notificationReplyScopeText">—</div>
         </div>
 
         <div class="dashboard-detail-field">

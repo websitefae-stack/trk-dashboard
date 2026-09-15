@@ -63,6 +63,16 @@
         <div id="notificationRecipients" class="dashboard-help">Open the panel to load available recipients.</div>
       </div>
 
+      <div class="dashboard-detail-field dashboard-detail-field-full" id="notificationReplyScopeField" style="display:none;">
+        <label>Replies</label>
+        <label class="dashboard-checkbox-label" style="display:block;">
+          <input type="radio" name="notificationReplyScope" value="Individual" checked> Reply to Office Only - each person's reply only comes back to you, not to everyone else in this message
+        </label>
+        <label class="dashboard-checkbox-label" style="display:block;">
+          <input type="radio" name="notificationReplyScope" value="All"> Reply to All - select this if everyone in this message should see each other's replies too
+        </label>
+      </div>
+
       <div class="dashboard-detail-field">
         <label for="notificationLinkedClient">Linked Client</label>
         <select id="notificationLinkedClient" class="dashboard-input">
