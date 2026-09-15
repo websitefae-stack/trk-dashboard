@@ -172,6 +172,14 @@ def get_school(name=None):
         limit_page_length=200,
         ignore_permissions=True,
     )
+    for row in timeline:
+        if row.get("sent_or_received") == "Received":
+            # A received reply's content is the raw HTML of whatever mail
+            # client sent it (Outlook's is notoriously messy - full of
+            # <o:p>, MsoNormal classes, inline Word styles) - unreadable
+            # if shown as-is. Down to plain text, same fix as the
+            # auto-logged Responded note above.
+            row["content"] = _html_to_plain_text(row.get("content") or "")
 
     return {
         "name": doc.name,
@@ -608,6 +616,10 @@ def send_one_off_school_email(school=None, contact_emails=None, subject=None, me
             reference_doctype=SCHOOL_DOCTYPE,
             reference_name=school,
             now=True,
+            # Otherwise Frappe appends its own default footer below ours
+            # ("The Resilient Kid / Sent via ERPNext") - the whole point
+            # of wrap_branded_email_html() is to be the only footer.
+            add_unsubscribe_link=0,
         )
 
     frappe.db.commit()
@@ -723,6 +735,7 @@ def _send_next_school_step(enrollment_name):
                 reference_doctype=SCHOOL_DOCTYPE,
                 reference_name=school.name,
                 now=True,
+                add_unsubscribe_link=0,
             )
             enrollment.last_sent_on = frappe.utils.now_datetime()
         else:
