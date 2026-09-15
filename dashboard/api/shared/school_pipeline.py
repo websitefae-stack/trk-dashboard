@@ -30,7 +30,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, getdate, nowdate
 
-from dashboard.api.shared.email_templates import _body_fieldname, plain_text_to_email_html, render_email
+from dashboard.api.shared.email_templates import _body_fieldname, plain_text_to_email_html, render_email, wrap_branded_email_html
 from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user
 from dashboard.api.shared.profile import ASHLEY_USER, OFFICE_USER
 
@@ -517,7 +517,7 @@ def send_one_off_school_email(school=None, contact_emails=None, subject=None, me
             recipients=[email],
             reply_to=OFFICE_USER,
             subject=frappe.render_template(subject, context),
-            message=plain_text_to_email_html(frappe.render_template(message, context)),
+            message=wrap_branded_email_html(plain_text_to_email_html(frappe.render_template(message, context))),
             reference_doctype=SCHOOL_DOCTYPE,
             reference_name=school,
             now=True,
@@ -632,7 +632,7 @@ def _send_next_school_step(enrollment_name):
                 cc=cc_emails,
                 reply_to=OFFICE_USER,
                 subject=subject or sequence.sequence_name,
-                message=plain_text_to_email_html(message) if message else "",
+                message=wrap_branded_email_html(plain_text_to_email_html(message)) if message else "",
                 reference_doctype=SCHOOL_DOCTYPE,
                 reference_name=school.name,
                 now=True,
