@@ -40,10 +40,20 @@
         <label for="schoolWebsiteInput">Website</label>
         <input type="text" id="schoolWebsiteInput" class="dashboard-input">
 
-        <label for="schoolNotesInput" style="margin-top:12px;">General Notes</label>
-        <textarea id="schoolNotesInput" class="dashboard-input" rows="3"></textarea>
-
         <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveSchoolDetailsBtn" style="margin-top:10px;">Save Details</button>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">General Notes</div>
+        </div>
+
+        <div id="schoolNotesLog" class="dashboard-school-notes-log"></div>
+
+        <label for="schoolNewNoteInput" style="margin-top:12px;">Add a Note</label>
+        <textarea id="schoolNewNoteInput" class="dashboard-input" rows="2" placeholder="e.g. Meeting booked for 20 Sep"></textarea>
+
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="addSchoolNoteBtn" style="margin-top:10px;">Add Note</button>
       </div>
 
       <div class="dashboard-card">
