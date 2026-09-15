@@ -211,6 +211,19 @@
                   Consent to be contacted
                 </label>
               </div>
+
+              {% if show_coach_field %}
+              <div class="dashboard-detail-field">
+                <label for="lead_coach">Reassign To</label>
+                <select id="lead_coach" class="dashboard-input">
+                  <option value="">— Keep with me —</option>
+                  {% for c in coaches %}
+                    <option value="{{ c.name }}">{{ c.coach_name or c.name }}</option>
+                  {% endfor %}
+                </select>
+                <div class="dashboard-field-hint">Hands this lead over to a different coach - it'll move to their Leads list and off yours once you save.</div>
+              </div>
+              {% endif %}
             </div>
           </section>
 

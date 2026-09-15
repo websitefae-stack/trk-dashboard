@@ -580,13 +580,16 @@ def update_lead(
     doc.contact_mobile = coalesce_str("contact_mobile", contact_mobile)
     doc.client_name = client_name
 
-    # Reassigning which coach a lead belongs to is a franchisor-only
-    # action (a coach's own Lead Details page never shows this field, but
-    # the backend shouldn't just trust that) - only the franchisor
-    # dashboard's "Coach" select on an existing lead ever sends this.
+    # Reassigning which coach a lead belongs to - the franchisor can do
+    # this for any lead, and a coach can hand off a lead currently
+    # assigned to them (see "Reassign To" in the Enquiry section of
+    # their own Lead Details page) - never anyone else's, since
+    # ensure_lead_access() above already only let them get this far if
+    # doc.coach was already their own name to begin with.
     previous_coach = doc.coach
     coach = coalesce_str("coach", coach)
-    if coach and is_franchisor_user() and coach != doc.coach:
+    can_reassign = is_franchisor_user() or _current_coach_name() == previous_coach
+    if coach and can_reassign and coach != doc.coach:
         if not frappe.db.exists("Coach", coach):
             frappe.throw(_("Coach not found."))
 

@@ -24,4 +24,14 @@ def get_context(context):
     context.is_new = bool(frappe.form_dict.get("new"))
     context.lead_name = frappe.form_dict.get("name") or ""
     context.page_title = "New Lead" if context.is_new else "Lead"
-    context.show_coach_field = 0
+
+    # A coach can hand an existing lead of theirs off to a colleague (see
+    # the "Reassign To" field in the Enquiry section) - never shown for a
+    # brand new lead, which is always theirs to begin with.
+    context.show_coach_field = 0 if context.is_new else 1
+
+    context.coaches = frappe.get_all(
+        "Coach",
+        fields=["name", "coach_name"],
+        order_by="coach_name asc",
+    )
