@@ -379,6 +379,11 @@
     schoolName = docnameInput.value;
 
     bindEvents();
+    const oneOffToolbar = el("oneOffMessageToolbar");
+    if (oneOffToolbar) {
+      oneOffToolbar.innerHTML = Dashboard.emailComposerToolbarHtml();
+      Dashboard.wireEmailComposerToolbar(oneOffToolbar, el("oneOffMessage"));
+    }
     loadSchool();
     loadSequenceOptions();
   }

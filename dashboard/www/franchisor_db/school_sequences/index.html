@@ -19,6 +19,34 @@
         </div>
       </div>
 
+      <div class="dashboard-card" id="emailBrandingCard">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Email Branding</div>
+        </div>
+
+        <div class="dashboard-field-hint" style="margin-bottom:12px;">
+          This logo and footer are used on every School Pipeline email - the automatic sequence emails and the one-off targeted emails.
+        </div>
+
+        <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
+          <div>
+            <label>Logo</label>
+            <div style="margin:6px 0;">
+              <img id="brandingLogoPreview" src="" alt="" style="max-width:180px; max-height:80px; display:none; background:#F2F8F8; border-radius:6px; padding:6px;">
+              <span id="brandingLogoPreviewEmpty" class="dashboard-empty">Using the default Resilient Hub logo</span>
+            </div>
+            <input type="file" id="brandingLogoInput" accept="image/*" class="dashboard-input">
+          </div>
+
+          <div style="flex:1; min-width:240px;">
+            <label for="brandingFooterInput">Footer Text</label>
+            <textarea id="brandingFooterInput" class="dashboard-input" rows="3" placeholder="Leave blank to use the default footer"></textarea>
+          </div>
+        </div>
+
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveBrandingBtn" style="margin-top:12px;">Save Branding</button>
+      </div>
+
       <div class="dashboard-card" id="sequenceListCard">
         <div class="dashboard-table-header">
           <div class="dashboard-table-title">Sequences</div>

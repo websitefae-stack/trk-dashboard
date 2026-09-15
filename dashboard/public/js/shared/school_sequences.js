@@ -33,6 +33,23 @@
     return data.message;
   }
 
+  async function apiPostForm(method, formData) {
+    const response = await fetch(`/api/method/${method}`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "X-Frappe-CSRF-Token": getCsrfToken() },
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || data.exc) {
+      throw new Error(data.message || "There was a problem.");
+    }
+
+    return data.message;
+  }
+
   function escapeHtml(value) {
     return String(value ?? "")
       .replace(/&/g, "&amp;")
@@ -103,6 +120,7 @@
         <input type="text" class="dashboard-input step-subject" value="${escapeHtml(step.subject || "")}">
 
         <label style="margin-top:8px;">Message</label>
+        <div class="step-message-toolbar">${Dashboard.emailComposerToolbarHtml()}</div>
         <textarea class="dashboard-input step-message" rows="4">${escapeHtml(step.message || "")}</textarea>
       </div>
     `;
@@ -119,6 +137,12 @@
     if (!wrap) return;
     wrap.insertAdjacentHTML("beforeend", stepRowHtml(step));
     wireStepRemoveButtons();
+
+    const rows = wrap.querySelectorAll(".dashboard-detail-section");
+    const newRow = rows[rows.length - 1];
+    if (newRow) {
+      Dashboard.wireEmailComposerToolbar(newRow.querySelector(".step-message-toolbar"), newRow.querySelector(".step-message"));
+    }
   }
 
   function readSteps() {
@@ -203,6 +227,56 @@
     }
   }
 
+  // ---------- Email Branding ----------
+
+  function renderLogoPreview(logoUrl) {
+    const img = el("brandingLogoPreview");
+    const empty = el("brandingLogoPreviewEmpty");
+    if (!img || !empty) return;
+
+    if (logoUrl) {
+      img.src = logoUrl;
+      img.style.display = "inline-block";
+      empty.style.display = "none";
+    } else {
+      img.style.display = "none";
+      empty.style.display = "inline";
+    }
+  }
+
+  async function loadEmailBranding() {
+    try {
+      const branding = await apiPost(`${API}.get_email_branding`, {});
+      renderLogoPreview(branding.logo_url);
+      if (el("brandingFooterInput")) el("brandingFooterInput").value = branding.footer_text || "";
+    } catch (error) {
+      // Non-critical - the sequence list below is the important part of
+      // this page, so a branding load failure shouldn't block it.
+    }
+  }
+
+  async function saveEmailBranding() {
+    const btn = el("saveBrandingBtn");
+    const logoFile = el("brandingLogoInput")?.files?.[0];
+
+    const formData = new FormData();
+    formData.append("footer_text", el("brandingFooterInput")?.value || "");
+    if (logoFile) formData.append("logo", logoFile);
+
+    const originalLabel = btn ? btn.textContent : "";
+    if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+
+    try {
+      const branding = await apiPostForm(`${API}.save_email_branding`, formData);
+      renderLogoPreview(branding.logo_url);
+      if (el("brandingLogoInput")) el("brandingLogoInput").value = "";
+    } catch (error) {
+      alert(error.message || "Could not save email branding.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
+    }
+  }
+
   // ---------- Event bindings ----------
 
   function bindEvents() {
@@ -210,6 +284,7 @@
     el("newSequenceBtn")?.addEventListener("click", function () { openEditor(null); });
     el("cancelSequenceEdit")?.addEventListener("click", function () { showEditor(false); });
     el("saveSequenceBtn")?.addEventListener("click", saveSequence);
+    el("saveBrandingBtn")?.addEventListener("click", saveEmailBranding);
   }
 
   async function init() {
@@ -217,6 +292,7 @@
     if (!listCard) return;
 
     bindEvents();
+    await loadEmailBranding();
     await loadTemplateOptions();
     await loadSequenceList();
   }
