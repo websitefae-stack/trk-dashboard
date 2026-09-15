@@ -270,6 +270,81 @@
       alert(error.message || "Could not save this school.");
     }
   });
+
+  // ---------- Import Schools modal ----------
+
+  function openImportSchoolsModal() {
+    const modal = el("importSchoolsModal");
+    if (!modal) return;
+
+    if (el("importSchoolsFile")) el("importSchoolsFile").value = "";
+    if (el("importSchoolsResult")) el("importSchoolsResult").innerHTML = "";
+
+    modal.classList.add("is-open");
+  }
+
+  function closeImportSchoolsModal() {
+    el("importSchoolsModal")?.classList.remove("is-open");
+  }
+
+  el("importSchoolsBtn")?.addEventListener("click", openImportSchoolsModal);
+  el("closeImportSchoolsModal")?.addEventListener("click", closeImportSchoolsModal);
+  el("cancelImportSchoolsModal")?.addEventListener("click", closeImportSchoolsModal);
+
+  el("runImportSchools")?.addEventListener("click", async function () {
+    const fileInput = el("importSchoolsFile");
+    const resultBox = el("importSchoolsResult");
+    const file = fileInput?.files?.[0];
+
+    if (!file) {
+      alert("Choose a CSV file first.");
+      return;
+    }
+
+    const btn = el("runImportSchools");
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Importing…";
+    if (resultBox) resultBox.innerHTML = "";
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch(`/api/method/${API}.import_schools_from_csv`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-Frappe-CSRF-Token": getCsrfToken() },
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok || data.exc) {
+        throw new Error(data.message || "Could not import this file.");
+      }
+
+      const result = data.message;
+      const errorsHtml = result.row_errors && result.row_errors.length
+        ? `<div class="dashboard-field-hint" style="margin-top:8px; color:#B3261E;">${result.row_errors.map(escapeHtml).join("<br>")}</div>`
+        : "";
+
+      if (resultBox) {
+        resultBox.innerHTML = `
+          <div class="dashboard-field-hint">
+            ${result.schools_created} school(s) created, ${result.schools_updated} existing school(s) updated,
+            ${result.contacts_added} contact(s) added${result.contacts_skipped_duplicate ? `, ${result.contacts_skipped_duplicate} contact(s) skipped (already existed)` : ""}.
+          </div>
+          ${errorsHtml}
+        `;
+      }
+
+      await loadSchools();
+    } catch (error) {
+      if (resultBox) resultBox.innerHTML = `<div class="dashboard-field-hint" style="color:#B3261E;">${escapeHtml(error.message || "Could not import this file.")}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    }
+  });
   } // end bindEvents
 
   function init() {

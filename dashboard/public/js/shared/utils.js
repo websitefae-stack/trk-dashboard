@@ -74,9 +74,10 @@
 
   /**
    * HTML for a small rich text editor: a toolbar (style dropdown for
-   * paragraph/heading/subheading, bold, italic, insert link, insert
-   * image) over a bigger contenteditable body - used wherever a School
-   * Pipeline email is composed. Pair with Dashboard.wireRichTextEditor().
+   * paragraph/heading/subheading, bold, italic, bullet list, insert
+   * link, insert image) over a bigger contenteditable body - used
+   * wherever a School Pipeline email is composed. Pair with
+   * Dashboard.wireRichTextEditor().
    * @param {string} [placeholder]
    * @returns {string}
    */
@@ -92,6 +93,7 @@
       "</select>" +
       '<button type="button" class="dashboard-richtext-btn dashboard-richtext-bold-btn" title="Bold"><b>B</b></button>' +
       '<button type="button" class="dashboard-richtext-btn dashboard-richtext-italic-btn" title="Italic"><i>I</i></button>' +
+      '<button type="button" class="dashboard-richtext-btn dashboard-richtext-bullet-btn" title="Bullet List">• List</button>' +
       '<button type="button" class="dashboard-richtext-btn dashboard-richtext-link-btn" title="Insert Link">Link</button>' +
       '<button type="button" class="dashboard-richtext-btn dashboard-richtext-image-btn" title="Insert Image">Image</button>' +
       '<input type="file" accept="image/*" class="dashboard-richtext-image-input" style="display:none;">' +
@@ -121,6 +123,7 @@
     var headingSelect = root.querySelector(".dashboard-richtext-heading-select");
     var boldBtn = root.querySelector(".dashboard-richtext-bold-btn");
     var italicBtn = root.querySelector(".dashboard-richtext-italic-btn");
+    var bulletBtn = root.querySelector(".dashboard-richtext-bullet-btn");
     var linkBtn = root.querySelector(".dashboard-richtext-link-btn");
     var imageBtn = root.querySelector(".dashboard-richtext-image-btn");
     var fileInput = root.querySelector(".dashboard-richtext-image-input");
@@ -219,6 +222,13 @@
       italicBtn.addEventListener("click", function () {
         body.focus();
         document.execCommand("italic");
+      });
+    }
+
+    if (bulletBtn) {
+      bulletBtn.addEventListener("click", function () {
+        body.focus();
+        document.execCommand("insertUnorderedList");
       });
     }
 

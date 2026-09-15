@@ -93,6 +93,16 @@
   margin-top: 12px;
 }
 
+.dashboard-richtext-body ul,
+.dashboard-richtext-body ol {
+  margin: 0 0 12px;
+  padding-left: 22px;
+}
+
+.dashboard-richtext-body li {
+  margin-bottom: 4px;
+}
+
 .dashboard-richtext-body h2 {
   font-size: 20px;
   margin: 0 0 10px;

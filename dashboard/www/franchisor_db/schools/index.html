@@ -17,6 +17,9 @@
           <a class="dashboard-btn dashboard-btn-light" href="/franchisor_db/school_sequences">
             Manage Sequences
           </a>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="importSchoolsBtn">
+            Import Schools
+          </button>
           <button type="button" class="dashboard-btn dashboard-btn-primary" id="addSchoolBtn">
             Add School
           </button>
@@ -82,6 +85,31 @@
     <div class="dashboard-modal-foot">
       <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelAddSchoolModal">Cancel</button>
       <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveNewSchool">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-modal-backdrop" id="importSchoolsModal">
+  <div class="dashboard-modal">
+    <div class="dashboard-modal-head">
+      <h3>Import Schools</h3>
+      <button type="button" class="dashboard-modal-close" id="closeImportSchoolsModal">×</button>
+    </div>
+
+    <div class="dashboard-modal-body">
+      <div class="dashboard-field-hint" style="margin-bottom:12px;">
+        A CSV file, one row per contact: <strong>School Name</strong>, <strong>Website</strong> (optional), <strong>Contact Name</strong>, <strong>Contact Role</strong> (SENCO, Head, Reception or Other - optional), <strong>Contact Email</strong>. Several contacts for the same school are just several rows with the same School Name. If a school already exists (matched by name), new contacts are added to it rather than creating a duplicate - already-imported contacts are skipped, so it's safe to re-upload the same file after fixing a few rows.
+      </div>
+
+      <label for="importSchoolsFile">CSV File</label>
+      <input type="file" id="importSchoolsFile" accept=".csv" class="dashboard-input">
+
+      <div id="importSchoolsResult" style="margin-top:14px;"></div>
+    </div>
+
+    <div class="dashboard-modal-foot">
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelImportSchoolsModal">Cancel</button>
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="runImportSchools">Import</button>
     </div>
   </div>
 </div>
