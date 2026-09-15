@@ -67,7 +67,7 @@
         <label style="display:flex; align-items:center; gap:6px;">
           <input type="checkbox" class="school-contact-responded" ${responded}> Responded
         </label>
-        <input type="text" class="dashboard-input school-contact-note" placeholder="Response note" value="${escapeHtml(contact.response_note || "")}" style="flex:1;">
+        <input type="hidden" class="school-contact-note" value="${escapeHtml(contact.response_note || "")}">
       </div>
     `;
   }
