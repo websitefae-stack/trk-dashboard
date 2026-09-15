@@ -102,13 +102,13 @@
     }).filter((c) => c.contact_name && c.email);
   }
 
-  async function saveSchool() {
-    const payload = {
+  async function saveSchool(overrides) {
+    const payload = Object.assign({
       school_name: currentSchool.school_name,
       website: el("schoolWebsiteInput")?.value.trim() || "",
-      notes: el("schoolNotesInput")?.value || "",
+      notes: currentSchool.notes || "",
       contacts: readContactsFromForm(),
-    };
+    }, overrides || {});
 
     await apiPost(`${API}.save_school`, {
       docname: schoolName,
@@ -116,6 +116,42 @@
     });
 
     await loadSchool();
+  }
+
+  function formatNoteDate() {
+    const now = new Date();
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+  }
+
+  function renderNotesLog(notes) {
+    const wrap = el("schoolNotesLog");
+    if (!wrap) return;
+
+    if (!notes || !notes.trim()) {
+      wrap.innerHTML = `<div class="dashboard-field-hint">No notes yet.</div>`;
+      return;
+    }
+
+    wrap.innerHTML = notes
+      .split("\n")
+      .filter((line) => line.trim())
+      .map((line) => `<div class="dashboard-school-note-line">${escapeHtml(line)}</div>`)
+      .join("");
+  }
+
+  async function addSchoolNote() {
+    const input = el("schoolNewNoteInput");
+    const noteText = (input?.value || "").trim();
+    if (!noteText) return;
+
+    const existing = (currentSchool.notes || "").trim();
+    const newLine = `${noteText} - ${formatNoteDate()}`;
+    const updatedNotes = existing ? `${existing}\n${newLine}` : newLine;
+
+    await saveSchool({ notes: updatedNotes });
+
+    if (input) input.value = "";
   }
 
   // ---------- Enrollment ----------
@@ -210,7 +246,7 @@
 
       if (el("schoolStageSelect")) el("schoolStageSelect").value = currentSchool.stage;
       if (el("schoolWebsiteInput")) el("schoolWebsiteInput").value = currentSchool.website || "";
-      if (el("schoolNotesInput")) el("schoolNotesInput").value = currentSchool.notes || "";
+      renderNotesLog(currentSchool.notes);
 
       const clientNote = el("schoolLinkedClientNote");
       const convertBtn = el("convertToClientBtn");
@@ -250,6 +286,14 @@
         await saveSchool();
       } catch (error) {
         alert(error.message || "Could not save contacts.");
+      }
+    });
+
+    el("addSchoolNoteBtn")?.addEventListener("click", async function () {
+      try {
+        await addSchoolNote();
+      } catch (error) {
+        alert(error.message || "Could not add this note.");
       }
     });
 

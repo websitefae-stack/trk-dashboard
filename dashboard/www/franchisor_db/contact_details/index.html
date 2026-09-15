@@ -44,6 +44,7 @@
               <button type="button" class="dashboard-tab-btn is-active" data-tab-target="contact-details-tab">Details</button>
               <button type="button" class="dashboard-tab-btn" data-tab-target="contact-linked-clients-tab">Linked Clients</button>
               <button type="button" class="dashboard-tab-btn" data-tab-target="contact-billing-tab">Billing / Invoices</button>
+              <button type="button" class="dashboard-tab-btn" data-tab-target="contact-resources-tab">Resources</button>
             </div>
           {% endif %}
 
@@ -387,6 +388,59 @@
                           <td colspan="7" class="dashboard-empty">
                             No invoices found for this contact.
                           </td>
+                        </tr>
+                      {% endif %}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          {% endif %}
+
+          {% if not is_new %}
+            <div class="dashboard-tab-panel" id="contact-resources-tab">
+              <section class="dashboard-detail-section">
+                <div class="dashboard-detail-section-head">
+                  <h2 class="dashboard-detail-section-title">Resources</h2>
+                </div>
+
+                <p class="dashboard-field-hint">Documents shared with this contact, and which client each was for - useful since a contact can be linked to more than one client.</p>
+
+                <div class="dashboard-table-wrap">
+                  <table class="dashboard-table">
+                    <thead>
+                      <tr>
+                        <th>Document</th>
+                        <th>Client</th>
+                        <th>Status</th>
+                        <th>Shared On</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% if contact_document_shares %}
+                        {% for share in contact_document_shares %}
+                          <tr>
+                            <td>
+                              <a class="dashboard-inline-link" href="{{ contact_details_base_url }}/document_view?name={{ share.practice_document | urlencode }}">
+                                {{ share.document_title or share.practice_document }}
+                              </a>
+                            </td>
+                            <td>
+                              {% if share.client %}
+                                <a class="dashboard-inline-link" href="{{ contact_details_base_url }}/client_details?name={{ share.client | urlencode }}">
+                                  {{ share.client_display_name or share.client }}
+                                </a>
+                              {% else %}
+                                —
+                              {% endif %}
+                            </td>
+                            <td>{{ share.status }}</td>
+                            <td>{{ frappe.utils.format_datetime(share.shared_on, "dd-MM-yyyy HH:mm") if share.shared_on else "—" }}</td>
+                          </tr>
+                        {% endfor %}
+                      {% else %}
+                        <tr>
+                          <td colspan="4" class="dashboard-empty">No documents shared with this contact yet.</td>
                         </tr>
                       {% endif %}
                     </tbody>

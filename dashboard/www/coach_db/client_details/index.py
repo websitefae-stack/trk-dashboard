@@ -10,6 +10,7 @@ from dashboard.api.shared.client_details import (
     get_coach_name,
 )
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
+from dashboard.api.shared.practice_documents import get_client_document_shares
 
 
 def get_context(context):
@@ -80,6 +81,15 @@ def get_context(context):
 
     for key, value in data.items():
         context[key] = value
+
+    # Only a client with at least one document actually shared gets this
+    # tab, rather than showing an always-empty "Resources" tab on every
+    # client - see practice_documents.get_client_document_shares.
+    if client_name and not is_new:
+        shares = get_client_document_shares(client_name)
+        context.client_document_shares = shares
+        if shares:
+            context.tabs.append({"label": "Resources", "custom": "resources", "sections": []})
 
 
 def ensure_view_coach_can_access_client(client_name, coach_name):

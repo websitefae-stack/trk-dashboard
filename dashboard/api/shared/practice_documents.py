@@ -714,6 +714,75 @@ def allocate_document_to_client(requirement_name=None, practice_document=None, c
 	return {"ok": True, "name": share.name}
 
 
+def get_client_document_shares(client_name):
+	"""
+	Every document shared with this client and who it went to - for the
+	Client Details "Resources" tab. Plain helper, not whitelisted - only
+	ever called after the caller's own ensure_client_access has already
+	run (same pattern as client_details.get_client_files).
+
+	status stays "Prepared" on every row today - see
+	allocate_document_to_client's own docstring above: sharing here only
+	ever creates the record, nothing downstream actually sends it or
+	marks it Viewed/Completed yet. Don't let a "Prepared" row read as
+	"nothing happened" - the recipient was never actually notified by
+	this alone.
+	"""
+	if not client_name:
+		return []
+
+	return frappe.get_all(
+		CLIENT_DOCUMENT_SHARE_DOCTYPE,
+		filters={"client": client_name},
+		fields=[
+			"name", "practice_document", "document_title", "recipient_contact",
+			"recipient_name", "status", "shared_on",
+		],
+		order_by="shared_on desc",
+		ignore_permissions=True,
+	)
+
+
+def get_contact_document_shares(contact_name):
+	"""
+	Every document shared with this specific contact, across every client
+	they're linked to - for the Contact Details "Resources" tab. A
+	contact can be linked to more than one Client, so each row is tagged
+	with which client the share was actually for. Plain helper, not
+	whitelisted - only ever called after the caller's own contact-access
+	check has already run.
+	"""
+	if not contact_name:
+		return []
+
+	rows = frappe.get_all(
+		CLIENT_DOCUMENT_SHARE_DOCTYPE,
+		filters={"recipient_contact": contact_name},
+		fields=[
+			"name", "practice_document", "document_title", "client",
+			"status", "shared_on",
+		],
+		order_by="shared_on desc",
+		ignore_permissions=True,
+	)
+
+	client_names = list({row.client for row in rows if row.client})
+	client_display = {}
+
+	if client_names:
+		for row in frappe.get_all(
+			"Client",
+			filters={"name": ["in", client_names]},
+			fields=["name", "full_name", "name1", "last_name"],
+		):
+			client_display[row.name] = row.full_name or " ".join(filter(None, [row.name1, row.last_name])) or row.name
+
+	for row in rows:
+		row["client_display_name"] = client_display.get(row.client, row.client)
+
+	return rows
+
+
 # Only these actually need someone to go and DO something - a "Read Only"
 # document is just a file sitting in the library for people to open if/when
 # they need it, so it doesn't belong in the notifications inbox at all.
