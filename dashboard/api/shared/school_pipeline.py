@@ -487,6 +487,47 @@ def enroll_schools(school_names=None, sequence=None, start_date=None):
 
 
 @frappe.whitelist()
+def send_next_step_now(enrollment=None):
+    """Manually fires whichever step an Active enrollment is currently
+    on, right now, instead of waiting for the hourly automatic job to
+    pick it up - for testing the automation, or to resend a step that
+    already went out (this sends the step at its current position again;
+    to get the *first* step re-sent, cancel the enrollment first via
+    cancel_enrollment() and re-enrol the school)."""
+    _ensure_franchisor()
+
+    enrollment = (enrollment or "").strip()
+    if not enrollment or not frappe.db.exists(ENROLLMENT_DOCTYPE, enrollment):
+        frappe.throw(_("Enrollment not found."))
+
+    _send_next_school_step(enrollment)
+
+    return {"ok": 1}
+
+
+@frappe.whitelist()
+def cancel_enrollment(enrollment=None):
+    """Cancels a school's enrollment in a sequence - frees the school up
+    to be enrolled again (enroll_schools() skips a school that already
+    has an Active enrollment), e.g. to restart testing from the first
+    step, or to run a different sequence instead."""
+    _ensure_franchisor()
+
+    enrollment = (enrollment or "").strip()
+    if not enrollment or not frappe.db.exists(ENROLLMENT_DOCTYPE, enrollment):
+        frappe.throw(_("Enrollment not found."))
+
+    doc = frappe.get_doc(ENROLLMENT_DOCTYPE, enrollment)
+    doc.status = "Cancelled"
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    _settle_school_stage_after_sequence(doc.school)
+
+    return {"ok": 1}
+
+
+@frappe.whitelist()
 def get_email_branding():
     """The logo + footer used to wrap every outgoing School Pipeline email
     - see wrap_branded_email_html(). A Single, so there's always exactly

@@ -175,7 +175,7 @@
     if (!body) return;
 
     if (!enrollments || !enrollments.length) {
-      body.innerHTML = `<tr><td colspan="5" class="dashboard-empty">No sequences run yet.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="6" class="dashboard-empty">No sequences run yet.</td></tr>`;
       return;
     }
 
@@ -186,8 +186,41 @@
         <td>${row.current_step} / ${row.total_steps}</td>
         <td>${row.start_date || "—"}</td>
         <td>${row.status === "Active" ? (row.next_send_date || "—") : "—"}</td>
+        <td class="dashboard-action-cell">
+          ${row.status === "Active" ? `
+            <button type="button" class="dashboard-link-btn enrollment-send-now-btn" data-name="${escapeHtml(row.name)}">Send Now</button>
+            <button type="button" class="dashboard-link-btn enrollment-cancel-btn" data-name="${escapeHtml(row.name)}">Cancel</button>
+          ` : "—"}
+        </td>
       </tr>
     `).join("");
+
+    body.querySelectorAll(".enrollment-send-now-btn").forEach((btn) => {
+      btn.addEventListener("click", async function () {
+        btn.disabled = true;
+        try {
+          await apiPost(`${API}.send_next_step_now`, { enrollment: btn.dataset.name });
+          await loadSchool();
+        } catch (error) {
+          alert(error.message || "Could not send this step.");
+          btn.disabled = false;
+        }
+      });
+    });
+
+    body.querySelectorAll(".enrollment-cancel-btn").forEach((btn) => {
+      btn.addEventListener("click", async function () {
+        if (!confirm("Cancel this enrollment? The school can then be enrolled again from the top of the sequence.")) return;
+        btn.disabled = true;
+        try {
+          await apiPost(`${API}.cancel_enrollment`, { enrollment: btn.dataset.name });
+          await loadSchool();
+        } catch (error) {
+          alert(error.message || "Could not cancel this enrollment.");
+          btn.disabled = false;
+        }
+      });
+    });
   }
 
   // ---------- One-off email ----------
