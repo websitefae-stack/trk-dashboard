@@ -220,17 +220,43 @@
       return;
     }
 
-    wrap.innerHTML = timeline.map((item) => {
+    wrap.innerHTML = timeline.map((item, index) => {
       const isReceived = item.sent_or_received === "Received";
+
+      // A sent email's content is HTML we generated ourselves via
+      // wrap_branded_email_html() - safe to show as real HTML. A
+      // received email's content is HTML from whoever replied, which
+      // must never be dropped into the page as live markup (a crafted
+      // reply could otherwise run script in this session) - it's shown
+      // as escaped, pre-wrapped plain text instead.
+      const bodyHtml = isReceived
+        ? `<div class="dashboard-school-timeline-body-plain">${escapeHtml(item.content || "(no content)")}</div>`
+        : (item.content || "<em>(no content)</em>");
+
       return `
-        <div class="dashboard-school-timeline-item ${isReceived ? "dashboard-school-timeline-received" : "dashboard-school-timeline-sent"}">
+        <div class="dashboard-school-timeline-item ${isReceived ? "dashboard-school-timeline-received" : "dashboard-school-timeline-sent"}" data-timeline-index="${index}">
           <div class="dashboard-school-timeline-meta">
             ${isReceived ? "Received" : "Sent"} · ${item.communication_date || ""} ${isReceived ? `from ${escapeHtml(item.sender || "")}` : `to ${escapeHtml(item.recipients || "")}`}
           </div>
-          <div><strong>${escapeHtml(item.subject || "(no subject)")}</strong></div>
+          <div class="dashboard-school-timeline-subject">
+            <strong>${escapeHtml(item.subject || "(no subject)")}</strong>
+            <span class="dashboard-school-timeline-toggle">Show</span>
+          </div>
+          <div class="dashboard-school-timeline-body" style="display:none;">${bodyHtml}</div>
         </div>
       `;
     }).join("");
+
+    wrap.querySelectorAll(".dashboard-school-timeline-item").forEach((row) => {
+      row.addEventListener("click", function () {
+        const body = row.querySelector(".dashboard-school-timeline-body");
+        const toggle = row.querySelector(".dashboard-school-timeline-toggle");
+        if (!body) return;
+        const showing = body.style.display !== "none";
+        body.style.display = showing ? "none" : "block";
+        if (toggle) toggle.textContent = showing ? "Show" : "Hide";
+      });
+    });
   }
 
   // ---------- Load ----------

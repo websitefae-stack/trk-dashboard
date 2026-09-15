@@ -31,7 +31,7 @@ from frappe import _
 from frappe.utils import add_days, escape_html, getdate, nowdate
 from werkzeug.utils import secure_filename
 
-from dashboard.api.shared.email_templates import _body_fieldname, plain_text_to_email_html, render_email, wrap_branded_email_html
+from dashboard.api.shared.email_templates import _body_fieldname, _html_to_plain_text, plain_text_to_email_html, render_email, wrap_branded_email_html
 from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user
 from dashboard.api.shared.profile import ASHLEY_USER, OFFICE_USER
 
@@ -779,7 +779,11 @@ def _handle_incoming_school_reply(doc):
         None,
     )
 
-    snippet = (doc.content or doc.subject or "").strip()
+    # doc.content on a received email is the raw HTML body (e.g.
+    # "<div><p>received</p>...<p>Kind regards</p>...") - this note is a
+    # plain text field, so that HTML has to be stripped down to readable
+    # text first rather than dumped in as-is.
+    snippet = _html_to_plain_text(doc.content or "") or (doc.subject or "").strip()
     if len(snippet) > 300:
         snippet = snippet[:300] + "..."
 
