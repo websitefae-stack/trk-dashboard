@@ -704,6 +704,19 @@ def _upsert_form_visibility_rule(doctype, visibility):
 
 PUBLIC_SITE_URL = "https://theresilienthub.co.uk"
 
+# Shareable public pages that aren't a Web Form doctype at all (they're
+# static www pages over in resilient_domains), so they can't come from
+# the Form Visibility Rule query below - listed here instead, everyone
+# who can see this page sees them. Shown first, ahead of the dynamic
+# Web Form links.
+STATIC_PUBLIC_LINKS = [
+    {
+        "title": "Newsletter Sign-Up",
+        "description": "A standalone sign-up page for the newsletter - share the link or its QR code at events, in printed materials, or on social media.",
+        "url": PUBLIC_SITE_URL + "/newsletter-signup",
+    },
+]
+
 # Mirrors practice_documents.py's PRACTICE_DOCUMENT_BRAND_FIELDS - same
 # brand values, same Coach Brand Access child table, just for Web Form
 # instead of Practice Document (see add_web_form_brand_access_fields.py).
@@ -809,7 +822,7 @@ def get_form_links():
             if not _get_web_form_brand_values(wf) or (_get_web_form_brand_values(wf) & coach_brand_values)
         ]
 
-    return [
+    return STATIC_PUBLIC_LINKS + [
         {
             "title": wf.title or wf.name,
             "description": _strip_html_to_text(wf.introduction_text),

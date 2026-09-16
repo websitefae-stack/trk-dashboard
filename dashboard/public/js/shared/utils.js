@@ -315,4 +315,69 @@
       },
     };
   };
+
+  /**
+   * Renders a QR code into every element matching `options.selector` that
+   * carries a data-qr-value, and points the .dashboard-login-qr-download
+   * link right after it at a downloadable image of that code. Shared by
+   * the "Your Logins" tab (PNG, internal use) and the Links page (JPG -
+   * coaches paste these straight into printed flyers/documents, which
+   * expect a JPG rather than a PNG).
+   *
+   * Safe to call more than once against the same root (already-rendered
+   * elements are skipped via data-qr-rendered), and safe to call before
+   * the vendored qrcodejs library has loaded elsewhere on the page as
+   * long as this itself only runs from a DOMContentLoaded handler or
+   * later - every earlier synchronous <script> in <head>, including
+   * qrcode.min.js, has already run by then.
+   *
+   * @param {Object} [options]
+   * @param {Element|Document} [options.root=document]
+   * @param {string} [options.selector=".dashboard-login-qr[data-qr-value]"]
+   * @param {"png"|"jpeg"} [options.format="png"]
+   * @param {number} [options.size=500] - actual pixel size rendered, independent of on-screen CSS size, so a downloaded image still looks sharp blown up for a flyer.
+   */
+  Dashboard.renderQrCodes = function (options) {
+    options = options || {};
+
+    if (typeof QRCode === "undefined") return;
+
+    var root = options.root || document;
+    var selector = options.selector || ".dashboard-login-qr[data-qr-value]";
+    var format = options.format === "jpeg" ? "jpeg" : "png";
+    var extension = format === "jpeg" ? "jpg" : "png";
+    var size = options.size || 500;
+
+    root.querySelectorAll(selector).forEach(function (qrEl) {
+      if (qrEl.dataset.qrRendered === "1") return;
+
+      var value = qrEl.dataset.qrValue;
+      if (!value) return;
+
+      qrEl.dataset.qrRendered = "1";
+
+      /* eslint-disable no-new */
+      new QRCode(qrEl, {
+        text: value,
+        width: size,
+        height: size,
+        correctLevel: QRCode.CorrectLevel.M,
+      });
+
+      var downloadLink = qrEl.parentElement && qrEl.parentElement.querySelector(".dashboard-login-qr-download");
+      if (!downloadLink) return;
+
+      var canvas = qrEl.querySelector("canvas");
+      if (!canvas) return;
+
+      var dataUrl = format === "jpeg" ? canvas.toDataURL("image/jpeg", 0.92) : canvas.toDataURL("image/png");
+
+      downloadLink.href = dataUrl;
+      var label = qrEl.dataset.qrLabel || "qr-code";
+      downloadLink.setAttribute(
+        "download",
+        label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-qr-code." + extension
+      );
+    });
+  };
 })();
