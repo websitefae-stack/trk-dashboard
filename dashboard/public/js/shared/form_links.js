@@ -21,52 +21,55 @@
   }
 
   function renderLink(link) {
-    var id = "formLink_" + Math.random().toString(36).slice(2);
-
     return (
-      '<div class="dashboard-card" style="margin-bottom:14px;">' +
+      '<div class="dashboard-card dashboard-link-card">' +
         '<h3 class="dashboard-form-link-title">' + escapeHtml(link.title) + "</h3>" +
         (link.description
           ? '<div class="dashboard-doc-list-meta" style="margin-bottom:8px;">' + escapeHtml(link.description) + "</div>"
           : "") +
-        '<div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px;">' +
-          '<input type="text" class="dashboard-input" id="' + id + '" value="' + escapeHtml(link.url) + '" readonly style="flex:1; min-width:220px;">' +
-          '<button type="button" class="dashboard-btn dashboard-btn-light" data-copy-target="' + id + '">Copy Link</button>' +
+        '<div class="dashboard-login-qr" data-qr-value="' + escapeHtml(link.url) + '" data-qr-label="' + escapeHtml(link.title) + '"></div>' +
+        '<a href="#" class="dashboard-login-qr-download" download>Download QR code (JPG)</a>' +
+        '<div class="dashboard-link-card-actions">' +
+          '<button type="button" class="dashboard-btn dashboard-btn-light" data-copy-value="' + escapeHtml(link.url) + '">Copy Link</button>' +
           '<a class="dashboard-btn dashboard-btn-primary" href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener noreferrer">Open</a>' +
-        "</div>" +
-        '<div class="dashboard-login-link-actions">' +
-          '<div class="dashboard-login-qr" data-qr-value="' + escapeHtml(link.url) + '" data-qr-label="' + escapeHtml(link.title) + '"></div>' +
-          '<a href="#" class="dashboard-login-qr-download" download>Download QR code (JPG)</a>' +
         "</div>" +
       "</div>"
     );
   }
 
   function bindCopyButtons(container) {
-    container.querySelectorAll("[data-copy-target]").forEach(function (button) {
+    container.querySelectorAll("[data-copy-value]").forEach(function (button) {
       button.addEventListener("click", function () {
-        var input = el(button.dataset.copyTarget);
-        if (!input) return;
-
-        input.select();
-        input.setSelectionRange(0, input.value.length);
+        var value = button.dataset.copyValue;
+        if (!value) return;
 
         var originalText = button.textContent;
         var restore = function () {
           button.textContent = originalText;
         };
 
+        var fallbackCopy = function () {
+          var temp = document.createElement("textarea");
+          temp.value = value;
+          temp.style.position = "fixed";
+          temp.style.opacity = "0";
+          document.body.appendChild(temp);
+          temp.select();
+          document.execCommand("copy");
+          document.body.removeChild(temp);
+        };
+
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(input.value).then(function () {
+          navigator.clipboard.writeText(value).then(function () {
             button.textContent = "Copied!";
             window.setTimeout(restore, 1500);
           }).catch(function () {
-            document.execCommand("copy");
+            fallbackCopy();
             button.textContent = "Copied!";
             window.setTimeout(restore, 1500);
           });
         } else {
-          document.execCommand("copy");
+          fallbackCopy();
           button.textContent = "Copied!";
           window.setTimeout(restore, 1500);
         }
@@ -85,7 +88,7 @@
       return;
     }
 
-    container.innerHTML = links.map(renderLink).join("");
+    container.innerHTML = '<div class="dashboard-links-grid">' + links.map(renderLink).join("") + "</div>";
     bindCopyButtons(container);
     Dashboard.renderQrCodes({ root: container, format: "jpeg" });
   }

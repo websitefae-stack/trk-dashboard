@@ -696,7 +696,10 @@
         client: data.client_name || "",
         client_lead: hasClientLead ? data.client_lead : "",
         lead: hasLegacyLead ? data.lead_name : "",
-        event: (!hasClient && !hasClientLead && !hasLegacyLead) ? state.eventName : "",
+        // Always sent (not just as the client/lead-less fallback) - the
+        // backend uses it to backfill a legacy lead-linked event onto a
+        // real Client Lead the first time a note is added to it.
+        event: state.eventName || "",
         session_date: sessionDate,
         session_type: sessionType,
         notes: notes,
