@@ -25,8 +25,10 @@ from dashboard.api.shared.email_templates import plain_text_to_email_html
 from dashboard.api.shared.item_access import _get_coach_login
 from dashboard.api.shared.invoices import _get_bank_account_gl_account
 from dashboard.api.shared import payment_utils
+from dashboard.api.shared.email_groups import add_to_email_group
 
 ONLINE_CLIENT_DOCTYPE = "Online Client"
+WEBSHOP_CUSTOMERS_EMAIL_GROUP = "Website Customers"
 
 
 def _get_stripe_secret_key(settings):
@@ -477,6 +479,8 @@ def _fulfil_checkout_session(session):
         coach=coach,
     )
     online_client = frappe.get_doc(ONLINE_CLIENT_DOCTYPE, online_client_name)
+
+    add_to_email_group(online_client.email, WEBSHOP_CUSTOMERS_EMAIL_GROUP, full_name=online_client.full_name)
 
     customer_name = _get_or_create_customer_for_online_client(online_client)
 
