@@ -687,11 +687,16 @@
         attachement = (uploaded && uploaded.file_url) || "";
       }
 
+      const hasClient = !!data.client_name;
+      const hasClientLead = !hasClient && !!data.client_lead;
+      const hasLegacyLead = !hasClient && !hasClientLead && !!data.lead_name;
+
       await apiPost(SHARED_API + ".add_client_note", {
         dashboard_type: state.dashboardType,
         client: data.client_name || "",
-        lead: data.client_name ? "" : data.lead_name,
-        event: (!data.client_name && !data.lead_name) ? state.eventName : "",
+        client_lead: hasClientLead ? data.client_lead : "",
+        lead: hasLegacyLead ? data.lead_name : "",
+        event: (!hasClient && !hasClientLead && !hasLegacyLead) ? state.eventName : "",
         session_date: sessionDate,
         session_type: sessionType,
         notes: notes,

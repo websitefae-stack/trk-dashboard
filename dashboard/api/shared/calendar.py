@@ -1350,6 +1350,36 @@ def _add_lead_note(lead_name, notes_text):
     return _get_lead_notes(lead_name)
 
 
+def _map_client_lead_notes_to_calendar_shape(notes):
+    """
+    leads.add_lead_note()/_get_lead_notes() return Client Lead Note rows
+    (note/note_date/added_by/added_on) - reshaped here into the same
+    session_date/session_type/notes/note_user/note_user_name/attachement
+    shape the calendar's own client-notes table already renders, so the
+    frontend doesn't need to know which kind of note it's displaying.
+    """
+    mapped = []
+
+    for row in notes:
+        added_by = row.get("added_by") or ""
+        raw_note_date = row.get("note_date")
+        session_date = raw_note_date.strftime("%Y-%m-%d") if hasattr(raw_note_date, "strftime") else (raw_note_date or "")
+
+        mapped.append({
+            "name": row.get("name"),
+            "client": "",
+            "session_date": session_date,
+            "session_type": "",
+            "notes": row.get("note") or "",
+            "attachement": "",
+            "note_user": added_by,
+            "note_user_name": get_fullname(added_by) if added_by else "",
+            "idx": row.get("idx") or 0,
+        })
+
+    return mapped
+
+
 def _get_lead_for_event(event_doc):
     """
     Initial Consultation appointments don't have a Client - create_booking()
@@ -1965,7 +1995,12 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
     # Meeting's school via custom_visit_client - the permission checks
     # just below stay keyed on custom_client (client) alone.
     display_client = _get_display_client(event_doc)
-    lead = _get_lead_for_event(event_doc) if not display_client else None
+    # The current mechanism (custom_client_lead, a real link to Client
+    # Lead) is checked first - only fall back to the legacy "Lead: <name>"
+    # description-parsed core Frappe Lead when there's no Client Lead link
+    # at all (an appointment booked before custom_client_lead existed).
+    client_lead = _get_display_lead(event_doc) if not display_client else ""
+    lead = _get_lead_for_event(event_doc) if not display_client and not client_lead else None
 
     if dashboard_type == SESSION_WORKER_DASHBOARD:
         if client and not _client_belongs_to_session_worker(client, context):
@@ -1995,13 +2030,18 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
     if lead:
         lead_label = frappe.db.get_value("Lead", lead, "lead_name") or frappe.db.get_value("Lead", lead, "first_name") or lead
 
-    # Whether there's a real Client Lead link (custom_client_lead) - the
-    # current mechanism every new Initial Consultation booking actually
-    # populates, distinct from the legacy "Lead: <name>" description-
-    # parsed lead/lead_label above. This is what the Email Booking
-    # Confirmation button's visibility keys off, since it's what
-    # send_booking_confirmation_email actually resolves a recipient from.
-    has_client_lead = bool(_get_display_lead(event_doc)) if not display_client else False
+    client_lead_label = ""
+    if client_lead:
+        client_lead_label = (
+            frappe.db.get_value("Client Lead", client_lead, "client_name")
+            or frappe.db.get_value("Client Lead", client_lead, "contact_name")
+            or client_lead
+        )
+
+    # This is what the Email Booking Confirmation button's visibility keys
+    # off, since it's what send_booking_confirmation_email actually
+    # resolves a recipient from.
+    has_client_lead = bool(client_lead)
 
     return {
         "name": event_doc.get("name"),
@@ -2009,6 +2049,8 @@ def get_event_details(event=None, dashboard_type=None, view_as=None, viewer=None
         "client_label": _get_client_display_name(display_client) if display_client else event_doc.get("subject") or "Session",
         "lead_name": lead or "",
         "lead_label": lead_label,
+        "client_lead": client_lead or "",
+        "client_lead_label": client_lead_label,
         "has_client_lead": has_client_lead,
         "appointment_type": session_type,
         "status": raw_status,
@@ -3457,7 +3499,7 @@ def _get_event_notes(event_name):
 
 
 @frappe.whitelist(allow_guest=False)
-def add_client_note(client=None, lead=None, event=None, session_date=None, session_type=None, notes=None, attachement=None, dashboard_type=None):
+def add_client_note(client=None, lead=None, client_lead=None, event=None, session_date=None, session_type=None, notes=None, attachement=None, dashboard_type=None):
     _require_logged_in_user()
 
     dashboard_type = _normalise_dashboard_type(dashboard_type)
@@ -3465,13 +3507,14 @@ def add_client_note(client=None, lead=None, event=None, session_date=None, sessi
 
     client = _coalesce_str("client", client)
     lead = _coalesce_str("lead", lead)
+    client_lead = _coalesce_str("client_lead", client_lead)
     event = _coalesce_str("event", event)
     session_type = _coalesce_str("session_type", session_type)
     notes = _coalesce_str("notes", notes)
     attachement = _coalesce_str("attachement", attachement)
     raw_session_date = _coalesce_raw("session_date", session_date)
 
-    if not client and not lead and not event:
+    if not client and not lead and not client_lead and not event:
         frappe.throw(_("Client is required."))
 
     if not notes:
@@ -3487,7 +3530,7 @@ def add_client_note(client=None, lead=None, event=None, session_date=None, sessi
     # booked without a Client or Lead at all - save the note straight onto
     # the event's own Notes table instead of blocking it, the same shape
     # (date/user/notes/attachment) as Client/Lead notes.
-    if not client and not lead and event:
+    if not client and not lead and not client_lead and event:
         # _get_event_doc() returns a plain dict (frappe.db.get_value(...,
         # as_dict=True)) - fine for the .get() reads it's used for
         # elsewhere, but .append()/.save() below need a real Document.
@@ -3515,6 +3558,13 @@ def add_client_note(client=None, lead=None, event=None, session_date=None, sessi
             new_note_row["attachement"] = attachement
 
         event_doc.append(parentfield, new_note_row)
+        # This Notes row has no Client (there isn't one for this event) -
+        # if the live "Notes" doctype has picked up a mandatory field this
+        # code doesn't know to fill in (e.g. a "Client" link added by hand
+        # in Desk at some point), that must not block saving a note that
+        # was never going to have one. Same reasoning/precedent as
+        # leads.add_lead_note()'s own ignore_mandatory flag.
+        event_doc.flags.ignore_mandatory = True
         event_doc.save(ignore_permissions=True)
 
         return {
@@ -3522,12 +3572,37 @@ def add_client_note(client=None, lead=None, event=None, session_date=None, sessi
             "client_notes": _get_event_notes(event),
         }
 
-    # Initial Consultation appointments have a Lead, not a Client - notes go
-    # on the Lead instead. A Lead isn't owned by a specific coach/worker the
-    # way a Client is, so there's no equivalent ownership check here; access
-    # to the lead id itself is already gated by only being reachable through
-    # a specific appointment's own details, which the dashboard already
-    # restricts to whoever can see that appointment.
+    # Initial Consultation appointments booked through the current Client
+    # Lead mechanism (custom_client_lead) - notes go straight onto that
+    # Client Lead's own Notes table via leads.add_lead_note(), the same
+    # place the Lead Details page itself reads notes from, so a note added
+    # here from the calendar shows up there too. Also gets that function's
+    # own permission check for free: franchisor can note any lead, a coach
+    # only their own.
+    if not client and client_lead:
+        from dashboard.api.shared.leads import add_lead_note
+
+        # Client Lead Note has no attachment field of its own (unlike
+        # Client's Notes table) - fold the uploaded file's URL into the
+        # note text itself rather than silently dropping it.
+        note_text = f"{notes}\n\nAttachment: {attachement}" if attachement else notes
+
+        result = add_lead_note(name=client_lead, note=note_text, note_date=raw_session_date)
+
+        return {
+            "ok": True,
+            "client_notes": _map_client_lead_notes_to_calendar_shape(result.get("notes") or []),
+        }
+
+    # Legacy Initial Consultation appointments booked before the Client
+    # Lead link existed - "Lead" here is a plain core Frappe Lead (see
+    # _get_lead_for_event's docstring), a dead end this dashboard has no
+    # page for, kept working only so old notes already saved this way
+    # don't disappear. A Lead isn't owned by a specific coach/worker the
+    # way a Client is, so there's no equivalent ownership check here;
+    # access to the lead id itself is already gated by only being
+    # reachable through a specific appointment's own details, which the
+    # dashboard already restricts to whoever can see that appointment.
     if not client and lead:
         if not frappe.db.exists("Lead", lead):
             frappe.throw(_("Selected lead was not found."))
