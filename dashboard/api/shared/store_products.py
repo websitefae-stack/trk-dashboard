@@ -61,6 +61,21 @@ def _parse_brands(brands):
         return {}
 
 
+def _parse_json_list(value):
+    if not value:
+        return []
+    if isinstance(value, list):
+        return value
+    try:
+        return frappe.parse_json(value) or []
+    except Exception:
+        return []
+
+
+def _slugify(value):
+    return "".join(ch if ch.isalnum() else "-" for ch in str(value).strip().lower()).strip("-")
+
+
 def _store_company():
     settings = get_settings()
 
@@ -130,6 +145,63 @@ def get_item_groups():
 
 
 @frappe.whitelist()
+def get_lms_courses():
+    """
+    Every course, not just published ones - a Restricted or unpublished
+    course is exactly the kind of thing meant to be granted by a specific
+    purchase rather than open self-signup, so it still needs to show up
+    here to be picked as what a product unlocks.
+    """
+    _ensure_store_access()
+
+    if not frappe.db.exists("DocType", "LMS Course"):
+        return []
+
+    return frappe.get_all(
+        "LMS Course",
+        fields=["name", "title"],
+        order_by="title asc",
+        limit_page_length=500,
+    )
+
+
+def _ensure_item_attribute(attribute_name, values):
+    """Creates the Item Attribute if missing, and adds any new values to
+    it - existing values are never removed, since other items/variants
+    may already depend on them."""
+    attribute_name = (attribute_name or "").strip()
+
+    if not attribute_name:
+        return
+
+    if frappe.db.exists("Item Attribute", attribute_name):
+        doc = frappe.get_doc("Item Attribute", attribute_name)
+    else:
+        doc = frappe.new_doc("Item Attribute")
+        doc.attribute_name = attribute_name
+
+    existing_values = {row.attribute_value for row in doc.get("item_attribute_values") or []}
+    value_meta_has_abbr = frappe.get_meta("Item Attribute Value").has_field("abbr") if frappe.db.exists("DocType", "Item Attribute Value") else False
+
+    for value in values:
+        value = (value or "").strip()
+        if not value or value in existing_values:
+            continue
+
+        new_row = {"attribute_value": value}
+        if value_meta_has_abbr:
+            new_row["abbr"] = value[:5].upper()
+
+        doc.append("item_attribute_values", new_row)
+        existing_values.add(value)
+
+    if doc.is_new():
+        doc.insert(ignore_permissions=True)
+    else:
+        doc.save(ignore_permissions=True)
+
+
+@frappe.whitelist()
 def get_store_products(search=None):
     _ensure_store_access()
 
@@ -141,17 +213,27 @@ def get_store_products(search=None):
     if search:
         filters["item_name"] = ["like", f"%{search}%"]
 
+    extra_fieldnames = [
+        f for f in ["custom_digital_file", "custom_unlocks_lms_course"] if item_meta.has_field(f)
+    ]
+
     items = frappe.get_all(
         "Item",
         filters=filters,
         fields=(
             ["name", "item_name", "description", "item_group", "image", "disabled",
-             "custom_stock_qty", "custom_unlimited_stock", "has_variants"]
-            + brand_fieldnames
+             "custom_stock_qty", "custom_unlimited_stock", "has_variants", "variant_of"]
+            + brand_fieldnames + extra_fieldnames
         ),
         order_by="item_name asc",
         limit_page_length=1000,
     )
+
+    # A variant (e.g. one specific size) has custom_store_enabled set the
+    # same as its template, so it'd otherwise show up here as its own
+    # separate row - only the template belongs in this list, its variants
+    # are managed through get_product_variants() instead.
+    items = [item for item in items if not item.variant_of]
 
     prices = {}
     if items:
@@ -179,6 +261,8 @@ def get_store_products(search=None):
             "unlimited_stock": bool(item.custom_unlimited_stock),
             "price": prices.get(item.name) or 0,
             "brands": {fieldname: bool(item.get(fieldname)) for fieldname in brand_fieldnames},
+            "digital_file": item.get("custom_digital_file") or "",
+            "unlocks_course": item.get("custom_unlocks_lms_course") or "",
         }
         for item in items
     ]
@@ -186,7 +270,8 @@ def get_store_products(search=None):
 
 @frappe.whitelist()
 def create_store_product(item_name=None, description=None, item_group=None, price=None,
-                          stock_qty=None, unlimited_stock=None, brands=None, image=None):
+                          stock_qty=None, unlimited_stock=None, brands=None, image=None,
+                          digital_file=None, unlocks_course=None):
     _ensure_store_access()
 
     item_name = (item_name or "").strip()
@@ -214,6 +299,12 @@ def create_store_product(item_name=None, description=None, item_group=None, pric
     if image:
         item.image = image
 
+    if digital_file and _item_meta_has_field("custom_digital_file"):
+        item.custom_digital_file = digital_file
+
+    if unlocks_course and _item_meta_has_field("custom_unlocks_lms_course"):
+        item.custom_unlocks_lms_course = unlocks_course
+
     parsed_brands = _parse_brands(brands)
     for fieldname in BRAND_FIELDNAMES:
         if _item_meta_has_field(fieldname):
@@ -234,7 +325,7 @@ def create_store_product(item_name=None, description=None, item_group=None, pric
 @frappe.whitelist()
 def update_store_product(item_code=None, item_name=None, description=None, item_group=None,
                           price=None, stock_qty=None, unlimited_stock=None, brands=None,
-                          disabled=None, image=None):
+                          disabled=None, image=None, digital_file=None, unlocks_course=None):
     _ensure_store_access()
 
     item_code = (item_code or "").strip()
@@ -264,6 +355,12 @@ def update_store_product(item_code=None, item_name=None, description=None, item_
 
     if image is not None:
         item.image = image
+
+    if digital_file is not None and _item_meta_has_field("custom_digital_file"):
+        item.custom_digital_file = digital_file
+
+    if unlocks_course is not None and _item_meta_has_field("custom_unlocks_lms_course"):
+        item.custom_unlocks_lms_course = unlocks_course
 
     parsed_brands = _parse_brands(brands)
     for fieldname in BRAND_FIELDNAMES:
@@ -298,6 +395,188 @@ def update_store_stock(item_code=None, stock_qty=None, unlimited_stock=None):
 
     if stock_qty is not None:
         frappe.db.set_value("Item", item_code, "custom_stock_qty", _to_int(stock_qty))
+
+    frappe.db.commit()
+
+    return {"ok": 1}
+
+
+# -------------------------------------------------------------------
+# Variant products (e.g. a hoodie in several sizes/wordings, some sizes
+# priced higher, each with its own stock count)
+# -------------------------------------------------------------------
+
+def _create_variant_item(template, attribute_values, price, stock_qty, unlimited_stock, company):
+    suffix = "-".join(_slugify(v) for v in attribute_values.values()) or "VAR"
+    item_code = f"{template.name}-{suffix}"
+
+    variant = frappe.new_doc("Item")
+    variant.item_code = item_code
+    variant.item_name = template.item_name + " - " + " / ".join(attribute_values.values())
+    variant.item_group = template.item_group
+    variant.description = template.description
+    variant.stock_uom = "Nos"
+    variant.is_stock_item = 0
+    variant.variant_of = template.name
+    variant.custom_unlimited_stock = 1 if _to_bool(unlimited_stock) else 0
+    variant.custom_stock_qty = _to_int(stock_qty)
+
+    if template.image:
+        variant.image = template.image
+
+    for fieldname in BRAND_FIELDNAMES:
+        if _item_meta_has_field(fieldname):
+            variant.set(fieldname, template.get(fieldname))
+
+    for attribute_name, value in attribute_values.items():
+        variant.append("attributes", {"attribute": attribute_name, "attribute_value": value})
+
+    _ensure_item_default_row(variant, company)
+
+    variant.insert(ignore_permissions=True)
+
+    price = _to_float(price)
+    if price:
+        _set_item_price(variant.name, DEFAULT_PRICE_LIST, price)
+
+    return variant.name
+
+
+@frappe.whitelist()
+def create_variant_store_product(item_name=None, description=None, item_group=None,
+                                  brands=None, image=None, attributes=None, variants=None):
+    """
+    attributes: [{"attribute": "Size", "values": ["Small", "Large"]}, ...]
+    variants: [{"attribute_values": {"Size": "Small"}, "price": 10,
+                "stock_qty": 5, "unlimited_stock": false}, ...]
+
+    Creates the template Item (has_variants=1, never itself purchasable)
+    plus one real Item per entry in `variants`, each with its own Item
+    Default/Item Price/stock - exactly what webshop_purchase.py's
+    get_item_or_variants() already knows how to read for checkout.
+    """
+    _ensure_store_access()
+
+    item_name = (item_name or "").strip()
+
+    if not item_name:
+        frappe.throw(_("Product name is required."))
+
+    if frappe.db.exists("Item", {"item_name": item_name}):
+        frappe.throw(_("A product named {0} already exists.").format(item_name))
+
+    attributes = _parse_json_list(attributes)
+    variants = _parse_json_list(variants)
+
+    if not attributes:
+        frappe.throw(_("Add at least one attribute (e.g. Size) for a product with variations."))
+
+    if not variants:
+        frappe.throw(_("No variant combinations to create."))
+
+    company = _store_company()
+
+    for attr in attributes:
+        _ensure_item_attribute(attr.get("attribute"), attr.get("values") or [])
+
+    template = frappe.new_doc("Item")
+    template.item_code = item_name
+    template.item_name = item_name
+    template.item_group = (item_group or "").strip() or "Products"
+    template.description = description or ""
+    template.stock_uom = "Nos"
+    template.is_stock_item = 0
+    template.has_variants = 1
+    template.custom_store_enabled = 1
+
+    if image:
+        template.image = image
+
+    parsed_brands = _parse_brands(brands)
+    for fieldname in BRAND_FIELDNAMES:
+        if _item_meta_has_field(fieldname):
+            template.set(fieldname, 1 if parsed_brands.get(fieldname) else 0)
+
+    for attr in attributes:
+        template.append("attributes", {"attribute": attr.get("attribute")})
+
+    template.insert(ignore_permissions=True)
+
+    created = []
+    for variant_spec in variants:
+        variant_name = _create_variant_item(
+            template,
+            variant_spec.get("attribute_values") or {},
+            variant_spec.get("price"),
+            variant_spec.get("stock_qty"),
+            variant_spec.get("unlimited_stock"),
+            company,
+        )
+        created.append(variant_name)
+
+    frappe.db.commit()
+
+    return {"ok": 1, "item_code": template.name, "variants": created}
+
+
+@frappe.whitelist()
+def get_product_variants(template_item_code=None):
+    _ensure_store_access()
+
+    template_item_code = (template_item_code or "").strip()
+
+    variants = frappe.get_all(
+        "Item",
+        filters={"variant_of": template_item_code},
+        fields=["name", "item_name", "disabled", "custom_stock_qty", "custom_unlimited_stock"],
+        order_by="item_name asc",
+        limit_page_length=500,
+    )
+
+    result = []
+
+    for variant in variants:
+        attr_rows = frappe.get_all(
+            "Item Variant Attribute",
+            filters={"parent": variant.name, "parenttype": "Item"},
+            fields=["attribute", "attribute_value"],
+            order_by="idx asc",
+        )
+        price_row = _get_item_price_row(variant.name, DEFAULT_PRICE_LIST)
+
+        result.append({
+            "name": variant.name,
+            "item_name": variant.item_name,
+            "disabled": bool(variant.disabled),
+            "stock_qty": variant.custom_stock_qty or 0,
+            "unlimited_stock": bool(variant.custom_unlimited_stock),
+            "price": price_row.price_list_rate if price_row else 0,
+            "attributes": {row.attribute: row.attribute_value for row in attr_rows},
+        })
+
+    return result
+
+
+@frappe.whitelist()
+def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=None, disabled=None):
+    _ensure_store_access()
+
+    item_code = (item_code or "").strip()
+
+    if not item_code or not frappe.db.exists("Item", item_code):
+        frappe.throw(_("Variant not found."))
+
+    if stock_qty is not None:
+        frappe.db.set_value("Item", item_code, "custom_stock_qty", _to_int(stock_qty))
+
+    if unlimited_stock is not None:
+        frappe.db.set_value("Item", item_code, "custom_unlimited_stock", 1 if _to_bool(unlimited_stock) else 0)
+
+    if disabled is not None:
+        frappe.db.set_value("Item", item_code, "disabled", 1 if _to_bool(disabled) else 0)
+
+    if price is not None:
+        _set_item_price(item_code, DEFAULT_PRICE_LIST, _to_float(price))
 
     frappe.db.commit()
 
