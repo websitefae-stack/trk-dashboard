@@ -6,6 +6,15 @@ Creates the User if it doesn't already exist (send_welcome_email=1, so
 Frappe's own invite email handles setting a password - nothing here ever
 sets or knows a password), then links it via a Store Manager record.
 
+v2 because the original create_store_manager_for_rachel patch shipped in
+the same deploy as the Store Manager doctype itself - patches.txt entries
+run before doctype/schema sync by default, so it always found "Store
+Manager" missing, no-opped via the guard below, and got marked done
+anyway (Frappe never retries a patch once logged, even a no-op). Listed
+under [post_model_sync] this time so it actually runs after the doctype
+exists. The guard stays, since a fresh site could still reach this before
+sync for some other reason.
+
 Runs automatically on the next `bench migrate`. Safe to run more than
 once - skips whichever half already exists.
 """
