@@ -102,3 +102,4 @@ dashboard.patches.add_school_area_and_deputy_head_role
 dashboard.patches.add_school_address_and_telephone
 dashboard.patches.create_website_customers_email_group
 dashboard.patches.raise_max_file_upload_size
+dashboard.patches.add_item_store_and_stock_fields

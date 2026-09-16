@@ -7,6 +7,7 @@ from dashboard.api.shared.notifications import create_trk_notification
 SESSION_WORKER_DOCTYPE = "Session Worker"
 COACH_DOCTYPE = "Coach"
 CLIENT_DOCTYPE = "Client"
+STORE_MANAGER_DOCTYPE = "Store Manager"
 
 FRANCHISOR_USERS = {
     "ashley@theresilientkid.co.uk",
@@ -89,11 +90,36 @@ def get_current_session_worker():
     return frappe.get_doc(SESSION_WORKER_DOCTYPE, session_worker_name)
 
 
+def get_current_store_manager_name(optional=False):
+    ensure_logged_in()
+
+    store_manager_name = frappe.db.get_value(
+        STORE_MANAGER_DOCTYPE,
+        {"user": frappe.session.user, "enabled": 1},
+        "name",
+    )
+
+    if not store_manager_name and not optional:
+        frappe.throw(_("No Store Manager profile is linked to your user."), frappe.PermissionError)
+
+    return store_manager_name or ""
+
+
+def is_store_manager():
+    if not frappe.db.exists("DocType", STORE_MANAGER_DOCTYPE):
+        return False
+
+    return bool(get_current_store_manager_name(optional=True))
+
+
 def get_current_user_dashboard_type():
     ensure_logged_in()
 
     if is_office_user():
         return "franchisor"
+
+    if is_store_manager():
+        return "store"
 
     if frappe.db.exists(SESSION_WORKER_DOCTYPE, {"user": frappe.session.user}):
         return "session_worker"
@@ -728,6 +754,10 @@ def redirect_if_wrong_dashboard(expected):
 
     if current == "franchisor":
         frappe.local.flags.redirect_location = "/franchisor_db"
+        raise frappe.Redirect
+
+    if current == "store":
+        frappe.local.flags.redirect_location = "/store_db"
         raise frappe.Redirect
 
     frappe.throw(_("You are not allowed to access this dashboard."), frappe.PermissionError)
