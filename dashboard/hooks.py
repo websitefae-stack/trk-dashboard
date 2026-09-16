@@ -41,6 +41,17 @@ website_route_rules = []
 
 fixtures = []
 
+# create_store_manager_for_rachel_v2 needs the Store Manager doctype to
+# already exist - patches.txt entries run before schema/doctype sync
+# (that's what broke the first attempt at this, in patches.txt directly:
+# AppNotInstalledError on a "[post_model_sync]" section header this
+# Frappe version's patch parser doesn't actually support). after_migrate
+# runs once at the very end of `bench migrate`, after every patch and
+# every doctype sync, so this is the version-safe way to run something
+# that depends on a doctype introduced in the same deploy. Re-runs every
+# migrate, which is fine - the function itself is idempotent.
+after_migrate = "dashboard.patches.create_store_manager_for_rachel_v2.execute"
+
 # Keep appointments Private (Frappe's own permission model then restricts
 # visibility/reminders to the owner - coaches shouldn't see each other's
 # sessions) while still giving HQ/office full visibility in the raw Frappe
