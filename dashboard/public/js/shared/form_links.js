@@ -27,11 +27,15 @@
         (link.description
           ? '<div class="dashboard-doc-list-meta" style="margin-bottom:8px;">' + escapeHtml(link.description) + "</div>"
           : "") +
-        '<div class="dashboard-login-qr" data-qr-value="' + escapeHtml(link.url) + '" data-qr-label="' + escapeHtml(link.title) + '"></div>' +
-        '<a href="#" class="dashboard-login-qr-download" download>Download QR code (JPG)</a>' +
-        '<div class="dashboard-link-card-actions">' +
-          '<button type="button" class="dashboard-btn dashboard-btn-light" data-copy-value="' + escapeHtml(link.url) + '">Copy Link</button>' +
-          '<a class="dashboard-btn dashboard-btn-primary" href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener noreferrer">Open</a>' +
+        '<div class="dashboard-link-card-body">' +
+          '<div class="dashboard-login-qr" data-qr-value="' + escapeHtml(link.url) + '" data-qr-label="' + escapeHtml(link.title) + '"></div>' +
+          '<div class="dashboard-link-card-actions">' +
+            '<a href="#" class="dashboard-login-qr-download" download>Download QR code (JPG)</a>' +
+            '<div class="dashboard-link-card-buttons">' +
+              '<button type="button" class="dashboard-btn dashboard-btn-light" data-copy-value="' + escapeHtml(link.url) + '">Copy Link</button>' +
+              '<a class="dashboard-btn dashboard-btn-primary" href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener noreferrer">Open</a>' +
+            "</div>" +
+          "</div>" +
         "</div>" +
       "</div>"
     );
