@@ -34,6 +34,10 @@
           '<button type="button" class="dashboard-btn dashboard-btn-light" data-copy-target="' + id + '">Copy Link</button>' +
           '<a class="dashboard-btn dashboard-btn-primary" href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener noreferrer">Open</a>' +
         "</div>" +
+        '<div class="dashboard-login-link-actions">' +
+          '<div class="dashboard-login-qr" data-qr-value="' + escapeHtml(link.url) + '" data-qr-label="' + escapeHtml(link.title) + '"></div>' +
+          '<a href="#" class="dashboard-login-qr-download" download>Download QR code (JPG)</a>' +
+        "</div>" +
       "</div>"
     );
   }
@@ -83,6 +87,7 @@
 
     container.innerHTML = links.map(renderLink).join("");
     bindCopyButtons(container);
+    Dashboard.renderQrCodes({ root: container, format: "jpeg" });
   }
 
   function initLinksSearch() {
