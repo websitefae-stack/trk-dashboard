@@ -1,0 +1,13 @@
+<div class="dashboard-topbar">
+    <div class="dashboard-topbar-main">
+
+        <div class="dashboard-topbar-welcome">
+            Welcome{% if dashboard_user_name %},
+            <span class="dashboard-topbar-name">{{ dashboard_user_name }}</span>
+            {% else %}
+            <span class="dashboard-topbar-name">{{ frappe.session.user }}</span>
+            {% endif %}
+        </div>
+
+    </div>
+</div>

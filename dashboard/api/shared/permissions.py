@@ -744,6 +744,13 @@ def redirect_if_wrong_dashboard(expected):
         enforce_legal_compliance(current)
         return
 
+    # A franchisor can also reach the Store dashboard directly (e.g. to
+    # cover for Rachel, or set things up before she has a login) without
+    # being bounced to /franchisor_db first - same as store_products.py's
+    # own API-level access check already allows.
+    if expected == "store" and current == "franchisor":
+        return
+
     if current == "session_worker":
         frappe.local.flags.redirect_location = "/session_worker_db"
         raise frappe.Redirect
