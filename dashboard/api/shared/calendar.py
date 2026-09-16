@@ -1380,6 +1380,32 @@ def _map_client_lead_notes_to_calendar_shape(notes):
     return mapped
 
 
+def _backfill_client_lead_for_event(event_name, contact_name, phone, coach):
+    """
+    Best-effort promotion of a legacy Initial Consultation (booked before
+    custom_client_lead existed - see _get_lead_for_event) onto the Client
+    Lead system every current booking already uses, so a note added to it
+    shows up in the Leads section. Never raises - returns "" if it can't,
+    so the caller can still fall back to saving the note onto the legacy
+    Lead rather than losing it.
+    """
+    if not event_name or not contact_name or not frappe.db.exists("Event", event_name):
+        return ""
+
+    if not _event_has_field("custom_client_lead"):
+        return ""
+
+    try:
+        from dashboard.api.shared.leads import create_lead_from_booking
+
+        client_lead = create_lead_from_booking(contact_name=contact_name, phone=phone, coach=coach)
+        frappe.db.set_value("Event", event_name, "custom_client_lead", client_lead)
+        return client_lead
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Backfill Client Lead For Legacy Event Failed")
+        return ""
+
+
 def _get_lead_for_event(event_doc):
     """
     Initial Consultation appointments don't have a Client - create_booking()
@@ -3597,15 +3623,45 @@ def add_client_note(client=None, lead=None, client_lead=None, event=None, sessio
     # Legacy Initial Consultation appointments booked before the Client
     # Lead link existed - "Lead" here is a plain core Frappe Lead (see
     # _get_lead_for_event's docstring), a dead end this dashboard has no
-    # page for, kept working only so old notes already saved this way
-    # don't disappear. A Lead isn't owned by a specific coach/worker the
-    # way a Client is, so there's no equivalent ownership check here;
-    # access to the lead id itself is already gated by only being
-    # reachable through a specific appointment's own details, which the
-    # dashboard already restricts to whoever can see that appointment.
+    # page for. First promote this one booking onto the same Client Lead
+    # system every current booking already uses (same call create_booking()
+    # itself makes for a calendar-direct booking - see its own "still
+    # needs to show up in the Leads section" comment), so the note ends
+    # up somewhere the Leads section can actually show it, and every note
+    # added after this one reuses the same Client Lead rather than
+    # creating another. A Lead isn't owned by a specific coach/worker the
+    # way a Client is, so there's no equivalent ownership check on the
+    # legacy fallback below; access to the lead id itself is already
+    # gated by only being reachable through a specific appointment's own
+    # details, which the dashboard already restricts to whoever can see
+    # that appointment.
     if not client and lead:
         if not frappe.db.exists("Lead", lead):
             frappe.throw(_("Selected lead was not found."))
+
+        contact_name = frappe.db.get_value("Lead", lead, "lead_name") or frappe.db.get_value("Lead", lead, "first_name") or ""
+
+        phone = None
+        for fieldname in ["mobile_no", "phone", "phone_no"]:
+            if frappe.get_meta("Lead").has_field(fieldname):
+                phone = frappe.db.get_value("Lead", lead, fieldname)
+                if phone:
+                    break
+
+        backfilled_client_lead = _backfill_client_lead_for_event(
+            event, contact_name, phone, context.get("coach_name")
+        )
+
+        if backfilled_client_lead:
+            from dashboard.api.shared.leads import add_lead_note
+
+            note_text = f"{notes}\n\nAttachment: {attachement}" if attachement else notes
+            result = add_lead_note(name=backfilled_client_lead, note=note_text, note_date=raw_session_date)
+
+            return {
+                "ok": True,
+                "client_notes": _map_client_lead_notes_to_calendar_shape(result.get("notes") or []),
+            }
 
         if not frappe.get_meta("Lead").has_field("notes"):
             frappe.throw(_(
