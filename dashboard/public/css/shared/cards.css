@@ -198,6 +198,7 @@
   line-height: 0;
 }
 
+.dashboard-login-qr canvas,
 .dashboard-login-qr img {
   display: block;
   width: 140px;
@@ -228,9 +229,27 @@
   }
 }
 
-.dashboard-link-card-actions {
+.dashboard-link-card-body {
   margin-top: 10px;
   display: flex;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.dashboard-link-card-actions {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dashboard-link-card-actions .dashboard-login-qr-download {
+  margin-top: 0;
+}
+
+.dashboard-link-card-buttons {
+  display: flex;
+  gap: 8px;
   flex-wrap: wrap;
 }
