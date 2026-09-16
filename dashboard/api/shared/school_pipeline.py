@@ -158,7 +158,13 @@ def get_school_pipeline():
 @frappe.whitelist()
 def get_school(name=None):
     _ensure_franchisor()
-    name = (name or "").strip()
+    # School's docname is an autoincrement integer, not a string - most
+    # callers reach this via a whitelisted request (School's docname
+    # arrives as a string then, like everything else over JSON), but the
+    # internal reverse lookup in get_school_for_client() below passes the
+    # raw int straight from frappe.db.get_value(), which .strip() can't
+    # handle directly.
+    name = str(name or "").strip()
 
     if not name or not frappe.db.exists(SCHOOL_DOCTYPE, name):
         frappe.throw(_("School not found."))
