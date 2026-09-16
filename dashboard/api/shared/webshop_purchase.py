@@ -1,10 +1,8 @@
 """
 Guest-facing checkout for one-off online purchases (services, products,
-merch) - deliberately separate from both the stock Frappe webshop app
-(its checkout hard-requires a login, which is exactly the problem this
-replaces) and the coaching Client/invoicing flow in invoices.py, so an
-online purchase never mixes into the real Client list (see Online
-Client doctype - Ashley links the two manually later, by email).
+merch) - deliberately separate from the stock Frappe webshop app (its
+checkout hard-requires a login, which is exactly the problem this
+replaces).
 
 Mirrors the guest-facing shape already established by public_booking.py:
 a no-login Jinja page in resilient_domains, paired with
@@ -14,6 +12,16 @@ browsing/product display stays wherever the item is already shown.
 Price is always computed here from the Item's own Item Price, never
 trusted from the browser - the client only ever sends an item_code and
 a quantity.
+
+Every purchase is routed onto a real Client, not kept in a separate
+"Online Client" silo (that used to be the design - an online purchase
+never mixed into the real Client list, Ashley linked the two manually
+by email later - deliberately changed so an existing client's purchase
+shows up in the same client_portal login they already use, and a new
+buyer gets their own portal access automatically instead of a second,
+disconnected identity). The Online Client record is still created too,
+purely as the same lightweight admin-facing record it always was -
+nothing currently reads it for portal access.
 """
 
 import frappe
@@ -29,6 +37,22 @@ from dashboard.api.shared.email_groups import add_to_email_group
 
 ONLINE_CLIENT_DOCTYPE = "Online Client"
 WEBSHOP_CUSTOMERS_EMAIL_GROUP = "Website Customers"
+
+# The Table fieldname add_client_contact_link_table_field.py (client_portal
+# app) added to Client - not imported from that app (this app never
+# imports another app's Python, only reads/writes the same core doctypes
+# directly), just the same fixed fieldname that patch created.
+CLIENT_CONTACT_LINK_PARENTFIELD = "client_contact_link"
+
+# Only the view-level permissions a webshop buyer needs to see their own
+# purchases/downloads - never can_manage_staff_access or edit-type
+# permissions, which stay something office grants by hand.
+PORTAL_PERMISSIONS_FOR_BUYER = [
+    "view_profile",
+    "can_view_invoices",
+    "can_view_courses_and_products",
+    "can_view_downloads",
+]
 
 
 def _get_stripe_secret_key(settings):
@@ -393,7 +417,133 @@ def _get_or_create_customer_for_online_client(online_client):
     return customer_doc.name
 
 
-def _send_order_confirmation_emails(invoice, online_client, item, qty, settings, coach):
+def _set_if_field(doc, fieldname, value):
+    if value is not None and frappe.get_meta(doc.doctype).has_field(fieldname):
+        doc.set(fieldname, value)
+
+
+def _get_or_create_portal_client(full_name, email, phone):
+    """
+    Finds the real coaching Client this email already belongs to, if any -
+    an existing client buying something must land on their own existing
+    record, never a second one. Creates a bare new Client only if truly
+    nobody matches yet.
+    """
+    existing_name = frappe.db.get_value("Client", {"email": email}, "name")
+
+    if existing_name:
+        return existing_name, False
+
+    first_name, last_name = _split_full_name(full_name)
+
+    client = frappe.new_doc("Client")
+    _set_if_field(client, "name1", first_name)
+    _set_if_field(client, "last_name", last_name)
+    _set_if_field(client, "full_name", full_name or email)
+    _set_if_field(client, "preferred_name", first_name)
+    _set_if_field(client, "email", email)
+    _set_if_field(client, "mobile", phone)
+    _set_if_field(client, "status", "Active")
+    _set_if_field(client, "client_type", "Adult")
+    client.insert(ignore_permissions=True)
+
+    return client.name, True
+
+
+def _ensure_portal_login(email, full_name):
+    """Creates the login itself - Frappe's own welcome email handles
+    setting a password, nothing here ever sets or knows one."""
+    if frappe.db.exists("User", email):
+        return False
+
+    first_name, last_name = _split_full_name(full_name)
+
+    user = frappe.new_doc("User")
+    user.email = email
+    user.first_name = first_name or email
+    if last_name:
+        user.last_name = last_name
+    user.user_type = "Website User"
+    user.enabled = 1
+    user.send_welcome_email = 1
+    user.insert(ignore_permissions=True)
+
+    return True
+
+
+def _ensure_portal_access(client_name, contact_name, email):
+    """
+    Grants this email access to its own Client's client_portal login -
+    the same Client Contact Link child table client_portal's own
+    invitation flow writes to, just skipping the invite/accept step since
+    a completed, paid purchase is already a stronger signal of ownership
+    than an emailed invite link. Does nothing if client_portal isn't
+    installed on this site, or this email already has access.
+    """
+    client_meta = frappe.get_meta("Client")
+
+    if not client_meta.has_field(CLIENT_CONTACT_LINK_PARENTFIELD):
+        return False
+
+    client_doc = frappe.get_doc("Client", client_name)
+
+    for row in client_doc.get(CLIENT_CONTACT_LINK_PARENTFIELD) or []:
+        if (row.get("email_id") or "").strip().lower() == email:
+            return False
+
+    contact_first_name = frappe.db.get_value("Contact", contact_name, "first_name") if contact_name else None
+
+    row = client_doc.append(CLIENT_CONTACT_LINK_PARENTFIELD, {})
+    row.contact = contact_name
+    row.contact_name = contact_first_name or email
+    row.email_id = email
+    row.is_primary_contact = 1
+    row.portal_access_enabled = 1
+
+    for fieldname in PORTAL_PERMISSIONS_FOR_BUYER:
+        if row.meta.has_field(fieldname):
+            row.set(fieldname, 1)
+
+    client_doc.save(ignore_permissions=True)
+
+    return True
+
+
+def _unlock_courses_for_purchase(email, item_codes):
+    """Any purchased item with custom_unlocks_lms_course set enrols the
+    buyer in that course automatically, same LMS Enrollment shape
+    resilient_domains' course_signup.py creates for a direct signup."""
+    if not frappe.db.exists("DocType", "LMS Course"):
+        return []
+
+    item_meta = frappe.get_meta("Item")
+    if not item_meta.has_field("custom_unlocks_lms_course"):
+        return []
+
+    unlocked = []
+
+    for item_code in item_codes:
+        course = frappe.db.get_value("Item", item_code, "custom_unlocks_lms_course")
+        if not course:
+            continue
+
+        already_enrolled = frappe.db.exists("LMS Enrollment", {"course": course, "member": email})
+        if already_enrolled:
+            continue
+
+        enrollment = frappe.new_doc("LMS Enrollment")
+        enrollment.course = course
+        enrollment.member = email
+        enrollment.insert(ignore_permissions=True)
+        unlocked.append(course)
+
+    return unlocked
+
+
+def _send_order_confirmation_emails(
+    invoice, online_client, item, qty, settings, coach,
+    digital_file_url=None, granted_new_portal_access=False, unlocked_courses=None,
+):
     amount_display = fmt_money(invoice.grand_total, currency=invoice.currency)
 
     message = (
@@ -404,6 +554,22 @@ def _send_order_confirmation_emails(invoice, online_client, item, qty, settings,
         f"{item.get('item_name')} x{qty} - {amount_display}\n"
         "\n"
         f"Order reference: {invoice.name}\n"
+    )
+
+    if digital_file_url:
+        message += f"\nDownload: {get_url(digital_file_url)}\n"
+
+    if unlocked_courses:
+        message += "\nYou now have access to: " + ", ".join(unlocked_courses) + "\n"
+
+    if granted_new_portal_access:
+        message += (
+            "\nWe've also set up your client portal, where you can see this order and any "
+            f"downloads any time - look out for a separate email to set your password, then log in at "
+            f"{get_url('/trh-login')}\n"
+        )
+
+    message += (
         "\n"
         "Warm regards,\n"
         f"{settings.company}"
@@ -484,6 +650,16 @@ def _fulfil_checkout_session(session):
 
     customer_name = _get_or_create_customer_for_online_client(online_client)
 
+    contact_name = frappe.db.get_value("Contact Email", {"email_id": email}, "parent")
+
+    client_name, is_new_client = _get_or_create_portal_client(
+        full_name=online_client.full_name, email=email, phone=online_client.get("phone") or "",
+    )
+    granted_new_portal_access = _ensure_portal_access(client_name, contact_name, email)
+
+    if granted_new_portal_access:
+        _ensure_portal_login(email, online_client.full_name)
+
     invoice = frappe.new_doc("Sales Invoice")
     invoice.customer = customer_name
     invoice.company = settings.company
@@ -493,6 +669,8 @@ def _fulfil_checkout_session(session):
 
     if invoice.meta.has_field("custom_online_client"):
         invoice.custom_online_client = online_client_name
+    if invoice.meta.has_field("custom_client"):
+        invoice.custom_client = client_name
     if invoice.meta.has_field("custom_stripe_session_id"):
         invoice.custom_stripe_session_id = stripe_session_id
 
@@ -523,12 +701,24 @@ def _fulfil_checkout_session(session):
         reference_no=stripe_session_id,
     )
 
+    unlocked_courses = _unlock_courses_for_purchase(email, [item_code])
+
     frappe.db.commit()
 
     invoice.reload()
 
+    digital_file_url = (
+        frappe.db.get_value("Item", item_code, "custom_digital_file")
+        if frappe.get_meta("Item").has_field("custom_digital_file") else None
+    )
+
     try:
-        _send_order_confirmation_emails(invoice, online_client, item, qty, settings, coach)
+        _send_order_confirmation_emails(
+            invoice, online_client, item, qty, settings, coach,
+            digital_file_url=digital_file_url,
+            granted_new_portal_access=granted_new_portal_access,
+            unlocked_courses=unlocked_courses,
+        )
     except Exception:
         # The order itself is already paid and recorded - a failed email
         # shouldn't look like a failed purchase to Stripe (which would
