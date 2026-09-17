@@ -199,8 +199,17 @@
 
   function updateVariationsVisibility() {
     const hasVariations = el("storeProductHasVariations").checked;
+    el("storeProductPriceField").style.display = hasVariations ? "none" : "";
     el("storeSimpleProductFields").style.display = hasVariations ? "none" : "";
     el("storeVariationsFields").style.display = hasVariations ? "" : "none";
+  }
+
+  function updateDigitalFieldVisibility() {
+    el("storeProductDigitalFileWrap").style.display = el("storeProductIsDigital").checked ? "" : "none";
+  }
+
+  function updateUnlocksCourseFieldVisibility() {
+    el("storeProductUnlocksCourseWrap").style.display = el("storeProductUnlocksCourseEnabled").checked ? "" : "none";
   }
 
   function collectBrands() {
@@ -213,11 +222,37 @@
     };
   }
 
+  let attributeRowCount = 0;
+
+  function addAttributeRow() {
+    const container = el("storeAttributesList");
+    const index = attributeRowCount++;
+
+    const row = document.createElement("div");
+    row.className = "store-attribute-row";
+    row.style.marginBottom = "14px";
+    row.innerHTML = `
+      <label>Attribute ${index + 1} name</label>
+      <input type="text" class="dashboard-input" data-attribute-name placeholder="e.g. Size">
+      <label>Attribute ${index + 1} values (comma separated)</label>
+      <input type="text" class="dashboard-input" data-attribute-values placeholder="e.g. Small, Medium, Large, XL">
+      ${index > 0 ? '<button type="button" class="dashboard-btn dashboard-btn-light" data-remove-attribute style="margin-top:6px;">Remove Attribute</button>' : ""}
+    `;
+    container.appendChild(row);
+
+    const removeBtn = row.querySelector("[data-remove-attribute]");
+    if (removeBtn) {
+      removeBtn.addEventListener("click", function () {
+        row.remove();
+      });
+    }
+  }
+
   function resetVariationBuilder() {
-    el("storeAttribute1Name").value = "";
-    el("storeAttribute1Values").value = "";
-    el("storeAttribute2Name").value = "";
-    el("storeAttribute2Values").value = "";
+    el("storeAttributesList").innerHTML = "";
+    attributeRowCount = 0;
+    addAttributeRow();
+
     el("storeVariationsBasePrice").value = "";
     generatedVariants = [];
     imageKeyAttribute = "";
@@ -248,6 +283,11 @@
     el("storeProductDisabled").checked = !!(product && product.disabled);
     el("storeProductDisabledRow").style.display = product ? "" : "none";
     el("storeProductUnlocksCourse").value = product ? product.unlocks_course || "" : "";
+    el("storeProductUnlocksCourseEnabled").checked = !!(product && product.unlocks_course);
+    updateUnlocksCourseFieldVisibility();
+
+    el("storeProductIsDigital").checked = !!(product && product.digital_file);
+    updateDigitalFieldVisibility();
 
     const digitalLink = el("storeProductDigitalFileLink");
     if (uploadedDigitalFileUrl) {
@@ -281,6 +321,7 @@
     updateVariationsVisibility();
 
     if (isVariantTemplate) {
+      el("storeProductPriceField").style.display = "none";
       el("storeSimpleProductFields").style.display = "none";
     }
 
@@ -293,20 +334,21 @@
     el("storeProductModal").classList.remove("is-open");
   }
 
-  function buildCombinations(attr1Name, attr1Values, attr2Name, attr2Values) {
-    const combos = [];
+  // General N-way cartesian product - one attribute gives one combo per
+  // value, two gives every pairing, and so on for however many
+  // attributes were added.
+  function buildCombinations(lists) {
+    let combos = [{}];
 
-    if (attr2Name && attr2Values.length) {
-      attr1Values.forEach((v1) => {
-        attr2Values.forEach((v2) => {
-          combos.push({ [attr1Name]: v1, [attr2Name]: v2 });
+    lists.forEach((attr) => {
+      const next = [];
+      combos.forEach((combo) => {
+        attr.values.forEach((value) => {
+          next.push(Object.assign({}, combo, { [attr.attribute]: value }));
         });
       });
-    } else {
-      attr1Values.forEach((v1) => {
-        combos.push({ [attr1Name]: v1 });
-      });
-    }
+      combos = next;
+    });
 
     return combos;
   }
@@ -330,28 +372,27 @@
     el("storeVariantsGeneratedWrap").style.display = generatedVariants.length ? "" : "none";
   }
 
+  // Reads every currently added attribute row (however many there are).
+  function attributeValueLists() {
+    const rows = Array.from(document.querySelectorAll("#storeAttributesList .store-attribute-row"));
+
+    return rows.map((row) => ({
+      attribute: row.querySelector("[data-attribute-name]").value.trim(),
+      values: row.querySelector("[data-attribute-values]").value.split(",").map((v) => v.trim()).filter(Boolean),
+    })).filter((attr) => attr.attribute && attr.values.length);
+  }
+
   // One photo per value of a single chosen attribute (e.g. one per
   // Style), reused across every combination that shares that value -
   // avoids needing a separate photo for every Size x Style pair.
-  function attributeValueLists() {
-    const attr1Name = el("storeAttribute1Name").value.trim();
-    const attr1Values = el("storeAttribute1Values").value.split(",").map((v) => v.trim()).filter(Boolean);
-    const attr2Name = el("storeAttribute2Name").value.trim();
-    const attr2Values = el("storeAttribute2Values").value.split(",").map((v) => v.trim()).filter(Boolean);
-
-    const lists = [{ name: attr1Name, values: attr1Values }];
-    if (attr2Name && attr2Values.length) lists.push({ name: attr2Name, values: attr2Values });
-    return lists;
-  }
-
   function renderVariantImageRows() {
     const lists = attributeValueLists();
     const select = el("storeVariantImageAttribute");
-    select.innerHTML = lists.map((a) => `<option value="${escapeHtml(a.name)}">${escapeHtml(a.name)}</option>`).join("");
+    select.innerHTML = lists.map((a) => `<option value="${escapeHtml(a.attribute)}">${escapeHtml(a.attribute)}</option>`).join("");
 
     // Default to the last (most likely visually distinct, e.g. Style
-    // over Size) attribute when there are two.
-    imageKeyAttribute = lists[lists.length - 1].name;
+    // over Size) attribute when there's more than one.
+    imageKeyAttribute = lists[lists.length - 1].attribute;
     select.value = imageKeyAttribute;
 
     variantImagesByValue = {};
@@ -361,7 +402,7 @@
 
   function renderVariantImageValueRows() {
     const lists = attributeValueLists();
-    const chosen = lists.find((a) => a.name === imageKeyAttribute) || lists[0];
+    const chosen = lists.find((a) => a.attribute === imageKeyAttribute) || lists[0];
     const body = el("storeVariantImagesBody");
 
     body.innerHTML = (chosen ? chosen.values : []).map((value) => `
@@ -374,17 +415,14 @@
   }
 
   function generateVariants() {
-    const attr1Name = el("storeAttribute1Name").value.trim();
-    const attr1Values = el("storeAttribute1Values").value.split(",").map((v) => v.trim()).filter(Boolean);
-    const attr2Name = el("storeAttribute2Name").value.trim();
-    const attr2Values = el("storeAttribute2Values").value.split(",").map((v) => v.trim()).filter(Boolean);
+    const lists = attributeValueLists();
 
-    if (!attr1Name || !attr1Values.length) {
-      alert("Enter attribute 1's name and at least one value.");
+    if (!lists.length) {
+      alert("Enter at least one attribute's name and values.");
       return;
     }
 
-    generatedVariants = buildCombinations(attr1Name, attr1Values, attr2Name, attr2Values);
+    generatedVariants = buildCombinations(lists);
     renderGeneratedVariants();
     renderVariantImageRows();
   }
@@ -448,17 +486,6 @@
       if (hasVariations) {
         await uploadVariantImagesByValue();
 
-        const attributes = [];
-        const attr1Name = el("storeAttribute1Name").value.trim();
-        const attr1Values = el("storeAttribute1Values").value.split(",").map((v) => v.trim()).filter(Boolean);
-        attributes.push({ attribute: attr1Name, values: attr1Values });
-
-        const attr2Name = el("storeAttribute2Name").value.trim();
-        if (attr2Name) {
-          const attr2Values = el("storeAttribute2Values").value.split(",").map((v) => v.trim()).filter(Boolean);
-          attributes.push({ attribute: attr2Name, values: attr2Values });
-        }
-
         await apiPost(API + ".create_variant_store_product", {
           item_name: itemName,
           description: el("storeProductDescription").value,
@@ -466,14 +493,21 @@
           item_group: el("storeProductGroup").value,
           brands: collectBrands(),
           image: uploadedImageUrl,
-          attributes: attributes,
+          attributes: attributeValueLists(),
           variants: collectVariantSpecs(),
         });
       } else {
-        const digitalFile = el("storeProductDigitalFileInput").files[0];
-        if (digitalFile) {
-          const uploaded = await uploadFile(digitalFile, true);
-          uploadedDigitalFileUrl = uploaded.file_url || uploadedDigitalFileUrl;
+        const isDigital = el("storeProductIsDigital").checked;
+        const unlocksCourseEnabled = el("storeProductUnlocksCourseEnabled").checked;
+
+        if (isDigital) {
+          const digitalFile = el("storeProductDigitalFileInput").files[0];
+          if (digitalFile) {
+            const uploaded = await uploadFile(digitalFile, true);
+            uploadedDigitalFileUrl = uploaded.file_url || uploadedDigitalFileUrl;
+          }
+        } else {
+          uploadedDigitalFileUrl = "";
         }
 
         const payload = {
@@ -491,8 +525,8 @@
           payload.price = el("storeProductPrice").value || 0;
           payload.unlimited_stock = el("storeProductUnlimited").checked;
           payload.stock_qty = el("storeProductStockQty").value || 0;
-          payload.digital_file = uploadedDigitalFileUrl;
-          payload.unlocks_course = el("storeProductUnlocksCourse").value;
+          payload.digital_file = isDigital ? uploadedDigitalFileUrl : "";
+          payload.unlocks_course = unlocksCourseEnabled ? el("storeProductUnlocksCourse").value : "";
         }
 
         if (itemCode) {
@@ -656,7 +690,19 @@
     el("saveStoreProduct").addEventListener("click", saveProduct);
     el("storeProductUnlimited").addEventListener("change", updateStockFieldVisibility);
     el("storeProductHasVariations").addEventListener("change", updateVariationsVisibility);
+    el("storeProductIsDigital").addEventListener("change", updateDigitalFieldVisibility);
+    el("storeProductUnlocksCourseEnabled").addEventListener("change", updateUnlocksCourseFieldVisibility);
     el("generateVariantsBtn").addEventListener("click", generateVariants);
+    el("addAttributeBtn").addEventListener("click", addAttributeRow);
+
+    // Changing the starting price after combinations are already
+    // generated fills every row instead of only affecting ones
+    // generated afterwards.
+    el("storeVariationsBasePrice").addEventListener("input", function () {
+      document.querySelectorAll("[data-variant-price]").forEach((input) => {
+        input.value = this.value;
+      });
+    });
 
     el("closeStoreVariantsModal").addEventListener("click", closeVariantsModal);
     el("closeStoreVariantsModalBtn").addEventListener("click", closeVariantsModal);
@@ -700,6 +746,15 @@
           `[data-existing-variant-stock="${CSS.escape(existingUnlimited.dataset.existingVariantUnlimited)}"]`
         );
         if (stockInput) stockInput.disabled = existingUnlimited.checked;
+        return;
+      }
+
+      const newVariantUnlimited = event.target.closest("[data-variant-unlimited]");
+      if (newVariantUnlimited) {
+        const stockInput = document.querySelector(
+          `[data-variant-stock="${newVariantUnlimited.dataset.variantUnlimited}"]`
+        );
+        if (stockInput) stockInput.disabled = newVariantUnlimited.checked;
       }
     });
 
