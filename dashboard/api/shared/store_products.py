@@ -38,18 +38,24 @@ def _as_administrator():
     to manage the store - this covers what ignore_permissions=True on
     this endpoint's own Item save doesn't reach: the stock Frappe
     Webshop app hooks Item's save to auto-sync a "Website Item" record,
-    and that nested insert checks frappe.session.user directly rather
-    than inheriting this call's ignore_permissions flag, so a Store
-    Manager (a limited Website User, not an Item/Website Manager)
-    otherwise gets a bare PermissionError from deep inside someone
-    else's app. Restores the real user again once the write is done.
+    and that nested insert checks permissions itself rather than
+    inheriting this call's ignore_permissions flag, so a Store Manager
+    (a limited Website User, not an Item/Website Manager) otherwise gets
+    a bare PermissionError from deep inside someone else's app.
+
+    Deliberately uses frappe.flags.ignore_permissions rather than
+    frappe.set_user("Administrator") - set_user() also reassigns
+    frappe.session.sid to the given username, and restoring only
+    session.user afterward (not session.sid) leaves that corrupted for
+    the rest of the request, which was logging Rachel straight back out
+    after every save. This flag never touches the session at all.
     """
-    original_user = frappe.session.user
-    frappe.set_user("Administrator")
+    previous = frappe.flags.ignore_permissions
+    frappe.flags.ignore_permissions = True
     try:
         yield
     finally:
-        frappe.set_user(original_user)
+        frappe.flags.ignore_permissions = previous
 
 
 def _to_bool(value):
@@ -110,8 +116,22 @@ def _store_company():
 
 
 def _ensure_item_default_row(item, company):
+    """
+    custom_show_on_site (on this row, not on Item) is the flag
+    webshop_purchase.py's checkout actually gates a purchase on - a
+    different, older flag than Item.custom_store_enabled (which only
+    controls showing up in a store *listing*, see get_store_items() in
+    resilient_domains). A store product needs both, or it lists fine
+    but "isn't available for online purchase" the moment someone tries
+    to actually buy it - also backfills it onto a row created before
+    this was noticed.
+    """
+    has_show_on_site_field = frappe.get_meta("Item Default").has_field("custom_show_on_site")
+
     for row in item.get("item_defaults") or []:
         if row.get("company") == company:
+            if has_show_on_site_field and not row.get("custom_show_on_site"):
+                row.custom_show_on_site = 1
             return row
 
     warehouse = _get_default_warehouse_for_company(company)
@@ -119,13 +139,16 @@ def _ensure_item_default_row(item, company):
     if not warehouse:
         frappe.throw(_("No default warehouse found for {0} - please set one up first.").format(company))
 
-    item.append("item_defaults", {
+    new_row = item.append("item_defaults", {
         "company": company,
         "default_warehouse": warehouse,
         "default_price_list": DEFAULT_PRICE_LIST,
     })
 
-    return item.get("item_defaults")[-1]
+    if has_show_on_site_field:
+        new_row.custom_show_on_site = 1
+
+    return new_row
 
 
 def _get_item_price_row(item_code, price_list):
@@ -289,7 +312,8 @@ def get_store_products(search=None):
         filters["item_name"] = ["like", f"%{search}%"]
 
     extra_fieldnames = [
-        f for f in ["custom_digital_file", "custom_unlocks_lms_course"] if item_meta.has_field(f)
+        f for f in ["custom_digital_file", "custom_unlocks_lms_course", "custom_short_description"]
+        if item_meta.has_field(f)
     ]
 
     items = frappe.get_all(
@@ -328,6 +352,7 @@ def get_store_products(search=None):
             "name": item.name,
             "item_name": item.item_name or item.name,
             "description": item.description or "",
+            "short_description": item.get("custom_short_description") or "",
             "item_group": item.item_group or "",
             "image": item.image or "",
             "disabled": bool(item.disabled),
@@ -344,7 +369,7 @@ def get_store_products(search=None):
 
 
 @frappe.whitelist()
-def create_store_product(item_name=None, description=None, item_group=None, price=None,
+def create_store_product(item_name=None, description=None, short_description=None, item_group=None, price=None,
                           stock_qty=None, unlimited_stock=None, brands=None, image=None,
                           digital_file=None, unlocks_course=None):
     _ensure_store_access()
@@ -379,6 +404,10 @@ def create_store_product(item_name=None, description=None, item_group=None, pric
 
     item.item_group = _ensure_item_group((item_group or "").strip() or item.item_group or "Products")
     item.description = description or item.description or ""
+
+    if short_description is not None and _item_meta_has_field("custom_short_description"):
+        item.custom_short_description = short_description.strip()[:200]
+
     item.disabled = 0
     item.custom_store_enabled = 1
     item.custom_unlimited_stock = 1 if _to_bool(unlimited_stock) else 0
@@ -415,8 +444,8 @@ def create_store_product(item_name=None, description=None, item_group=None, pric
 
 
 @frappe.whitelist()
-def update_store_product(item_code=None, item_name=None, description=None, item_group=None,
-                          price=None, stock_qty=None, unlimited_stock=None, brands=None,
+def update_store_product(item_code=None, item_name=None, description=None, short_description=None,
+                          item_group=None, price=None, stock_qty=None, unlimited_stock=None, brands=None,
                           disabled=None, image=None, digital_file=None, unlocks_course=None):
     _ensure_store_access()
 
@@ -432,6 +461,9 @@ def update_store_product(item_code=None, item_name=None, description=None, item_
 
     if description is not None:
         item.description = description
+
+    if short_description is not None and _item_meta_has_field("custom_short_description"):
+        item.custom_short_description = short_description.strip()[:200]
 
     if item_group is not None and item_group.strip():
         item.item_group = _ensure_item_group(item_group.strip())
@@ -511,6 +543,7 @@ def _create_variant_item(template, attribute_values, price, stock_qty, unlimited
     variant.stock_uom = "Nos"
     variant.is_stock_item = 0
     variant.variant_of = template.name
+    variant.custom_store_enabled = 1
     variant.custom_unlimited_stock = 1 if _to_bool(unlimited_stock) else 0
     variant.custom_stock_qty = _to_int(stock_qty)
 
@@ -538,7 +571,7 @@ def _create_variant_item(template, attribute_values, price, stock_qty, unlimited
 
 
 @frappe.whitelist()
-def create_variant_store_product(item_name=None, description=None, item_group=None,
+def create_variant_store_product(item_name=None, description=None, short_description=None, item_group=None,
                                   brands=None, image=None, attributes=None, variants=None):
     """
     attributes: [{"attribute": "Size", "values": ["Small", "Large"]}, ...]
@@ -589,6 +622,9 @@ def create_variant_store_product(item_name=None, description=None, item_group=No
         template.item_name = item_name
         template.item_group = _ensure_item_group((item_group or "").strip() or "Products")
         template.description = description or ""
+
+        if short_description and _item_meta_has_field("custom_short_description"):
+            template.custom_short_description = short_description.strip()[:200]
         template.stock_uom = "Nos"
         template.is_stock_item = 0
         template.has_variants = 1
