@@ -563,11 +563,11 @@ def get_stock_take_rows(item_codes=None):
         if not item_code or not frappe.db.exists("Item", item_code):
             continue
 
-        item = frappe.db.get_value(
-            "Item", item_code,
-            ["item_name", "has_variants", "custom_unlimited_stock", "custom_stock_qty"],
-            as_dict=True,
-        )
+        item_fields = ["item_name", "has_variants", "custom_unlimited_stock", "custom_stock_qty"]
+        if _item_meta_has_field("custom_sku"):
+            item_fields.append("custom_sku")
+
+        item = frappe.db.get_value("Item", item_code, item_fields, as_dict=True)
 
         if not item:
             continue
@@ -594,7 +594,7 @@ def get_stock_take_rows(item_codes=None):
                 "item_code": item_code,
                 "item_name": item.item_name,
                 "variant_label": "",
-                "sku": frappe.db.get_value("Item", item_code, "custom_sku") or "" if _item_meta_has_field("custom_sku") else "",
+                "sku": item.get("custom_sku") or "",
                 "current_stock_qty": item.custom_stock_qty or 0,
             })
 
