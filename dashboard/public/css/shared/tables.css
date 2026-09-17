@@ -49,6 +49,14 @@
   min-width: 100%;
 }
 
+/* A table inside a popup modal (e.g. Add/Edit Product's variant
+   combinations, or Manage Variants) is only ever a handful of narrow
+   columns - the 980px report-table min-width above forces it to
+   horizontally scroll inside a much narrower modal for no reason. */
+.dashboard-modal-body .dashboard-table {
+  min-width: 0;
+}
+
 .dashboard-table th,
 .dashboard-table td {
   padding: 14px 16px;

@@ -301,18 +301,31 @@ def create_store_product(item_name=None, description=None, item_group=None, pric
     if not item_name:
         frappe.throw(_("Product name is required."))
 
-    if frappe.db.exists("Item", {"item_name": item_name}):
-        frappe.throw(_("A product named {0} already exists.").format(item_name))
-
     company = _store_company()
 
-    item = frappe.new_doc("Item")
-    item.item_code = item_name
-    item.item_name = item_name
-    item.item_group = (item_group or "").strip() or "Products"
-    item.description = description or ""
-    item.stock_uom = "Nos"
-    item.is_stock_item = 0
+    # An Item with this exact name can already exist without being a
+    # store product yet - e.g. something tracked elsewhere in the system
+    # (coaching stock, an old catalog entry) that Rachel now also wants
+    # to sell online. Adopt it into the store rather than blocking with
+    # a dead-end "already exists" error; only a name already used by
+    # another *store* product is a genuine duplicate.
+    existing_item_code = frappe.db.get_value("Item", {"item_name": item_name}, "name")
+    is_new = not existing_item_code
+
+    if existing_item_code:
+        item = frappe.get_doc("Item", existing_item_code)
+
+        if item.get("custom_store_enabled"):
+            frappe.throw(_("A product named {0} already exists.").format(item_name))
+    else:
+        item = frappe.new_doc("Item")
+        item.item_code = item_name
+        item.item_name = item_name
+        item.stock_uom = item.stock_uom or "Nos"
+        item.is_stock_item = 0
+
+    item.item_group = (item_group or "").strip() or item.item_group or "Products"
+    item.description = description or item.description or ""
     item.disabled = 0
     item.custom_store_enabled = 1
     item.custom_unlimited_stock = 1 if _to_bool(unlimited_stock) else 0
@@ -334,7 +347,10 @@ def create_store_product(item_name=None, description=None, item_group=None, pric
 
     _ensure_item_default_row(item, company)
 
-    item.insert(ignore_permissions=True)
+    if is_new:
+        item.insert(ignore_permissions=True)
+    else:
+        item.save(ignore_permissions=True)
 
     if price is not None:
         _set_item_price(item.name, DEFAULT_PRICE_LIST, _to_float(price))
@@ -487,7 +503,16 @@ def create_variant_store_product(item_name=None, description=None, item_group=No
         frappe.throw(_("Product name is required."))
 
     if frappe.db.exists("Item", {"item_name": item_name}):
-        frappe.throw(_("A product named {0} already exists.").format(item_name))
+        # Unlike a plain product (create_store_product adopts a matching
+        # non-store Item instead of blocking), turning an *existing* Item
+        # into a variant template isn't safe to do automatically - it
+        # already has its own price/stock history, and Frappe won't let
+        # has_variants be switched on after that. A different name (or
+        # renaming/removing the old Item first) is the only way forward.
+        frappe.throw(_(
+            "An item named {0} already exists and can't be converted into a product with "
+            "variations. Choose a different name, or check the existing item in the Products list."
+        ).format(item_name))
 
     attributes = _parse_json_list(attributes)
     variants = _parse_json_list(variants)
