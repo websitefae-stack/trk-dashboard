@@ -92,6 +92,17 @@
       color: #C01C3E;
     }
     .ts-help { font-size: 12px; color: #839898; margin-top: 6px; }
+    .ts-doc-title { text-align: center; }
+    .ts-doc-title h1 { font-size: 22px; margin: 0 0 6px; }
+    .ts-doc-title .ts-subtitle { margin-bottom: 2px; }
+    .ts-doc p { line-height: 1.6; margin: 0 0 12px; font-size: 14px; }
+    .ts-doc p:last-child { margin-bottom: 0; }
+    .ts-doc ul { margin: 0 0 12px; padding-left: 22px; }
+    .ts-doc li { margin-bottom: 6px; line-height: 1.5; font-size: 14px; }
+    .ts-doc h2 { font-size: 16px; margin: 0 0 10px; color: #007274; }
+    .ts-doc h4 { font-size: 13px; margin: 18px 0 8px; color: #434B49; }
+    .ts-doc h4:first-child { margin-top: 0; }
+    .ts-doc .ts-row { font-size: 14px; }
   </style>
 </head>
 <body>
@@ -284,46 +295,176 @@
         };
       }
 
+      function row(label, value) {
+        return (
+          '<div class="ts-row"><span class="ts-row-label">' + escapeHtml(label) + '</span>' +
+          '<span class="ts-row-value">' + (value || "—") + "</span></div>"
+        );
+      }
+
+      function card(innerHtml, extraClass) {
+        return '<div class="ts-card' + (extraClass ? " " + extraClass : "") + '">' + innerHtml + "</div>";
+      }
+
       function renderSignForm(data) {
-        var termsHtml =
-          '<div class="ts-card">' +
-            "<h1>Client Transfer Agreement</h1>" +
-            '<p class="ts-subtitle">' + escapeHtml(data.client_name) + "</p>" +
-            '<div class="ts-row"><span class="ts-row-label">Status</span>' +
-              '<span class="' + statusBadgeClass(data.status) + '">' + escapeHtml(data.status) + "</span></div>" +
-            '<div class="ts-row"><span class="ts-row-label">Transferring Coach</span>' +
-              '<span class="ts-row-value">' + escapeHtml(data.transferring_coach_label) + "</span></div>" +
-            '<div class="ts-row"><span class="ts-row-label">Receiving Coach</span>' +
-              '<span class="ts-row-value">' + escapeHtml(data.receiving_coach_label) + "</span></div>" +
-            '<div class="ts-row"><span class="ts-row-label">Effective Transfer Date</span>' +
-              '<span class="ts-row-value">' + formatDate(data.effective_transfer_date) + "</span></div>" +
-            '<div class="ts-row"><span class="ts-row-label">Transfer Fee</span>' +
-              '<span class="ts-row-value">£' + Number(data.transfer_fee_amount || 0).toFixed(2) + "</span></div>" +
-            (data.reason_for_transfer ?
-              '<div class="ts-row"><span class="ts-row-label">Reason</span>' +
-              '<span class="ts-row-value">' + escapeHtml(data.reason_for_transfer) + "</span></div>" : "") +
-            (data.invoice ?
-              '<div class="ts-row"><span class="ts-row-label">Transfer Fee Invoice</span>' +
-              '<span class="ts-row-value">' + escapeHtml(data.invoice) + "</span></div>" : "") +
-            "<p>The Receiving Franchisee agrees to pay the Transferring Franchisee the Transfer Fee shown above, in " +
-            "exchange for the transfer of the above client and their records. " +
-            (data.requires_franchisor_signature ?
-              "This transfer requires the Franchisor's countersignature. " :
-              "As one of the parties to this transfer is the Franchisor, no separate Franchisor countersignature is required. ") +
-            "By signing below, each party confirms they agree to these terms." +
-            "</p>" +
-          "</div>" +
-          '<div class="ts-card">' +
-            "<h3>Signatures</h3>" +
-            renderSignatureBlock("Receiving Coach", data.receiving_signature, data.receiving_signed_by, data.receiving_signed_on) +
-            (data.requires_franchisor_signature ?
-              renderSignatureBlock("Franchisor", data.franchisor_signature, data.franchisor_signed_by, data.franchisor_signed_on) : "") +
-            renderSignatureBlock("Transferring Coach", data.transferring_signature, data.transferring_signed_by, data.transferring_signed_on) +
-            (data.status === "Declined" ?
-              '<div class="ts-row" style="margin-top:10px;"><span class="ts-row-label">Declined by</span>' +
-              '<span class="ts-row-value">' + escapeHtml(data.declined_by) + "</span></div>" +
-              (data.declined_reason ? '<p class="ts-help">' + escapeHtml(data.declined_reason) + "</p>" : "") : "") +
-          "</div>";
+        var fee = "£" + Number(data.transfer_fee_amount || 0).toFixed(2);
+
+        var titleCard = card(
+          '<h1>CLIENT TERRITORY TRANSFER AGREEMENT</h1>' +
+          '<p class="ts-subtitle">The Resilient Kid Franchise Network</p>' +
+          '<p class="ts-subtitle">Internal Operational Document</p>' +
+          '<div style="margin-top:14px;"><span class="' + statusBadgeClass(data.status) + '">' + escapeHtml(data.status) + "</span></div>",
+          "ts-doc-title"
+        );
+
+        var purposeCard = card(
+          "<h2>1. Purpose &amp; Background</h2>" +
+          "<p>This Agreement governs the process and obligations arising when a client registered with one " +
+          "Resilient Kid franchisee (the “Transferring Franchisee”) relocates to, or otherwise falls within " +
+          "the territory of, another Resilient Kid franchisee (the “Receiving Franchisee”).</p>" +
+          "<p>The aim of this Agreement is to:</p>" +
+          "<ul>" +
+            "<li>Ensure continuity of care and support for the client throughout any territory change.</li>" +
+            "<li>Protect the commercial interests of both the Transferring and Receiving Franchisees.</li>" +
+            "<li>Maintain accurate client numbers and performance reporting across the Resilient Kid network.</li>" +
+            "<li>Set out the responsibilities of each party clearly so that no client falls through the gaps.</li>" +
+          "</ul>",
+          "ts-doc"
+        );
+
+        var partiesCard = card(
+          "<h2>2. Parties to This Agreement</h2>" +
+          row("Franchisor", "The Resilient Kid Ltd") +
+          row("Transferring Franchisee Name", escapeHtml(data.transferring_coach_label)) +
+          row("Transferring Franchisee Territory", escapeHtml(data.transferring_coach_territory)) +
+          row("Receiving Franchisee Name", escapeHtml(data.receiving_coach_label)) +
+          row("Receiving Franchisee Territory", escapeHtml(data.receiving_coach_territory)) +
+          row("Effective Transfer Date", formatDate(data.effective_transfer_date)) +
+          row("Agreement Date", formatDate(data.agreement_date)),
+          "ts-doc"
+        );
+
+        var clientCard = card(
+          "<h2>3. Client Details</h2>" +
+          "<p>The following client is the subject of this transfer:</p>" +
+          row("Client Name (Child)", escapeHtml(data.client_name)) +
+          row("Client Reference Number", escapeHtml(data.client_reference)) +
+          row("Parent / Guardian Name", escapeHtml(data.parent_guardian_name)) +
+          row("Date First Registered", formatDate(data.date_first_registered)) +
+          row("Reason for Transfer", escapeHtml(data.reason_for_transfer)),
+          "ts-doc"
+        );
+
+        var termsCard = card(
+          "<h2>4. Terms of Transfer</h2>" +
+
+          "<h4>4.1 Client Numbers &amp; Reporting</h4>" +
+          "<p>Upon the Effective Transfer Date, the client will be removed from the Transferring Franchisee’s " +
+          "active client roster for all future operational purposes. The client’s historical registration and " +
+          "original sign-up date will be retained by the Transferring Franchisee for the purposes of their " +
+          "performance records and any related KPI reporting for the period prior to the transfer.</p>" +
+          "<p>The client will be counted within the Receiving Franchisee’s client numbers from the Effective " +
+          "Transfer Date onwards.</p>" +
+
+          "<h4>4.2 Responsibility for the Client</h4>" +
+          "<p>From the Effective Transfer Date, the Receiving Franchisee assumes full responsibility for:</p>" +
+          "<ul>" +
+            "<li>Delivering all Resilient Kid programme sessions and services to the client.</li>" +
+            "<li>Communicating with the client’s parent or guardian regarding sessions, progress, and any welfare concerns.</li>" +
+            "<li>Maintaining up-to-date records for the client in line with Resilient Kid operating standards.</li>" +
+            "<li>Ensuring all safeguarding and data protection obligations in relation to the client are fulfilled.</li>" +
+            "<li>Managing any changes to the client’s programme, fees, or attendance from the transfer date.</li>" +
+          "</ul>" +
+
+          "<h4>4.3 One-Off Transfer Fee</h4>" +
+          "<p>In recognition of the administrative work, relationship investment, and goodwill associated with the " +
+          "client, the Receiving Franchisee agrees to pay a one-off Transfer Fee to the Transferring Franchisee as " +
+          "follows:</p>" +
+          row("Transfer Fee Amount", fee + " (one-off, per client transferred)") +
+          row("Payment Due Date", "Within 30 days of the Effective Transfer Date") +
+          row("Payment Method", "Bank transfer to the Transferring Franchisee’s nominated account (details to be exchanged between parties)") +
+          "<p style=\"margin-top:12px;\">The Transfer Fee is payable directly between franchisees and does not pass " +
+          "through the Franchisor. However, both parties should notify the Franchisor once payment has been made.</p>" +
+
+          "<h4>4.4 Handover of Client Records</h4>" +
+          "<p>The Transferring Franchisee agrees to provide the Receiving Franchisee with all relevant client " +
+          "records within 7 days of the Effective Transfer Date. This shall include:</p>" +
+          "<ul>" +
+            "<li>Enrolment and consent forms</li>" +
+            "<li>Session attendance history</li>" +
+            "<li>Any notes relating to the child’s progress, needs, or welfare</li>" +
+            "<li>Any communication history considered relevant to the ongoing delivery of the programme</li>" +
+          "</ul>" +
+          "<p>All records must be transferred securely and in compliance with applicable data protection " +
+          "legislation (UK GDPR).</p>" +
+
+          "<h4>4.5 Client Consent</h4>" +
+          "<p>Both franchisees confirm that the client’s parent or guardian has been informed of the territory " +
+          "transfer and the change in responsible franchisee. Consent to share the client’s records with the " +
+          "Receiving Franchisee must be obtained prior to any data being transferred.</p>" +
+
+          "<h4>4.6 Ongoing Obligations of the Transferring Franchisee</h4>" +
+          "<p>Following the Effective Transfer Date, the Transferring Franchisee:</p>" +
+          "<ul>" +
+            "<li>Retains no further operational responsibility for the client.</li>" +
+            "<li>Must not contact the client’s family in a capacity relating to programme delivery without the consent of the Receiving Franchisee.</li>" +
+            "<li>May count the client’s time within their territory in any retrospective reporting prior to the transfer date.</li>" +
+          "</ul>",
+          "ts-doc"
+        );
+
+        var oversightCard = card(
+          "<h2>5. Franchisor Oversight</h2>" +
+          "<p>The Resilient Kid Ltd reserves the right to:</p>" +
+          "<ul>" +
+            "<li>Be notified of all client territory transfers within 14 days of the Effective Transfer Date.</li>" +
+            "<li>Request copies of this Agreement and any associated records for audit purposes.</li>" +
+            "<li>Mediate in any disputes arising between franchisees in relation to this Agreement.</li>" +
+            "<li>Update the terms of this Agreement from time to time with reasonable notice to all franchisees.</li>" +
+          "</ul>",
+          "ts-doc"
+        );
+
+        var disputeCard = card(
+          "<h2>6. Dispute Resolution</h2>" +
+          "<p>In the event of a dispute between the Transferring Franchisee and the Receiving Franchisee arising " +
+          "from this Agreement, both parties agree to:</p>" +
+          "<ul>" +
+            "<li>Notify the Franchisor in writing within 14 days of the dispute arising.</li>" +
+            "<li>Attempt to resolve the matter in good faith with the support of the Franchisor.</li>" +
+            "<li>Accept the Franchisor’s decision as final in matters relating to client allocation and reporting, where no resolution can be reached between the parties.</li>" +
+          "</ul>",
+          "ts-doc"
+        );
+
+        var provisionsCard = card(
+          "<h2>7. General Provisions</h2>" +
+          "<p>7.1 This Agreement is governed by the laws of England and Wales.</p>" +
+          "<p>7.2 This Agreement forms part of the broader franchise relationship and should be read alongside " +
+          "each party’s existing Franchise Agreement with The Resilient Kid Ltd.</p>" +
+          "<p>7.3 This Agreement may only be amended in writing and with the agreement of all parties.</p>" +
+          "<p>7.4 If any clause of this Agreement is found to be unenforceable, the remaining clauses shall " +
+          "continue in full force and effect.</p>" +
+          (data.invoice ? row("Transfer Fee Invoice", escapeHtml(data.invoice)) : ""),
+          "ts-doc"
+        );
+
+        var signaturesCard = card(
+          "<h2>8. Signatures</h2>" +
+          "<p>By signing below, each party confirms they have read, understood, and agreed to the terms of this " +
+          "Client Territory Transfer Agreement.</p>" +
+          renderSignatureBlock("Transferring Franchisee Signature", data.transferring_signature, data.transferring_signed_by, data.transferring_signed_on) +
+          renderSignatureBlock("Receiving Franchisee Signature", data.receiving_signature, data.receiving_signed_by, data.receiving_signed_on) +
+          (data.requires_franchisor_signature ?
+            renderSignatureBlock("Franchisor Representative Signature", data.franchisor_signature, data.franchisor_signed_by, data.franchisor_signed_on) : "") +
+          (data.status === "Declined" ?
+            '<div class="ts-row" style="margin-top:10px;"><span class="ts-row-label">Declined by</span>' +
+            '<span class="ts-row-value">' + escapeHtml(data.declined_by) + "</span></div>" +
+            (data.declined_reason ? '<p class="ts-help">' + escapeHtml(data.declined_reason) + "</p>" : "") : ""),
+          "ts-doc"
+        );
+
+        var termsHtml = titleCard + purposeCard + partiesCard + clientCard + termsCard + oversightCard + disputeCard + provisionsCard + signaturesCard;
 
         var actionHtml = "";
 

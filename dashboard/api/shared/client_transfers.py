@@ -49,6 +49,30 @@ def _coach_label(coach_name):
     return label or coach_name
 
 
+def _coach_territory(coach_name):
+    if not coach_name:
+        return ""
+
+    return frappe.db.get_value("Coach", coach_name, "territory_postcodes") or ""
+
+
+def _lead_document_fields(lead_name):
+    """
+    The handful of Client Territory Transfer Agreement fields sourced from
+    the lead itself rather than the transfer doc - see get_transfer_for_signing().
+    """
+    if not lead_name or not frappe.db.exists(LEAD_DOCTYPE, lead_name):
+        return {"parent_guardian_name": "", "date_first_registered": "", "client_reference": ""}
+
+    lead = frappe.db.get_value(LEAD_DOCTYPE, lead_name, ["contact_name", "creation"], as_dict=True) or {}
+
+    return {
+        "parent_guardian_name": lead.get("contact_name") or "",
+        "date_first_registered": str(lead.get("creation") or "")[:10],
+        "client_reference": lead_name,
+    }
+
+
 def _is_franchisor_coach(coach_name):
     login = _get_coach_login(coach_name)
     return bool(login) and login in FRANCHISOR_USERS
@@ -383,6 +407,7 @@ def get_transfer_for_signing(name=None):
 
     expected_role = _expected_role_for_status(transfer.status)
     can_act = bool(role) and role == expected_role and transfer.status in OPEN_STATUSES
+    lead_fields = _lead_document_fields(transfer.client_lead)
 
     return {
         "name": transfer.name,
@@ -390,12 +415,17 @@ def get_transfer_for_signing(name=None):
         "client_name": transfer.client_name,
         "transferring_coach": transfer.transferring_coach,
         "transferring_coach_label": _coach_label(transfer.transferring_coach),
+        "transferring_coach_territory": _coach_territory(transfer.transferring_coach),
         "receiving_coach": transfer.receiving_coach,
         "receiving_coach_label": _coach_label(transfer.receiving_coach),
+        "receiving_coach_territory": _coach_territory(transfer.receiving_coach),
         "effective_transfer_date": str(transfer.effective_transfer_date or ""),
         "agreement_date": str(transfer.agreement_date or ""),
         "reason_for_transfer": transfer.reason_for_transfer or "",
         "transfer_fee_amount": transfer.transfer_fee_amount or 0,
+        "parent_guardian_name": lead_fields["parent_guardian_name"],
+        "date_first_registered": lead_fields["date_first_registered"],
+        "client_reference": lead_fields["client_reference"],
         "requires_franchisor_signature": bool(transfer.requires_franchisor_signature),
         "receiving_signed_by": transfer.receiving_signed_by or "",
         "receiving_signed_on": str(transfer.receiving_signed_on or ""),
