@@ -11,6 +11,8 @@ rows webshop_purchase.py's checkout already reads prices from, so
 those two pieces are reused directly rather than re-implemented here.
 """
 
+import re
+
 import frappe
 from frappe import _
 
@@ -165,6 +167,25 @@ def get_lms_courses():
     )
 
 
+def _unique_abbr(value, used_abbrs):
+    """A naive value[:5] truncation collides constantly for values that
+    share a common prefix (e.g. "Size 6-7" / "Size 7-8" both truncate to
+    "SIZE "), which Item Attribute Value rejects as a duplicate
+    abbreviation within the same attribute - build a real one instead:
+    strip to alphanumerics, and disambiguate with a counter suffix on
+    collision rather than ever reusing one already taken."""
+    base = re.sub(r"[^A-Za-z0-9]+", "", value).upper()[:8] or "VAL"
+    abbr = base
+    counter = 1
+
+    while abbr in used_abbrs:
+        counter += 1
+        abbr = f"{base}{counter}"
+
+    used_abbrs.add(abbr)
+    return abbr
+
+
 def _ensure_item_attribute(attribute_name, values):
     """Creates the Item Attribute if missing, and adds any new values to
     it - existing values are never removed, since other items/variants
@@ -182,6 +203,7 @@ def _ensure_item_attribute(attribute_name, values):
 
     existing_values = {row.attribute_value for row in doc.get("item_attribute_values") or []}
     value_meta_has_abbr = frappe.get_meta("Item Attribute Value").has_field("abbr") if frappe.db.exists("DocType", "Item Attribute Value") else False
+    used_abbrs = {row.abbr for row in doc.get("item_attribute_values") or [] if row.get("abbr")}
 
     for value in values:
         value = (value or "").strip()
@@ -190,7 +212,7 @@ def _ensure_item_attribute(attribute_name, values):
 
         new_row = {"attribute_value": value}
         if value_meta_has_abbr:
-            new_row["abbr"] = value[:5].upper()
+            new_row["abbr"] = _unique_abbr(value, used_abbrs)
 
         doc.append("item_attribute_values", new_row)
         existing_values.add(value)
@@ -406,7 +428,7 @@ def update_store_stock(item_code=None, stock_qty=None, unlimited_stock=None):
 # priced higher, each with its own stock count)
 # -------------------------------------------------------------------
 
-def _create_variant_item(template, attribute_values, price, stock_qty, unlimited_stock, company):
+def _create_variant_item(template, attribute_values, price, stock_qty, unlimited_stock, company, image=None):
     suffix = "-".join(_slugify(v) for v in attribute_values.values()) or "VAR"
     item_code = f"{template.name}-{suffix}"
 
@@ -421,7 +443,9 @@ def _create_variant_item(template, attribute_values, price, stock_qty, unlimited
     variant.custom_unlimited_stock = 1 if _to_bool(unlimited_stock) else 0
     variant.custom_stock_qty = _to_int(stock_qty)
 
-    if template.image:
+    if image:
+        variant.image = image
+    elif template.image:
         variant.image = template.image
 
     for fieldname in BRAND_FIELDNAMES:
@@ -503,7 +527,11 @@ def create_variant_store_product(item_name=None, description=None, item_group=No
     template.insert(ignore_permissions=True)
 
     created = []
+    first_variant_image = ""
+
     for variant_spec in variants:
+        variant_image = (variant_spec.get("image") or "").strip()
+
         variant_name = _create_variant_item(
             template,
             variant_spec.get("attribute_values") or {},
@@ -511,8 +539,19 @@ def create_variant_store_product(item_name=None, description=None, item_group=No
             variant_spec.get("stock_qty"),
             variant_spec.get("unlimited_stock"),
             company,
+            image=variant_image,
         )
         created.append(variant_name)
+
+        if variant_image and not first_variant_image:
+            first_variant_image = variant_image
+
+    # A variant template has no image of its own to show in a store
+    # listing (get_store_items() only ever reads the template's image) -
+    # fall back to whichever variant got one first, so the product still
+    # has a thumbnail instead of the blank placeholder.
+    if not template.image and first_variant_image:
+        frappe.db.set_value("Item", template.name, "image", first_variant_image)
 
     frappe.db.commit()
 
@@ -528,7 +567,7 @@ def get_product_variants(template_item_code=None):
     variants = frappe.get_all(
         "Item",
         filters={"variant_of": template_item_code},
-        fields=["name", "item_name", "disabled", "custom_stock_qty", "custom_unlimited_stock"],
+        fields=["name", "item_name", "image", "disabled", "custom_stock_qty", "custom_unlimited_stock"],
         order_by="item_name asc",
         limit_page_length=500,
     )
@@ -547,6 +586,7 @@ def get_product_variants(template_item_code=None):
         result.append({
             "name": variant.name,
             "item_name": variant.item_name,
+            "image": variant.image or "",
             "disabled": bool(variant.disabled),
             "stock_qty": variant.custom_stock_qty or 0,
             "unlimited_stock": bool(variant.custom_unlimited_stock),
@@ -558,7 +598,7 @@ def get_product_variants(template_item_code=None):
 
 
 @frappe.whitelist()
-def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=None, disabled=None):
+def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=None, disabled=None, image=None):
     _ensure_store_access()
 
     item_code = (item_code or "").strip()
@@ -574,6 +614,13 @@ def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=N
 
     if disabled is not None:
         frappe.db.set_value("Item", item_code, "disabled", 1 if _to_bool(disabled) else 0)
+
+    if image:
+        frappe.db.set_value("Item", item_code, "image", image)
+
+        template_item_code = frappe.db.get_value("Item", item_code, "variant_of")
+        if template_item_code and not frappe.db.get_value("Item", template_item_code, "image"):
+            frappe.db.set_value("Item", template_item_code, "image", image)
 
     if price is not None:
         _set_item_price(item_code, DEFAULT_PRICE_LIST, _to_float(price))

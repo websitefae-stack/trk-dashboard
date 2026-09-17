@@ -16,6 +16,7 @@
   let uploadedImageUrl = "";
   let uploadedDigitalFileUrl = "";
   let generatedVariants = [];
+  let generatedVariantImages = [];
 
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
@@ -218,6 +219,7 @@
     el("storeAttribute2Values").value = "";
     el("storeVariationsBasePrice").value = "";
     generatedVariants = [];
+    generatedVariantImages = [];
     el("storeVariantsGeneratedWrap").style.display = "none";
     el("storeVariantsGeneratedBody").innerHTML = "";
   }
@@ -311,6 +313,10 @@
       return `
         <tr>
           <td>${escapeHtml(label)}</td>
+          <td>
+            <input type="file" accept="image/*" data-variant-image-input="${index}">
+            <img data-variant-image-preview="${index}" alt="" style="display:none; width:36px; height:36px; object-fit:cover; border-radius:6px; margin-top:4px;">
+          </td>
           <td><input type="number" min="0" step="0.01" class="dashboard-input" style="width:90px;" value="${basePrice}" data-variant-price="${index}"></td>
           <td><input type="number" min="0" step="1" class="dashboard-input" style="width:70px;" value="0" data-variant-stock="${index}"></td>
           <td style="text-align:center;"><input type="checkbox" data-variant-unlimited="${index}"></td>
@@ -333,7 +339,18 @@
     }
 
     generatedVariants = buildCombinations(attr1Name, attr1Values, attr2Name, attr2Values);
+    generatedVariantImages = generatedVariants.map(() => ({ file: null, url: "" }));
     renderGeneratedVariants();
+  }
+
+  async function uploadGeneratedVariantImages() {
+    for (let index = 0; index < generatedVariantImages.length; index++) {
+      const entry = generatedVariantImages[index];
+      if (entry && entry.file) {
+        const uploaded = await uploadFile(entry.file, false);
+        entry.url = uploaded.file_url || entry.url;
+      }
+    }
   }
 
   function collectVariantSpecs() {
@@ -341,12 +358,14 @@
       const priceInput = document.querySelector(`[data-variant-price="${index}"]`);
       const stockInput = document.querySelector(`[data-variant-stock="${index}"]`);
       const unlimitedInput = document.querySelector(`[data-variant-unlimited="${index}"]`);
+      const imageEntry = generatedVariantImages[index];
 
       return {
         attribute_values: combo,
         price: priceInput ? priceInput.value : 0,
         stock_qty: stockInput ? stockInput.value : 0,
         unlimited_stock: unlimitedInput ? unlimitedInput.checked : false,
+        image: imageEntry ? imageEntry.url : "",
       };
     });
   }
@@ -378,6 +397,8 @@
       }
 
       if (hasVariations) {
+        await uploadGeneratedVariantImages();
+
         const attributes = [];
         const attr1Name = el("storeAttribute1Name").value.trim();
         const attr1Values = el("storeAttribute1Values").value.split(",").map((v) => v.trim()).filter(Boolean);
@@ -472,10 +493,17 @@
 
   function renderVariantRow(variant) {
     const label = Object.values(variant.attributes || {}).join(" / ") || variant.item_name;
+    const preview = variant.image
+      ? `<img src="${escapeHtml(variant.image)}" alt="" data-existing-variant-image-preview="${escapeHtml(variant.name)}" style="width:36px; height:36px; object-fit:cover; border-radius:6px; display:block; margin-bottom:4px;">`
+      : `<img alt="" data-existing-variant-image-preview="${escapeHtml(variant.name)}" style="width:36px; height:36px; object-fit:cover; border-radius:6px; display:none; margin-bottom:4px;">`;
 
     return `
       <tr data-variant-row="${escapeHtml(variant.name)}">
         <td>${escapeHtml(label)}</td>
+        <td>
+          ${preview}
+          <input type="file" accept="image/*" data-existing-variant-image-input="${escapeHtml(variant.name)}">
+        </td>
         <td><input type="number" min="0" step="0.01" class="dashboard-input" style="width:90px;" value="${variant.price || 0}" data-existing-variant-price="${escapeHtml(variant.name)}"></td>
         <td><input type="number" min="0" step="1" class="dashboard-input" style="width:70px;" value="${variant.stock_qty || 0}" data-existing-variant-stock="${escapeHtml(variant.name)}" ${variant.unlimited_stock ? "disabled" : ""}></td>
         <td style="text-align:center;"><input type="checkbox" data-existing-variant-unlimited="${escapeHtml(variant.name)}" ${variant.unlimited_stock ? "checked" : ""}></td>
@@ -488,16 +516,16 @@
   async function openVariantsModal(templateItemCode) {
     el("storeVariantsTemplateCode").value = templateItemCode;
     const body = el("storeVariantsBody");
-    body.innerHTML = '<tr><td colspan="6" class="dashboard-empty">Loading…</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" class="dashboard-empty">Loading…</td></tr>';
     el("storeVariantsModal").classList.add("is-open");
 
     try {
       const variants = await apiPost(API + ".get_product_variants", { template_item_code: templateItemCode });
       body.innerHTML = variants.length
         ? variants.map(renderVariantRow).join("")
-        : '<tr><td colspan="6" class="dashboard-empty">No variants found.</td></tr>';
+        : '<tr><td colspan="7" class="dashboard-empty">No variants found.</td></tr>';
     } catch (error) {
-      body.innerHTML = '<tr><td colspan="6" class="dashboard-empty">Could not load variants.</td></tr>';
+      body.innerHTML = '<tr><td colspan="7" class="dashboard-empty">Could not load variants.</td></tr>';
       console.error(error);
     }
   }
@@ -511,17 +539,26 @@
     const stockInput = document.querySelector(`[data-existing-variant-stock="${CSS.escape(itemCode)}"]`);
     const unlimitedInput = document.querySelector(`[data-existing-variant-unlimited="${CSS.escape(itemCode)}"]`);
     const activeInput = document.querySelector(`[data-existing-variant-active="${CSS.escape(itemCode)}"]`);
+    const imageInput = document.querySelector(`[data-existing-variant-image-input="${CSS.escape(itemCode)}"]`);
 
     button.disabled = true;
     button.textContent = "Saving…";
 
     try {
+      let imageUrl = "";
+      const imageFile = imageInput ? imageInput.files[0] : null;
+      if (imageFile) {
+        const uploaded = await uploadFile(imageFile, false);
+        imageUrl = uploaded.file_url || "";
+      }
+
       await apiPost(API + ".update_variant", {
         item_code: itemCode,
         price: priceInput ? priceInput.value : 0,
         stock_qty: stockInput ? stockInput.value : 0,
         unlimited_stock: unlimitedInput ? unlimitedInput.checked : false,
         disabled: activeInput ? !activeInput.checked : false,
+        image: imageUrl,
       });
       button.textContent = "Saved";
       window.setTimeout(() => {
@@ -579,6 +616,24 @@
       const preview = el("storeProductImagePreview");
       preview.src = URL.createObjectURL(file);
       preview.style.display = "";
+    });
+
+    document.addEventListener("change", function (event) {
+      const variantImageInput = event.target.closest("[data-variant-image-input]");
+      if (variantImageInput) {
+        const index = Number(variantImageInput.dataset.variantImageInput);
+        const file = variantImageInput.files[0];
+        if (!file) return;
+
+        generatedVariantImages[index] = generatedVariantImages[index] || { file: null, url: "" };
+        generatedVariantImages[index].file = file;
+
+        const preview = document.querySelector(`[data-variant-image-preview="${index}"]`);
+        if (preview) {
+          preview.src = URL.createObjectURL(file);
+          preview.style.display = "";
+        }
+      }
     });
 
     document.addEventListener("click", function (event) {
