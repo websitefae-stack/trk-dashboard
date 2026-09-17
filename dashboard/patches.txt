@@ -106,3 +106,4 @@ dashboard.patches.add_item_store_and_stock_fields
 dashboard.patches.add_item_digital_file_and_course_unlock_fields
 dashboard.patches.add_item_short_description_field
 dashboard.patches.backfill_store_item_show_on_site
+dashboard.patches.backfill_store_item_price_list

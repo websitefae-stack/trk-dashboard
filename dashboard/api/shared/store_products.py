@@ -125,6 +125,16 @@ def _ensure_item_default_row(item, company):
     but "isn't available for online purchase" the moment someone tries
     to actually buy it - also backfills it onto a row created before
     this was noticed.
+
+    Same story for default_price_list: _set_item_price() always prices
+    an item on DEFAULT_PRICE_LIST, but if this row already existed
+    before the item became a store product (e.g. adopting a
+    pre-existing, non-store Item - see create_store_product), it may
+    point at a different price list or none at all. resilient_domains'
+    get_store_items() looks the price up through *this row's*
+    default_price_list, not the constant directly - a mismatch here
+    means it finds no price, and the product silently never appears in
+    the store listing at all, with no error anywhere to explain why.
     """
     has_show_on_site_field = frappe.get_meta("Item Default").has_field("custom_show_on_site")
 
@@ -132,6 +142,8 @@ def _ensure_item_default_row(item, company):
         if row.get("company") == company:
             if has_show_on_site_field and not row.get("custom_show_on_site"):
                 row.custom_show_on_site = 1
+            if row.get("default_price_list") != DEFAULT_PRICE_LIST:
+                row.default_price_list = DEFAULT_PRICE_LIST
             return row
 
     warehouse = _get_default_warehouse_for_company(company)
