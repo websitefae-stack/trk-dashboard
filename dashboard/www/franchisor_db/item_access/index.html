@@ -71,7 +71,10 @@
 
             <div class="dashboard-detail-field">
               <label for="itemAccessCoachSearch">Filter by Coach</label>
-              <input type="text" class="dashboard-input" id="itemAccessCoachSearch" placeholder="e.g. Emily, Cara - only shows those coaches' columns">
+              <select class="dashboard-select" id="itemAccessCoachSearch" multiple size="4">
+                <option value="">Loading…</option>
+              </select>
+              <p class="dashboard-help">Ctrl/Cmd-click to select more than one - leave nothing selected to show every coach.</p>
             </div>
           </div>
 

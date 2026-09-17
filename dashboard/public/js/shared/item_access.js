@@ -62,19 +62,33 @@
     });
   }
 
-  // Comma-separated so "emily, cara" narrows the Access grid down to
-  // just those two coaches' columns instead of scrolling a wide table
-  // looking for them.
-  function filteredCoaches(filterText) {
-    if (!filterText) return state.coaches;
+  function selectedValues(selectEl) {
+    if (!selectEl) return [];
+    return Array.from(selectEl.selectedOptions || []).map(function (opt) { return opt.value; }).filter(Boolean);
+  }
 
-    const needles = filterText.toLowerCase().split(",").map(function (n) { return n.trim(); }).filter(Boolean);
-    if (!needles.length) return state.coaches;
+  // A real dropdown of actual Coach records (not free text) - Ctrl/Cmd
+  // click picks more than one, narrowing the Access grid down to just
+  // those coaches' columns instead of scrolling a wide table for them.
+  // Nothing selected shows every coach.
+  function filteredCoaches(selectedNames) {
+    if (!selectedNames || !selectedNames.length) return state.coaches;
 
     return state.coaches.filter(function (coach) {
-      const label = coach.label.toLowerCase();
-      return needles.some(function (needle) { return label.indexOf(needle) !== -1; });
+      return selectedNames.indexOf(coach.name) !== -1;
     });
+  }
+
+  function populateCoachFilter() {
+    const select = el("itemAccessCoachSearch");
+    if (!select) return;
+
+    const previouslySelected = selectedValues(select);
+
+    select.innerHTML = state.coaches.map(function (coach) {
+      const selected = previouslySelected.indexOf(coach.name) !== -1 ? " selected" : "";
+      return '<option value="' + escapeHtml(coach.name) + '"' + selected + '>' + escapeHtml(coach.label) + "</option>";
+    }).join("");
   }
 
   // ---------------------------------------------------------------
@@ -382,9 +396,11 @@
         };
       });
 
+      populateCoachFilter();
+
       renderAll(
         el("itemAccessSearch") ? el("itemAccessSearch").value : "",
-        el("itemAccessCoachSearch") ? el("itemAccessCoachSearch").value : ""
+        selectedValues(el("itemAccessCoachSearch"))
       );
     } catch (error) {
       const message = escapeHtml(error.message || "Could not load items.");
@@ -487,11 +503,11 @@
     const coachSearch = el("itemAccessCoachSearch");
 
     const rerender = Dashboard.debounce(function () {
-      renderAll(search ? search.value : "", coachSearch ? coachSearch.value : "");
+      renderAll(search ? search.value : "", selectedValues(coachSearch));
     }, 200);
 
     if (search) search.addEventListener("input", rerender);
-    if (coachSearch) coachSearch.addEventListener("input", rerender);
+    if (coachSearch) coachSearch.addEventListener("change", rerender);
   }
 
   if (document.readyState === "loading") {
