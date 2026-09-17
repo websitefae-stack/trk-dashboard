@@ -65,9 +65,11 @@
     if (lead.client_age) metaBits.push(`Age ${escapeHtml(lead.client_age)}`);
     if (showCoach && lead.coach_label) metaBits.push(escapeHtml(lead.coach_label));
 
+    const inTransit = !!lead.active_transfer;
+
     return `
-      <a class="dashboard-lead-card${lead.needs_conversion_review ? " dashboard-lead-card-needs-review" : ""}" href="${detailUrl}">
-        ${lead.needs_conversion_review ? `<span class="dashboard-badge dashboard-lead-card-review-badge">Form completed - ready to convert</span>` : ""}
+      <a class="dashboard-lead-card${inTransit ? " dashboard-lead-card-in-transit" : lead.needs_conversion_review ? " dashboard-lead-card-needs-review" : ""}" href="${detailUrl}">
+        ${inTransit ? `<span class="dashboard-badge dashboard-lead-card-transit-badge">Lead in Transit</span>` : lead.needs_conversion_review ? `<span class="dashboard-badge dashboard-lead-card-review-badge">Form completed - ready to convert</span>` : ""}
         ${lead.appointment_type ? `<span class="dashboard-badge dashboard-status-active dashboard-lead-card-type">${escapeHtml(lead.appointment_type)}</span>` : ""}
         ${renderEmailStatusBadge(lead)}
         <div class="dashboard-lead-card-client">${escapeHtml(lead.client_name || "—")}</div>

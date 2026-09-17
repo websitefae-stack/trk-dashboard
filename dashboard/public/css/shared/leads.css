@@ -117,6 +117,32 @@
   font-size: 11px;
 }
 
+/* A Client Transfer Agreement is awaiting a signature for this lead
+   (Client Lead.active_transfer is set) - takes priority over the
+   needs-review border since a lead in transit shouldn't be worked on
+   until the handover is resolved. */
+.dashboard-lead-card-in-transit {
+  border: 2px solid #C01C3E;
+  box-shadow: 0 2px 8px rgba(192, 28, 62, 0.18);
+}
+
+.dashboard-lead-card-transit-badge {
+  display: block;
+  margin-bottom: 8px;
+  background: #C01C3E;
+  color: #FFFFFF;
+  font-size: 11px;
+}
+
+.dashboard-card-transit {
+  border: 2px solid #C01C3E;
+}
+
+.dashboard-lead-transit-banner {
+  background: rgba(192, 28, 62, 0.1);
+  color: #C01C3E;
+}
+
 .dashboard-lead-card-type {
   margin-bottom: 8px;
   font-size: 11px;

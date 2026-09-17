@@ -39,12 +39,17 @@
         </div>
       </div>
 
-      <div class="dashboard-card">
+      <div class="dashboard-card" id="leadDetailsCard">
         <form id="leadDetailsForm" onsubmit="return false;">
           <div id="leadFormMessage" class="dashboard-form-message" style="display:none;"></div>
           <input type="hidden" id="leadDocname" value="{{ lead_name }}">
           <input type="hidden" id="leadIsNew" value="{{ 1 if is_new else 0 }}">
           <input type="hidden" id="leadBaseUrl" value="{{ dashboard_base_url }}">
+
+          <div id="leadTransitBanner" class="dashboard-form-message dashboard-lead-transit-banner" style="display:none;">
+            Lead in Transit - a Client Transfer Agreement is awaiting a signature.
+            <a href="#" id="leadTransitViewLink" target="_blank" rel="noopener noreferrer">View transfer agreement</a>
+          </div>
 
           {% if not is_new %}
           <section class="dashboard-detail-section">
@@ -221,7 +226,9 @@
                     <option value="{{ c.name }}">{{ c.coach_name or c.name }}</option>
                   {% endfor %}
                 </select>
-                <div class="dashboard-field-hint">Hands this lead over to a different coach - it'll move to their Leads list and off yours once you save.</div>
+                <div class="dashboard-field-hint" id="leadCoachFieldHint">
+                  Starts a Client Transfer Agreement for this lead - it only moves once every required signature is in.
+                </div>
               </div>
               {% endif %}
             </div>
@@ -330,6 +337,53 @@
 
         <button type="button" class="dashboard-btn dashboard-btn-primary" id="linkClientDiffConfirm">
           Confirm &amp; Link
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-calendar-modal-backdrop" id="transferConfirmModal">
+    <div class="trk-calendar-modal">
+      <div class="trk-calendar-modal-head">
+        <h3>Transfer This Lead?</h3>
+
+        <button type="button" class="trk-calendar-icon-btn" id="transferConfirmClose">
+          ✕
+        </button>
+      </div>
+
+      <div class="trk-calendar-modal-body">
+        <p class="dashboard-field-hint">
+          Are you sure you want to transfer this lead to <strong id="transferConfirmCoachName"></strong>?
+          A transfer document will be created and sent to them to sign - once everyone's signed, an invoice
+          for the transfer fee will be sent and the lead will move over.
+        </p>
+
+        <div class="trk-calendar-field">
+          <label for="transferEffectiveDate">Effective Transfer Date</label>
+          <input type="date" id="transferEffectiveDate" class="dashboard-input">
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="transferReason">Reason for Transfer</label>
+          <textarea id="transferReason" class="dashboard-input" rows="2" placeholder="Optional"></textarea>
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="transferFeeAmount">Transfer Fee (£)</label>
+          <input type="number" id="transferFeeAmount" class="dashboard-input" value="100" min="0" step="0.01">
+        </div>
+
+        <div class="dashboard-help" id="transferConfirmStatus"></div>
+      </div>
+
+      <div class="trk-calendar-modal-foot">
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="transferConfirmCancel">
+          Cancel
+        </button>
+
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="transferConfirmSubmit">
+          Start Transfer
         </button>
       </div>
     </div>

@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Client Transfer Agreement</title>
+  <link rel="icon" href="/files/TRH - Favicon.png">
+  <meta name="csrf-token" content="{{ frappe.session.csrf_token or '' }}">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #F2F8F8;
+      color: #434B49;
+      padding: 24px 16px 60px;
+    }
+    .ts-page { max-width: 720px; margin: 0 auto; }
+    .ts-card {
+      background: #fff;
+      border-radius: 14px;
+      padding: 28px 32px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+      margin-bottom: 20px;
+    }
+    .ts-card h1 { font-size: 20px; margin: 0 0 4px; }
+    .ts-card h3 { margin-top: 0; }
+    .ts-status { text-align: center; color: #007274; font-weight: 600; padding: 40px 0; }
+    .ts-error { text-align: center; color: #C01C3E; font-weight: 600; padding: 40px 0; }
+    .ts-subtitle { color: #839898; font-size: 13px; margin-bottom: 0; }
+    .ts-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F2F8F8; font-size: 14px; }
+    .ts-row:last-child { border-bottom: none; }
+    .ts-row-label { color: #839898; }
+    .ts-row-value { font-weight: 600; text-align: right; }
+    .ts-badge {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      background: rgba(255,132,56,0.15);
+      color: #FF8438;
+    }
+    .ts-badge-done { background: rgba(37,141,59,0.12); color: #258D3B; }
+    .ts-badge-declined { background: rgba(192,28,62,0.12); color: #C01C3E; }
+    .ts-sig-block { margin-top: 14px; }
+    .ts-sig-block img { max-width: 260px; max-height: 100px; border: 1px solid #D9E6E6; border-radius: 8px; background: #fff; }
+    .ts-sig-meta { font-size: 12px; color: #839898; margin-top: 4px; }
+    .ts-activity { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+    .ts-activity li { padding: 6px 0; border-bottom: 1px solid #F2F8F8; color: #5d6c69; }
+    .ts-activity li:last-child { border-bottom: none; }
+    .ts-activity-event { font-weight: 600; color: #434B49; }
+    canvas#tsSignaturePad {
+      width: 100%;
+      height: 180px;
+      border: 2px dashed #D9E6E6;
+      border-radius: 10px;
+      touch-action: none;
+      background: #fff;
+      display: block;
+    }
+    .ts-sig-actions { display: flex; gap: 10px; margin-top: 10px; }
+    .ts-btn {
+      padding: 12px 18px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .ts-btn-primary { background: #007274; color: #fff; flex: 1; }
+    .ts-btn-light { background: #F2F8F8; color: #434B49; }
+    .ts-btn-danger { background: rgba(192,28,62,0.1); color: #C01C3E; }
+    .ts-btn:disabled { opacity: 0.6; cursor: default; }
+    label { display: block; font-weight: 600; font-size: 13px; margin: 14px 0 6px; }
+    textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #D9E6E6;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: vertical;
+    }
+    .ts-form-message {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      display: none;
+      background: rgba(233,71,99,0.12);
+      color: #C01C3E;
+    }
+    .ts-help { font-size: 12px; color: #839898; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="ts-page" id="tsPage">
+    <div class="ts-status" id="tsLoading">Loading...</div>
+  </div>
+
+  <script>
+    (function () {
+      var transferName = "{{ transfer_name }}";
+      var page = document.getElementById("tsPage");
+
+      function getCsrfToken() {
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        return meta && meta.content ? meta.content : "";
+      }
+
+      function apiPost(method, args) {
+        return fetch("/api/method/" + method, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Frappe-CSRF-Token": getCsrfToken()
+          },
+          body: JSON.stringify(args || {})
+        }).then(function (response) {
+          return response.json().then(function (data) {
+            if (!response.ok || data.exc) {
+              throw new Error((data.message && data.message.message) || data.message || "Something went wrong.");
+            }
+            return data.message || {};
+          });
+        });
+      }
+
+      function escapeHtml(value) {
+        return String(value == null ? "" : value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      function formatDate(value) {
+        if (!value) return "—";
+        var date = new Date(value.indexOf("T") === -1 ? value + "T00:00:00" : value);
+        return isNaN(date.getTime()) ? value : date.toLocaleDateString("en-GB");
+      }
+
+      function formatDateTime(value) {
+        if (!value) return "—";
+        var date = new Date(value.replace(" ", "T"));
+        return isNaN(date.getTime()) ? value : date.toLocaleString("en-GB");
+      }
+
+      function renderError(message) {
+        page.innerHTML = '<div class="ts-error">' + escapeHtml(message) + "</div>";
+      }
+
+      function statusBadgeClass(status) {
+        if (status === "Completed") return "ts-badge ts-badge-done";
+        if (status === "Declined") return "ts-badge ts-badge-declined";
+        return "ts-badge";
+      }
+
+      function renderSignatureBlock(label, signatureDataUrl, signedBy, signedOn) {
+        if (!signedBy) {
+          return (
+            '<div class="ts-row"><span class="ts-row-label">' + escapeHtml(label) + '</span>' +
+            '<span class="ts-row-value">Awaiting signature</span></div>'
+          );
+        }
+
+        return (
+          '<div class="ts-sig-block">' +
+            '<div class="ts-row-label">' + escapeHtml(label) + "</div>" +
+            (signatureDataUrl ? '<img src="' + signatureDataUrl + '" alt="Signature">' : "") +
+            '<div class="ts-sig-meta">Signed by ' + escapeHtml(signedBy) + " on " + formatDateTime(signedOn) + "</div>" +
+          "</div>"
+        );
+      }
+
+      function renderActivity(activity) {
+        if (!activity || !activity.length) return "";
+
+        var items = activity.map(function (row) {
+          return (
+            "<li><span class=\"ts-activity-event\">" + escapeHtml(row.event) + "</span><br>" +
+            formatDateTime(row.timestamp) + (row.user ? " · " + escapeHtml(row.user) : "") +
+            (row.ip_address ? " · " + escapeHtml(row.ip_address) : "") +
+            "</li>"
+          );
+        }).join("");
+
+        return (
+          '<div class="ts-card">' +
+            "<h3>Activity</h3>" +
+            '<ul class="ts-activity">' + items + "</ul>" +
+          "</div>"
+        );
+      }
+
+      function initSignaturePad(canvas) {
+        var ctx = canvas.getContext("2d");
+        var drawing = false;
+        var hasStroke = false;
+        var lastPoint = null;
+
+        function resize() {
+          var ratio = window.devicePixelRatio || 1;
+          var rect = canvas.getBoundingClientRect();
+          canvas.width = rect.width * ratio;
+          canvas.height = rect.height * ratio;
+          ctx.scale(ratio, ratio);
+          ctx.lineWidth = 2.5;
+          ctx.lineCap = "round";
+          ctx.strokeStyle = "#434B49";
+        }
+
+        resize();
+        window.addEventListener("resize", resize);
+
+        function pointFromEvent(event) {
+          var rect = canvas.getBoundingClientRect();
+          var touch = event.touches && event.touches[0];
+          var clientX = touch ? touch.clientX : event.clientX;
+          var clientY = touch ? touch.clientY : event.clientY;
+          return { x: clientX - rect.left, y: clientY - rect.top };
+        }
+
+        function start(event) {
+          event.preventDefault();
+          drawing = true;
+          lastPoint = pointFromEvent(event);
+        }
+
+        function move(event) {
+          if (!drawing) return;
+          event.preventDefault();
+          var point = pointFromEvent(event);
+          ctx.beginPath();
+          ctx.moveTo(lastPoint.x, lastPoint.y);
+          ctx.lineTo(point.x, point.y);
+          ctx.stroke();
+          lastPoint = point;
+          hasStroke = true;
+        }
+
+        function end() {
+          drawing = false;
+          lastPoint = null;
+        }
+
+        canvas.addEventListener("mousedown", start);
+        canvas.addEventListener("mousemove", move);
+        window.addEventListener("mouseup", end);
+        canvas.addEventListener("touchstart", start, { passive: false });
+        canvas.addEventListener("touchmove", move, { passive: false });
+        canvas.addEventListener("touchend", end);
+
+        return {
+          isEmpty: function () { return !hasStroke; },
+          clear: function () {
+            var rect = canvas.getBoundingClientRect();
+            ctx.clearRect(0, 0, rect.width, rect.height);
+            hasStroke = false;
+          },
+          toDataURL: function () { return canvas.toDataURL("image/png"); }
+        };
+      }
+
+      function renderSignForm(data) {
+        var termsHtml =
+          '<div class="ts-card">' +
+            "<h1>Client Transfer Agreement</h1>" +
+            '<p class="ts-subtitle">' + escapeHtml(data.client_name) + "</p>" +
+            '<div class="ts-row"><span class="ts-row-label">Status</span>' +
+              '<span class="' + statusBadgeClass(data.status) + '">' + escapeHtml(data.status) + "</span></div>" +
+            '<div class="ts-row"><span class="ts-row-label">Transferring Coach</span>' +
+              '<span class="ts-row-value">' + escapeHtml(data.transferring_coach_label) + "</span></div>" +
+            '<div class="ts-row"><span class="ts-row-label">Receiving Coach</span>' +
+              '<span class="ts-row-value">' + escapeHtml(data.receiving_coach_label) + "</span></div>" +
+            '<div class="ts-row"><span class="ts-row-label">Effective Transfer Date</span>' +
+              '<span class="ts-row-value">' + formatDate(data.effective_transfer_date) + "</span></div>" +
+            '<div class="ts-row"><span class="ts-row-label">Transfer Fee</span>' +
+              '<span class="ts-row-value">£' + Number(data.transfer_fee_amount || 0).toFixed(2) + "</span></div>" +
+            (data.reason_for_transfer ?
+              '<div class="ts-row"><span class="ts-row-label">Reason</span>' +
+              '<span class="ts-row-value">' + escapeHtml(data.reason_for_transfer) + "</span></div>" : "") +
+            (data.invoice ?
+              '<div class="ts-row"><span class="ts-row-label">Transfer Fee Invoice</span>' +
+              '<span class="ts-row-value">' + escapeHtml(data.invoice) + "</span></div>" : "") +
+            "<p>The Receiving Franchisee agrees to pay the Transferring Franchisee the Transfer Fee shown above, in " +
+            "exchange for the transfer of the above client and their records. " +
+            (data.requires_franchisor_signature ?
+              "This transfer requires the Franchisor's countersignature. " :
+              "As one of the parties to this transfer is the Franchisor, no separate Franchisor countersignature is required. ") +
+            "By signing below, each party confirms they agree to these terms." +
+            "</p>" +
+          "</div>" +
+          '<div class="ts-card">' +
+            "<h3>Signatures</h3>" +
+            renderSignatureBlock("Receiving Coach", data.receiving_signature, data.receiving_signed_by, data.receiving_signed_on) +
+            (data.requires_franchisor_signature ?
+              renderSignatureBlock("Franchisor", data.franchisor_signature, data.franchisor_signed_by, data.franchisor_signed_on) : "") +
+            renderSignatureBlock("Transferring Coach", data.transferring_signature, data.transferring_signed_by, data.transferring_signed_on) +
+            (data.status === "Declined" ?
+              '<div class="ts-row" style="margin-top:10px;"><span class="ts-row-label">Declined by</span>' +
+              '<span class="ts-row-value">' + escapeHtml(data.declined_by) + "</span></div>" +
+              (data.declined_reason ? '<p class="ts-help">' + escapeHtml(data.declined_reason) + "</p>" : "") : "") +
+          "</div>";
+
+        var actionHtml = "";
+
+        if (data.can_sign) {
+          actionHtml =
+            '<div class="ts-card">' +
+              "<h3>Your Signature</h3>" +
+              '<p class="ts-help">Draw your signature below using your mouse or finger.</p>' +
+              '<canvas id="tsSignaturePad"></canvas>' +
+              '<div class="ts-sig-actions">' +
+                '<button type="button" class="ts-btn ts-btn-light" id="tsClearSig">Clear</button>' +
+              "</div>" +
+              '<div class="ts-sig-actions" style="margin-top:16px;">' +
+                '<button type="button" class="ts-btn ts-btn-primary" id="tsSignBtn">Sign Agreement</button>' +
+                '<button type="button" class="ts-btn ts-btn-danger" id="tsDeclineBtn">Decline</button>' +
+              "</div>" +
+              '<div class="ts-form-message" id="tsFormMessage"></div>' +
+            "</div>";
+        } else if (data.status === "Completed") {
+          actionHtml = '<div class="ts-card"><p class="ts-help" style="text-align:center;">This transfer is complete.</p></div>';
+        } else if (data.status === "Declined") {
+          actionHtml = '<div class="ts-card"><p class="ts-help" style="text-align:center;">This transfer was declined.</p></div>';
+        } else if (data.current_user_role) {
+          actionHtml = '<div class="ts-card"><p class="ts-help" style="text-align:center;">Waiting on someone else\'s signature before it\'s your turn.</p></div>';
+        }
+
+        page.innerHTML = termsHtml + actionHtml + renderActivity(data.activity);
+
+        if (!data.can_sign) return;
+
+        var canvas = document.getElementById("tsSignaturePad");
+        var pad = initSignaturePad(canvas);
+
+        document.getElementById("tsClearSig").addEventListener("click", function () {
+          pad.clear();
+        });
+
+        function setBusy(busy, label) {
+          var signBtn = document.getElementById("tsSignBtn");
+          var declineBtn = document.getElementById("tsDeclineBtn");
+          if (signBtn) signBtn.disabled = busy;
+          if (declineBtn) declineBtn.disabled = busy;
+          if (signBtn && label) signBtn.textContent = label;
+        }
+
+        function showMessage(message) {
+          var el = document.getElementById("tsFormMessage");
+          if (!el) return;
+          el.textContent = message || "";
+          el.style.display = message ? "block" : "none";
+        }
+
+        document.getElementById("tsSignBtn").addEventListener("click", function () {
+          if (pad.isEmpty()) {
+            showMessage("Please draw your signature first.");
+            return;
+          }
+
+          showMessage("");
+          setBusy(true, "Signing...");
+
+          apiPost("dashboard.api.shared.client_transfers.sign_transfer", {
+            name: transferName,
+            signature: pad.toDataURL()
+          }).then(function () {
+            load();
+          }).catch(function (error) {
+            setBusy(false, "Sign Agreement");
+            showMessage(error.message || "Could not sign this agreement.");
+          });
+        });
+
+        document.getElementById("tsDeclineBtn").addEventListener("click", function () {
+          var reason = window.prompt("Optional - let them know why you're declining this transfer:") || "";
+          if (reason === null) return;
+
+          setBusy(true);
+          showMessage("");
+
+          apiPost("dashboard.api.shared.client_transfers.decline_transfer", {
+            name: transferName,
+            reason: reason
+          }).then(function () {
+            load();
+          }).catch(function (error) {
+            setBusy(false, "Sign Agreement");
+            showMessage(error.message || "Could not decline this agreement.");
+          });
+        });
+      }
+
+      function load() {
+        page.innerHTML = '<div class="ts-status" id="tsLoading">Loading...</div>';
+
+        apiPost("dashboard.api.shared.client_transfers.get_transfer_for_signing", { name: transferName })
+          .then(renderSignForm)
+          .catch(function (error) {
+            renderError(error.message || "This transfer agreement could not be found.");
+          });
+      }
+
+      if (!transferName) {
+        renderError("This link is invalid.");
+        return;
+      }
+
+      load();
+    })();
+  </script>
+</body>
+</html>

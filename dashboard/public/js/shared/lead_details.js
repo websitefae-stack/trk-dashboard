@@ -304,6 +304,22 @@
       setValue("lead_coach", lead.coach || "");
     }
 
+    const transitBanner = el("leadTransitBanner");
+    const transitLink = el("leadTransitViewLink");
+    const detailsCard = el("leadDetailsCard");
+    const coachSelectEl = el("lead_coach");
+
+    if (lead.active_transfer) {
+      if (transitBanner) transitBanner.style.display = "";
+      if (transitLink) transitLink.href = `/transfer_sign?name=${encodeURIComponent(lead.active_transfer)}`;
+      if (detailsCard) detailsCard.classList.add("dashboard-card-transit");
+      if (coachSelectEl) coachSelectEl.disabled = true;
+    } else {
+      if (transitBanner) transitBanner.style.display = "none";
+      if (detailsCard) detailsCard.classList.remove("dashboard-card-transit");
+      if (coachSelectEl) coachSelectEl.disabled = false;
+    }
+
     const typeBadge = el("leadAppointmentTypeBadge");
     if (typeBadge) {
       if (lead.appointment_type) {
@@ -895,6 +911,108 @@
     }
   }
 
+  // Set by openTransferConfirmModal() - the coach picked in the "Reassign
+  // To" dropdown, and what to put it back to if the modal is cancelled.
+  let pendingTransferCoach = null;
+
+  function openTransferConfirmModal(coachValue, coachLabel, previousValue) {
+    pendingTransferCoach = { value: coachValue, previousValue };
+
+    const nameEl = el("transferConfirmCoachName");
+    if (nameEl) nameEl.textContent = coachLabel || coachValue;
+
+    setValue("transferEffectiveDate", todayIso());
+    setValue("transferReason", "");
+    setValue("transferFeeAmount", "100");
+
+    const statusEl = el("transferConfirmStatus");
+    if (statusEl) statusEl.textContent = "";
+
+    const modal = el("transferConfirmModal");
+    if (modal) modal.classList.add("show");
+  }
+
+  function closeTransferConfirmModal(revert) {
+    const modal = el("transferConfirmModal");
+    if (modal) modal.classList.remove("show");
+
+    if (revert && pendingTransferCoach) {
+      setValue("lead_coach", pendingTransferCoach.previousValue || "");
+    }
+
+    pendingTransferCoach = null;
+  }
+
+  async function submitTransferConfirm() {
+    if (!pendingTransferCoach) return;
+
+    const name = getValue("leadDocname");
+    const submitBtn = el("transferConfirmSubmit");
+    const statusEl = el("transferConfirmStatus");
+
+    if (submitBtn) submitBtn.disabled = true;
+    if (statusEl) statusEl.textContent = "";
+
+    try {
+      await apiPost("dashboard.api.shared.client_transfers.create_transfer", {
+        lead: name,
+        receiving_coach: pendingTransferCoach.value,
+        effective_transfer_date: getValue("transferEffectiveDate"),
+        reason_for_transfer: getValue("transferReason").trim(),
+        transfer_fee_amount: getValue("transferFeeAmount"),
+      });
+
+      closeTransferConfirmModal(false);
+      setValue("lead_coach", "");
+      showMessage("Transfer started - the lead will move over once every signature is in.", false);
+      loadLead();
+    } catch (error) {
+      if (statusEl) statusEl.textContent = error.message || "Could not start the transfer.";
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  }
+
+  function initTransferConfirmModal() {
+    const coachSelect = el("lead_coach");
+    if (coachSelect) {
+      coachSelect.addEventListener("change", function () {
+        // Never applies to a brand new lead's initial "Assign To" (no
+        // previous coach to transfer from) - only an existing lead has
+        // currentLead loaded at all.
+        if (!currentLead) return;
+
+        // The franchisor can still reassign any OTHER coach's lead
+        // instantly, as an admin correction (via the normal Save button,
+        // unchanged). But when it's her own lead - she's a working coach
+        // and is herself one of the two actual parties to the handover -
+        // it's a real transfer and goes through the same Client Transfer
+        // Agreement flow as a coach's own reassignment (just with only 2
+        // signatures required: the receiving coach, then her).
+        if (getDashboardType() === "franchisor" && !currentLead.is_own_lead) return;
+
+        const newValue = coachSelect.value;
+        const savedValue = (currentLead && currentLead.coach) || "";
+
+        if (!newValue || newValue === savedValue) return;
+
+        const selectedOption = coachSelect.options[coachSelect.selectedIndex];
+        const label = selectedOption ? selectedOption.text : newValue;
+
+        openTransferConfirmModal(newValue, label, savedValue);
+      });
+    }
+
+    const closeBtn = el("transferConfirmClose");
+    if (closeBtn) closeBtn.addEventListener("click", () => closeTransferConfirmModal(true));
+
+    const cancelBtn = el("transferConfirmCancel");
+    if (cancelBtn) cancelBtn.addEventListener("click", () => closeTransferConfirmModal(true));
+
+    const submitBtn = el("transferConfirmSubmit");
+    if (submitBtn) submitBtn.addEventListener("click", submitTransferConfirm);
+  }
+
   function todayIso() {
     const now = new Date();
     const offset = now.getTimezoneOffset();
@@ -932,6 +1050,7 @@
 
     initIntakeEmailModal();
     initLinkClientDiffModal();
+    initTransferConfirmModal();
 
     const convertBtn = el("convertLeadBtn");
     if (convertBtn) convertBtn.addEventListener("click", convertLead);
