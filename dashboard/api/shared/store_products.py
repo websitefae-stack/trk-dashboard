@@ -602,17 +602,24 @@ def create_variant_store_product(item_name=None, description=None, short_descrip
     if not item_name:
         frappe.throw(_("Product name is required."))
 
-    if frappe.db.exists("Item", {"item_name": item_name}):
-        # Unlike a plain product (create_store_product adopts a matching
-        # non-store Item instead of blocking), turning an *existing* Item
-        # into a variant template isn't safe to do automatically - it
-        # already has its own price/stock history, and Frappe won't let
-        # has_variants be switched on after that. A different name (or
-        # renaming/removing the old Item first) is the only way forward.
-        frappe.throw(_(
-            "An item named {0} already exists and can't be converted into a product with "
-            "variations. Choose a different name, or check the existing item in the Products list."
-        ).format(item_name))
+    existing_item_code = frappe.db.get_value("Item", {"item_name": item_name}, "name")
+
+    if existing_item_code:
+        existing_has_variants = frappe.db.get_value("Item", existing_item_code, "has_variants")
+
+        if existing_has_variants:
+            frappe.throw(_("A product with variations named {0} already exists.").format(item_name))
+
+        # A common real workflow: a product is created simple first, then
+        # later needs variations added - safe to convert automatically as
+        # long as it's never actually been sold on anything yet (once it
+        # has, Frappe won't let has_variants be switched on, and rewriting
+        # sold history out from under it would be wrong anyway).
+        if frappe.db.exists("Sales Invoice Item", {"item_code": existing_item_code}):
+            frappe.throw(_(
+                "An item named {0} already exists and has already been sold, so it can't be "
+                "safely converted into a product with variations. Choose a different name."
+            ).format(item_name))
 
     attributes = _parse_json_list(attributes)
     variants = _parse_json_list(variants)
@@ -626,6 +633,9 @@ def create_variant_store_product(item_name=None, description=None, short_descrip
     company = _store_company()
 
     with _as_administrator():
+        if existing_item_code:
+            frappe.delete_doc("Item", existing_item_code, ignore_permissions=True, force=True)
+
         for attr in attributes:
             _ensure_item_attribute(attr.get("attribute"), attr.get("values") or [])
 
