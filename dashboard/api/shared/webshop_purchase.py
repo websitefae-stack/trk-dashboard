@@ -167,6 +167,7 @@ def _get_purchasable_item(item_code, company):
         "item_code": item_code,
         "item_name": item_doc.item_name or item_code,
         "description": item_doc.description or "",
+        "image": item_doc.image or "",
         "rate": rate,
         "currency": currency,
         "price_list": price_list,
@@ -187,6 +188,7 @@ def get_purchasable_item(item_code=None):
         "item_code": item["item_code"],
         "item_name": item["item_name"],
         "description": item["description"],
+        "image": item["image"],
         "rate": item["rate"],
         "currency": item["currency"],
     }
@@ -234,6 +236,7 @@ def get_item_or_variants(item_code=None):
                 "item_code": item["item_code"],
                 "item_name": item["item_name"],
                 "description": item["description"],
+                "image": item["image"],
                 "rate": item["rate"],
                 "currency": item["currency"],
             },
@@ -283,6 +286,7 @@ def get_item_or_variants(item_code=None):
             "attributes": attrs,
             "item_name": purchasable["item_name"],
             "description": purchasable["description"],
+            "image": purchasable["image"],
             "rate": purchasable["rate"],
             "currency": purchasable["currency"],
         })
@@ -294,6 +298,7 @@ def get_item_or_variants(item_code=None):
         "is_template": True,
         "item_name": item_doc.item_name or item_code,
         "description": item_doc.description or "",
+        "image": item_doc.image or "",
         "attributes": [
             {"attribute": name, "values": attribute_values.get(name, [])}
             for name in attribute_names
