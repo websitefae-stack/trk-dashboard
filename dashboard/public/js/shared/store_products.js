@@ -278,7 +278,10 @@
     el("storeProductShortDescriptionCount").textContent = el("storeProductShortDescription").value.length;
     el("storeProductGroup").value = product ? product.item_group : "";
     el("storeProductPrice").value = product ? product.price : "";
-    el("storeProductUnlimited").checked = !!(product && product.unlimited_stock);
+    // A new product defaults to unlimited (stock quantity stays hidden
+    // until you actually untick this to say it's a fixed quantity) - an
+    // existing product keeps showing whatever it was actually saved as.
+    el("storeProductUnlimited").checked = product ? !!product.unlimited_stock : true;
     el("storeProductStockQty").value = product ? product.stock_qty || 0 : 0;
     el("storeProductDisabled").checked = !!(product && product.disabled);
     el("storeProductDisabledRow").style.display = product ? "" : "none";
