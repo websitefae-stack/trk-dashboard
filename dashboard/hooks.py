@@ -233,6 +233,16 @@ doc_events = {
     "Communication": {
         "after_insert": "dashboard.api.shared.school_pipeline.handle_incoming_school_reply",
     },
+    # Keeps the Store dashboard's stock counter honest against every
+    # Sales Invoice a store item is actually sold on - the online
+    # checkout's own invoice (webshop_purchase.py) and any invoice
+    # raised by hand (e.g. invoicing a coach for merch) both submit the
+    # same core Sales Invoice doctype, so this one hook covers both. See
+    # store_stock.py's module docstring.
+    "Sales Invoice": {
+        "on_submit": "dashboard.api.shared.store_stock.decrement_stock_on_submit",
+        "on_cancel": "dashboard.api.shared.store_stock.restore_stock_on_cancel",
+    },
 }
 
 # Two independent LMS Course settings - "Show on Website" (opt-in
