@@ -133,6 +133,37 @@ def _set_item_price(item_code, price_list, rate):
     return price_doc.name
 
 
+def _root_item_group():
+    root = frappe.db.get_value(
+        "Item Group", {"is_group": 1, "parent_item_group": ["in", ["", None]]}, "name"
+    )
+    return root or "All Item Groups"
+
+
+def _ensure_item_group(item_group_name):
+    """
+    The product form's own Item Group field is free text (with existing
+    groups only offered as suggestions, per get_item_groups() below) -
+    typing a brand new one (or even relying on the "Products" fallback,
+    if that group was never actually created) used to fail outright with
+    a LinkValidationError, since Item Group is a real Link field. Creates
+    it on the fly instead, same on-demand pattern as
+    email_groups.ensure_email_group().
+    """
+    item_group_name = (item_group_name or "").strip()
+
+    if not item_group_name or frappe.db.exists("Item Group", item_group_name):
+        return item_group_name
+
+    doc = frappe.new_doc("Item Group")
+    doc.item_group_name = item_group_name
+    doc.parent_item_group = _root_item_group()
+    doc.is_group = 0
+    doc.insert(ignore_permissions=True)
+
+    return doc.name
+
+
 @frappe.whitelist()
 def get_item_groups():
     _ensure_store_access()
@@ -324,7 +355,7 @@ def create_store_product(item_name=None, description=None, item_group=None, pric
         item.stock_uom = item.stock_uom or "Nos"
         item.is_stock_item = 0
 
-    item.item_group = (item_group or "").strip() or item.item_group or "Products"
+    item.item_group = _ensure_item_group((item_group or "").strip() or item.item_group or "Products")
     item.description = description or item.description or ""
     item.disabled = 0
     item.custom_store_enabled = 1
@@ -380,7 +411,7 @@ def update_store_product(item_code=None, item_name=None, description=None, item_
         item.description = description
 
     if item_group is not None and item_group.strip():
-        item.item_group = item_group.strip()
+        item.item_group = _ensure_item_group(item_group.strip())
 
     if stock_qty is not None:
         item.custom_stock_qty = _to_int(stock_qty)
@@ -531,7 +562,7 @@ def create_variant_store_product(item_name=None, description=None, item_group=No
     template = frappe.new_doc("Item")
     template.item_code = item_name
     template.item_name = item_name
-    template.item_group = (item_group or "").strip() or "Products"
+    template.item_group = _ensure_item_group((item_group or "").strip() or "Products")
     template.description = description or ""
     template.stock_uom = "Nos"
     template.is_stock_item = 0
