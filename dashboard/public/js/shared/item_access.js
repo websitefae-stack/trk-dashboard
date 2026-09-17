@@ -62,6 +62,21 @@
     });
   }
 
+  // Comma-separated so "emily, cara" narrows the Access grid down to
+  // just those two coaches' columns instead of scrolling a wide table
+  // looking for them.
+  function filteredCoaches(filterText) {
+    if (!filterText) return state.coaches;
+
+    const needles = filterText.toLowerCase().split(",").map(function (n) { return n.trim(); }).filter(Boolean);
+    if (!needles.length) return state.coaches;
+
+    return state.coaches.filter(function (coach) {
+      const label = coach.label.toLowerCase();
+      return needles.some(function (needle) { return label.indexOf(needle) !== -1; });
+    });
+  }
+
   // ---------------------------------------------------------------
   // Item Brands table
   // ---------------------------------------------------------------
@@ -141,12 +156,12 @@
   // Item Access (+ Show on site) table
   // ---------------------------------------------------------------
 
-  function renderAccessHead() {
+  function renderAccessHead(coaches) {
     const head = el("itemAccessTableHead");
     if (!head) return;
 
     let html = '<tr><th class="item-access-name-col">Item</th>';
-    state.coaches.forEach(function (coach) {
+    coaches.forEach(function (coach) {
       html += "<th>" + escapeHtml(coach.label) + "</th>";
     });
     head.innerHTML = html + "</tr>";
@@ -168,20 +183,25 @@
       + '</td>';
   }
 
-  function renderAccessBody(filterText) {
+  function renderAccessBody(filterText, coaches) {
     const body = el("itemAccessTableBody");
     if (!body) return;
 
     const rows = filteredItems(filterText);
 
+    if (!coaches.length) {
+      body.innerHTML = '<tr><td class="dashboard-empty">No coaches match that filter.</td></tr>';
+      return;
+    }
+
     if (!rows.length) {
-      const colspan = state.coaches.length + 1;
+      const colspan = coaches.length + 1;
       body.innerHTML = '<tr><td colspan="' + colspan + '" class="dashboard-empty">No items found.</td></tr>';
       return;
     }
 
     body.innerHTML = rows.map(function (item) {
-      const cells = state.coaches.map(function (coach) {
+      const cells = coaches.map(function (coach) {
         return accessCellHtml(item, coach);
       }).join("");
 
@@ -329,11 +349,13 @@
 
   // ---------------------------------------------------------------
 
-  function renderAll(filterText) {
+  function renderAll(filterText, coachFilterText) {
+    const coaches = filteredCoaches(coachFilterText);
+
     renderBrandsHead();
     renderBrandsBody(filterText);
-    renderAccessHead();
-    renderAccessBody(filterText);
+    renderAccessHead(coaches);
+    renderAccessBody(filterText, coaches);
   }
 
   async function loadGrid() {
@@ -360,11 +382,75 @@
         };
       });
 
-      renderAll(el("itemAccessSearch") ? el("itemAccessSearch").value : "");
+      renderAll(
+        el("itemAccessSearch") ? el("itemAccessSearch").value : "",
+        el("itemAccessCoachSearch") ? el("itemAccessCoachSearch").value : ""
+      );
     } catch (error) {
       const message = escapeHtml(error.message || "Could not load items.");
       accessBody.innerHTML = '<tr><td class="dashboard-empty">' + message + '</td></tr>';
       if (brandsBody) brandsBody.innerHTML = '<tr><td class="dashboard-empty">' + message + '</td></tr>';
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Products tab (read-only - always office/HQ-managed through the
+  // Store dashboard, never granted per coach, so it's just a view here)
+  // ---------------------------------------------------------------
+
+  const BRAND_LABELS = {
+    custom_brand_hub: "Hub",
+    custom_brand_kid: "Kid",
+    custom_brand_teen: "Teen",
+    custom_brand_people: "People",
+    custom_brand_school: "School",
+  };
+
+  function formatPrice(price) {
+    return "£" + Number(price || 0).toFixed(2);
+  }
+
+  function brandsSummary(brands) {
+    const shown = Object.keys(BRAND_LABELS).filter(function (key) { return brands && brands[key]; });
+    if (!shown.length) return "—";
+    return shown.map(function (key) { return BRAND_LABELS[key]; }).join(", ");
+  }
+
+  function renderProductRow(product) {
+    const priceCell = product.has_variants ? "Varies" : formatPrice(product.price);
+    const stockCell = product.has_variants
+      ? "See variants"
+      : (product.unlimited_stock ? "Unlimited" : (product.stock_qty || 0));
+
+    return "<tr>"
+      + "<td>" + escapeHtml(product.item_name) + "</td>"
+      + "<td>" + escapeHtml(product.item_group || "—") + "</td>"
+      + "<td>" + priceCell + "</td>"
+      + "<td>" + stockCell + "</td>"
+      + "<td>" + escapeHtml(brandsSummary(product.brands)) + "</td>"
+      + "<td>" + (product.disabled
+          ? '<span class="dashboard-badge dashboard-status-archived">Disabled</span>'
+          : '<span class="dashboard-badge dashboard-status-active">Active</span>')
+      + "</td>"
+      + "</tr>";
+  }
+
+  let productsLoaded = false;
+
+  async function loadProducts() {
+    const body = el("itemProductsTableBody");
+    if (!body || productsLoaded) return;
+
+    productsLoaded = true;
+
+    try {
+      const products = await apiPost("dashboard.api.shared.store_products.get_store_products", {});
+      body.innerHTML = products.length
+        ? products.map(renderProductRow).join("")
+        : '<tr><td colspan="6" class="dashboard-empty">No products in the store yet.</td></tr>';
+    } catch (error) {
+      productsLoaded = false;
+      body.innerHTML = '<tr><td colspan="6" class="dashboard-empty">' + escapeHtml(error.message || "Could not load products.") + '</td></tr>';
     }
   }
 
@@ -383,6 +469,10 @@
           panel.classList.toggle("is-active", isActive);
           panel.style.display = isActive ? "block" : "none";
         });
+
+        if (button.dataset.tabTarget === "itemProductsTabPanel") {
+          loadProducts();
+        }
       });
     });
   }
@@ -394,11 +484,14 @@
     loadGrid();
 
     const search = el("itemAccessSearch");
-    if (search) {
-      search.addEventListener("input", Dashboard.debounce(function () {
-        renderAll(search.value);
-      }, 200));
-    }
+    const coachSearch = el("itemAccessCoachSearch");
+
+    const rerender = Dashboard.debounce(function () {
+      renderAll(search ? search.value : "", coachSearch ? coachSearch.value : "");
+    }, 200);
+
+    if (search) search.addEventListener("input", rerender);
+    if (coachSearch) coachSearch.addEventListener("input", rerender);
   }
 
   if (document.readyState === "loading") {
