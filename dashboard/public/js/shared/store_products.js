@@ -691,6 +691,15 @@
           preview.src = URL.createObjectURL(file);
           preview.style.display = "";
         }
+        return;
+      }
+
+      const existingUnlimited = event.target.closest("[data-existing-variant-unlimited]");
+      if (existingUnlimited) {
+        const stockInput = document.querySelector(
+          `[data-existing-variant-stock="${CSS.escape(existingUnlimited.dataset.existingVariantUnlimited)}"]`
+        );
+        if (stockInput) stockInput.disabled = existingUnlimited.checked;
       }
     });
 
