@@ -25,6 +25,16 @@
             <span>Products</span>
         </a>
 
+        <a href="/store_db/orders" class="{% if active_page == 'orders' %}is-active{% endif %}">
+            <span class="dashboard-nav-icon">📦</span>
+            <span>Orders</span>
+        </a>
+
+        <a href="/store_db/stock_take" class="{% if active_page == 'stock_take' %}is-active{% endif %}">
+            <span class="dashboard-nav-icon">🧮</span>
+            <span>Stock Take</span>
+        </a>
+
         <button type="button" id="dashboardLogoutBtn" class="dashboard-sidebar-logout">
             <span class="dashboard-nav-icon">⎋</span>
             <span>Log Out</span>

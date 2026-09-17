@@ -803,6 +803,8 @@ def _fulfil_checkout_session(session):
     unlocked_courses = _unlock_courses_for_purchase(email, item_codes)
 
     checkout.status = "Paid"
+    if checkout.meta.has_field("invoice"):
+        checkout.invoice = invoice.name
     checkout.save(ignore_permissions=True)
 
     frappe.db.commit()

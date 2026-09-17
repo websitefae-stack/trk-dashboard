@@ -66,6 +66,9 @@
       <label for="storeProductName">Product Name</label>
       <input type="text" id="storeProductName" class="dashboard-input">
 
+      <label for="storeProductSku">SKU</label>
+      <input type="text" id="storeProductSku" class="dashboard-input" placeholder="Your own product code, e.g. FR-001">
+
       <label for="storeProductShortDescription">Short Description (shown on the store page)</label>
       <textarea id="storeProductShortDescription" class="dashboard-input" rows="2" maxlength="200" placeholder="A brief line shown on the store listing card instead of the full description below."></textarea>
       <p class="dashboard-help" style="margin-top:-4px;"><span id="storeProductShortDescriptionCount">0</span>/200</p>
@@ -149,7 +152,7 @@
           + Add Another Attribute
         </button>
 
-        <label for="storeVariationsBasePrice">Starting price for all combinations (£)</label>
+        <label for="storeVariationsBasePrice" style="display:block;">Starting price for all combinations (£)</label>
         <input type="number" id="storeVariationsBasePrice" class="dashboard-input" min="0" step="0.01">
 
         <button type="button" class="dashboard-btn dashboard-btn-light" id="generateVariantsBtn" style="margin:10px 0;">
@@ -168,6 +171,7 @@
             <thead>
               <tr>
                 <th>Combination</th>
+                <th>SKU</th>
                 <th>Price (£)</th>
                 <th>Stock</th>
                 <th>Unlimited</th>
@@ -218,6 +222,7 @@
             <tr>
               <th>Variant</th>
               <th>Image</th>
+              <th>SKU</th>
               <th>Price (£)</th>
               <th>Stock</th>
               <th>Unlimited</th>
@@ -226,7 +231,7 @@
             </tr>
           </thead>
           <tbody id="storeVariantsBody">
-            <tr><td colspan="7" class="dashboard-empty">Loading…</td></tr>
+            <tr><td colspan="8" class="dashboard-empty">Loading…</td></tr>
           </tbody>
         </table>
       </div>
