@@ -5,8 +5,7 @@ from frappe.utils import now_datetime, get_url, get_fullname, flt
 from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user, get_current_coach_name
 from dashboard.api.shared.utils import coalesce_str, coalesce_raw
 from dashboard.api.shared.notifications import create_trk_notification, FRANCHISOR_USERS
-from dashboard.api.shared.item_access import _get_coach_login
-from dashboard.api.shared import invoices as invoices_api
+from dashboard.api.shared.item_access import _get_coach_login, DEFAULT_PRICE_LIST
 
 
 LEAD_DOCTYPE = "Client Lead"
@@ -47,6 +46,30 @@ def _coach_label(coach_name):
 
     label = frappe.db.get_value("Coach", coach_name, "coach_name")
     return label or coach_name
+
+
+def _coach_territory(coach_name):
+    if not coach_name:
+        return ""
+
+    return frappe.db.get_value("Coach", coach_name, "territory_postcodes") or ""
+
+
+def _lead_document_fields(lead_name):
+    """
+    The handful of Client Territory Transfer Agreement fields sourced from
+    the lead itself rather than the transfer doc - see get_transfer_for_signing().
+    """
+    if not lead_name or not frappe.db.exists(LEAD_DOCTYPE, lead_name):
+        return {"parent_guardian_name": "", "date_first_registered": "", "client_reference": ""}
+
+    lead = frappe.db.get_value(LEAD_DOCTYPE, lead_name, ["contact_name", "creation"], as_dict=True) or {}
+
+    return {
+        "parent_guardian_name": lead.get("contact_name") or "",
+        "date_first_registered": str(lead.get("creation") or "")[:10],
+        "client_reference": lead_name,
+    }
 
 
 def _is_franchisor_coach(coach_name):
@@ -219,7 +242,6 @@ def _get_or_create_coach_linked_client(coach_name):
         return existing
 
     from dashboard.api.shared.client_details import set_full_name_from_parts, get_coach_defaults_from_coach
-    from dashboard.api.shared.item_access import DEFAULT_PRICE_LIST
 
     coach_defaults = get_coach_defaults_from_coach(coach_name)
     label = _coach_label(coach_name) or coach_name
@@ -270,36 +292,94 @@ def _get_or_create_billing_customer(client_name, coach_name):
 
 
 def _create_transfer_fee_invoice(transfer):
-    bank_account = frappe.db.get_value("Coach", transfer.transferring_coach, "bank_account")
+    """
+    Built directly rather than through invoices.submit_invoice() -
+    confirmed live that its company/bank-account inference (built around
+    "one Client, resolve everything else from it") landed on the wrong
+    company and the wrong coach's identity for a pure coach-to-coach fee
+    with no real Client behind it. Every field that actually matters here
+    (company, bank account, price list, who the income belongs to) is set
+    explicitly from the transferring coach's own Coach record instead of
+    being inferred from anything.
+    """
+    transferring_coach = frappe.db.get_value(
+        "Coach", transfer.transferring_coach, ["company", "bank_account", "pricelist"], as_dict=True
+    ) or {}
+
+    company = transferring_coach.get("company")
+    bank_account = transferring_coach.get("bank_account")
+
+    if not company:
+        frappe.throw(_(
+            "{0} doesn't have a company set on their Coach record - add one before this transfer can be completed."
+        ).format(_coach_label(transfer.transferring_coach)))
 
     if not bank_account:
         frappe.throw(_(
             "{0} doesn't have a bank account set on their Coach record - add one before this transfer can be completed."
         ).format(_coach_label(transfer.transferring_coach)))
 
+    # Still uses the receiving coach's own linked_client/Customer, purely
+    # so "Bill To" shows their name and existing permission checks (e.g.
+    # Franchise-type clients being invoiceable by any coach) keep working -
+    # it plays no part in deciding company/bank account/income owner below.
     receiving_client = _get_or_create_coach_linked_client(transfer.receiving_coach)
     receiving_customer = _get_or_create_billing_customer(receiving_client, transfer.receiving_coach)
     item_code = _ensure_transfer_fee_item()
 
-    payload = {
-        "custom_client": receiving_client,
-        "customer": receiving_customer,
-        "bank_account": bank_account,
-        "posting_date": frappe.utils.nowdate(),
-        "items": [{
-            "item_code": item_code,
-            "qty": 1,
-            "rate": flt(transfer.transfer_fee_amount) or DEFAULT_TRANSFER_FEE,
-            "description": "Client transfer fee - {0} transferred from {1} to {2}".format(
-                transfer.client_name,
-                _coach_label(transfer.transferring_coach),
-                _coach_label(transfer.receiving_coach),
-            ),
-        }],
-    }
+    invoice = frappe.new_doc("Sales Invoice")
+    invoice.customer = receiving_customer
+    invoice.company = company
+    invoice.posting_date = frappe.utils.nowdate()
+    invoice.due_date = frappe.utils.add_days(frappe.utils.nowdate(), 30)
+    invoice.selling_price_list = transferring_coach.get("pricelist") or DEFAULT_PRICE_LIST
 
-    result = invoices_api.submit_invoice(docname=None, data=payload)
-    return result.get("name")
+    meta = invoice.meta
+
+    if meta.has_field("custom_client"):
+        invoice.custom_client = receiving_client
+    if meta.has_field("set_posting_time"):
+        invoice.set_posting_time = 1
+    if meta.has_field("custom_bank_account"):
+        invoice.custom_bank_account = bank_account
+    if meta.has_field("custom_income_owner_coach"):
+        invoice.custom_income_owner_coach = transfer.transferring_coach
+    if meta.has_field("custom_created_by_coach"):
+        invoice.custom_created_by_coach = transfer.transferring_coach
+    if meta.has_field("disable_rounded_total"):
+        invoice.disable_rounded_total = 1
+        invoice.rounding_adjustment = 0
+        invoice.base_rounding_adjustment = 0
+
+    naming_series_field = meta.get_field("naming_series")
+    if naming_series_field and naming_series_field.options:
+        invoice.naming_series = naming_series_field.options.split("\n")[0].strip()
+
+    row = invoice.append("items", {})
+    row.item_code = item_code
+    row.item_name = TRANSFER_FEE_ITEM_CODE
+    row.description = "Client transfer fee - {0} transferred from {1} to {2}".format(
+        transfer.client_name,
+        _coach_label(transfer.transferring_coach),
+        _coach_label(transfer.receiving_coach),
+    )
+    row.qty = 1
+    row.uom = "Nos"
+    row.stock_uom = "Nos"
+    row.conversion_factor = 1
+    row.rate = flt(transfer.transfer_fee_amount) or DEFAULT_TRANSFER_FEE
+    row.amount = row.qty * row.rate
+
+    if hasattr(invoice, "set_missing_values"):
+        invoice.set_missing_values()
+    if hasattr(invoice, "calculate_taxes_and_totals"):
+        invoice.calculate_taxes_and_totals()
+
+    invoice.insert(ignore_permissions=True)
+    invoice.submit()
+    frappe.db.commit()
+
+    return invoice.name
 
 
 # =====================================================
@@ -383,6 +463,7 @@ def get_transfer_for_signing(name=None):
 
     expected_role = _expected_role_for_status(transfer.status)
     can_act = bool(role) and role == expected_role and transfer.status in OPEN_STATUSES
+    lead_fields = _lead_document_fields(transfer.client_lead)
 
     return {
         "name": transfer.name,
@@ -390,12 +471,17 @@ def get_transfer_for_signing(name=None):
         "client_name": transfer.client_name,
         "transferring_coach": transfer.transferring_coach,
         "transferring_coach_label": _coach_label(transfer.transferring_coach),
+        "transferring_coach_territory": _coach_territory(transfer.transferring_coach),
         "receiving_coach": transfer.receiving_coach,
         "receiving_coach_label": _coach_label(transfer.receiving_coach),
+        "receiving_coach_territory": _coach_territory(transfer.receiving_coach),
         "effective_transfer_date": str(transfer.effective_transfer_date or ""),
         "agreement_date": str(transfer.agreement_date or ""),
         "reason_for_transfer": transfer.reason_for_transfer or "",
         "transfer_fee_amount": transfer.transfer_fee_amount or 0,
+        "parent_guardian_name": lead_fields["parent_guardian_name"],
+        "date_first_registered": lead_fields["date_first_registered"],
+        "client_reference": lead_fields["client_reference"],
         "requires_franchisor_signature": bool(transfer.requires_franchisor_signature),
         "receiving_signed_by": transfer.receiving_signed_by or "",
         "receiving_signed_on": str(transfer.receiving_signed_on or ""),
