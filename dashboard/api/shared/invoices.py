@@ -1187,17 +1187,14 @@ def get_invoice_page_data(dashboard_type=None, selected_coach=None):
     selected_coach = (selected_coach or "").strip()
     current_coach_name = (current_coach.get("name") or "").strip()
 
-    # Only meaningful for a coach's own dashboard, where "selecting
-    # yourself" is the same as no selection at all - collapsing it to ""
-    # keeps _get_clients_for_invoice_scope() on its plain
-    # {"primary_coach": current_coach_name} branch. For a franchisor this
-    # would be actively wrong: their own dashboard revenue figures are
-    # scoped to their own coach identity (see dashboard.py's
-    # _get_invoice_client_names_for_dashboard), so the drill-down link
-    # explicitly selects that same coach by name - resetting it here would
-    # silently widen the list back out to every coach's invoices instead
-    # of matching the figure that was clicked.
-    if dashboard_type == COACH_DASHBOARD and selected_coach == current_coach_name:
+    # A coach may only ever see their own invoices - unlike the
+    # franchisor's own "view any coach" dropdown below, a coach dashboard
+    # offers no legitimate way to pick someone else, so any selected_coach
+    # value reaching here (a stale URL param, or otherwise) is ignored
+    # outright rather than trusted. Confirmed live: a coach could pass
+    # another coach's name and see that coach's invoices, including
+    # income they had no business seeing.
+    if dashboard_type == COACH_DASHBOARD:
         selected_coach = ""
 
     # A franchisor landing on Invoices with nothing picked defaults to
