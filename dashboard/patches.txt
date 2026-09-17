@@ -103,3 +103,4 @@ dashboard.patches.add_school_address_and_telephone
 dashboard.patches.create_website_customers_email_group
 dashboard.patches.raise_max_file_upload_size
 dashboard.patches.add_item_store_and_stock_fields
+dashboard.patches.add_item_digital_file_and_course_unlock_fields
