@@ -1,0 +1,100 @@
+{% include "dashboard/templates/includes/head/store_head.html" %}
+<script src="/assets/dashboard/js/shared/store_coupons.js?v=1"></script>
+
+<div class="dashboard-page" id="storeCouponsPage">
+  {% include "dashboard/templates/includes/sidebar/store_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/store_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Coupons</h1>
+          <p class="dashboard-page-subtitle">Discount codes customers can enter at checkout.</p>
+        </div>
+
+        <div class="dashboard-page-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="addCouponBtn">
+            Add Coupon
+          </button>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Coupons</div>
+          <div class="dashboard-table-count" id="storeCouponsCount">Loading…</div>
+        </div>
+
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Discount</th>
+                <th>Expiry</th>
+                <th>Uses</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="storeCouponsBody">
+              <tr><td colspan="6" class="dashboard-empty">Loading coupons…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-modal-backdrop" id="storeCouponModal">
+  <div class="dashboard-modal">
+    <div class="dashboard-modal-head">
+      <h3 id="storeCouponModalTitle">Add Coupon</h3>
+      <button type="button" class="dashboard-modal-close" id="closeStoreCouponModal">×</button>
+    </div>
+
+    <div class="dashboard-modal-body">
+      <input type="hidden" id="storeCouponName" value="">
+
+      <label for="storeCouponCode">Code</label>
+      <input type="text" id="storeCouponCode" class="dashboard-input" placeholder="e.g. SUMMER10" style="text-transform:uppercase;">
+
+      <div style="display:flex; gap:12px;">
+        <div style="flex:1;">
+          <label for="storeCouponDiscountType">Discount Type</label>
+          <select id="storeCouponDiscountType" class="dashboard-input">
+            <option value="Percentage">Percentage</option>
+            <option value="Fixed Amount">Fixed Amount (£)</option>
+          </select>
+        </div>
+
+        <div style="flex:1;">
+          <label for="storeCouponDiscountValue" id="storeCouponDiscountValueLabel">Discount (%)</label>
+          <input type="number" id="storeCouponDiscountValue" class="dashboard-input" min="0" step="0.01">
+        </div>
+      </div>
+
+      <label for="storeCouponExpiry">Expiry Date (optional)</label>
+      <input type="date" id="storeCouponExpiry" class="dashboard-input">
+
+      <label for="storeCouponMaxUses">Max Uses (optional - 0 for unlimited)</label>
+      <input type="number" id="storeCouponMaxUses" class="dashboard-input" min="0" step="1" value="0">
+
+      <label for="storeCouponDescription">Note (for your own reference)</label>
+      <textarea id="storeCouponDescription" class="dashboard-input" rows="2"></textarea>
+
+      <label style="display:flex; align-items:center; gap:8px; font-weight:normal; margin-top:14px;">
+        <input type="checkbox" id="storeCouponActive" checked>
+        Active
+      </label>
+    </div>
+
+    <div class="dashboard-modal-foot">
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelStoreCouponModal">Cancel</button>
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveStoreCouponBtn">Save Coupon</button>
+    </div>
+  </div>
+</div>

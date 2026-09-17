@@ -9,6 +9,8 @@
   "status",
   "stripe_session_id",
   "invoice",
+  "coupon_code",
+  "discount_amount",
   "fulfilment_section",
   "packed_on",
   "shipped_on",
@@ -51,6 +53,18 @@
    "fieldtype": "Link",
    "label": "Sales Invoice",
    "options": "Sales Invoice",
+   "read_only": 1
+  },
+  {
+   "fieldname": "coupon_code",
+   "fieldtype": "Data",
+   "label": "Coupon Code",
+   "read_only": 1
+  },
+  {
+   "fieldname": "discount_amount",
+   "fieldtype": "Currency",
+   "label": "Discount Amount",
    "read_only": 1
   },
   {

@@ -34,6 +34,7 @@ from dashboard.api.shared.item_access import _get_coach_login
 from dashboard.api.shared.invoices import _get_bank_account_gl_account
 from dashboard.api.shared import payment_utils
 from dashboard.api.shared.email_groups import add_to_email_group
+from dashboard.api.shared.store_coupons import calculate_checkout_discount, record_coupon_use
 
 ONLINE_CLIENT_DOCTYPE = "Online Client"
 WEBSHOP_CUSTOMERS_EMAIL_GROUP = "Website Customers"
@@ -341,6 +342,7 @@ def create_checkout_session(
     postcode=None,
     country=None,
     coach=None,
+    coupon_code=None,
     success_url=None,
     cancel_url=None,
 ):
@@ -396,6 +398,7 @@ def create_checkout_session(
     checkout.coach = coach or None
 
     line_items = []
+    subtotal = 0
 
     for line in cart_lines:
         item = _get_purchasable_item(line["item_code"], settings.company)
@@ -403,6 +406,8 @@ def create_checkout_session(
 
         if unit_amount <= 0:
             frappe.throw(_("{0} cannot be purchased online right now.").format(item["item_name"]))
+
+        subtotal += _to_float(item["rate"]) * line["qty"]
 
         checkout.append("items", {
             "item_code": item["item_code"],
@@ -421,6 +426,15 @@ def create_checkout_session(
             "quantity": line["qty"],
         })
 
+    # Re-validated here rather than trusted from the browser - a coupon
+    # is only ever honoured at the amount/eligibility this same check
+    # would allow right now.
+    discount_amount, coupon = calculate_checkout_discount(coupon_code, subtotal)
+
+    if coupon:
+        checkout.coupon_code = coupon.code
+        checkout.discount_amount = discount_amount
+
     checkout.insert(ignore_permissions=True)
     frappe.db.commit()
 
@@ -428,7 +442,7 @@ def create_checkout_session(
 
     stripe.api_key = stripe_secret_key
 
-    checkout_session = stripe.checkout.Session.create(
+    session_kwargs = dict(
         mode="payment",
         payment_method_types=["card"],
         customer_email=email,
@@ -440,6 +454,20 @@ def create_checkout_session(
         success_url=success_url or (get_url() + "/order-confirmed?session_id={CHECKOUT_SESSION_ID}"),
         cancel_url=cancel_url or get_url(),
     )
+
+    if discount_amount > 0:
+        # A one-off Stripe Coupon applied just to this session - line
+        # item amounts stay untouched (Stripe doesn't allow negative
+        # line items), Stripe applies the reduction itself at charge time.
+        stripe_coupon = stripe.Coupon.create(
+            amount_off=int(round(discount_amount * 100)),
+            currency=line_items[0]["price_data"]["currency"],
+            duration="once",
+            name=f"Discount ({coupon.code})",
+        )
+        session_kwargs["discounts"] = [{"coupon": stripe_coupon.id}]
+
+    checkout_session = stripe.checkout.Session.create(**session_kwargs)
 
     checkout.stripe_session_id = checkout_session.id
     checkout.save(ignore_permissions=True)
@@ -640,6 +668,7 @@ def _unlock_courses_for_purchase(email, item_codes):
 def _send_order_confirmation_emails(
     invoice, online_client, checkout_items, settings, coach,
     digital_files=None, granted_new_portal_access=False, unlocked_courses=None,
+    coupon_code=None, discount_amount=0,
 ):
     amount_display = fmt_money(invoice.grand_total, currency=invoice.currency)
 
@@ -649,6 +678,11 @@ def _send_order_confirmation_emails(
         for line in checkout_items
     )
 
+    discount_line = ""
+    if discount_amount:
+        discount_display = fmt_money(discount_amount, currency=invoice.currency)
+        discount_line = f"Discount ({coupon_code}): -{discount_display}\n"
+
     message = (
         f"Hi {online_client.full_name},\n"
         "\n"
@@ -656,6 +690,7 @@ def _send_order_confirmation_emails(
         "\n"
         f"{order_lines}\n"
         "\n"
+        f"{discount_line}"
         f"Total: {amount_display}\n"
         "\n"
         f"Order reference: {invoice.name}\n"
@@ -797,6 +832,10 @@ def _fulfil_checkout_session(session):
     if price_list:
         invoice.selling_price_list = price_list
 
+    if checkout.get("discount_amount"):
+        invoice.apply_discount_on = "Grand Total"
+        invoice.discount_amount = checkout.discount_amount
+
     if hasattr(invoice, "set_missing_values"):
         invoice.set_missing_values()
     if hasattr(invoice, "calculate_taxes_and_totals"):
@@ -823,6 +862,15 @@ def _fulfil_checkout_session(session):
         checkout.invoice = invoice.name
     checkout.save(ignore_permissions=True)
 
+    if checkout.get("coupon_code"):
+        try:
+            record_coupon_use(checkout.coupon_code)
+        except Exception:
+            # The discount itself was already honoured via Stripe -
+            # a failure to bump the usage counter shouldn't undo an
+            # already-paid order.
+            frappe.log_error(frappe.get_traceback(), f"Could not record coupon use - {checkout.name}")
+
     frappe.db.commit()
 
     invoice.reload()
@@ -841,6 +889,8 @@ def _fulfil_checkout_session(session):
             digital_files=digital_files,
             granted_new_portal_access=granted_new_portal_access,
             unlocked_courses=unlocked_courses,
+            coupon_code=checkout.get("coupon_code"),
+            discount_amount=checkout.get("discount_amount") or 0,
         )
     except Exception:
         # The order itself is already paid and recorded - a failed email
