@@ -89,6 +89,43 @@ def _split_full_name(full_name):
     return parts[0], " ".join(parts[1:])
 
 
+def _parse_cart_items(items):
+    """items is a JSON-encoded (or already-parsed, same as any other
+    fetch() POST body) list of {"item_code": ..., "qty": ...} - a single
+    "Buy Now" is just a one-item cart, so every checkout goes through
+    this same shape."""
+    raw = items
+
+    if isinstance(raw, str):
+        try:
+            raw = frappe.parse_json(raw)
+        except Exception:
+            raw = []
+
+    if not isinstance(raw, list):
+        return []
+
+    parsed = []
+
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+
+        item_code = (entry.get("item_code") or "").strip()
+        qty = max(1, int(_to_float(entry.get("qty")) or 1))
+
+        if item_code:
+            parsed.append({"item_code": item_code, "qty": qty})
+
+    return parsed
+
+
+def _default_price_list_for_item(item_code, company):
+    return frappe.db.get_value(
+        "Item Default", {"parent": item_code, "parenttype": "Item", "company": company}, "default_price_list"
+    )
+
+
 def _get_purchasable_item(item_code, company):
     if not item_code or not frappe.db.exists("Item", item_code):
         frappe.throw(_("Item not found."))
@@ -267,8 +304,7 @@ def get_item_or_variants(item_code=None):
 
 @frappe.whitelist(allow_guest=True)
 def create_checkout_session(
-    item_code=None,
-    qty=1,
+    items=None,
     full_name=None,
     email=None,
     phone=None,
@@ -281,6 +317,18 @@ def create_checkout_session(
     success_url=None,
     cancel_url=None,
 ):
+    """
+    items is a list (or JSON-encoded list) of {"item_code", "qty"} - a
+    single "Buy Now" and a full multi-item cart both go through this one
+    path, each item's price always recomputed here from its own Item
+    Price (see module docstring), never trusted from the browser.
+
+    The cart itself (contact details + resolved item/price lines) is
+    saved as a Webshop Checkout doc before Stripe is even called, and
+    only that doc's name goes into the Stripe session's metadata - the
+    webhook re-reads the real doc rather than trying to fit a whole cart
+    into Stripe's small per-field metadata size limit.
+    """
     settings = get_settings()
 
     if not settings.enabled:
@@ -291,10 +339,13 @@ def create_checkout_session(
     if not stripe_secret_key:
         frappe.throw(_("Online checkout isn't fully set up yet."))
 
-    item_code = (item_code or "").strip()
+    cart_lines = _parse_cart_items(items)
+
+    if not cart_lines:
+        frappe.throw(_("Your cart is empty."))
+
     full_name = (full_name or "").strip()
     email = (email or "").strip()
-    qty = max(1, int(_to_float(qty) or 1))
 
     if not full_name:
         frappe.throw(_("Full name is required."))
@@ -306,11 +357,45 @@ def create_checkout_session(
     if coach and not frappe.db.exists("Coach", coach):
         coach = ""
 
-    item = _get_purchasable_item(item_code, settings.company)
-    unit_amount = int(round(_to_float(item["rate"]) * 100))
+    checkout = frappe.new_doc("Webshop Checkout")
+    checkout.full_name = full_name
+    checkout.email = email
+    checkout.phone = phone or ""
+    checkout.address_line1 = address_line1 or ""
+    checkout.address_line2 = address_line2 or ""
+    checkout.city = city or ""
+    checkout.postcode = postcode or ""
+    checkout.country = country or ""
+    checkout.coach = coach or None
 
-    if unit_amount <= 0:
-        frappe.throw(_("This item cannot be purchased online right now."))
+    line_items = []
+
+    for line in cart_lines:
+        item = _get_purchasable_item(line["item_code"], settings.company)
+        unit_amount = int(round(_to_float(item["rate"]) * 100))
+
+        if unit_amount <= 0:
+            frappe.throw(_("{0} cannot be purchased online right now.").format(item["item_name"]))
+
+        checkout.append("items", {
+            "item_code": item["item_code"],
+            "item_name": item["item_name"],
+            "qty": line["qty"],
+            "rate": item["rate"],
+            "currency": item["currency"],
+        })
+
+        line_items.append({
+            "price_data": {
+                "currency": (item["currency"] or "GBP").lower(),
+                "product_data": {"name": item["item_name"]},
+                "unit_amount": unit_amount,
+            },
+            "quantity": line["qty"],
+        })
+
+    checkout.insert(ignore_permissions=True)
+    frappe.db.commit()
 
     import stripe
 
@@ -320,33 +405,18 @@ def create_checkout_session(
         mode="payment",
         payment_method_types=["card"],
         customer_email=email,
-        line_items=[{
-            "price_data": {
-                "currency": (item["currency"] or "GBP").lower(),
-                "product_data": {"name": item["item_name"]},
-                "unit_amount": unit_amount,
-            },
-            "quantity": qty,
-        }],
+        line_items=line_items,
         # Reconstructed server-side by the webhook once payment actually
-        # succeeds - nothing here is trusted, this is only how the details
-        # given at checkout survive the redirect to Stripe and back.
-        metadata={
-            "item_code": item_code,
-            "qty": str(qty),
-            "full_name": full_name,
-            "email": email,
-            "phone": phone or "",
-            "address_line1": address_line1 or "",
-            "address_line2": address_line2 or "",
-            "city": city or "",
-            "postcode": postcode or "",
-            "country": country or "",
-            "coach": coach or "",
-        },
+        # succeeds - nothing here is trusted, this is only how the cart
+        # survives the redirect to Stripe and back.
+        metadata={"checkout": checkout.name},
         success_url=success_url or (get_url() + "/order-confirmed?session_id={CHECKOUT_SESSION_ID}"),
         cancel_url=cancel_url or get_url(),
     )
+
+    checkout.stripe_session_id = checkout_session.id
+    checkout.save(ignore_permissions=True)
+    frappe.db.commit()
 
     return {"checkout_url": checkout_session.url}
 
@@ -541,23 +611,33 @@ def _unlock_courses_for_purchase(email, item_codes):
 
 
 def _send_order_confirmation_emails(
-    invoice, online_client, item, qty, settings, coach,
-    digital_file_url=None, granted_new_portal_access=False, unlocked_courses=None,
+    invoice, online_client, checkout_items, settings, coach,
+    digital_files=None, granted_new_portal_access=False, unlocked_courses=None,
 ):
     amount_display = fmt_money(invoice.grand_total, currency=invoice.currency)
+
+    order_lines = "\n".join(
+        f"{line.item_name} x{line.qty} - "
+        f"{fmt_money((line.rate or 0) * (line.qty or 1), currency=line.currency or invoice.currency)}"
+        for line in checkout_items
+    )
 
     message = (
         f"Hi {online_client.full_name},\n"
         "\n"
         "Thanks for your order - here's your confirmation.\n"
         "\n"
-        f"{item.get('item_name')} x{qty} - {amount_display}\n"
+        f"{order_lines}\n"
+        "\n"
+        f"Total: {amount_display}\n"
         "\n"
         f"Order reference: {invoice.name}\n"
     )
 
-    if digital_file_url:
-        message += f"\nDownload: {get_url(digital_file_url)}\n"
+    if digital_files:
+        message += "\nDownloads:\n" + "\n".join(
+            f"{file.get('item_name')}: {get_url(file.get('url'))}" for file in digital_files
+        ) + "\n"
 
     if unlocked_courses:
         message += "\nYou now have access to: " + ", ".join(unlocked_courses) + "\n"
@@ -585,10 +665,12 @@ def _send_order_confirmation_emails(
         if coach_login:
             cc.add(coach_login)
 
+    subject_item = checkout_items[0].item_name if len(checkout_items) == 1 else f"{len(checkout_items)} items"
+
     frappe.sendmail(
         recipients=[online_client.email],
         cc=list(cc),
-        subject=f"Order confirmation - {item.get('item_name')}",
+        subject=f"Order confirmation - {subject_item}",
         message=plain_text_to_email_html(message),
         now=True,
         reference_doctype="Sales Invoice",
@@ -602,46 +684,42 @@ def _fulfil_checkout_session(session):
     if not stripe_session_id:
         return
 
-    # Stripe retries a webhook delivery until it gets a 200 back, so the
-    # same completed session can arrive more than once - this is what
-    # keeps a retry from creating a second invoice for the same payment.
-    if frappe.db.exists("Sales Invoice", {"custom_stripe_session_id": stripe_session_id}):
-        return
-
     metadata = session.get("metadata") or {}
-    item_code = metadata.get("item_code")
-    email = metadata.get("email") or (session.get("customer_details") or {}).get("email") or ""
+    checkout_name = metadata.get("checkout")
 
-    if not item_code or not email:
+    if not checkout_name or not frappe.db.exists("Webshop Checkout", checkout_name):
         frappe.log_error(
-            f"Stripe checkout.session.completed missing item_code/email: {session}",
+            f"Stripe checkout.session.completed missing/unknown checkout doc: {session}",
             "Webshop Purchase Fulfilment Failed",
         )
         return
 
-    qty = max(1, int(_to_float(metadata.get("qty")) or 1))
-    coach = metadata.get("coach") or ""
+    checkout = frappe.get_doc("Webshop Checkout", checkout_name)
 
+    # Stripe retries a webhook delivery until it gets a 200 back, so the
+    # same completed session can arrive more than once - this is what
+    # keeps a retry from double-invoicing/double-unlocking the same
+    # already-fulfilled cart.
+    if checkout.status == "Paid":
+        return
+
+    if not checkout.items:
+        frappe.log_error(f"Webshop Checkout {checkout_name} has no items", "Webshop Purchase Fulfilment Failed")
+        return
+
+    email = checkout.email
+    coach = checkout.coach or ""
     settings = get_settings()
-    item = _get_purchasable_item(item_code, settings.company)
-
-    # The item's current price (re-fetched above) is only used for the
-    # item name/description/price list - the amount actually invoiced
-    # always comes from what Stripe actually charged (amount_total), not
-    # today's price, in case the price changed between checkout starting
-    # and this webhook firing.
-    charged_total = _to_float(session.get("amount_total")) / 100
-    item["rate"] = round(charged_total / qty, 2) if charged_total else item["rate"]
 
     online_client_name = _get_or_create_online_client(
-        full_name=metadata.get("full_name") or "",
+        full_name=checkout.full_name,
         email=email,
-        phone=metadata.get("phone") or "",
-        address_line1=metadata.get("address_line1") or "",
-        address_line2=metadata.get("address_line2") or "",
-        city=metadata.get("city") or "",
-        postcode=metadata.get("postcode") or "",
-        country=metadata.get("country") or "",
+        phone=checkout.phone,
+        address_line1=checkout.address_line1,
+        address_line2=checkout.address_line2,
+        city=checkout.city,
+        postcode=checkout.postcode,
+        country=checkout.country,
         coach=coach,
     )
     online_client = frappe.get_doc(ONLINE_CLIENT_DOCTYPE, online_client_name)
@@ -665,7 +743,6 @@ def _fulfil_checkout_session(session):
     invoice.company = settings.company
     invoice.posting_date = nowdate()
     invoice.due_date = nowdate()
-    invoice.selling_price_list = item.get("price_list")
 
     if invoice.meta.has_field("custom_online_client"):
         invoice.custom_online_client = online_client_name
@@ -674,13 +751,24 @@ def _fulfil_checkout_session(session):
     if invoice.meta.has_field("custom_stripe_session_id"):
         invoice.custom_stripe_session_id = stripe_session_id
 
-    invoice.append("items", {
-        "item_code": item_code,
-        "item_name": item.get("item_name"),
-        "description": item.get("description"),
-        "qty": qty,
-        "rate": item.get("rate"),
-    })
+    item_codes = []
+    price_list = None
+
+    for line in checkout.items:
+        item_codes.append(line.item_code)
+
+        if price_list is None:
+            price_list = _default_price_list_for_item(line.item_code, settings.company)
+
+        invoice.append("items", {
+            "item_code": line.item_code,
+            "item_name": line.item_name,
+            "qty": line.qty,
+            "rate": line.rate,
+        })
+
+    if price_list:
+        invoice.selling_price_list = price_list
 
     if hasattr(invoice, "set_missing_values"):
         invoice.set_missing_values()
@@ -701,21 +789,27 @@ def _fulfil_checkout_session(session):
         reference_no=stripe_session_id,
     )
 
-    unlocked_courses = _unlock_courses_for_purchase(email, [item_code])
+    unlocked_courses = _unlock_courses_for_purchase(email, item_codes)
+
+    checkout.status = "Paid"
+    checkout.save(ignore_permissions=True)
 
     frappe.db.commit()
 
     invoice.reload()
 
-    digital_file_url = (
-        frappe.db.get_value("Item", item_code, "custom_digital_file")
-        if frappe.get_meta("Item").has_field("custom_digital_file") else None
-    )
+    digital_files = []
+
+    if frappe.get_meta("Item").has_field("custom_digital_file"):
+        for line in checkout.items:
+            file_url = frappe.db.get_value("Item", line.item_code, "custom_digital_file")
+            if file_url:
+                digital_files.append({"item_name": line.item_name, "url": file_url})
 
     try:
         _send_order_confirmation_emails(
-            invoice, online_client, item, qty, settings, coach,
-            digital_file_url=digital_file_url,
+            invoice, online_client, checkout.items, settings, coach,
+            digital_files=digital_files,
             granted_new_portal_access=granted_new_portal_access,
             unlocked_courses=unlocked_courses,
         )
@@ -723,7 +817,8 @@ def _fulfil_checkout_session(session):
         # The order itself is already paid and recorded - a failed email
         # shouldn't look like a failed purchase to Stripe (which would
         # otherwise keep retrying the whole webhook, re-running everything
-        # above against the now-idempotency-guarded invoice for nothing).
+        # above against the now-idempotency-guarded checkout/invoice for
+        # nothing).
         frappe.log_error(frappe.get_traceback(), f"Order Confirmation Email Failed - {invoice.name}")
 
 
