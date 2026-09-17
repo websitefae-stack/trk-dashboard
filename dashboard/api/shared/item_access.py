@@ -84,8 +84,18 @@ def get_item_access_grid():
     item_meta = frappe.get_meta("Item")
     brand_fieldnames = [fieldname for fieldname in BRAND_FIELDS if item_meta.has_field(fieldname)]
 
+    # Item Access is for services a coach invoices individually - a
+    # store product (and its variants) is always sold by office/HQ
+    # through the Store dashboard instead, never per-coach, so it never
+    # belonged in this grid. See get_store_items_for_franchisor() below
+    # for where store products actually show on this page.
+    filters = {}
+    if item_meta.has_field("custom_store_enabled"):
+        filters["custom_store_enabled"] = 0
+
     items = frappe.get_all(
         "Item",
+        filters=filters,
         fields=["name", "item_name", *brand_fieldnames],
         order_by="item_name asc, name asc",
         limit_page_length=5000,

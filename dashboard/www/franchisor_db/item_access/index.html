@@ -41,21 +41,22 @@
 
       <div class="dashboard-page-header">
         <div>
-          <h1 class="dashboard-page-title">Item Access</h1>
-          <p class="dashboard-page-subtitle">Tick a box to let a coach add that item/service to an invoice. Unticking removes their access immediately.</p>
+          <h1 class="dashboard-page-title">Service Access</h1>
+          <p class="dashboard-page-subtitle">Tick a box to let a coach add that service to an invoice. Unticking removes their access immediately.</p>
         </div>
       </div>
 
       <div class="dashboard-tabs" id="itemAccessTabs" role="tablist">
-        <button type="button" class="dashboard-tab-btn is-active" data-tab-target="itemAccessTabPanel">Item Access</button>
-        <button type="button" class="dashboard-tab-btn" data-tab-target="itemBrandsTabPanel">Item Brands</button>
+        <button type="button" class="dashboard-tab-btn is-active" data-tab-target="itemAccessTabPanel">Service Access</button>
+        <button type="button" class="dashboard-tab-btn" data-tab-target="itemBrandsTabPanel">Service Brands</button>
+        <button type="button" class="dashboard-tab-btn" data-tab-target="itemProductsTabPanel">Products</button>
       </div>
 
       <div class="dashboard-tab-panel is-active" id="itemAccessTabPanel" style="display:block;">
         <div class="dashboard-card">
           <div class="dashboard-detail-section-head" style="margin-bottom:12px;">
             <div>
-              <h3>Item Access</h3>
+              <h3>Service Access</h3>
               <p class="dashboard-page-subtitle">
                 <strong>Access</strong> lets a coach add this item to an invoice. <strong>Show on site</strong> also lists it as a service on their public profile page(s) - only available once Access is ticked, and it's cleared automatically if Access is removed. New coaches and new items always start with no access - it's never granted automatically.
               </p>
@@ -66,6 +67,11 @@
             <div class="dashboard-detail-field">
               <label for="itemAccessSearch">Search Items</label>
               <input type="text" class="dashboard-input" id="itemAccessSearch" placeholder="Search by item name">
+            </div>
+
+            <div class="dashboard-detail-field">
+              <label for="itemAccessCoachSearch">Filter by Coach</label>
+              <input type="text" class="dashboard-input" id="itemAccessCoachSearch" placeholder="e.g. Emily, Cara - only shows those coaches' columns">
             </div>
           </div>
 
@@ -88,8 +94,8 @@
         <div class="dashboard-card">
           <div class="dashboard-detail-section-head" style="margin-bottom:12px;">
             <div>
-              <h3>Item Brands</h3>
-              <p class="dashboard-page-subtitle">Which public website(s) each item/service is relevant to at all. A coach's own "Show on site" tick on the Item Access tab only has an effect on a brand ticked here.</p>
+              <h3>Service Brands</h3>
+              <p class="dashboard-page-subtitle">Which public website(s) each service is relevant to at all. A coach's own "Show on site" tick on the Service Access tab only has an effect on a brand ticked here.</p>
             </div>
           </div>
 
@@ -100,6 +106,37 @@
               </thead>
               <tbody id="itemBrandsTableBody">
                 <tr><td class="dashboard-empty">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard-tab-panel" id="itemProductsTabPanel" style="display:none;">
+        <div class="dashboard-card">
+          <div class="dashboard-detail-section-head" style="margin-bottom:12px;">
+            <div>
+              <h3>Products</h3>
+              <p class="dashboard-page-subtitle">
+                Everything in the online store - always sold by office/HQ, never granted to an individual coach, so it stays separate from Service Access above. Manage products, stock and variants in the <a href="/store_db">Store dashboard</a>.
+              </p>
+            </div>
+          </div>
+
+          <div class="dashboard-table-wrap">
+            <table class="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Group</th>
+                  <th>Price</th>
+                  <th>Stock</th>
+                  <th>Shows On</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="itemProductsTableBody">
+                <tr><td colspan="6" class="dashboard-empty">Loading…</td></tr>
               </tbody>
             </table>
           </div>

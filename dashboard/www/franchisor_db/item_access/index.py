@@ -12,7 +12,7 @@ def get_context(context):
     redirect_if_wrong_dashboard("franchisor")
 
     context.no_cache = 1
-    context.page_title = "Item Access"
+    context.page_title = "Service Access"
     context.active_page = "item_access"
     context.dashboard_notifications_url = "/franchisor_db/notifications"
     context.dashboard_user_name = get_franchisor_display_name()
