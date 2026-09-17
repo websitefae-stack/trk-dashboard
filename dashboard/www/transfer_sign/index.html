@@ -109,6 +109,20 @@
         return meta && meta.content ? meta.content : "";
       }
 
+      function parseServerMessage(data) {
+        if (!data || !data._server_messages) return "";
+
+        try {
+          var messages = JSON.parse(data._server_messages);
+          if (!messages.length) return "";
+
+          var first = JSON.parse(messages[0]);
+          return first.message || "";
+        } catch (error) {
+          return "";
+        }
+      }
+
       function apiPost(method, args) {
         return fetch("/api/method/" + method, {
           method: "POST",
@@ -121,7 +135,12 @@
         }).then(function (response) {
           return response.json().then(function (data) {
             if (!response.ok || data.exc) {
-              throw new Error((data.message && data.message.message) || data.message || "Something went wrong.");
+              throw new Error(
+                parseServerMessage(data) ||
+                (data.message && data.message.message) ||
+                data.message ||
+                "Something went wrong."
+              );
             }
             return data.message || {};
           });
