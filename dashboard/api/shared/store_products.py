@@ -38,18 +38,24 @@ def _as_administrator():
     to manage the store - this covers what ignore_permissions=True on
     this endpoint's own Item save doesn't reach: the stock Frappe
     Webshop app hooks Item's save to auto-sync a "Website Item" record,
-    and that nested insert checks frappe.session.user directly rather
-    than inheriting this call's ignore_permissions flag, so a Store
-    Manager (a limited Website User, not an Item/Website Manager)
-    otherwise gets a bare PermissionError from deep inside someone
-    else's app. Restores the real user again once the write is done.
+    and that nested insert checks permissions itself rather than
+    inheriting this call's ignore_permissions flag, so a Store Manager
+    (a limited Website User, not an Item/Website Manager) otherwise gets
+    a bare PermissionError from deep inside someone else's app.
+
+    Deliberately uses frappe.flags.ignore_permissions rather than
+    frappe.set_user("Administrator") - set_user() also reassigns
+    frappe.session.sid to the given username, and restoring only
+    session.user afterward (not session.sid) leaves that corrupted for
+    the rest of the request, which was logging Rachel straight back out
+    after every save. This flag never touches the session at all.
     """
-    original_user = frappe.session.user
-    frappe.set_user("Administrator")
+    previous = frappe.flags.ignore_permissions
+    frappe.flags.ignore_permissions = True
     try:
         yield
     finally:
-        frappe.set_user(original_user)
+        frappe.flags.ignore_permissions = previous
 
 
 def _to_bool(value):
