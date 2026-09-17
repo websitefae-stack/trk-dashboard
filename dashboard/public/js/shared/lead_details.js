@@ -977,10 +977,19 @@
     const coachSelect = el("lead_coach");
     if (coachSelect) {
       coachSelect.addEventListener("change", function () {
-        // The franchisor can still reassign any lead instantly (via the
-        // normal Save button, unchanged) - only a coach's own "Reassign
-        // To" on their own lead starts a Client Transfer Agreement.
-        if (getDashboardType() === "franchisor") return;
+        // Never applies to a brand new lead's initial "Assign To" (no
+        // previous coach to transfer from) - only an existing lead has
+        // currentLead loaded at all.
+        if (!currentLead) return;
+
+        // The franchisor can still reassign any OTHER coach's lead
+        // instantly, as an admin correction (via the normal Save button,
+        // unchanged). But when it's her own lead - she's a working coach
+        // and is herself one of the two actual parties to the handover -
+        // it's a real transfer and goes through the same Client Transfer
+        // Agreement flow as a coach's own reassignment (just with only 2
+        // signatures required: the receiving coach, then her).
+        if (getDashboardType() === "franchisor" && !currentLead.is_own_lead) return;
 
         const newValue = coachSelect.value;
         const savedValue = (currentLead && currentLead.coach) || "";
