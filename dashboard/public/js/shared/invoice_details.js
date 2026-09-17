@@ -1632,12 +1632,26 @@
     await addItemRow({ qty: 1, rate: 0, amount: 0 });
   }
 
+  // refreshInvoiceContext()/restrictCustomerToClientBillingContact() both
+  // recompute company/price list/bank account from the CLIENT's own
+  // defaults - exactly what's wanted while still composing a draft, but
+  // confirmed live to clobber an already-submitted invoice's real,
+  // deliberately-overridden values (e.g. a transfer-fee invoice's company
+  // and bank account, explicitly set to the transferring coach's own -
+  // see client_transfers.py) with the client's generic defaults the
+  // moment the page loaded, even just to view it. applyInvoiceResponse()
+  // (called just above, via loadInvoice()) already populated the real
+  // saved values for an existing invoice - only a still-editable (Draft)
+  // invoice needs these to run at all.
+  //
   // refreshInvoiceContext() always recomputes bank details from the
   // client's own default, so it must run before
   // restrictCustomerToClientBillingContact() - otherwise it would clobber
   // the one-time seeding of a previously-saved bank account override.
-  await refreshInvoiceContext();
-  await restrictCustomerToClientBillingContact();
+  if (isEditable()) {
+    await refreshInvoiceContext();
+    await restrictCustomerToClientBillingContact();
+  }
   await updateTravelRow();
 
   updateStatusBadge(el("invoice_status")?.value || "Draft");

@@ -149,14 +149,28 @@ def get_context(context):
         or ""
     )
 
+    # For an already-submitted invoice, "whose income this is" -
+    # custom_income_owner_coach, already the authoritative field for that -
+    # takes priority over the client's own primary/attending coach.
+    # Otherwise a coach-to-coach invoice with no real Client behind it
+    # (e.g. a Client Transfer Agreement's fee - see client_transfers.py)
+    # showed whichever coach the billed Client happened to belong to,
+    # rather than who the invoice actually belongs to. Confirmed live.
     context.coach_label = (
-        client_defaults.get("coach_label")
+        (invoice_api._coach_label_from_name(doc.get("custom_income_owner_coach")) if doc.get("custom_income_owner_coach") else "")
+        or client_defaults.get("coach_label")
         or resolved.get("coach_label")
         or ""
     )
 
+    # Same issue for the bank details shown - an already-submitted
+    # invoice's own custom_bank_account (which may deliberately override
+    # the client's own default, e.g. that same transfer-fee invoice) must
+    # win over the client's default bank account, not be silently replaced
+    # by it.
     context.bank_display_text = (
-        client_defaults.get("bank_display_text")
+        (invoice_api._bank_display_text(doc.get("custom_bank_account")) if doc.get("custom_bank_account") else "")
+        or client_defaults.get("bank_display_text")
         or resolved.get("bank_display_text")
         or ""
     )
