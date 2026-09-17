@@ -18,6 +18,7 @@
   let generatedVariants = [];
   let imageKeyAttribute = "";
   let variantImagesByValue = {};
+  let descriptionEditor = null;
 
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
@@ -273,7 +274,8 @@
     el("storeProductModalTitle").textContent = product ? "Edit Product" : "Add Product";
     el("storeProductItemCode").value = product ? product.name : "";
     el("storeProductName").value = product ? product.item_name : "";
-    el("storeProductDescription").value = product ? product.description : "";
+    el("storeProductSku").value = product ? product.sku || "" : "";
+    if (descriptionEditor) descriptionEditor.setHtml(product ? product.description || "" : "");
     el("storeProductShortDescription").value = product ? product.short_description || "" : "";
     el("storeProductShortDescriptionCount").textContent = el("storeProductShortDescription").value.length;
     el("storeProductGroup").value = product ? product.item_group : "";
@@ -365,6 +367,7 @@
       return `
         <tr>
           <td>${escapeHtml(label)}</td>
+          <td><input type="text" class="dashboard-input" style="width:110px;" value="" data-variant-sku="${index}" placeholder="Optional"></td>
           <td><input type="number" min="0" step="0.01" class="dashboard-input" style="width:90px;" value="${basePrice}" data-variant-price="${index}"></td>
           <td><input type="number" min="0" step="1" class="dashboard-input" style="width:70px;" value="0" data-variant-stock="${index}"></td>
           <td style="text-align:center;"><input type="checkbox" data-variant-unlimited="${index}"></td>
@@ -445,6 +448,7 @@
 
   function collectVariantSpecs() {
     return generatedVariants.map((combo, index) => {
+      const skuInput = document.querySelector(`[data-variant-sku="${index}"]`);
       const priceInput = document.querySelector(`[data-variant-price="${index}"]`);
       const stockInput = document.querySelector(`[data-variant-stock="${index}"]`);
       const unlimitedInput = document.querySelector(`[data-variant-unlimited="${index}"]`);
@@ -452,6 +456,7 @@
 
       return {
         attribute_values: combo,
+        sku: skuInput ? skuInput.value : "",
         price: priceInput ? priceInput.value : 0,
         stock_qty: stockInput ? stockInput.value : 0,
         unlimited_stock: unlimitedInput ? unlimitedInput.checked : false,
@@ -491,7 +496,8 @@
 
         await apiPost(API + ".create_variant_store_product", {
           item_name: itemName,
-          description: el("storeProductDescription").value,
+          sku: el("storeProductSku").value,
+          description: descriptionEditor ? descriptionEditor.getHtml() : "",
           short_description: el("storeProductShortDescription").value,
           item_group: el("storeProductGroup").value,
           brands: collectBrands(),
@@ -515,7 +521,8 @@
 
         const payload = {
           item_name: itemName,
-          description: el("storeProductDescription").value,
+          sku: el("storeProductSku").value,
+          description: descriptionEditor ? descriptionEditor.getHtml() : "",
           short_description: el("storeProductShortDescription").value,
           item_group: el("storeProductGroup").value,
           brands: collectBrands(),
@@ -592,6 +599,7 @@
           ${preview}
           <input type="file" accept="image/*" data-existing-variant-image-input="${escapeHtml(variant.name)}">
         </td>
+        <td><input type="text" class="dashboard-input" style="width:110px;" value="${escapeHtml(variant.sku || "")}" data-existing-variant-sku="${escapeHtml(variant.name)}" placeholder="Optional"></td>
         <td><input type="number" min="0" step="0.01" class="dashboard-input" style="width:90px;" value="${variant.price || 0}" data-existing-variant-price="${escapeHtml(variant.name)}"></td>
         <td><input type="number" min="0" step="1" class="dashboard-input" style="width:70px;" value="${variant.stock_qty || 0}" data-existing-variant-stock="${escapeHtml(variant.name)}" ${variant.unlimited_stock ? "disabled" : ""}></td>
         <td style="text-align:center;"><input type="checkbox" data-existing-variant-unlimited="${escapeHtml(variant.name)}" ${variant.unlimited_stock ? "checked" : ""}></td>
@@ -604,16 +612,16 @@
   async function openVariantsModal(templateItemCode) {
     el("storeVariantsTemplateCode").value = templateItemCode;
     const body = el("storeVariantsBody");
-    body.innerHTML = '<tr><td colspan="7" class="dashboard-empty">Loading…</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" class="dashboard-empty">Loading…</td></tr>';
     el("storeVariantsModal").classList.add("is-open");
 
     try {
       const variants = await apiPost(API + ".get_product_variants", { template_item_code: templateItemCode });
       body.innerHTML = variants.length
         ? variants.map(renderVariantRow).join("")
-        : '<tr><td colspan="7" class="dashboard-empty">No variants found.</td></tr>';
+        : '<tr><td colspan="8" class="dashboard-empty">No variants found.</td></tr>';
     } catch (error) {
-      body.innerHTML = '<tr><td colspan="7" class="dashboard-empty">Could not load variants.</td></tr>';
+      body.innerHTML = '<tr><td colspan="8" class="dashboard-empty">Could not load variants.</td></tr>';
       console.error(error);
     }
   }
@@ -623,6 +631,7 @@
   }
 
   async function saveVariantRow(itemCode, button) {
+    const skuInput = document.querySelector(`[data-existing-variant-sku="${CSS.escape(itemCode)}"]`);
     const priceInput = document.querySelector(`[data-existing-variant-price="${CSS.escape(itemCode)}"]`);
     const stockInput = document.querySelector(`[data-existing-variant-stock="${CSS.escape(itemCode)}"]`);
     const unlimitedInput = document.querySelector(`[data-existing-variant-unlimited="${CSS.escape(itemCode)}"]`);
@@ -642,6 +651,7 @@
 
       await apiPost(API + ".update_variant", {
         item_code: itemCode,
+        sku: skuInput ? skuInput.value : "",
         price: priceInput ? priceInput.value : 0,
         stock_qty: stockInput ? stockInput.value : 0,
         unlimited_stock: unlimitedInput ? unlimitedInput.checked : false,
@@ -681,6 +691,12 @@
 
   function initPage() {
     if (!el("storeProductsPage")) return;
+
+    const descriptionContainer = el("storeProductDescriptionEditor");
+    if (descriptionContainer) {
+      descriptionContainer.innerHTML = Dashboard.richTextEditorHtml("Describe this product…");
+      descriptionEditor = Dashboard.wireRichTextEditor(descriptionContainer.querySelector(".dashboard-richtext"));
+    }
 
     loadProducts();
     loadItemGroups();

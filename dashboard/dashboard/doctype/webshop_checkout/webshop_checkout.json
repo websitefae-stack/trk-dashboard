@@ -8,6 +8,12 @@
  "field_order": [
   "status",
   "stripe_session_id",
+  "invoice",
+  "fulfilment_section",
+  "packed_on",
+  "shipped_on",
+  "fulfilment_column",
+  "tracking_number",
   "contact_section",
   "full_name",
   "email",
@@ -31,7 +37,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Pending\nPaid",
+   "options": "Pending\nPaid\nPacked\nShipped",
    "read_only": 1
   },
   {
@@ -39,6 +45,39 @@
    "fieldtype": "Data",
    "label": "Stripe Session ID",
    "read_only": 1
+  },
+  {
+   "fieldname": "invoice",
+   "fieldtype": "Link",
+   "label": "Sales Invoice",
+   "options": "Sales Invoice",
+   "read_only": 1
+  },
+  {
+   "fieldname": "fulfilment_section",
+   "fieldtype": "Section Break",
+   "label": "Fulfilment"
+  },
+  {
+   "fieldname": "packed_on",
+   "fieldtype": "Datetime",
+   "label": "Packed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "shipped_on",
+   "fieldtype": "Datetime",
+   "label": "Shipped On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "fulfilment_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "tracking_number",
+   "fieldtype": "Data",
+   "label": "Tracking Number"
   },
   {
    "fieldname": "contact_section",

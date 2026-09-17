@@ -1,0 +1,66 @@
+{% include "dashboard/templates/includes/head/store_head.html" %}
+<script src="/assets/dashboard/js/shared/store_stock_take.js?v=1"></script>
+
+<div class="dashboard-page" id="storeStockTakePage">
+  {% include "dashboard/templates/includes/sidebar/store_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/store_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Stock Take</h1>
+          <p class="dashboard-page-subtitle">Pick which products to count, then enter what you actually have of each variation.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-card" id="stockTakePickerCard">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">1. Choose Products to Count</div>
+        </div>
+        <p class="dashboard-help">Only products/variations with tracked (non-unlimited) stock are shown - there's nothing to count for an unlimited item.</p>
+
+        <div class="dashboard-filter-bar" style="margin-bottom:14px; grid-template-columns: 1fr;">
+          <input type="text" id="stockTakeSearch" class="dashboard-input" placeholder="Search products…">
+        </div>
+
+        <div id="stockTakeProductList" style="max-height:360px; overflow-y:auto; border:1px solid #D9E6E6; border-radius:8px; padding:6px;">
+          <div class="dashboard-empty">Loading products…</div>
+        </div>
+
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="buildStockTakeBtn" style="margin-top:16px;">
+          Build Count Sheet
+        </button>
+      </div>
+
+      <div class="dashboard-card" id="stockTakeSheetCard" style="display:none;">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">2. Enter Counted Quantities</div>
+          <div class="dashboard-table-count" id="stockTakeSheetCount"></div>
+        </div>
+
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>SKU</th>
+                <th>Current</th>
+                <th>Counted Quantity</th>
+              </tr>
+            </thead>
+            <tbody id="stockTakeSheetBody"></tbody>
+          </table>
+        </div>
+
+        <div class="dashboard-help" id="stockTakeSaveStatus" style="margin-top:10px;"></div>
+
+        <div style="display:flex; gap:10px; margin-top:16px;">
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelStockTakeBtn">Start Over</button>
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveStockTakeBtn">Save Stock Take</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

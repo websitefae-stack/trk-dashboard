@@ -1,0 +1,69 @@
+{% include "dashboard/templates/includes/head/store_head.html" %}
+<script src="/assets/dashboard/js/shared/store_orders.js?v=1"></script>
+
+<div class="dashboard-page" id="storeOrdersPage">
+  {% include "dashboard/templates/includes/sidebar/store_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/store_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Orders</h1>
+          <p class="dashboard-page-subtitle">Paid store orders - pack them and mark them as shipped once they're on their way.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Orders</div>
+          <div class="dashboard-table-count" id="storeOrdersCount">Loading…</div>
+        </div>
+
+        <div class="dashboard-filter-bar" style="margin-bottom:14px; grid-template-columns: minmax(220px, 1.5fr) minmax(160px, 1fr);">
+          <input type="text" id="storeOrdersSearch" class="dashboard-input" placeholder="Search by name or email…">
+          <select id="storeOrdersStatusFilter" class="dashboard-input">
+            <option value="">All open orders</option>
+            <option value="Paid">Paid - needs packing</option>
+            <option value="Packed">Packed - needs shipping</option>
+            <option value="Shipped">Shipped</option>
+          </select>
+        </div>
+
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Date</th>
+                <th>Items</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="storeOrdersBody">
+              <tr><td colspan="6" class="dashboard-empty">Loading orders…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-modal-backdrop" id="storeOrderModal">
+  <div class="dashboard-modal dashboard-modal-wide">
+    <div class="dashboard-modal-head">
+      <h3 id="storeOrderModalTitle">Order</h3>
+      <button type="button" class="dashboard-modal-close" id="closeStoreOrderModal">×</button>
+    </div>
+
+    <div class="dashboard-modal-body" id="storeOrderModalBody">
+      <div class="dashboard-empty">Loading…</div>
+    </div>
+
+    <div class="dashboard-modal-foot" id="storeOrderModalFoot"></div>
+  </div>
+</div>
