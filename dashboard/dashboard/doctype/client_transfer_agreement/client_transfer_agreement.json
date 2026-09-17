@@ -1,0 +1,273 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-09-17 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "status",
+  "client_lead",
+  "client_name",
+  "column_break_1",
+  "transferring_coach",
+  "receiving_coach",
+  "section_terms",
+  "effective_transfer_date",
+  "agreement_date",
+  "column_break_2",
+  "reason_for_transfer",
+  "transfer_fee_amount",
+  "requires_franchisor_signature",
+  "section_receiving",
+  "receiving_signature",
+  "receiving_signed_by",
+  "receiving_signed_on",
+  "receiving_signed_ip",
+  "section_franchisor",
+  "franchisor_signature",
+  "franchisor_signed_by",
+  "franchisor_signed_on",
+  "franchisor_signed_ip",
+  "section_transferring",
+  "transferring_signature",
+  "transferring_signed_by",
+  "transferring_signed_on",
+  "transferring_signed_ip",
+  "section_outcome",
+  "invoice",
+  "declined_by",
+  "declined_reason",
+  "activity"
+ ],
+ "fields": [
+  {
+   "default": "Awaiting Receiving Coach",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Awaiting Receiving Coach\nAwaiting Franchisor\nAwaiting Transferring Coach\nCompleted\nDeclined",
+   "read_only": 1
+  },
+  {
+   "fieldname": "client_lead",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Client Lead",
+   "options": "Client Lead",
+   "reqd": 1
+  },
+  {
+   "fieldname": "client_name",
+   "fieldtype": "Data",
+   "label": "Client Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "transferring_coach",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Transferring Coach",
+   "options": "Coach",
+   "reqd": 1
+  },
+  {
+   "fieldname": "receiving_coach",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Receiving Coach",
+   "options": "Coach",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_terms",
+   "fieldtype": "Section Break",
+   "label": "Terms of Transfer"
+  },
+  {
+   "fieldname": "effective_transfer_date",
+   "fieldtype": "Date",
+   "label": "Effective Transfer Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "agreement_date",
+   "fieldtype": "Date",
+   "label": "Agreement Date"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reason_for_transfer",
+   "fieldtype": "Small Text",
+   "label": "Reason for Transfer"
+  },
+  {
+   "default": "100",
+   "fieldname": "transfer_fee_amount",
+   "fieldtype": "Currency",
+   "label": "Transfer Fee Amount"
+  },
+  {
+   "default": "0",
+   "fieldname": "requires_franchisor_signature",
+   "fieldtype": "Check",
+   "label": "Requires Franchisor Signature",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_receiving",
+   "fieldtype": "Section Break",
+   "label": "Receiving Coach Signature"
+  },
+  {
+   "fieldname": "receiving_signature",
+   "fieldtype": "Long Text",
+   "label": "Receiving Coach Signature (image data)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "receiving_signed_by",
+   "fieldtype": "Data",
+   "label": "Signed By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "receiving_signed_on",
+   "fieldtype": "Datetime",
+   "label": "Signed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "receiving_signed_ip",
+   "fieldtype": "Data",
+   "label": "Signed From IP",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_franchisor",
+   "fieldtype": "Section Break",
+   "label": "Franchisor Signature"
+  },
+  {
+   "fieldname": "franchisor_signature",
+   "fieldtype": "Long Text",
+   "label": "Franchisor Signature (image data)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "franchisor_signed_by",
+   "fieldtype": "Data",
+   "label": "Signed By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "franchisor_signed_on",
+   "fieldtype": "Datetime",
+   "label": "Signed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "franchisor_signed_ip",
+   "fieldtype": "Data",
+   "label": "Signed From IP",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_transferring",
+   "fieldtype": "Section Break",
+   "label": "Transferring Coach Signature"
+  },
+  {
+   "fieldname": "transferring_signature",
+   "fieldtype": "Long Text",
+   "label": "Transferring Coach Signature (image data)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "transferring_signed_by",
+   "fieldtype": "Data",
+   "label": "Signed By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "transferring_signed_on",
+   "fieldtype": "Datetime",
+   "label": "Signed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "transferring_signed_ip",
+   "fieldtype": "Data",
+   "label": "Signed From IP",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_outcome",
+   "fieldtype": "Section Break",
+   "label": "Outcome"
+  },
+  {
+   "fieldname": "invoice",
+   "fieldtype": "Link",
+   "label": "Transfer Fee Invoice",
+   "options": "Sales Invoice",
+   "read_only": 1
+  },
+  {
+   "fieldname": "declined_by",
+   "fieldtype": "Data",
+   "label": "Declined By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "declined_reason",
+   "fieldtype": "Small Text",
+   "label": "Declined Reason",
+   "read_only": 1
+  },
+  {
+   "fieldname": "activity",
+   "fieldtype": "Table",
+   "label": "Activity",
+   "options": "Client Transfer Agreement Log"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-17 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "Client Transfer Agreement",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

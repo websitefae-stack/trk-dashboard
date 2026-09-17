@@ -134,7 +134,7 @@ LEAD_STATUSES = ["New", "Intake Sent", "Converted", "Declined"]
 DECLINE_STATUSES = {"Declined"}
 
 LEAD_LIST_FIELDS = [
-    "name", "status", "source", "appointment_type", "coach",
+    "name", "status", "source", "appointment_type", "coach", "active_transfer",
     "contact_name", "contact_email", "contact_mobile",
     "client_name", "client_age", "postal_code",
     "event", "converted_client", "intake_sent_on", "intake_email_status", "intake_completed_on", "modified", "creation",
@@ -149,6 +149,7 @@ def _normalize_lead_row(row):
         "appointment_type": row.get("appointment_type") or "",
         "coach": row.get("coach") or "",
         "coach_label": get_coach_label(row.get("coach")) if row.get("coach") else "",
+        "active_transfer": row.get("active_transfer") or "",
         "contact_name": row.get("contact_name") or "",
         "contact_email": row.get("contact_email") or "",
         "contact_mobile": row.get("contact_mobile") or "",
@@ -347,6 +348,11 @@ def get_lead(name=None):
     row["location_address"] = doc.get("location_address") or ""
     row["is_client_conversion"] = 1 if creates_client_on_conversion(doc.get("appointment_type")) else 0
     row["is_franchise_lead"] = 1 if is_franchise_lead(doc.get("appointment_type")) else 0
+    row["active_transfer"] = doc.get("active_transfer") or ""
+    row["active_transfer_status"] = (
+        frappe.db.get_value("Client Transfer Agreement", row["active_transfer"], "status") or ""
+        if row["active_transfer"] else ""
+    )
 
     if row["is_franchise_lead"]:
         row["stage1"] = {
@@ -580,16 +586,19 @@ def update_lead(
     doc.contact_mobile = coalesce_str("contact_mobile", contact_mobile)
     doc.client_name = client_name
 
-    # Reassigning which coach a lead belongs to - the franchisor can do
-    # this for any lead, and a coach can hand off a lead currently
-    # assigned to them (see "Reassign To" in the Enquiry section of
-    # their own Lead Details page) - never anyone else's, since
-    # ensure_lead_access() above already only let them get this far if
-    # doc.coach was already their own name to begin with.
+    # Reassigning which coach a lead belongs to - only the franchisor can
+    # do this instantly, for any lead. A coach handing off a lead of their
+    # own (see "Reassign To" in the Enquiry section of their own Lead
+    # Details page) no longer takes effect here at all - it now goes
+    # through client_transfers.create_transfer(), which starts a Client
+    # Transfer Agreement that only actually changes doc.coach once every
+    # required signature is in (see sign_transfer()'s final step). A
+    # non-franchisor's "coach" value is simply ignored here rather than
+    # applied or rejected, since the general Save button still submits it
+    # on every save regardless of whether a transfer was actually started.
     previous_coach = doc.coach
     coach = coalesce_str("coach", coach)
-    can_reassign = is_franchisor_user() or _current_coach_name() == previous_coach
-    if coach and can_reassign and coach != doc.coach:
+    if coach and is_franchisor_user() and coach != doc.coach:
         if not frappe.db.exists("Coach", coach):
             frappe.throw(_("Coach not found."))
 
