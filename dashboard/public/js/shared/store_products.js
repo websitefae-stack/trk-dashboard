@@ -239,6 +239,8 @@
     el("storeProductItemCode").value = product ? product.name : "";
     el("storeProductName").value = product ? product.item_name : "";
     el("storeProductDescription").value = product ? product.description : "";
+    el("storeProductShortDescription").value = product ? product.short_description || "" : "";
+    el("storeProductShortDescriptionCount").textContent = el("storeProductShortDescription").value.length;
     el("storeProductGroup").value = product ? product.item_group : "";
     el("storeProductPrice").value = product ? product.price : "";
     el("storeProductUnlimited").checked = !!(product && product.unlimited_stock);
@@ -460,6 +462,7 @@
         await apiPost(API + ".create_variant_store_product", {
           item_name: itemName,
           description: el("storeProductDescription").value,
+          short_description: el("storeProductShortDescription").value,
           item_group: el("storeProductGroup").value,
           brands: collectBrands(),
           image: uploadedImageUrl,
@@ -476,6 +479,7 @@
         const payload = {
           item_name: itemName,
           description: el("storeProductDescription").value,
+          short_description: el("storeProductShortDescription").value,
           item_group: el("storeProductGroup").value,
           brands: collectBrands(),
           image: uploadedImageUrl,
@@ -663,6 +667,10 @@
       const preview = el("storeProductImagePreview");
       preview.src = URL.createObjectURL(file);
       preview.style.display = "";
+    });
+
+    el("storeProductShortDescription").addEventListener("input", function () {
+      el("storeProductShortDescriptionCount").textContent = this.value.length;
     });
 
     el("storeVariantImageAttribute").addEventListener("change", function () {
