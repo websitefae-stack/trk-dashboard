@@ -286,7 +286,13 @@ def get_item_or_variants(item_code=None):
             "attributes": attrs,
             "item_name": purchasable["item_name"],
             "description": purchasable["description"],
-            "image": purchasable["image"],
+            # Falls back to the template's own image when this specific
+            # variant has none of its own - not every attribute-value
+            # combination gets a dedicated photo uploaded (see the "one
+            # photo per attribute value" system in store_products.py), so
+            # without this a variant with no photo of its own would show
+            # blank instead of at least the template's shot.
+            "image": purchasable["image"] or item_doc.image or "",
             "rate": purchasable["rate"],
             "currency": purchasable["currency"],
         })

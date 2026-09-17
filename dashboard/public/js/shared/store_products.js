@@ -18,6 +18,7 @@
   let generatedVariants = [];
   let imageKeyAttribute = "";
   let variantImagesByValue = {};
+  let descriptionEditor = null;
 
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
@@ -273,7 +274,7 @@
     el("storeProductModalTitle").textContent = product ? "Edit Product" : "Add Product";
     el("storeProductItemCode").value = product ? product.name : "";
     el("storeProductName").value = product ? product.item_name : "";
-    el("storeProductDescription").value = product ? product.description : "";
+    if (descriptionEditor) descriptionEditor.setHtml(product ? product.description || "" : "");
     el("storeProductShortDescription").value = product ? product.short_description || "" : "";
     el("storeProductShortDescriptionCount").textContent = el("storeProductShortDescription").value.length;
     el("storeProductGroup").value = product ? product.item_group : "";
@@ -491,7 +492,7 @@
 
         await apiPost(API + ".create_variant_store_product", {
           item_name: itemName,
-          description: el("storeProductDescription").value,
+          description: descriptionEditor ? descriptionEditor.getHtml() : "",
           short_description: el("storeProductShortDescription").value,
           item_group: el("storeProductGroup").value,
           brands: collectBrands(),
@@ -515,7 +516,7 @@
 
         const payload = {
           item_name: itemName,
-          description: el("storeProductDescription").value,
+          description: descriptionEditor ? descriptionEditor.getHtml() : "",
           short_description: el("storeProductShortDescription").value,
           item_group: el("storeProductGroup").value,
           brands: collectBrands(),
@@ -681,6 +682,12 @@
 
   function initPage() {
     if (!el("storeProductsPage")) return;
+
+    const descriptionContainer = el("storeProductDescriptionEditor");
+    if (descriptionContainer) {
+      descriptionContainer.innerHTML = Dashboard.richTextEditorHtml("Describe this product…");
+      descriptionEditor = Dashboard.wireRichTextEditor(descriptionContainer.querySelector(".dashboard-richtext"));
+    }
 
     loadProducts();
     loadItemGroups();
