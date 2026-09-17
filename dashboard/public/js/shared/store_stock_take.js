@@ -47,30 +47,21 @@
       .replace(/'/g, "&#039;");
   }
 
-  // Only products/variations with tracked stock are worth listing at all -
-  // a simple (non-variant) item is included when it isn't unlimited; a
-  // variant template is included whenever it has has_variants, since
-  // whether any individual variant is actually countable is only known
-  // once get_stock_take_rows() expands it (see index.html's own note).
-  function isCountable(product) {
-    return product.has_variants || !product.unlimited_stock;
-  }
-
   function renderProductList() {
     const container = el("stockTakeProductList");
     const search = el("stockTakeSearch").value.trim().toLowerCase();
 
-    const filtered = products.filter((p) => isCountable(p) && (!search || p.item_name.toLowerCase().includes(search)));
+    const filtered = products.filter((p) => !search || p.item_name.toLowerCase().includes(search));
 
     if (!filtered.length) {
-      container.innerHTML = '<div class="dashboard-empty">No trackable-stock products found.</div>';
+      container.innerHTML = '<div class="dashboard-empty">No products found.</div>';
       return;
     }
 
     container.innerHTML = filtered.map((p) => `
       <label style="display:flex; align-items:center; gap:10px; padding:8px 6px; border-bottom:1px solid #F2F8F8; font-weight:normal;">
         <input type="checkbox" class="stock-take-product-check" value="${escapeHtml(p.name)}">
-        <span>${escapeHtml(p.item_name)}${p.has_variants ? " (has variations)" : ""}</span>
+        <span>${escapeHtml(p.item_name)}${p.has_variants ? " (has variations)" : ""}${(!p.has_variants && p.unlimited_stock) ? " (Always Available)" : ""}</span>
       </label>
     `).join("");
   }
@@ -90,9 +81,12 @@
   function renderSheetRow(row) {
     return `
       <tr data-stock-take-row="${escapeHtml(row.item_code)}">
-        <td>${escapeHtml(row.item_name)}${row.variant_label ? ` <span class="dashboard-help">(${escapeHtml(row.variant_label)})</span>` : ""}</td>
+        <td>
+          ${escapeHtml(row.item_name)}${row.variant_label ? ` <span class="dashboard-help">(${escapeHtml(row.variant_label)})</span>` : ""}
+          ${row.unlimited_stock ? '<div class="dashboard-help">Currently Always Available - saving a count here switches it to tracked stock.</div>' : ""}
+        </td>
         <td>${escapeHtml(row.sku || "—")}</td>
-        <td>${row.current_stock_qty}</td>
+        <td>${row.unlimited_stock ? "Unlimited" : row.current_stock_qty}</td>
         <td><input type="number" min="0" step="1" class="dashboard-input" style="width:110px;" value="${row.current_stock_qty}" data-stock-take-input="${escapeHtml(row.item_code)}"></td>
       </tr>
     `;
@@ -114,8 +108,22 @@
       const rows = await apiPost(`${API}.get_stock_take_rows`, { item_codes: checked });
 
       if (!rows.length) {
-        alert("Nothing to count in what you picked - every variation there is set to unlimited stock.");
+        alert("Nothing to count in what you picked.");
         return;
+      }
+
+      const unlimitedCount = rows.filter((row) => row.unlimited_stock).length;
+
+      if (unlimitedCount) {
+        const warned = window.confirm(
+          `${unlimitedCount} item${unlimitedCount === 1 ? " is" : "s are"} currently set to "Always Available" (unlimited stock).\n\n` +
+          "Entering a count for it here will switch it to tracked stock, so once you save, it'll only show as " +
+          "available on the store while that count is above zero - even if you later bring in new stock, you'll " +
+          "need to update the count again for it to show as available.\n\n" +
+          "Continue with the count for these items?"
+        );
+
+        if (!warned) return;
       }
 
       el("stockTakeSheetBody").innerHTML = rows.map(renderSheetRow).join("");

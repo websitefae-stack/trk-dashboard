@@ -598,9 +598,12 @@ def update_store_stock(item_code=None, stock_qty=None, unlimited_stock=None):
 def get_stock_take_rows(item_codes=None):
     """
     Expands a chosen set of store items (template or simple) into one row
-    per actually-countable variant/item - the Stock Take page's "build my
-    count sheet" step. An item/variant with unlimited_stock ticked is left
-    out entirely, since there's nothing to count for it.
+    per variant/item - the Stock Take page's "build my count sheet" step.
+    An item/variant currently set to unlimited_stock (Always Available) is
+    included too, flagged via "unlimited_stock" - the frontend warns
+    before counting one of these, since stock_take_update() always
+    switches it to tracked stock (unlimited_stock=0) once it's actually
+    been counted here.
     """
     _ensure_store_access()
 
@@ -623,9 +626,6 @@ def get_stock_take_rows(item_codes=None):
 
         if item.has_variants:
             for variant in get_product_variants(item_code):
-                if variant.get("unlimited_stock"):
-                    continue
-
                 label = " / ".join((variant.get("attributes") or {}).values()) or variant.get("item_name")
 
                 rows.append({
@@ -634,17 +634,16 @@ def get_stock_take_rows(item_codes=None):
                     "variant_label": label,
                     "sku": variant.get("sku") or "",
                     "current_stock_qty": variant.get("stock_qty") or 0,
+                    "unlimited_stock": bool(variant.get("unlimited_stock")),
                 })
         else:
-            if item.custom_unlimited_stock:
-                continue
-
             rows.append({
                 "item_code": item_code,
                 "item_name": item.item_name,
                 "variant_label": "",
                 "sku": item.get("custom_sku") or "",
                 "current_stock_qty": item.custom_stock_qty or 0,
+                "unlimited_stock": bool(item.custom_unlimited_stock),
             })
 
     return rows
@@ -656,6 +655,12 @@ def stock_take_update(updates=None):
     updates: [{"item_code": "...", "stock_qty": 12}, ...] - one bulk save
     for every row on the Stock Take page's count sheet, rather than one
     round trip per item.
+
+    Always also clears unlimited_stock - a counted item is, by
+    definition, now being actively tracked (the frontend already warned
+    before including a previously-"Always Available" item in the count
+    sheet at all), so this is safe to do unconditionally rather than only
+    for rows that were unlimited before.
     """
     _ensure_store_access()
 
@@ -673,7 +678,10 @@ def stock_take_update(updates=None):
         if not item_code or stock_qty in (None, "") or not frappe.db.exists("Item", item_code):
             continue
 
-        frappe.db.set_value("Item", item_code, "custom_stock_qty", _to_int(stock_qty))
+        frappe.db.set_value("Item", item_code, {
+            "custom_stock_qty": _to_int(stock_qty),
+            "custom_unlimited_stock": 0,
+        })
         updated += 1
 
     frappe.db.commit()
