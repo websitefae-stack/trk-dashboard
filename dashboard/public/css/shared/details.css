@@ -288,9 +288,18 @@
 
 .dashboard-modal {
   width: min(720px, 100%);
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
   background: #FFFFFF;
   border-radius: 18px;
   box-shadow: 0 18px 50px rgba(67, 75, 73, 0.25);
+}
+
+/* A modal with a lot to show (e.g. Manage Variants) - takes up nearly
+   the full screen instead of the usual compact width. */
+.dashboard-modal-wide {
+  width: min(960px, 100%);
 }
 
 .dashboard-modal-head,
@@ -301,6 +310,7 @@
   gap: 12px;
   padding: 18px 20px;
   border-bottom: 1px solid #D9E6E6;
+  flex: 0 0 auto;
 }
 
 .dashboard-modal-foot {
@@ -326,6 +336,8 @@
 
 .dashboard-modal-body {
   padding: 20px;
+  flex: 1 1 auto;
+  overflow-y: auto;
 }
 
 body.dashboard-modal-open {
