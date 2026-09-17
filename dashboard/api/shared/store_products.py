@@ -11,6 +11,7 @@ rows webshop_purchase.py's checkout already reads prices from, so
 those two pieces are reused directly rather than re-implemented here.
 """
 
+import contextlib
 import re
 
 import frappe
@@ -28,6 +29,27 @@ def _ensure_store_access():
 
     if not (is_office_user() or is_store_manager()):
         frappe.throw(_("You are not allowed to manage the store."), frappe.PermissionError)
+
+
+@contextlib.contextmanager
+def _as_administrator():
+    """
+    _ensure_store_access() has already confirmed the caller is allowed
+    to manage the store - this covers what ignore_permissions=True on
+    this endpoint's own Item save doesn't reach: the stock Frappe
+    Webshop app hooks Item's save to auto-sync a "Website Item" record,
+    and that nested insert checks frappe.session.user directly rather
+    than inheriting this call's ignore_permissions flag, so a Store
+    Manager (a limited Website User, not an Item/Website Manager)
+    otherwise gets a bare PermissionError from deep inside someone
+    else's app. Restores the real user again once the write is done.
+    """
+    original_user = frappe.session.user
+    frappe.set_user("Administrator")
+    try:
+        yield
+    finally:
+        frappe.set_user(original_user)
 
 
 def _to_bool(value):
@@ -378,13 +400,14 @@ def create_store_product(item_name=None, description=None, item_group=None, pric
 
     _ensure_item_default_row(item, company)
 
-    if is_new:
-        item.insert(ignore_permissions=True)
-    else:
-        item.save(ignore_permissions=True)
+    with _as_administrator():
+        if is_new:
+            item.insert(ignore_permissions=True)
+        else:
+            item.save(ignore_permissions=True)
 
-    if price is not None:
-        _set_item_price(item.name, DEFAULT_PRICE_LIST, _to_float(price))
+        if price is not None:
+            _set_item_price(item.name, DEFAULT_PRICE_LIST, _to_float(price))
 
     frappe.db.commit()
 
@@ -439,10 +462,11 @@ def update_store_product(item_code=None, item_name=None, description=None, item_
     company = _store_company()
     _ensure_item_default_row(item, company)
 
-    item.save(ignore_permissions=True)
+    with _as_administrator():
+        item.save(ignore_permissions=True)
 
-    if price is not None:
-        _set_item_price(item.name, DEFAULT_PRICE_LIST, _to_float(price))
+        if price is not None:
+            _set_item_price(item.name, DEFAULT_PRICE_LIST, _to_float(price))
 
     frappe.db.commit()
 
@@ -556,58 +580,59 @@ def create_variant_store_product(item_name=None, description=None, item_group=No
 
     company = _store_company()
 
-    for attr in attributes:
-        _ensure_item_attribute(attr.get("attribute"), attr.get("values") or [])
+    with _as_administrator():
+        for attr in attributes:
+            _ensure_item_attribute(attr.get("attribute"), attr.get("values") or [])
 
-    template = frappe.new_doc("Item")
-    template.item_code = item_name
-    template.item_name = item_name
-    template.item_group = _ensure_item_group((item_group or "").strip() or "Products")
-    template.description = description or ""
-    template.stock_uom = "Nos"
-    template.is_stock_item = 0
-    template.has_variants = 1
-    template.custom_store_enabled = 1
+        template = frappe.new_doc("Item")
+        template.item_code = item_name
+        template.item_name = item_name
+        template.item_group = _ensure_item_group((item_group or "").strip() or "Products")
+        template.description = description or ""
+        template.stock_uom = "Nos"
+        template.is_stock_item = 0
+        template.has_variants = 1
+        template.custom_store_enabled = 1
 
-    if image:
-        template.image = image
+        if image:
+            template.image = image
 
-    parsed_brands = _parse_brands(brands)
-    for fieldname in BRAND_FIELDNAMES:
-        if _item_meta_has_field(fieldname):
-            template.set(fieldname, 1 if parsed_brands.get(fieldname) else 0)
+        parsed_brands = _parse_brands(brands)
+        for fieldname in BRAND_FIELDNAMES:
+            if _item_meta_has_field(fieldname):
+                template.set(fieldname, 1 if parsed_brands.get(fieldname) else 0)
 
-    for attr in attributes:
-        template.append("attributes", {"attribute": attr.get("attribute")})
+        for attr in attributes:
+            template.append("attributes", {"attribute": attr.get("attribute")})
 
-    template.insert(ignore_permissions=True)
+        template.insert(ignore_permissions=True)
 
-    created = []
-    first_variant_image = ""
+        created = []
+        first_variant_image = ""
 
-    for variant_spec in variants:
-        variant_image = (variant_spec.get("image") or "").strip()
+        for variant_spec in variants:
+            variant_image = (variant_spec.get("image") or "").strip()
 
-        variant_name = _create_variant_item(
-            template,
-            variant_spec.get("attribute_values") or {},
-            variant_spec.get("price"),
-            variant_spec.get("stock_qty"),
-            variant_spec.get("unlimited_stock"),
-            company,
-            image=variant_image,
-        )
-        created.append(variant_name)
+            variant_name = _create_variant_item(
+                template,
+                variant_spec.get("attribute_values") or {},
+                variant_spec.get("price"),
+                variant_spec.get("stock_qty"),
+                variant_spec.get("unlimited_stock"),
+                company,
+                image=variant_image,
+            )
+            created.append(variant_name)
 
-        if variant_image and not first_variant_image:
-            first_variant_image = variant_image
+            if variant_image and not first_variant_image:
+                first_variant_image = variant_image
 
-    # A variant template has no image of its own to show in a store
-    # listing (get_store_items() only ever reads the template's image) -
-    # fall back to whichever variant got one first, so the product still
-    # has a thumbnail instead of the blank placeholder.
-    if not template.image and first_variant_image:
-        frappe.db.set_value("Item", template.name, "image", first_variant_image)
+        # A variant template has no image of its own to show in a store
+        # listing (get_store_items() only ever reads the template's
+        # image) - fall back to whichever variant got one first, so the
+        # product still has a thumbnail instead of the blank placeholder.
+        if not template.image and first_variant_image:
+            frappe.db.set_value("Item", template.name, "image", first_variant_image)
 
     frappe.db.commit()
 
@@ -679,7 +704,8 @@ def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=N
             frappe.db.set_value("Item", template_item_code, "image", image)
 
     if price is not None:
-        _set_item_price(item_code, DEFAULT_PRICE_LIST, _to_float(price))
+        with _as_administrator():
+            _set_item_price(item_code, DEFAULT_PRICE_LIST, _to_float(price))
 
     frappe.db.commit()
 
