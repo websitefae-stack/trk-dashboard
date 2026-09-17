@@ -106,6 +106,24 @@ def _slugify(value):
     return "".join(ch if ch.isalnum() else "-" for ch in str(value).strip().lower()).strip("-")
 
 
+def _apply_gallery_images(item, gallery_images):
+    """
+    gallery_images: list of file URLs (already-uploaded, via
+    uploadFile() same as the main image) - replaces the item's whole
+    Additional Photos table with this set. None-vs-[] matters: None means
+    "not sent, leave alone" (e.g. a variant save that never touches
+    gallery at all), [] means "clear it".
+    """
+    if gallery_images is None or not _item_meta_has_field("custom_gallery"):
+        return
+
+    item.set("custom_gallery", [])
+    for url in gallery_images:
+        url = (url or "").strip()
+        if url:
+            item.append("custom_gallery", {"image": url})
+
+
 def _store_company():
     settings = get_settings()
 
@@ -312,6 +330,32 @@ def _ensure_item_attribute(attribute_name, values):
 
 
 @frappe.whitelist()
+def get_product_gallery(item_code=None):
+    """
+    A separate, lightweight lookup rather than bundling this into
+    get_store_products()'s list - that list is fetched via frappe.get_all
+    (no child tables) for every product at once, and gallery images are
+    only ever needed when actually opening one product to edit it.
+    """
+    _ensure_store_access()
+
+    item_code = (item_code or "").strip()
+
+    if not item_code or not frappe.db.exists("Item", item_code) or not _item_meta_has_field("custom_gallery"):
+        return []
+
+    rows = frappe.get_all(
+        "Item Gallery Image",
+        filters={"parent": item_code, "parenttype": "Item"},
+        fields=["image"],
+        order_by="idx asc",
+        limit_page_length=50,
+    )
+
+    return [row.image for row in rows if row.image]
+
+
+@frappe.whitelist()
 def get_store_products(search=None):
     _ensure_store_access()
 
@@ -384,7 +428,7 @@ def get_store_products(search=None):
 @frappe.whitelist()
 def create_store_product(item_name=None, description=None, short_description=None, item_group=None, price=None,
                           stock_qty=None, unlimited_stock=None, brands=None, image=None,
-                          digital_file=None, unlocks_course=None, sku=None):
+                          digital_file=None, unlocks_course=None, sku=None, gallery_images=None):
     _ensure_store_access()
 
     item_name = (item_name or "").strip()
@@ -432,6 +476,8 @@ def create_store_product(item_name=None, description=None, short_description=Non
     if image:
         item.image = image
 
+    _apply_gallery_images(item, _parse_json_list(gallery_images) if gallery_images is not None else None)
+
     if digital_file and _item_meta_has_field("custom_digital_file"):
         item.custom_digital_file = digital_file
 
@@ -462,7 +508,8 @@ def create_store_product(item_name=None, description=None, short_description=Non
 @frappe.whitelist()
 def update_store_product(item_code=None, item_name=None, description=None, short_description=None,
                           item_group=None, price=None, stock_qty=None, unlimited_stock=None, brands=None,
-                          disabled=None, image=None, digital_file=None, unlocks_course=None, sku=None):
+                          disabled=None, image=None, digital_file=None, unlocks_course=None, sku=None,
+                          gallery_images=None):
     _ensure_store_access()
 
     item_code = (item_code or "").strip()
@@ -498,6 +545,8 @@ def update_store_product(item_code=None, item_name=None, description=None, short
 
     if image is not None:
         item.image = image
+
+    _apply_gallery_images(item, _parse_json_list(gallery_images) if gallery_images is not None else None)
 
     if digital_file is not None and _item_meta_has_field("custom_digital_file"):
         item.custom_digital_file = digital_file
@@ -681,7 +730,8 @@ def _create_variant_item(template, attribute_values, price, stock_qty, unlimited
 
 @frappe.whitelist()
 def create_variant_store_product(item_name=None, description=None, short_description=None, item_group=None,
-                                  brands=None, image=None, attributes=None, variants=None, sku=None):
+                                  brands=None, image=None, attributes=None, variants=None, sku=None,
+                                  gallery_images=None):
     """
     attributes: [{"attribute": "Size", "values": ["Small", "Large"]}, ...]
     variants: [{"attribute_values": {"Size": "Small"}, "price": 10,
@@ -781,6 +831,8 @@ def create_variant_store_product(item_name=None, description=None, short_descrip
 
         if image:
             template.image = image
+
+        _apply_gallery_images(template, _parse_json_list(gallery_images) if gallery_images is not None else None)
 
         parsed_brands = _parse_brands(brands)
         for fieldname in BRAND_FIELDNAMES:

@@ -168,6 +168,7 @@ def _get_purchasable_item(item_code, company):
         "item_name": item_doc.item_name or item_code,
         "description": item_doc.description or "",
         "image": item_doc.image or "",
+        "gallery": [row.image for row in (item_doc.get("custom_gallery") or []) if row.image],
         "rate": rate,
         "currency": currency,
         "price_list": price_list,
@@ -189,6 +190,7 @@ def get_purchasable_item(item_code=None):
         "item_name": item["item_name"],
         "description": item["description"],
         "image": item["image"],
+        "gallery": item["gallery"],
         "rate": item["rate"],
         "currency": item["currency"],
     }
@@ -237,6 +239,7 @@ def get_item_or_variants(item_code=None):
                 "item_name": item["item_name"],
                 "description": item["description"],
                 "image": item["image"],
+                "gallery": item["gallery"],
                 "rate": item["rate"],
                 "currency": item["currency"],
             },
@@ -300,11 +303,24 @@ def get_item_or_variants(item_code=None):
     if not variants:
         frappe.throw(_("This item isn't available for online purchase yet."))
 
+    # The gallery strip shown on /buy for a template product - its own
+    # uploaded extra photos plus every distinct variant photo (so a
+    # shopper can browse what each size/style/colour actually looks like
+    # before picking one), deduplicated in that order.
+    gallery = [row.image for row in (item_doc.get("custom_gallery") or []) if row.image]
+    seen_images = set(gallery)
+    for variant in variants:
+        variant_image = variant.get("image")
+        if variant_image and variant_image not in seen_images:
+            seen_images.add(variant_image)
+            gallery.append(variant_image)
+
     return {
         "is_template": True,
         "item_name": item_doc.item_name or item_code,
         "description": item_doc.description or "",
         "image": item_doc.image or "",
+        "gallery": gallery,
         "attributes": [
             {"attribute": name, "values": attribute_values.get(name, [])}
             for name in attribute_names
