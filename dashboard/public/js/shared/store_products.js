@@ -16,7 +16,8 @@
   let uploadedImageUrl = "";
   let uploadedDigitalFileUrl = "";
   let generatedVariants = [];
-  let generatedVariantImages = [];
+  let imageKeyAttribute = "";
+  let variantImagesByValue = {};
 
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
@@ -219,9 +220,13 @@
     el("storeAttribute2Values").value = "";
     el("storeVariationsBasePrice").value = "";
     generatedVariants = [];
-    generatedVariantImages = [];
+    imageKeyAttribute = "";
+    variantImagesByValue = {};
     el("storeVariantsGeneratedWrap").style.display = "none";
     el("storeVariantsGeneratedBody").innerHTML = "";
+    el("storeVariantImagesSection").style.display = "none";
+    el("storeVariantImagesBody").innerHTML = "";
+    el("storeVariantImageAttribute").innerHTML = "";
   }
 
   function openModal(product) {
@@ -313,10 +318,6 @@
       return `
         <tr>
           <td>${escapeHtml(label)}</td>
-          <td>
-            <input type="file" accept="image/*" data-variant-image-input="${index}">
-            <img data-variant-image-preview="${index}" alt="" style="display:none; width:36px; height:36px; object-fit:cover; border-radius:6px; margin-top:4px;">
-          </td>
           <td><input type="number" min="0" step="0.01" class="dashboard-input" style="width:90px;" value="${basePrice}" data-variant-price="${index}"></td>
           <td><input type="number" min="0" step="1" class="dashboard-input" style="width:70px;" value="0" data-variant-stock="${index}"></td>
           <td style="text-align:center;"><input type="checkbox" data-variant-unlimited="${index}"></td>
@@ -325,6 +326,49 @@
     }).join("");
 
     el("storeVariantsGeneratedWrap").style.display = generatedVariants.length ? "" : "none";
+  }
+
+  // One photo per value of a single chosen attribute (e.g. one per
+  // Style), reused across every combination that shares that value -
+  // avoids needing a separate photo for every Size x Style pair.
+  function attributeValueLists() {
+    const attr1Name = el("storeAttribute1Name").value.trim();
+    const attr1Values = el("storeAttribute1Values").value.split(",").map((v) => v.trim()).filter(Boolean);
+    const attr2Name = el("storeAttribute2Name").value.trim();
+    const attr2Values = el("storeAttribute2Values").value.split(",").map((v) => v.trim()).filter(Boolean);
+
+    const lists = [{ name: attr1Name, values: attr1Values }];
+    if (attr2Name && attr2Values.length) lists.push({ name: attr2Name, values: attr2Values });
+    return lists;
+  }
+
+  function renderVariantImageRows() {
+    const lists = attributeValueLists();
+    const select = el("storeVariantImageAttribute");
+    select.innerHTML = lists.map((a) => `<option value="${escapeHtml(a.name)}">${escapeHtml(a.name)}</option>`).join("");
+
+    // Default to the last (most likely visually distinct, e.g. Style
+    // over Size) attribute when there are two.
+    imageKeyAttribute = lists[lists.length - 1].name;
+    select.value = imageKeyAttribute;
+
+    variantImagesByValue = {};
+    renderVariantImageValueRows();
+    el("storeVariantImagesSection").style.display = "";
+  }
+
+  function renderVariantImageValueRows() {
+    const lists = attributeValueLists();
+    const chosen = lists.find((a) => a.name === imageKeyAttribute) || lists[0];
+    const body = el("storeVariantImagesBody");
+
+    body.innerHTML = (chosen ? chosen.values : []).map((value) => `
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+        <span style="min-width:120px;">${escapeHtml(value)}</span>
+        <input type="file" accept="image/*" data-variant-image-value="${escapeHtml(value)}">
+        <img data-variant-image-value-preview="${escapeHtml(value)}" alt="" style="display:none; width:36px; height:36px; object-fit:cover; border-radius:6px;">
+      </div>
+    `).join("");
   }
 
   function generateVariants() {
@@ -339,17 +383,20 @@
     }
 
     generatedVariants = buildCombinations(attr1Name, attr1Values, attr2Name, attr2Values);
-    generatedVariantImages = generatedVariants.map(() => ({ file: null, url: "" }));
     renderGeneratedVariants();
+    renderVariantImageRows();
   }
 
-  async function uploadGeneratedVariantImages() {
-    for (let index = 0; index < generatedVariantImages.length; index++) {
-      const entry = generatedVariantImages[index];
-      if (entry && entry.file) {
-        const uploaded = await uploadFile(entry.file, false);
-        entry.url = uploaded.file_url || entry.url;
-      }
+  async function uploadVariantImagesByValue() {
+    const inputs = document.querySelectorAll("[data-variant-image-value]");
+
+    for (const input of inputs) {
+      const file = input.files[0];
+      if (!file) continue;
+
+      const value = input.dataset.variantImageValue;
+      const uploaded = await uploadFile(file, false);
+      variantImagesByValue[value] = uploaded.file_url || "";
     }
   }
 
@@ -358,14 +405,14 @@
       const priceInput = document.querySelector(`[data-variant-price="${index}"]`);
       const stockInput = document.querySelector(`[data-variant-stock="${index}"]`);
       const unlimitedInput = document.querySelector(`[data-variant-unlimited="${index}"]`);
-      const imageEntry = generatedVariantImages[index];
+      const keyValue = combo[imageKeyAttribute];
 
       return {
         attribute_values: combo,
         price: priceInput ? priceInput.value : 0,
         stock_qty: stockInput ? stockInput.value : 0,
         unlimited_stock: unlimitedInput ? unlimitedInput.checked : false,
-        image: imageEntry ? imageEntry.url : "",
+        image: keyValue ? (variantImagesByValue[keyValue] || "") : "",
       };
     });
   }
@@ -397,7 +444,7 @@
       }
 
       if (hasVariations) {
-        await uploadGeneratedVariantImages();
+        await uploadVariantImagesByValue();
 
         const attributes = [];
         const attr1Name = el("storeAttribute1Name").value.trim();
@@ -618,17 +665,20 @@
       preview.style.display = "";
     });
 
+    el("storeVariantImageAttribute").addEventListener("change", function () {
+      imageKeyAttribute = this.value;
+      renderVariantImageValueRows();
+    });
+
     document.addEventListener("change", function (event) {
-      const variantImageInput = event.target.closest("[data-variant-image-input]");
+      const variantImageInput = event.target.closest("[data-variant-image-value]");
       if (variantImageInput) {
-        const index = Number(variantImageInput.dataset.variantImageInput);
         const file = variantImageInput.files[0];
         if (!file) return;
 
-        generatedVariantImages[index] = generatedVariantImages[index] || { file: null, url: "" };
-        generatedVariantImages[index].file = file;
-
-        const preview = document.querySelector(`[data-variant-image-preview="${index}"]`);
+        const preview = document.querySelector(
+          `[data-variant-image-value-preview="${CSS.escape(variantImageInput.dataset.variantImageValue)}"]`
+        );
         if (preview) {
           preview.src = URL.createObjectURL(file);
           preview.style.display = "";
