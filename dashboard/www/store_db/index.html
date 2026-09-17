@@ -136,6 +136,13 @@
           Generate Combinations
         </button>
 
+        <div id="storeVariantImagesSection" style="display:none; margin:14px 0;">
+          <label for="storeVariantImageAttribute">Upload one photo per</label>
+          <select id="storeVariantImageAttribute" class="dashboard-select"></select>
+          <p class="dashboard-help">One photo per value below is used for every combination that has it - e.g. one photo per Style, reused across every Size, so you don't need a separate photo for each Size/Style pair.</p>
+          <div id="storeVariantImagesBody"></div>
+        </div>
+
         <div class="dashboard-table-wrap" id="storeVariantsGeneratedWrap" style="display:none;">
           <table class="dashboard-table">
             <thead>
@@ -190,6 +197,7 @@
           <thead>
             <tr>
               <th>Variant</th>
+              <th>Image</th>
               <th>Price (£)</th>
               <th>Stock</th>
               <th>Unlimited</th>
@@ -198,7 +206,7 @@
             </tr>
           </thead>
           <tbody id="storeVariantsBody">
-            <tr><td colspan="6" class="dashboard-empty">Loading…</td></tr>
+            <tr><td colspan="7" class="dashboard-empty">Loading…</td></tr>
           </tbody>
         </table>
       </div>
