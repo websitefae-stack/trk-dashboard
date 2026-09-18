@@ -92,9 +92,14 @@ def _split_full_name(full_name):
 
 def _parse_cart_items(items):
     """items is a JSON-encoded (or already-parsed, same as any other
-    fetch() POST body) list of {"item_code": ..., "qty": ...} - a single
-    "Buy Now" is just a one-item cart, so every checkout goes through
-    this same shape."""
+    fetch() POST body) list of {"item_code": ..., "qty": ..., "personalization": ...}
+    - a single "Buy Now" is just a one-item cart, so every checkout goes
+    through this same shape. personalization is free text the customer
+    typed in for a personalizable item - never validated against
+    Item.custom_personalization_enabled here (a stray value on a
+    non-personalizable item is harmless, just an extra note nobody reads),
+    only length-capped so it can't be used to stuff something huge into
+    an invoice line."""
     raw = items
 
     if isinstance(raw, str):
@@ -114,9 +119,10 @@ def _parse_cart_items(items):
 
         item_code = (entry.get("item_code") or "").strip()
         qty = max(1, int(_to_float(entry.get("qty")) or 1))
+        personalization = (entry.get("personalization") or "").strip()[:140]
 
         if item_code:
-            parsed.append({"item_code": item_code, "qty": qty})
+            parsed.append({"item_code": item_code, "qty": qty, "personalization": personalization})
 
     return parsed
 
@@ -173,6 +179,8 @@ def _get_purchasable_item(item_code, company):
         "rate": rate,
         "currency": currency,
         "price_list": price_list,
+        "personalization_enabled": bool(item_doc.get("custom_personalization_enabled")),
+        "personalization_label": item_doc.get("custom_personalization_label") or "",
     }
 
 
@@ -194,6 +202,8 @@ def get_purchasable_item(item_code=None):
         "gallery": item["gallery"],
         "rate": item["rate"],
         "currency": item["currency"],
+        "personalization_enabled": item["personalization_enabled"],
+        "personalization_label": item["personalization_label"],
     }
 
 
@@ -243,6 +253,8 @@ def get_item_or_variants(item_code=None):
                 "gallery": item["gallery"],
                 "rate": item["rate"],
                 "currency": item["currency"],
+                "personalization_enabled": item["personalization_enabled"],
+                "personalization_label": item["personalization_label"],
             },
         }
 
@@ -322,6 +334,8 @@ def get_item_or_variants(item_code=None):
         "description": item_doc.description or "",
         "image": item_doc.image or "",
         "gallery": gallery,
+        "personalization_enabled": bool(item_doc.get("custom_personalization_enabled")),
+        "personalization_label": item_doc.get("custom_personalization_label") or "",
         "attributes": [
             {"attribute": name, "values": attribute_values.get(name, [])}
             for name in attribute_names
@@ -415,6 +429,7 @@ def create_checkout_session(
             "qty": line["qty"],
             "rate": item["rate"],
             "currency": item["currency"],
+            "personalization": line.get("personalization") or "",
         })
 
         line_items.append({
@@ -675,6 +690,7 @@ def _send_order_confirmation_emails(
     order_lines = "\n".join(
         f"{line.item_name} x{line.qty} - "
         f"{fmt_money((line.rate or 0) * (line.qty or 1), currency=line.currency or invoice.currency)}"
+        + (f" (Personalization: {line.personalization})" if line.get("personalization") else "")
         for line in checkout_items
     )
 

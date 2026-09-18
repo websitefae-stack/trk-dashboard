@@ -161,6 +161,7 @@ def get_store_order(name=None):
             "rate": row.rate,
             "amount": amount,
             "currency": row.currency or "GBP",
+            "personalization": row.get("personalization") or "",
         })
 
     return {

@@ -120,6 +120,7 @@
           <div style="font-weight:700;">${escapeHtml(item.item_name)}</div>
           ${item.variant_label ? `<div class="dashboard-help">${escapeHtml(item.variant_label)}</div>` : ""}
           ${item.sku ? `<div class="dashboard-help">SKU: ${escapeHtml(item.sku)}</div>` : ""}
+          ${item.personalization ? `<div style="color:#C0392B; font-weight:700; margin-top:2px;">Personalize: ${escapeHtml(item.personalization)}</div>` : ""}
         </div>
         <div style="text-align:right; white-space:nowrap;">
           <div>${item.qty} × ${formatMoney(item.rate, item.currency)}</div>

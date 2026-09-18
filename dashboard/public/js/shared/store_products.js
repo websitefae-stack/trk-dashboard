@@ -217,6 +217,10 @@
     el("storeProductUnlocksCourseWrap").style.display = el("storeProductUnlocksCourseEnabled").checked ? "" : "none";
   }
 
+  function updatePersonalizationFieldVisibility() {
+    el("storeProductPersonalizationLabelField").style.display = el("storeProductPersonalizationEnabled").checked ? "" : "none";
+  }
+
   function collectBrands() {
     return {
       custom_brand_hub: el("storeProductBrandHub").checked,
@@ -325,6 +329,10 @@
 
     el("storeProductIsDigital").checked = !!(product && product.digital_file);
     updateDigitalFieldVisibility();
+
+    el("storeProductPersonalizationEnabled").checked = !!(product && product.personalization_enabled);
+    el("storeProductPersonalizationLabel").value = product ? product.personalization_label || "" : "";
+    updatePersonalizationFieldVisibility();
 
     const digitalLink = el("storeProductDigitalFileLink");
     if (uploadedDigitalFileUrl) {
@@ -530,6 +538,8 @@
         }
       }
       const galleryUrls = galleryItems.map((item) => item.url).filter(Boolean);
+      const personalizationEnabled = el("storeProductPersonalizationEnabled").checked;
+      const personalizationLabel = el("storeProductPersonalizationLabel").value;
 
       if (hasVariations) {
         await uploadVariantImagesByValue();
@@ -543,6 +553,8 @@
           brands: collectBrands(),
           image: uploadedImageUrl,
           gallery_images: galleryUrls,
+          personalization_enabled: personalizationEnabled,
+          personalization_label: personalizationLabel,
           attributes: attributeValueLists(),
           variants: collectVariantSpecs(),
         });
@@ -569,6 +581,8 @@
           brands: collectBrands(),
           image: uploadedImageUrl,
           gallery_images: galleryUrls,
+          personalization_enabled: personalizationEnabled,
+          personalization_label: personalizationLabel,
         };
 
         const isVariantTemplate = itemCode && products.some((p) => p.name === itemCode && p.has_variants);
@@ -793,6 +807,7 @@
     el("storeProductHasVariations").addEventListener("change", updateVariationsVisibility);
     el("storeProductIsDigital").addEventListener("change", updateDigitalFieldVisibility);
     el("storeProductUnlocksCourseEnabled").addEventListener("change", updateUnlocksCourseFieldVisibility);
+    el("storeProductPersonalizationEnabled").addEventListener("change", updatePersonalizationFieldVisibility);
     el("generateVariantsBtn").addEventListener("click", generateVariants);
     el("addAttributeBtn").addEventListener("click", addAttributeRow);
 
