@@ -22,6 +22,14 @@
         </div>
 
         <div class="dashboard-topbar-actions">
+            {% if is_franchisor_user() %}
+            <a href="/store_db"
+               class="dashboard-btn dashboard-btn-light dashboard-topbar-portal-link"
+               title="Open the Store dashboard">
+                Store
+            </a>
+            {% endif %}
+
             <a href="https://theresilienthub.co.uk/client_portal"
                target="_blank"
                rel="noopener noreferrer"

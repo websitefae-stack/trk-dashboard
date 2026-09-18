@@ -41,6 +41,16 @@ website_route_rules = []
 
 fixtures = []
 
+# Exposes is_franchisor_user() to Jinja templates - shared_topbar.html uses
+# it to show the franchisor-only "Store" link (next to Client Portal)
+# without needing every coach_db/session_worker_db/franchisor_db page's own
+# get_context() to pass it through individually.
+jinja = {
+    "methods": [
+        "dashboard.api.shared.permissions.is_franchisor_user",
+    ],
+}
+
 # create_store_manager_for_rachel_v2 needs the Store Manager doctype to
 # already exist - patches.txt entries run before schema/doctype sync
 # (that's what broke the first attempt at this, in patches.txt directly:
