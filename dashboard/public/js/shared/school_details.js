@@ -242,8 +242,8 @@
 
   // ---------- One-off email ----------
 
-  function renderOneOffContactChoices(contacts) {
-    const wrap = el("oneOffContactChoices");
+  function renderContactChoices(contacts, containerId, checkboxClass) {
+    const wrap = el(containerId);
     if (!wrap) return;
 
     if (!contacts || !contacts.length) {
@@ -253,10 +253,18 @@
 
     wrap.innerHTML = contacts.map((c) => `
       <label style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-        <input type="checkbox" class="one-off-contact-checkbox" value="${escapeHtml(c.email)}">
+        <input type="checkbox" class="${checkboxClass}" value="${escapeHtml(c.email)}">
         ${escapeHtml(c.contact_name)}${c.role ? ` (${escapeHtml(c.role)})` : ""} - ${escapeHtml(c.email)}
       </label>
     `).join("");
+  }
+
+  function renderOneOffContactChoices(contacts) {
+    renderContactChoices(contacts, "oneOffContactChoices", "one-off-contact-checkbox");
+  }
+
+  function renderIntakeFormContactChoices(contacts) {
+    renderContactChoices(contacts, "intakeFormContactChoices", "intake-form-contact-checkbox");
   }
 
   // ---------- Timeline ----------
@@ -344,6 +352,7 @@
       renderContacts(currentSchool.contacts);
       renderEnrollments(currentSchool.enrollments);
       renderOneOffContactChoices(currentSchool.contacts);
+      renderIntakeFormContactChoices(currentSchool.contacts);
       renderTimeline(currentSchool.timeline);
     } catch (error) {
       const title = el("schoolPageTitle");
@@ -438,6 +447,39 @@
         }
       } catch (error) {
         el("schoolIntakeFormLink")?.select();
+      }
+    });
+
+    el("sendIntakeFormBtn")?.addEventListener("click", async function () {
+      const emails = Array.from(document.querySelectorAll(".intake-form-contact-checkbox:checked")).map((cb) => cb.value);
+
+      if (!emails.length) {
+        alert("Choose at least one contact to send it to.");
+        return;
+      }
+
+      const link = el("schoolIntakeFormLink")?.value || "";
+      const btn = el("sendIntakeFormBtn");
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Sending…";
+
+      try {
+        await apiPost(`${API}.send_one_off_school_email`, {
+          school: schoolName,
+          contact_emails: emails,
+          subject: `Getting started with The Resilient Hub - ${currentSchool.school_name}`,
+          message:
+            `<p>Hi {{ contact_name }},</p>` +
+            `<p>Thanks for your interest in The Resilient Hub. Please fill in this short form so we can get in touch about next steps:</p>` +
+            `<p><a href="${link}">${link}</a></p>`,
+        });
+        await loadSchool();
+      } catch (error) {
+        alert(error.message || "Could not send the intake form.");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
       }
     });
 
