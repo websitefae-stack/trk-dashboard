@@ -110,3 +110,4 @@ dashboard.patches.backfill_store_item_price_list
 dashboard.patches.add_item_sku_field
 dashboard.patches.backfill_variant_store_enabled
 dashboard.patches.add_school_sequence_enrollment_previous_stage
+dashboard.patches.fix_active_school_enrollments_stage
