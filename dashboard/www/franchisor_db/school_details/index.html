@@ -91,6 +91,21 @@
 
       <div class="dashboard-card">
         <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Merge Duplicate School</div>
+        </div>
+
+        <p class="dashboard-field-hint">Found a duplicate of this school? Pick it below - its contacts, notes, sequence history and email history all move onto <strong id="mergeKeepSchoolName">this school</strong>, then the duplicate is deleted for good. This can't be undone.</p>
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <select id="mergeDuplicateSelect" class="dashboard-select">
+            <option value="">Choose the duplicate to merge in…</option>
+          </select>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="mergeDuplicateBtn">Merge In &amp; Delete Duplicate</button>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
           <div class="dashboard-table-title">General Notes</div>
         </div>
 

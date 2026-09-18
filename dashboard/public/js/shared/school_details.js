@@ -187,6 +187,19 @@
     }
   }
 
+  async function loadMergeOptions() {
+    const select = el("mergeDuplicateSelect");
+    if (!select) return;
+
+    try {
+      const schools = await apiPost(`${API}.get_school_merge_options`, { exclude: schoolName });
+      select.innerHTML = '<option value="">Choose the duplicate to merge in…</option>' +
+        schools.map((s) => `<option value="${escapeHtml(s.name)}">${escapeHtml(s.school_name)}${s.area ? ` (${escapeHtml(s.area)})` : ""}</option>`).join("");
+    } catch (error) {
+      // Non-fatal.
+    }
+  }
+
   function renderEnrollments(enrollments) {
     const body = el("enrollmentHistoryBody");
     if (!body) return;
@@ -329,6 +342,9 @@
       const subtitle = el("schoolPageSubtitle");
       if (subtitle) subtitle.textContent = `Stage: ${currentSchool.stage}`;
 
+      const mergeKeepName = el("mergeKeepSchoolName");
+      if (mergeKeepName) mergeKeepName.textContent = `"${currentSchool.school_name}"`;
+
       if (el("schoolStageSelect")) el("schoolStageSelect").value = currentSchool.stage;
       if (el("schoolWebsiteInput")) el("schoolWebsiteInput").value = currentSchool.website || "";
       if (el("schoolAddressInput")) el("schoolAddressInput").value = currentSchool.address || "";
@@ -399,6 +415,32 @@
         await apiPost(`${API}.set_school_stage`, { school: schoolName, stage: el("schoolStageSelect").value });
       } catch (error) {
         alert(error.message || "Could not update stage.");
+      }
+    });
+
+    el("mergeDuplicateBtn")?.addEventListener("click", async function () {
+      const select = el("mergeDuplicateSelect");
+      const duplicateSchool = select?.value || "";
+      if (!duplicateSchool) {
+        alert("Choose the duplicate school to merge in first.");
+        return;
+      }
+
+      const duplicateLabel = select.options[select.selectedIndex].text;
+      if (!confirm(`Merge "${duplicateLabel}" into "${currentSchool.school_name}"?\n\nContacts, notes, sequence history and email history move across, then "${duplicateLabel}" is permanently deleted. This can't be undone.`)) {
+        return;
+      }
+
+      const btn = el("mergeDuplicateBtn");
+      btn.disabled = true;
+      try {
+        await apiPost(`${API}.merge_schools`, { keep_school: schoolName, duplicate_school: duplicateSchool });
+        await loadSchool();
+        await loadMergeOptions();
+      } catch (error) {
+        alert(error.message || "Could not merge these schools.");
+      } finally {
+        btn.disabled = false;
       }
     });
 
@@ -542,6 +584,7 @@
     loadSchool();
     loadSequenceOptions();
     loadClientLinkOptions();
+    loadMergeOptions();
   }
 
   if (document.readyState === "loading") {
