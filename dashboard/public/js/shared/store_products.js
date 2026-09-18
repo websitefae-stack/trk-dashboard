@@ -20,9 +20,31 @@
   // {file} rows get uploaded (turning into {url}) at save time.
   let galleryItems = [];
   let generatedVariants = [];
-  let imageKeyAttribute = "";
-  let variantImagesByValue = {};
+  // Which attribute(s) actually change what a photo looks like (e.g.
+  // Colour + Print Colour + Slogan, but not Size) - one photo is then
+  // needed per unique combination of just those, reused across every
+  // value of whichever attributes were left unticked.
+  let imageKeyAttributes = [];
+  let variantImagesByCombo = {};
   let descriptionEditor = null;
+
+  // Manage Variants modal (editing an existing variant product) - its
+  // own equivalent of the three above, since it's a separate flow with
+  // its own state: the variants currently loaded, which attributes the
+  // bulk photo picker is grouping by, and any photo already uploaded
+  // and applied to a row (via that bulk picker) but not yet saved.
+  let currentManageVariants = [];
+  let manageVariantsImageAttributes = [];
+  let pendingVariantImageUrls = {};
+
+  // A separator unlikely to ever appear inside an attribute value itself
+  // (a colour name, a slogan, ...) - joins the chosen key attributes'
+  // values into one lookup key for variantImagesByCombo.
+  const COMBO_KEY_SEPARATOR = "␟";
+
+  function comboKeyFor(combo, attributes) {
+    return attributes.map((attribute) => combo[attribute] || "").join(COMBO_KEY_SEPARATOR);
+  }
 
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
@@ -264,13 +286,13 @@
 
     el("storeVariationsBasePrice").value = "";
     generatedVariants = [];
-    imageKeyAttribute = "";
-    variantImagesByValue = {};
+    imageKeyAttributes = [];
+    variantImagesByCombo = {};
     el("storeVariantsGeneratedWrap").style.display = "none";
     el("storeVariantsGeneratedBody").innerHTML = "";
     el("storeVariantImagesSection").style.display = "none";
     el("storeVariantImagesBody").innerHTML = "";
-    el("storeVariantImageAttribute").innerHTML = "";
+    el("storeVariantImageAttributesList").innerHTML = "";
   }
 
   function renderGalleryList() {
@@ -428,34 +450,55 @@
     })).filter((attr) => attr.attribute && attr.values.length);
   }
 
-  // One photo per value of a single chosen attribute (e.g. one per
-  // Style), reused across every combination that shares that value -
-  // avoids needing a separate photo for every Size x Style pair.
+  // One photo per unique combination of whichever attribute(s) are
+  // ticked below as "changes the photo" (e.g. Colour + Print Colour +
+  // Slogan), reused across every value of any attribute left unticked
+  // (e.g. Size) - avoids needing a separate photo for every single
+  // generated combination.
   function renderVariantImageRows() {
     const lists = attributeValueLists();
-    const select = el("storeVariantImageAttribute");
-    select.innerHTML = lists.map((a) => `<option value="${escapeHtml(a.attribute)}">${escapeHtml(a.attribute)}</option>`).join("");
+    const checklist = el("storeVariantImageAttributesList");
 
-    // Default to the last (most likely visually distinct, e.g. Style
-    // over Size) attribute when there's more than one.
-    imageKeyAttribute = lists[lists.length - 1].attribute;
-    select.value = imageKeyAttribute;
+    // Defaults to every attribute ticked - most products only have one
+    // or two, where "all of them" is usually right; untick whichever
+    // ones don't actually change the photo (e.g. Size).
+    imageKeyAttributes = lists.map((a) => a.attribute);
 
-    variantImagesByValue = {};
-    renderVariantImageValueRows();
+    checklist.innerHTML = lists.map((a) => `
+      <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
+        <input type="checkbox" data-variant-image-attribute="${escapeHtml(a.attribute)}" checked>
+        ${escapeHtml(a.attribute)}
+      </label>
+    `).join("");
+
+    variantImagesByCombo = {};
+    renderVariantImageGroupRows();
     el("storeVariantImagesSection").style.display = "";
   }
 
-  function renderVariantImageValueRows() {
-    const lists = attributeValueLists();
-    const chosen = lists.find((a) => a.attribute === imageKeyAttribute) || lists[0];
+  function renderVariantImageGroupRows() {
     const body = el("storeVariantImagesBody");
 
-    body.innerHTML = (chosen ? chosen.values : []).map((value) => `
+    if (!imageKeyAttributes.length) {
+      body.innerHTML = '<p class="dashboard-help">Tick at least one attribute above to upload photos for it.</p>';
+      return;
+    }
+
+    const seen = new Set();
+    const groups = [];
+
+    generatedVariants.forEach((combo) => {
+      const key = comboKeyFor(combo, imageKeyAttributes);
+      if (seen.has(key)) return;
+      seen.add(key);
+      groups.push({ key, label: imageKeyAttributes.map((attribute) => combo[attribute]).join(" / ") });
+    });
+
+    body.innerHTML = groups.map((group) => `
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-        <span style="min-width:120px;">${escapeHtml(value)}</span>
-        <input type="file" accept="image/*" data-variant-image-value="${escapeHtml(value)}">
-        <img data-variant-image-value-preview="${escapeHtml(value)}" alt="" style="display:none; width:36px; height:36px; object-fit:cover; border-radius:6px;">
+        <span style="min-width:180px;">${escapeHtml(group.label)}</span>
+        <input type="file" accept="image/*" data-variant-image-combo="${escapeHtml(group.key)}">
+        <img data-variant-image-combo-preview="${escapeHtml(group.key)}" alt="" style="display:none; width:36px; height:36px; object-fit:cover; border-radius:6px;">
       </div>
     `).join("");
   }
@@ -473,16 +516,16 @@
     renderVariantImageRows();
   }
 
-  async function uploadVariantImagesByValue() {
-    const inputs = document.querySelectorAll("[data-variant-image-value]");
+  async function uploadVariantImagesByCombo() {
+    const inputs = document.querySelectorAll("[data-variant-image-combo]");
 
     for (const input of inputs) {
       const file = input.files[0];
       if (!file) continue;
 
-      const value = input.dataset.variantImageValue;
+      const key = input.dataset.variantImageCombo;
       const uploaded = await uploadFile(file, false);
-      variantImagesByValue[value] = uploaded.file_url || "";
+      variantImagesByCombo[key] = uploaded.file_url || "";
     }
   }
 
@@ -492,7 +535,7 @@
       const priceInput = document.querySelector(`[data-variant-price="${index}"]`);
       const stockInput = document.querySelector(`[data-variant-stock="${index}"]`);
       const unlimitedInput = document.querySelector(`[data-variant-unlimited="${index}"]`);
-      const keyValue = combo[imageKeyAttribute];
+      const key = comboKeyFor(combo, imageKeyAttributes);
 
       return {
         attribute_values: combo,
@@ -500,7 +543,7 @@
         price: priceInput ? priceInput.value : 0,
         stock_qty: stockInput ? stockInput.value : 0,
         unlimited_stock: unlimitedInput ? unlimitedInput.checked : false,
-        image: keyValue ? (variantImagesByValue[keyValue] || "") : "",
+        image: variantImagesByCombo[key] || "",
       };
     });
   }
@@ -542,7 +585,7 @@
       const personalizationLabel = el("storeProductPersonalizationLabel").value;
 
       if (hasVariations) {
-        await uploadVariantImagesByValue();
+        await uploadVariantImagesByCombo();
 
         await apiPost(API + ".create_variant_store_product", {
           item_name: itemName,
@@ -665,17 +708,127 @@
     `;
   }
 
+  // Every attribute name/value actually used across the currently
+  // loaded variants (e.g. Size, Colour, Print Colour, Slogan) - the
+  // checklist for the bulk photo picker is built from this, same idea
+  // as attributeValueLists() for the create-time version above.
+  function manageVariantsAttributeLists() {
+    const byAttribute = {};
+
+    currentManageVariants.forEach((variant) => {
+      Object.entries(variant.attributes || {}).forEach(([attribute, value]) => {
+        byAttribute[attribute] = byAttribute[attribute] || [];
+        if (byAttribute[attribute].indexOf(value) === -1) byAttribute[attribute].push(value);
+      });
+    });
+
+    return Object.keys(byAttribute).map((attribute) => ({ attribute, values: byAttribute[attribute] }));
+  }
+
+  function renderManageVariantsImageAttributes() {
+    const lists = manageVariantsAttributeLists();
+    const section = el("manageVariantsImagesSection");
+
+    if (!lists.length) {
+      section.style.display = "none";
+      return;
+    }
+
+    manageVariantsImageAttributes = lists.map((a) => a.attribute);
+
+    el("manageVariantsImageAttributesList").innerHTML = lists.map((a) => `
+      <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
+        <input type="checkbox" data-manage-variants-image-attribute="${escapeHtml(a.attribute)}" checked>
+        ${escapeHtml(a.attribute)}
+      </label>
+    `).join("");
+
+    renderManageVariantsImageGroups();
+    section.style.display = "";
+  }
+
+  function renderManageVariantsImageGroups() {
+    const body = el("manageVariantsImagesBody");
+
+    if (!manageVariantsImageAttributes.length) {
+      body.innerHTML = '<p class="dashboard-help">Tick at least one attribute above to upload photos for it.</p>';
+      return;
+    }
+
+    const seen = new Set();
+    const groups = [];
+
+    currentManageVariants.forEach((variant) => {
+      const key = comboKeyFor(variant.attributes || {}, manageVariantsImageAttributes);
+      if (seen.has(key)) return;
+      seen.add(key);
+      groups.push({ key, label: manageVariantsImageAttributes.map((a) => variant.attributes[a]).join(" / ") });
+    });
+
+    body.innerHTML = groups.map((group) => `
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+        <span style="min-width:180px;">${escapeHtml(group.label)}</span>
+        <input type="file" accept="image/*" data-manage-variants-image-combo="${escapeHtml(group.key)}">
+        <button type="button" class="dashboard-btn dashboard-btn-light" data-apply-variant-image-combo="${escapeHtml(group.key)}">Apply to matching variants</button>
+        <span class="dashboard-help" data-manage-variants-image-status="${escapeHtml(group.key)}"></span>
+      </div>
+    `).join("");
+  }
+
+  async function applyManageVariantsImageCombo(key, button) {
+    const input = document.querySelector(`[data-manage-variants-image-combo="${CSS.escape(key)}"]`);
+    const statusEl = document.querySelector(`[data-manage-variants-image-status="${CSS.escape(key)}"]`);
+    const file = input ? input.files[0] : null;
+
+    if (!file) {
+      alert("Choose a photo first.");
+      return;
+    }
+
+    button.disabled = true;
+    if (statusEl) statusEl.textContent = "Uploading…";
+
+    try {
+      const uploaded = await uploadFile(file, false);
+      const url = uploaded.file_url || "";
+      let matched = 0;
+
+      currentManageVariants.forEach((variant) => {
+        if (comboKeyFor(variant.attributes || {}, manageVariantsImageAttributes) !== key) return;
+
+        matched += 1;
+        pendingVariantImageUrls[variant.name] = url;
+
+        const preview = document.querySelector(`[data-existing-variant-image-preview="${CSS.escape(variant.name)}"]`);
+        if (preview) {
+          preview.src = url;
+          preview.style.display = "";
+        }
+      });
+
+      if (statusEl) statusEl.textContent = `Applied to ${matched} variant${matched === 1 ? "" : "s"} - click Save/Save All to keep it.`;
+    } catch (error) {
+      if (statusEl) statusEl.textContent = error.message || "Could not upload.";
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   async function openVariantsModal(templateItemCode) {
     el("storeVariantsTemplateCode").value = templateItemCode;
     const body = el("storeVariantsBody");
     body.innerHTML = '<tr><td colspan="8" class="dashboard-empty">Loading…</td></tr>';
+    el("manageVariantsImagesSection").style.display = "none";
+    pendingVariantImageUrls = {};
     el("storeVariantsModal").classList.add("is-open");
 
     try {
       const variants = await apiPost(API + ".get_product_variants", { template_item_code: templateItemCode });
+      currentManageVariants = variants;
       body.innerHTML = variants.length
         ? variants.map(renderVariantRow).join("")
         : '<tr><td colspan="8" class="dashboard-empty">No variants found.</td></tr>';
+      renderManageVariantsImageAttributes();
     } catch (error) {
       body.innerHTML = '<tr><td colspan="8" class="dashboard-empty">Could not load variants.</td></tr>';
       console.error(error);
@@ -684,6 +837,8 @@
 
   function closeVariantsModal() {
     el("storeVariantsModal").classList.remove("is-open");
+    currentManageVariants = [];
+    pendingVariantImageUrls = {};
   }
 
   async function saveOneVariant(itemCode) {
@@ -694,11 +849,17 @@
     const activeInput = document.querySelector(`[data-existing-variant-active="${CSS.escape(itemCode)}"]`);
     const imageInput = document.querySelector(`[data-existing-variant-image-input="${CSS.escape(itemCode)}"]`);
 
-    let imageUrl = "";
-    const imageFile = imageInput ? imageInput.files[0] : null;
-    if (imageFile) {
-      const uploaded = await uploadFile(imageFile, false);
-      imageUrl = uploaded.file_url || "";
+    // A photo already applied via the bulk "Apply to matching variants"
+    // picker above wins over this row's own file input - it's already
+    // uploaded, no need to ask the browser to pick a file too.
+    let imageUrl = pendingVariantImageUrls[itemCode] || "";
+
+    if (!imageUrl) {
+      const imageFile = imageInput ? imageInput.files[0] : null;
+      if (imageFile) {
+        const uploaded = await uploadFile(imageFile, false);
+        imageUrl = uploaded.file_url || "";
+      }
     }
 
     await apiPost(API + ".update_variant", {
@@ -710,6 +871,8 @@
       disabled: activeInput ? !activeInput.checked : false,
       image: imageUrl,
     });
+
+    delete pendingVariantImageUrls[itemCode];
   }
 
   async function saveVariantRow(itemCode, button) {
@@ -824,6 +987,33 @@
     el("closeStoreVariantsModalBtn").addEventListener("click", closeVariantsModal);
     el("saveAllVariantsBtn").addEventListener("click", saveAllVariants);
 
+    el("manageVariantsImageAttributesList").addEventListener("change", function (event) {
+      const checkbox = event.target.closest("[data-manage-variants-image-attribute]");
+      if (!checkbox) return;
+
+      if (
+        Object.keys(pendingVariantImageUrls).length &&
+        !window.confirm("Changing which attributes affect the photo will clear any photos applied below that haven't been saved yet. Continue?")
+      ) {
+        checkbox.checked = !checkbox.checked;
+        return;
+      }
+
+      manageVariantsImageAttributes = Array.from(
+        document.querySelectorAll("#manageVariantsImageAttributesList [data-manage-variants-image-attribute]:checked")
+      ).map((input) => input.dataset.manageVariantsImageAttribute);
+
+      pendingVariantImageUrls = {};
+      renderManageVariantsImageGroups();
+    });
+
+    el("manageVariantsImagesBody").addEventListener("click", function (event) {
+      const button = event.target.closest("[data-apply-variant-image-combo]");
+      if (!button) return;
+
+      applyManageVariantsImageCombo(button.dataset.applyVariantImageCombo, button);
+    });
+
     el("storeProductImageFile").addEventListener("change", function () {
       const file = this.files[0];
       if (!file) return;
@@ -851,19 +1041,34 @@
       el("storeProductShortDescriptionCount").textContent = this.value.length;
     });
 
-    el("storeVariantImageAttribute").addEventListener("change", function () {
-      imageKeyAttribute = this.value;
-      renderVariantImageValueRows();
+    el("storeVariantImageAttributesList").addEventListener("change", function (event) {
+      const checkbox = event.target.closest("[data-variant-image-attribute]");
+      if (!checkbox) return;
+
+      if (
+        Object.keys(variantImagesByCombo).length &&
+        !window.confirm("Changing which attributes affect the photo will clear the photos already picked below. Continue?")
+      ) {
+        checkbox.checked = !checkbox.checked;
+        return;
+      }
+
+      imageKeyAttributes = Array.from(
+        document.querySelectorAll("#storeVariantImageAttributesList [data-variant-image-attribute]:checked")
+      ).map((input) => input.dataset.variantImageAttribute);
+
+      variantImagesByCombo = {};
+      renderVariantImageGroupRows();
     });
 
     document.addEventListener("change", function (event) {
-      const variantImageInput = event.target.closest("[data-variant-image-value]");
+      const variantImageInput = event.target.closest("[data-variant-image-combo]");
       if (variantImageInput) {
         const file = variantImageInput.files[0];
         if (!file) return;
 
         const preview = document.querySelector(
-          `[data-variant-image-value-preview="${CSS.escape(variantImageInput.dataset.variantImageValue)}"]`
+          `[data-variant-image-combo-preview="${CSS.escape(variantImageInput.dataset.variantImageCombo)}"]`
         );
         if (preview) {
           preview.src = URL.createObjectURL(file);

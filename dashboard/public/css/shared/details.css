@@ -302,6 +302,15 @@
   width: min(960px, 100%);
 }
 
+/* Even more room than -wide - for a modal whose table has many columns
+   (e.g. Manage Variants with several attributes: Variant, Image, SKU,
+   Price, Stock, Unlimited, Active, Save all need to be visible without
+   the whole row scrolling sideways). */
+.dashboard-modal-full {
+  width: min(1400px, 96vw);
+  max-height: calc(100vh - 24px);
+}
+
 .dashboard-modal-head,
 .dashboard-modal-foot {
   display: flex;
