@@ -22,6 +22,19 @@
 
       <div class="dashboard-card">
         <div class="dashboard-table-header">
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="logoOptionsToggle">
+            <span id="logoOptionsToggleIcon">▸</span> Sleeve/Leg Logo Options
+          </button>
+        </div>
+
+        <div id="logoOptionsContent" style="display:none; margin-top:12px;">
+          <p class="dashboard-help" style="margin-top:0;">Upload the four brand logos here once - they're shown to the buyer on any product with "Buyer must choose a sleeve/leg logo" ticked, so they can see what each one looks like before picking.</p>
+          <div id="logoOptionsList" style="display:flex; flex-wrap:wrap; gap:16px;"></div>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-header">
           <div class="dashboard-table-title">Store Products</div>
           <div class="dashboard-table-count" id="storeProductsCount">Loading…</div>
         </div>
@@ -100,6 +113,13 @@
           <label for="storeProductPersonalizationLabel">What to show the customer above the text box</label>
           <input type="text" id="storeProductPersonalizationLabel" class="dashboard-input" placeholder="e.g. Add the name to be printed">
         </div>
+      </div>
+
+      <div style="margin:14px 0;">
+        <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
+          <input type="checkbox" id="storeProductLogoChoiceEnabled">
+          Buyer must choose a sleeve/leg logo (The Resilient Kid/Teen/People/School) - see the Logo Options panel below to upload the four logo photos
+        </label>
       </div>
 
       <div id="storeProductPriceField" style="margin-top:14px;">
@@ -262,6 +282,25 @@
             <tr><td colspan="8" class="dashboard-empty">Loading…</td></tr>
           </tbody>
         </table>
+      </div>
+
+      <div style="margin-top:16px; padding-top:12px; border-top:1px solid #E6EFEF;">
+        <div class="dashboard-table-title" style="margin-bottom:6px;">Add New Variant</div>
+        <p class="dashboard-help" style="margin-top:0;">Missing a size/colour/etc that isn't offered yet? Fill in a value for each option below (type a new one, e.g. "XS", if it isn't in the list yet) and add it - everything else on this product stays exactly as it is.</p>
+
+        <div id="addVariantAttributesList" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:10px;"></div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+          <input type="text" id="addVariantSku" class="dashboard-input" style="width:110px;" placeholder="SKU (optional)">
+          <input type="number" id="addVariantPrice" class="dashboard-input" style="width:100px;" min="0" step="0.01" placeholder="Price (£)">
+          <input type="number" id="addVariantStock" class="dashboard-input" style="width:80px;" min="0" step="1" placeholder="Stock">
+          <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
+            <input type="checkbox" id="addVariantUnlimited"> Unlimited
+          </label>
+          <input type="file" id="addVariantImage" accept="image/*">
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="addVariantBtn">Add Variant</button>
+          <span class="dashboard-help" id="addVariantStatus"></span>
+        </div>
       </div>
     </div>
 

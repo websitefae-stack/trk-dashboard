@@ -19,6 +19,7 @@ from frappe import _
 
 from dashboard.api.shared.permissions import ensure_logged_in, is_office_user, is_store_manager
 from dashboard.api.shared.item_access import DEFAULT_PRICE_LIST, BRAND_FIELDS, _get_default_warehouse_for_company
+from dashboard.api.shared.webshop_purchase import LOGO_CHOICE_DOCTYPE, LOGO_CHOICES
 from dashboard.dashboard.doctype.webshop_payment_settings.webshop_payment_settings import get_settings
 
 BRAND_FIELDNAMES = list(BRAND_FIELDS.keys())
@@ -164,6 +165,39 @@ def _apply_personalization(item, enabled, label):
 
     if label is not None and _item_meta_has_field("custom_personalization_label"):
         item.custom_personalization_label = label.strip()
+
+
+def _apply_logo_choice(item, enabled):
+    if enabled is not None and _item_meta_has_field("custom_logo_choice_enabled"):
+        item.custom_logo_choice_enabled = 1 if _to_bool(enabled) else 0
+
+
+@frappe.whitelist()
+def save_logo_choice_options(kid_logo=None, teen_logo=None, people_logo=None, school_logo=None):
+    """Uploads/replaces the four brand logo images shown on any product
+    with "Let Buyer Choose a Sleeve/Leg Logo" ticked - one place, reused
+    by every such product (see get_logo_choice_options in
+    webshop_purchase.py, which this Store dashboard panel also reads
+    from to show what's currently uploaded)."""
+    _ensure_store_access()
+
+    if not frappe.db.exists("DocType", LOGO_CHOICE_DOCTYPE):
+        frappe.throw(_("Store Logo Choice isn't set up yet - run bench migrate."))
+
+    updates = {}
+    values = {"kid_logo": kid_logo, "teen_logo": teen_logo, "people_logo": people_logo, "school_logo": school_logo}
+
+    for choice in LOGO_CHOICES:
+        value = values.get(choice["fieldname"])
+        if value is not None:
+            updates[choice["fieldname"]] = value.strip()
+
+    for fieldname, value in updates.items():
+        frappe.db.set_single_value(LOGO_CHOICE_DOCTYPE, fieldname, value)
+
+    frappe.db.commit()
+
+    return {"ok": 1}
 
 
 def _store_company():
@@ -462,7 +496,7 @@ def get_store_products(search=None):
     extra_fieldnames = [
         f for f in [
             "custom_digital_file", "custom_unlocks_lms_course", "custom_short_description", "custom_sku",
-            "custom_personalization_enabled", "custom_personalization_label",
+            "custom_personalization_enabled", "custom_personalization_label", "custom_logo_choice_enabled",
         ]
         if item_meta.has_field(f)
     ]
@@ -517,6 +551,7 @@ def get_store_products(search=None):
             "sku": item.get("custom_sku") or "",
             "personalization_enabled": bool(item.get("custom_personalization_enabled")),
             "personalization_label": item.get("custom_personalization_label") or "",
+            "logo_choice_enabled": bool(item.get("custom_logo_choice_enabled")),
         }
         for item in items
     ]
@@ -526,7 +561,7 @@ def get_store_products(search=None):
 def create_store_product(item_name=None, description=None, short_description=None, item_group=None, price=None,
                           stock_qty=None, unlimited_stock=None, brands=None, image=None,
                           digital_file=None, unlocks_course=None, sku=None, gallery_images=None,
-                          personalization_enabled=None, personalization_label=None):
+                          personalization_enabled=None, personalization_label=None, logo_choice_enabled=None):
     """
     An Item with this exact name can already exist without being a store
     product yet - e.g. something tracked elsewhere in the system
@@ -581,6 +616,9 @@ def create_store_product(item_name=None, description=None, short_description=Non
         if personalization_label is not None and item_meta.has_field("custom_personalization_label"):
             updates["custom_personalization_label"] = personalization_label.strip()
 
+        if logo_choice_enabled is not None and item_meta.has_field("custom_logo_choice_enabled"):
+            updates["custom_logo_choice_enabled"] = 1 if _to_bool(logo_choice_enabled) else 0
+
         if image:
             updates["image"] = image
 
@@ -621,6 +659,7 @@ def create_store_product(item_name=None, description=None, short_description=Non
         item.custom_sku = sku.strip()
 
     _apply_personalization(item, personalization_enabled, personalization_label)
+    _apply_logo_choice(item, logo_choice_enabled)
 
     item.disabled = 0
     item.custom_store_enabled = 1
@@ -660,7 +699,8 @@ def create_store_product(item_name=None, description=None, short_description=Non
 def update_store_product(item_code=None, item_name=None, description=None, short_description=None,
                           item_group=None, price=None, stock_qty=None, unlimited_stock=None, brands=None,
                           disabled=None, image=None, digital_file=None, unlocks_course=None, sku=None,
-                          gallery_images=None, personalization_enabled=None, personalization_label=None):
+                          gallery_images=None, personalization_enabled=None, personalization_label=None,
+                          logo_choice_enabled=None):
     """
     Writes straight to the database (frappe.db.set_value + direct child-
     row management) rather than loading the Item as a Document and
@@ -704,6 +744,9 @@ def update_store_product(item_code=None, item_name=None, description=None, short
 
     if personalization_label is not None and item_meta.has_field("custom_personalization_label"):
         updates["custom_personalization_label"] = personalization_label.strip()
+
+    if logo_choice_enabled is not None and item_meta.has_field("custom_logo_choice_enabled"):
+        updates["custom_logo_choice_enabled"] = 1 if _to_bool(logo_choice_enabled) else 0
 
     if item_group is not None and item_group.strip():
         updates["item_group"] = _ensure_item_group(item_group.strip())
@@ -913,7 +956,8 @@ def _create_variant_item(template, attribute_values, price, stock_qty, unlimited
 @frappe.whitelist()
 def create_variant_store_product(item_name=None, description=None, short_description=None, item_group=None,
                                   brands=None, image=None, attributes=None, variants=None, sku=None,
-                                  gallery_images=None, personalization_enabled=None, personalization_label=None):
+                                  gallery_images=None, personalization_enabled=None, personalization_label=None,
+                                  logo_choice_enabled=None):
     """
     attributes: [{"attribute": "Size", "values": ["Small", "Large"]}, ...]
     variants: [{"attribute_values": {"Size": "Small"}, "price": 10,
@@ -1007,6 +1051,7 @@ def create_variant_store_product(item_name=None, description=None, short_descrip
             template.custom_sku = sku.strip()
 
         _apply_personalization(template, personalization_enabled, personalization_label)
+        _apply_logo_choice(template, logo_choice_enabled)
 
         template.stock_uom = "Nos"
         template.is_stock_item = 0
@@ -1140,3 +1185,100 @@ def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=N
     frappe.db.commit()
 
     return {"ok": 1}
+
+
+@frappe.whitelist()
+def delete_variant(item_code=None):
+    """Permanently removes a variant that's no longer stocked - Disabled
+    only hides it from the store, it doesn't get it off this list, which
+    isn't what's wanted once a size/colour is genuinely discontinued.
+    Refuses (with a clear reason) rather than deleting when the variant
+    has real order history against it, since that would silently orphan
+    those past Sales Invoice/Order line items - Disable is still the
+    right call for a variant like that."""
+    _ensure_store_access()
+
+    item_code = (item_code or "").strip()
+
+    if not item_code or not frappe.db.exists("Item", item_code):
+        frappe.throw(_("Variant not found."))
+    if not frappe.db.get_value("Item", item_code, "variant_of"):
+        frappe.throw(_("This isn't a variant."))
+
+    try:
+        frappe.delete_doc("Item", item_code, ignore_permissions=True)
+        frappe.db.commit()
+    except frappe.LinkExistsError:
+        frappe.throw(_("This variant can't be deleted - it's on an existing order or invoice. Mark it as inactive instead so it stays out of the store but keeps its order history."))
+
+    return {"ok": 1}
+
+
+@frappe.whitelist()
+def add_product_variant(template_item_code=None, attribute_values=None, price=None, stock_qty=None,
+                         unlimited_stock=None, sku=None, image=None):
+    """Adds one new variant (e.g. a size that wasn't offered when the
+    product was first set up) onto an existing variant template, without
+    touching anything already there - unlike create_variant_store_product,
+    which rebuilds the whole product from scratch, this only ever inserts
+    the one new Item. New attribute values (e.g. "XS" not used by any
+    variant yet) are created automatically, same as at product creation."""
+    _ensure_store_access()
+
+    template_item_code = (template_item_code or "").strip()
+
+    if not template_item_code or not frappe.db.exists("Item", template_item_code):
+        frappe.throw(_("Product not found."))
+
+    template = frappe.get_doc("Item", template_item_code)
+
+    if not template.has_variants:
+        frappe.throw(_("This product doesn't have variations."))
+
+    if isinstance(attribute_values, dict):
+        parsed_values = attribute_values
+    else:
+        try:
+            parsed_values = frappe.parse_json(attribute_values) or {}
+        except Exception:
+            parsed_values = {}
+
+    parsed_values = {k: (v or "").strip() for k, v in parsed_values.items() if (v or "").strip()}
+
+    template_attributes = [row.attribute for row in (template.get("attributes") or [])]
+    missing = [a for a in template_attributes if a not in parsed_values]
+
+    if missing:
+        frappe.throw(_("Choose a value for: {0}").format(", ".join(missing)))
+
+    existing_variant_codes = frappe.get_all("Item", filters={"variant_of": template_item_code}, pluck="name")
+
+    for existing_code in existing_variant_codes:
+        rows = frappe.get_all(
+            "Item Variant Attribute",
+            filters={"parent": existing_code, "parenttype": "Item"},
+            fields=["attribute", "attribute_value"],
+        )
+        if {row.attribute: row.attribute_value for row in rows} == parsed_values:
+            frappe.throw(_("A variant with this exact combination already exists."))
+
+    company = _store_company()
+
+    with _as_administrator():
+        for attribute_name in template_attributes:
+            _ensure_item_attribute(attribute_name, [parsed_values[attribute_name]])
+
+        variant_name = _create_variant_item(
+            template,
+            parsed_values,
+            price,
+            stock_qty,
+            unlimited_stock,
+            company,
+            image=(image or "").strip(),
+            sku=sku,
+        )
+
+    frappe.db.commit()
+
+    return {"ok": 1, "item_code": variant_name}
