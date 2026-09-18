@@ -11,7 +11,8 @@
   "qty",
   "rate",
   "currency",
-  "personalization"
+  "personalization",
+  "logo_choice"
  ],
  "fields": [
   {
@@ -33,6 +34,12 @@
    "fieldtype": "Data",
    "label": "Personalization",
    "description": "Free text the customer entered for this line (e.g. a name to print) - blank if the item isn't personalizable or they skipped it."
+  },
+  {
+   "fieldname": "logo_choice",
+   "fieldtype": "Data",
+   "label": "Sleeve/Leg Logo Choice",
+   "description": "Which of the four brand logos the customer picked for this line - blank if the item doesn't offer the choice."
   },
   {
    "default": "1",

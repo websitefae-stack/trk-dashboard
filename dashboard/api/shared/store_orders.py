@@ -162,6 +162,7 @@ def get_store_order(name=None):
             "amount": amount,
             "currency": row.currency or "GBP",
             "personalization": row.get("personalization") or "",
+            "logo_choice": row.get("logo_choice") or "",
         })
 
     return {

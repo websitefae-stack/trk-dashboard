@@ -55,6 +55,43 @@ PORTAL_PERMISSIONS_FOR_BUYER = [
     "can_view_downloads",
 ]
 
+# The four brand logos a buyer can pick between for a sleeve/leg-print
+# product (Item.custom_logo_choice_enabled) - fixed, store-wide, never
+# per-product (see the Store Logo Choice single doctype). key is what's
+# actually stored against the cart line/order; label/fieldname are just
+# how it's shown and where its image lives on that single doc.
+LOGO_CHOICE_DOCTYPE = "Store Logo Choice"
+LOGO_CHOICES = [
+    {"key": "Kid", "label": "The Resilient Kid", "fieldname": "kid_logo"},
+    {"key": "Teen", "label": "The Resilient Teen", "fieldname": "teen_logo"},
+    {"key": "People", "label": "The Resilient People", "fieldname": "people_logo"},
+    {"key": "School", "label": "The Resilient School", "fieldname": "school_logo"},
+]
+
+
+def _logo_choice_label(key):
+    for choice in LOGO_CHOICES:
+        if choice["key"] == key:
+            return choice["label"]
+    return key
+
+
+@frappe.whitelist(allow_guest=True)
+def get_logo_choice_options():
+    """The four brand logos, with whichever image has been uploaded for
+    each on the Store Logo Choice single doc - used both by the public
+    /buy page (to show what each logo looks like) and by the Store
+    dashboard's own settings panel for uploading them."""
+    if not frappe.db.exists("DocType", LOGO_CHOICE_DOCTYPE):
+        return []
+
+    values = frappe.db.get_singles_dict(LOGO_CHOICE_DOCTYPE)
+
+    return [
+        {"key": choice["key"], "label": choice["label"], "image": values.get(choice["fieldname"]) or ""}
+        for choice in LOGO_CHOICES
+    ]
+
 
 def _get_stripe_secret_key(settings):
     """
@@ -92,14 +129,13 @@ def _split_full_name(full_name):
 
 def _parse_cart_items(items):
     """items is a JSON-encoded (or already-parsed, same as any other
-    fetch() POST body) list of {"item_code": ..., "qty": ..., "personalization": ...}
+    fetch() POST body) list of {"item_code": ..., "qty": ..., "personalization": ..., "logo_choice": ...}
     - a single "Buy Now" is just a one-item cart, so every checkout goes
-    through this same shape. personalization is free text the customer
-    typed in for a personalizable item - never validated against
-    Item.custom_personalization_enabled here (a stray value on a
-    non-personalizable item is harmless, just an extra note nobody reads),
-    only length-capped so it can't be used to stuff something huge into
-    an invoice line."""
+    through this same shape. personalization/logo_choice are never
+    validated here against the item's own enabled flags (a stray value
+    on an item that doesn't offer either is harmless, just an extra note
+    nobody reads), only length-capped so it can't be used to stuff
+    something huge into an invoice line."""
     raw = items
 
     if isinstance(raw, str):
@@ -120,9 +156,15 @@ def _parse_cart_items(items):
         item_code = (entry.get("item_code") or "").strip()
         qty = max(1, int(_to_float(entry.get("qty")) or 1))
         personalization = (entry.get("personalization") or "").strip()[:140]
+        logo_choice = (entry.get("logo_choice") or "").strip()[:40]
 
         if item_code:
-            parsed.append({"item_code": item_code, "qty": qty, "personalization": personalization})
+            parsed.append({
+                "item_code": item_code,
+                "qty": qty,
+                "personalization": personalization,
+                "logo_choice": logo_choice,
+            })
 
     return parsed
 
@@ -170,6 +212,18 @@ def _get_purchasable_item(item_code, company):
 
     item_doc = frappe.get_doc("Item", item_code)
 
+    # Only Store products carry a stock concept at all (custom_stock_qty/
+    # custom_unlimited_stock default to 0/unticked on every Item, store
+    # product or not - gating on custom_store_enabled here keeps this
+    # from blocking an unrelated one-off purchase, e.g. a coaching
+    # service or course, that was never meant to track stock).
+    if (
+        item_doc.get("custom_store_enabled")
+        and not item_doc.get("custom_unlimited_stock")
+        and (item_doc.get("custom_stock_qty") or 0) <= 0
+    ):
+        frappe.throw(_("{0} is currently out of stock.").format(item_doc.item_name or item_code))
+
     return {
         "item_code": item_code,
         "item_name": item_doc.item_name or item_code,
@@ -181,6 +235,7 @@ def _get_purchasable_item(item_code, company):
         "price_list": price_list,
         "personalization_enabled": bool(item_doc.get("custom_personalization_enabled")),
         "personalization_label": item_doc.get("custom_personalization_label") or "",
+        "logo_choice_enabled": bool(item_doc.get("custom_logo_choice_enabled")),
     }
 
 
@@ -204,6 +259,7 @@ def get_purchasable_item(item_code=None):
         "currency": item["currency"],
         "personalization_enabled": item["personalization_enabled"],
         "personalization_label": item["personalization_label"],
+        "logo_choice_enabled": item["logo_choice_enabled"],
     }
 
 
@@ -255,6 +311,7 @@ def get_item_or_variants(item_code=None):
                 "currency": item["currency"],
                 "personalization_enabled": item["personalization_enabled"],
                 "personalization_label": item["personalization_label"],
+                "logo_choice_enabled": item["logo_choice_enabled"],
             },
         }
 
@@ -273,8 +330,8 @@ def get_item_or_variants(item_code=None):
         try:
             purchasable = _get_purchasable_item(row.name, settings.company)
         except Exception:
-            # Not priced/shown-on-site for this company yet - skip it
-            # rather than fail the whole template.
+            # Not priced/shown-on-site for this company yet, or out of
+            # stock - skip it rather than fail the whole template.
             continue
 
         attr_rows = frappe.get_all(
@@ -336,6 +393,7 @@ def get_item_or_variants(item_code=None):
         "gallery": gallery,
         "personalization_enabled": bool(item_doc.get("custom_personalization_enabled")),
         "personalization_label": item_doc.get("custom_personalization_label") or "",
+        "logo_choice_enabled": bool(item_doc.get("custom_logo_choice_enabled")),
         "attributes": [
             {"attribute": name, "values": attribute_values.get(name, [])}
             for name in attribute_names
@@ -430,6 +488,7 @@ def create_checkout_session(
             "rate": item["rate"],
             "currency": item["currency"],
             "personalization": line.get("personalization") or "",
+            "logo_choice": line.get("logo_choice") or "",
         })
 
         line_items.append({
@@ -691,6 +750,7 @@ def _send_order_confirmation_emails(
         f"{line.item_name} x{line.qty} - "
         f"{fmt_money((line.rate or 0) * (line.qty or 1), currency=line.currency or invoice.currency)}"
         + (f" (Personalization: {line.personalization})" if line.get("personalization") else "")
+        + (f" (Logo: {_logo_choice_label(line.logo_choice)})" if line.get("logo_choice") else "")
         for line in checkout_items
     )
 

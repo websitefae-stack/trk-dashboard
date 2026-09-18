@@ -187,6 +187,19 @@
     }
   }
 
+  async function loadMergeOptions() {
+    const select = el("mergeDuplicateSelect");
+    if (!select) return;
+
+    try {
+      const schools = await apiPost(`${API}.get_school_merge_options`, { exclude: schoolName });
+      select.innerHTML = '<option value="">Choose the duplicate to merge in…</option>' +
+        schools.map((s) => `<option value="${escapeHtml(s.name)}">${escapeHtml(s.school_name)}${s.area ? ` (${escapeHtml(s.area)})` : ""}</option>`).join("");
+    } catch (error) {
+      // Non-fatal.
+    }
+  }
+
   function renderEnrollments(enrollments) {
     const body = el("enrollmentHistoryBody");
     if (!body) return;
@@ -242,8 +255,8 @@
 
   // ---------- One-off email ----------
 
-  function renderOneOffContactChoices(contacts) {
-    const wrap = el("oneOffContactChoices");
+  function renderContactChoices(contacts, containerId, checkboxClass) {
+    const wrap = el(containerId);
     if (!wrap) return;
 
     if (!contacts || !contacts.length) {
@@ -253,10 +266,18 @@
 
     wrap.innerHTML = contacts.map((c) => `
       <label style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-        <input type="checkbox" class="one-off-contact-checkbox" value="${escapeHtml(c.email)}">
+        <input type="checkbox" class="${checkboxClass}" value="${escapeHtml(c.email)}">
         ${escapeHtml(c.contact_name)}${c.role ? ` (${escapeHtml(c.role)})` : ""} - ${escapeHtml(c.email)}
       </label>
     `).join("");
+  }
+
+  function renderOneOffContactChoices(contacts) {
+    renderContactChoices(contacts, "oneOffContactChoices", "one-off-contact-checkbox");
+  }
+
+  function renderIntakeFormContactChoices(contacts) {
+    renderContactChoices(contacts, "intakeFormContactChoices", "intake-form-contact-checkbox");
   }
 
   // ---------- Timeline ----------
@@ -321,6 +342,9 @@
       const subtitle = el("schoolPageSubtitle");
       if (subtitle) subtitle.textContent = `Stage: ${currentSchool.stage}`;
 
+      const mergeKeepName = el("mergeKeepSchoolName");
+      if (mergeKeepName) mergeKeepName.textContent = `"${currentSchool.school_name}"`;
+
       if (el("schoolStageSelect")) el("schoolStageSelect").value = currentSchool.stage;
       if (el("schoolWebsiteInput")) el("schoolWebsiteInput").value = currentSchool.website || "";
       if (el("schoolAddressInput")) el("schoolAddressInput").value = currentSchool.address || "";
@@ -344,6 +368,7 @@
       renderContacts(currentSchool.contacts);
       renderEnrollments(currentSchool.enrollments);
       renderOneOffContactChoices(currentSchool.contacts);
+      renderIntakeFormContactChoices(currentSchool.contacts);
       renderTimeline(currentSchool.timeline);
     } catch (error) {
       const title = el("schoolPageTitle");
@@ -393,6 +418,32 @@
       }
     });
 
+    el("mergeDuplicateBtn")?.addEventListener("click", async function () {
+      const select = el("mergeDuplicateSelect");
+      const duplicateSchool = select?.value || "";
+      if (!duplicateSchool) {
+        alert("Choose the duplicate school to merge in first.");
+        return;
+      }
+
+      const duplicateLabel = select.options[select.selectedIndex].text;
+      if (!confirm(`Merge "${duplicateLabel}" into "${currentSchool.school_name}"?\n\nContacts, notes, sequence history and email history move across, then "${duplicateLabel}" is permanently deleted. This can't be undone.`)) {
+        return;
+      }
+
+      const btn = el("mergeDuplicateBtn");
+      btn.disabled = true;
+      try {
+        await apiPost(`${API}.merge_schools`, { keep_school: schoolName, duplicate_school: duplicateSchool });
+        await loadSchool();
+        await loadMergeOptions();
+      } catch (error) {
+        alert(error.message || "Could not merge these schools.");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
     el("createNewClientBtn")?.addEventListener("click", async function () {
       if (!confirm(`Create a new Client for "${currentSchool.school_name}" and carry over all contacts?`)) return;
 
@@ -438,6 +489,39 @@
         }
       } catch (error) {
         el("schoolIntakeFormLink")?.select();
+      }
+    });
+
+    el("sendIntakeFormBtn")?.addEventListener("click", async function () {
+      const emails = Array.from(document.querySelectorAll(".intake-form-contact-checkbox:checked")).map((cb) => cb.value);
+
+      if (!emails.length) {
+        alert("Choose at least one contact to send it to.");
+        return;
+      }
+
+      const link = el("schoolIntakeFormLink")?.value || "";
+      const btn = el("sendIntakeFormBtn");
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Sending…";
+
+      try {
+        await apiPost(`${API}.send_one_off_school_email`, {
+          school: schoolName,
+          contact_emails: emails,
+          subject: `Getting started with The Resilient Hub - ${currentSchool.school_name}`,
+          message:
+            `<p>Hi {{ contact_name }},</p>` +
+            `<p>Thanks for your interest in The Resilient Hub. Please fill in this short form so we can get in touch about next steps:</p>` +
+            `<p><a href="${link}">${link}</a></p>`,
+        });
+        await loadSchool();
+      } catch (error) {
+        alert(error.message || "Could not send the intake form.");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
       }
     });
 
@@ -500,6 +584,7 @@
     loadSchool();
     loadSequenceOptions();
     loadClientLinkOptions();
+    loadMergeOptions();
   }
 
   if (document.readyState === "loading") {

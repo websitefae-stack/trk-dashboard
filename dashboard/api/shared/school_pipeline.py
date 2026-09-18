@@ -217,6 +217,23 @@ def get_school(name=None):
 
 
 @frappe.whitelist()
+def get_school_merge_options(exclude=None):
+    """Every other school, for the "merge a duplicate into this one"
+    dropdown on School Details."""
+    _ensure_franchisor()
+
+    exclude = str(exclude or "").strip()
+
+    return frappe.get_all(
+        SCHOOL_DOCTYPE,
+        filters={"name": ["!=", exclude]} if exclude else {},
+        fields=["name", "school_name", "area"],
+        order_by="school_name asc",
+        ignore_permissions=True,
+    )
+
+
+@frappe.whitelist()
 def save_school(docname=None, data=None):
     _ensure_franchisor()
     payload = _parse_payload(data)
@@ -509,6 +526,64 @@ def mark_contact_responded(school=None, contact_row=None, response_note=None, re
     frappe.db.commit()
 
     return {"ok": 1}
+
+
+@frappe.whitelist()
+def merge_schools(keep_school=None, duplicate_school=None):
+    """Folds duplicate_school into keep_school: contacts, notes, sequence
+    enrollments and the Communication (email) history all move onto
+    keep_school, then duplicate_school is deleted. keep_school is
+    whichever record the franchisor is currently looking at - they pick
+    the other, throwaway one from a dropdown."""
+    _ensure_franchisor()
+
+    keep_school = str(keep_school or "").strip()
+    duplicate_school = str(duplicate_school or "").strip()
+
+    if not keep_school or not frappe.db.exists(SCHOOL_DOCTYPE, keep_school):
+        frappe.throw(_("School to keep not found."))
+    if not duplicate_school or not frappe.db.exists(SCHOOL_DOCTYPE, duplicate_school):
+        frappe.throw(_("Duplicate school not found."))
+    if keep_school == duplicate_school:
+        frappe.throw(_("Choose a different school to merge in."))
+
+    keep = frappe.get_doc(SCHOOL_DOCTYPE, keep_school)
+    duplicate = frappe.get_doc(SCHOOL_DOCTYPE, duplicate_school)
+
+    if keep.linked_client and duplicate.linked_client and keep.linked_client != duplicate.linked_client:
+        frappe.throw(_("These two schools are linked to different Clients - resolve that manually before merging."))
+    if not keep.linked_client and duplicate.linked_client:
+        keep.linked_client = duplicate.linked_client
+
+    existing_emails = {(c.email or "").strip().lower() for c in (keep.contacts or [])}
+    for row in (duplicate.contacts or []):
+        if (row.email or "").strip().lower() in existing_emails:
+            continue
+        keep.append("contacts", {
+            "contact_name": row.contact_name,
+            "role": row.role,
+            "email": row.email,
+            "responded": row.responded,
+            "response_note": row.response_note,
+        })
+
+    if duplicate.notes and duplicate.notes.strip():
+        merged_note = f"Merged from {duplicate.school_name} ({duplicate.name}):\n{duplicate.notes.strip()}"
+        keep.notes = f"{keep.notes.strip()}\n\n{merged_note}" if (keep.notes or "").strip() else merged_note
+
+    frappe.db.set_value(ENROLLMENT_DOCTYPE, {"school": duplicate_school}, "school", keep_school)
+    frappe.db.set_value(
+        "Communication",
+        {"reference_doctype": SCHOOL_DOCTYPE, "reference_name": duplicate_school},
+        "reference_name",
+        keep_school,
+    )
+
+    keep.save(ignore_permissions=True)
+    frappe.delete_doc(SCHOOL_DOCTYPE, duplicate_school, ignore_permissions=True, force=True)
+    frappe.db.commit()
+
+    return {"ok": 1, "name": keep.name}
 
 
 # =====================================================

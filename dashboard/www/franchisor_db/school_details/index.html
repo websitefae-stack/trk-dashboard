@@ -40,7 +40,7 @@
         </div>
 
         <div id="schoolConvertView">
-          <p class="dashboard-field-hint">Not a client yet - before sending an intake form below, check it isn't already one of your existing clients (a school can also just be found and picked from the list, if you know it already is).</p>
+          <p class="dashboard-field-hint">Not a client yet - check it isn't already one of your existing clients before sending an intake form below (a school can also just be found and picked from the list, if you know it already is).</p>
 
           <div class="dashboard-school-convert-row">
             <button type="button" class="dashboard-btn dashboard-btn-primary" id="createNewClientBtn">Create New Client</button>
@@ -51,6 +51,20 @@
               <option value="">Choose an existing client…</option>
             </select>
             <button type="button" class="dashboard-btn dashboard-btn-light" id="linkExistingClientBtn">Link to This Client</button>
+          </div>
+
+          <div style="margin-top:20px; padding-top:16px; border-top:1px solid #E6EFEF;">
+            <div class="dashboard-table-title" style="margin-bottom:6px;">Send Intake Form</div>
+            <p class="dashboard-field-hint">The intake form lets the school pick "School" as their enquiry type - send it straight to a contact below, or copy the link to send it yourself another way.</p>
+
+            <div class="dashboard-school-intake-link-row">
+              <input type="text" id="schoolIntakeFormLink" class="dashboard-input" value="https://theresilienthub.co.uk/client-intake/new" readonly>
+              <button type="button" class="dashboard-btn dashboard-btn-light" id="copyIntakeFormLinkBtn">Copy Link</button>
+              <a class="dashboard-btn dashboard-btn-light" href="https://theresilienthub.co.uk/client-intake/new" target="_blank" rel="noopener">Open</a>
+            </div>
+
+            <div id="intakeFormContactChoices" style="margin-top:12px;"></div>
+            <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendIntakeFormBtn" style="margin-top:8px;">Send Intake Form</button>
           </div>
         </div>
       </div>
@@ -77,19 +91,16 @@
 
       <div class="dashboard-card">
         <div class="dashboard-table-header">
-          <div class="dashboard-table-title">Send Intake Form</div>
+          <div class="dashboard-table-title">Merge Duplicate School</div>
         </div>
 
-        <div class="dashboard-notice" style="margin-bottom:12px;">
-          Check this school isn't already a client (see the Client section above) before sending the intake form - sending it to an existing client's school will create a duplicate.
-        </div>
+        <p class="dashboard-field-hint">Found a duplicate of this school? Pick it below - its contacts, notes, sequence history and email history all move onto <strong id="mergeKeepSchoolName">this school</strong>, then the duplicate is deleted for good. This can't be undone.</p>
 
-        <p class="dashboard-field-hint">The intake form lets a school pick "School" as their enquiry type. Copy this link and send it to the school's contact directly:</p>
-
-        <div class="dashboard-school-intake-link-row">
-          <input type="text" id="schoolIntakeFormLink" class="dashboard-input" value="https://theresilienthub.co.uk/client-intake/new" readonly>
-          <button type="button" class="dashboard-btn dashboard-btn-light" id="copyIntakeFormLinkBtn">Copy Link</button>
-          <a class="dashboard-btn dashboard-btn-light" href="https://theresilienthub.co.uk/client-intake/new" target="_blank" rel="noopener">Open</a>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <select id="mergeDuplicateSelect" class="dashboard-select">
+            <option value="">Choose the duplicate to merge in…</option>
+          </select>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="mergeDuplicateBtn">Merge In &amp; Delete Duplicate</button>
         </div>
       </div>
 

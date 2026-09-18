@@ -305,9 +305,11 @@
 /* Even more room than -wide - for a modal whose table has many columns
    (e.g. Manage Variants with several attributes: Variant, Image, SKU,
    Price, Stock, Unlimited, Active, Save all need to be visible without
-   the whole row scrolling sideways). */
+   the whole row scrolling sideways, and the extra width also means the
+   Variant column's own label wraps across fewer lines, so more rows
+   fit on screen at once too). */
 .dashboard-modal-full {
-  width: min(1400px, 96vw);
+  width: min(1800px, 97vw);
   max-height: calc(100vh - 24px);
 }
 

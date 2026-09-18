@@ -12,6 +12,13 @@
   let orders = [];
   let currentOrder = null;
 
+  const LOGO_CHOICE_LABELS = {
+    Kid: "The Resilient Kid",
+    Teen: "The Resilient Teen",
+    People: "The Resilient People",
+    School: "The Resilient School",
+  };
+
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
     return meta && meta.content ? meta.content : "";
@@ -121,6 +128,7 @@
           ${item.variant_label ? `<div class="dashboard-help">${escapeHtml(item.variant_label)}</div>` : ""}
           ${item.sku ? `<div class="dashboard-help">SKU: ${escapeHtml(item.sku)}</div>` : ""}
           ${item.personalization ? `<div style="color:#C0392B; font-weight:700; margin-top:2px;">Personalize: ${escapeHtml(item.personalization)}</div>` : ""}
+          ${item.logo_choice ? `<div style="color:#C0392B; font-weight:700; margin-top:2px;">Logo: ${escapeHtml(LOGO_CHOICE_LABELS[item.logo_choice] || item.logo_choice)}</div>` : ""}
         </div>
         <div style="text-align:right; white-space:nowrap;">
           <div>${item.qty} × ${formatMoney(item.rate, item.currency)}</div>

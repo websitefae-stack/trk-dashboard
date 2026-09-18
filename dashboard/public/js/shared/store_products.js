@@ -179,6 +179,60 @@
     if (count) count.textContent = products.length + (products.length === 1 ? " product" : " products");
   }
 
+  function renderLogoOptionRow(choice) {
+    const preview = choice.image
+      ? `<img src="${escapeHtml(choice.image)}" alt="" data-logo-option-preview="${escapeHtml(choice.key)}" style="width:80px; height:80px; object-fit:contain; border-radius:8px; border:1px solid #E6EFEF; display:block; margin-bottom:6px;">`
+      : `<img alt="" data-logo-option-preview="${escapeHtml(choice.key)}" style="width:80px; height:80px; object-fit:contain; border-radius:8px; border:1px solid #E6EFEF; display:none; margin-bottom:6px;">`;
+
+    return `
+      <div style="width:120px;">
+        ${preview}
+        <div style="font-weight:700; margin-bottom:4px;">${escapeHtml(choice.label)}</div>
+        <input type="file" accept="image/*" data-logo-option-input="${escapeHtml(choice.key)}">
+        <span class="dashboard-help" data-logo-option-status="${escapeHtml(choice.key)}"></span>
+      </div>
+    `;
+  }
+
+  async function loadLogoOptions() {
+    const list = el("logoOptionsList");
+    if (!list) return;
+
+    try {
+      const options = await apiPost("dashboard.api.shared.webshop_purchase.get_logo_choice_options", {});
+      list.innerHTML = options.map(renderLogoOptionRow).join("");
+    } catch (error) {
+      list.innerHTML = '<p class="dashboard-help">Could not load logo options.</p>';
+      console.error(error);
+    }
+  }
+
+  async function saveLogoOption(key, input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const statusEl = document.querySelector(`[data-logo-option-status="${CSS.escape(key)}"]`);
+    if (statusEl) statusEl.textContent = "Uploading…";
+
+    try {
+      const uploaded = await uploadFile(file, false);
+      const url = uploaded.file_url || "";
+
+      await apiPost("dashboard.api.shared.store_products.save_logo_choice_options", {
+        [`${key.toLowerCase()}_logo`]: url,
+      });
+
+      const preview = document.querySelector(`[data-logo-option-preview="${CSS.escape(key)}"]`);
+      if (preview) {
+        preview.src = url;
+        preview.style.display = "";
+      }
+      if (statusEl) statusEl.textContent = "Saved.";
+    } catch (error) {
+      if (statusEl) statusEl.textContent = error.message || "Could not upload.";
+    }
+  }
+
   async function loadProducts() {
     try {
       products = await apiPost(API + ".get_store_products", {});
@@ -355,6 +409,8 @@
     el("storeProductPersonalizationEnabled").checked = !!(product && product.personalization_enabled);
     el("storeProductPersonalizationLabel").value = product ? product.personalization_label || "" : "";
     updatePersonalizationFieldVisibility();
+
+    el("storeProductLogoChoiceEnabled").checked = !!(product && product.logo_choice_enabled);
 
     const digitalLink = el("storeProductDigitalFileLink");
     if (uploadedDigitalFileUrl) {
@@ -583,6 +639,7 @@
       const galleryUrls = galleryItems.map((item) => item.url).filter(Boolean);
       const personalizationEnabled = el("storeProductPersonalizationEnabled").checked;
       const personalizationLabel = el("storeProductPersonalizationLabel").value;
+      const logoChoiceEnabled = el("storeProductLogoChoiceEnabled").checked;
 
       if (hasVariations) {
         await uploadVariantImagesByCombo();
@@ -598,6 +655,7 @@
           gallery_images: galleryUrls,
           personalization_enabled: personalizationEnabled,
           personalization_label: personalizationLabel,
+          logo_choice_enabled: logoChoiceEnabled,
           attributes: attributeValueLists(),
           variants: collectVariantSpecs(),
         });
@@ -626,6 +684,7 @@
           gallery_images: galleryUrls,
           personalization_enabled: personalizationEnabled,
           personalization_label: personalizationLabel,
+          logo_choice_enabled: logoChoiceEnabled,
         };
 
         const isVariantTemplate = itemCode && products.some((p) => p.name === itemCode && p.has_variants);
@@ -703,7 +762,10 @@
         <td><input type="number" min="0" step="1" class="dashboard-input" style="width:70px;" value="${variant.stock_qty || 0}" data-existing-variant-stock="${escapeHtml(variant.name)}" ${variant.unlimited_stock ? "disabled" : ""}></td>
         <td style="text-align:center;"><input type="checkbox" data-existing-variant-unlimited="${escapeHtml(variant.name)}" ${variant.unlimited_stock ? "checked" : ""}></td>
         <td style="text-align:center;"><input type="checkbox" data-existing-variant-active="${escapeHtml(variant.name)}" ${variant.disabled ? "" : "checked"}></td>
-        <td><button type="button" class="dashboard-btn dashboard-btn-light" data-save-variant="${escapeHtml(variant.name)}">Save</button></td>
+        <td>
+          <button type="button" class="dashboard-btn dashboard-btn-light" data-save-variant="${escapeHtml(variant.name)}">Save</button>
+          <button type="button" class="dashboard-btn dashboard-btn-light" style="color:#B3261E;" data-delete-variant="${escapeHtml(variant.name)}">Delete</button>
+        </td>
       </tr>
     `;
   }
@@ -814,12 +876,91 @@
     }
   }
 
+  function renderAddVariantAttributes() {
+    const container = el("addVariantAttributesList");
+    if (!container) return;
+
+    const lists = manageVariantsAttributeLists();
+
+    container.innerHTML = lists.map((a) => {
+      const listId = "addVariantValues_" + a.attribute.replace(/[^a-zA-Z0-9]/g, "");
+      return `
+        <div>
+          <label style="display:block; font-weight:normal; margin-bottom:2px;">${escapeHtml(a.attribute)}</label>
+          <input type="text" class="dashboard-input" style="width:140px;" list="${listId}" data-add-variant-attribute="${escapeHtml(a.attribute)}" placeholder="${escapeHtml(a.attribute)}">
+          <datalist id="${listId}">${a.values.map((v) => `<option value="${escapeHtml(v)}"></option>`).join("")}</datalist>
+        </div>
+      `;
+    }).join("");
+  }
+
+  async function addNewVariant() {
+    const templateItemCode = el("storeVariantsTemplateCode").value;
+    const attributeInputs = Array.from(document.querySelectorAll("[data-add-variant-attribute]"));
+    const attributeValues = {};
+    const missing = [];
+
+    attributeInputs.forEach((input) => {
+      const value = input.value.trim();
+      if (value) {
+        attributeValues[input.dataset.addVariantAttribute] = value;
+      } else {
+        missing.push(input.dataset.addVariantAttribute);
+      }
+    });
+
+    const statusEl = el("addVariantStatus");
+
+    if (missing.length) {
+      statusEl.textContent = `Fill in: ${missing.join(", ")}.`;
+      return;
+    }
+
+    const btn = el("addVariantBtn");
+    btn.disabled = true;
+    statusEl.textContent = "Adding…";
+
+    try {
+      let imageUrl = "";
+      const imageFile = el("addVariantImage").files[0];
+      if (imageFile) {
+        const uploaded = await uploadFile(imageFile, false);
+        imageUrl = uploaded.file_url || "";
+      }
+
+      await apiPost(API + ".add_product_variant", {
+        template_item_code: templateItemCode,
+        attribute_values: JSON.stringify(attributeValues),
+        price: el("addVariantPrice").value,
+        stock_qty: el("addVariantStock").value,
+        unlimited_stock: el("addVariantUnlimited").checked,
+        sku: el("addVariantSku").value,
+        image: imageUrl,
+      });
+
+      await openVariantsModal(templateItemCode);
+      el("addVariantStatus").textContent = "Added.";
+    } catch (error) {
+      statusEl.textContent = error.message || "Could not add this variant.";
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   async function openVariantsModal(templateItemCode) {
     el("storeVariantsTemplateCode").value = templateItemCode;
     const body = el("storeVariantsBody");
     body.innerHTML = '<tr><td colspan="8" class="dashboard-empty">Loading…</td></tr>';
     el("manageVariantsImagesSection").style.display = "none";
+    el("manageVariantsImagesContent").style.display = "none";
+    el("manageVariantsImagesToggleIcon").textContent = "▸";
     pendingVariantImageUrls = {};
+    el("addVariantSku").value = "";
+    el("addVariantPrice").value = "";
+    el("addVariantStock").value = "";
+    el("addVariantUnlimited").checked = false;
+    el("addVariantImage").value = "";
+    el("addVariantStatus").textContent = "";
     el("storeVariantsModal").classList.add("is-open");
 
     try {
@@ -829,6 +970,7 @@
         ? variants.map(renderVariantRow).join("")
         : '<tr><td colspan="8" class="dashboard-empty">No variants found.</td></tr>';
       renderManageVariantsImageAttributes();
+      renderAddVariantAttributes();
     } catch (error) {
       body.innerHTML = '<tr><td colspan="8" class="dashboard-empty">Could not load variants.</td></tr>';
       console.error(error);
@@ -890,6 +1032,34 @@
       alert(error.message || "Could not save this variant.");
       button.disabled = false;
       button.textContent = "Save";
+    }
+  }
+
+  async function deleteVariantRow(itemCode, button) {
+    const row = document.querySelector(`[data-variant-row="${CSS.escape(itemCode)}"]`);
+    const label = row ? row.querySelector("td")?.textContent : itemCode;
+
+    if (!confirm(`Delete "${label}"? This permanently removes it - it can't be undone. If it's ever been ordered, deleting it will be blocked; mark it inactive instead in that case.`)) {
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Deleting…";
+
+    try {
+      await apiPost(API + ".delete_variant", { item_code: itemCode });
+      currentManageVariants = currentManageVariants.filter((v) => v.name !== itemCode);
+      delete pendingVariantImageUrls[itemCode];
+      if (row) row.remove();
+      if (!currentManageVariants.length) {
+        el("storeVariantsBody").innerHTML = '<tr><td colspan="8" class="dashboard-empty">No variants found.</td></tr>';
+      }
+      renderManageVariantsImageAttributes();
+      renderAddVariantAttributes();
+    } catch (error) {
+      alert(error.message || "Could not delete this variant.");
+      button.disabled = false;
+      button.textContent = "Delete";
     }
   }
 
@@ -960,7 +1130,20 @@
     loadProducts();
     loadItemGroups();
     loadLmsCourses();
+    loadLogoOptions();
     initSearch();
+
+    el("logoOptionsToggle").addEventListener("click", function () {
+      const content = el("logoOptionsContent");
+      const isOpen = content.style.display !== "none";
+      content.style.display = isOpen ? "none" : "";
+      el("logoOptionsToggleIcon").textContent = isOpen ? "▸" : "▾";
+    });
+
+    el("logoOptionsList").addEventListener("change", function (event) {
+      const input = event.target.closest("[data-logo-option-input]");
+      if (input) saveLogoOption(input.dataset.logoOptionInput, input);
+    });
 
     el("addProductBtn").addEventListener("click", () => openModal(null));
     el("closeStoreProductModal").addEventListener("click", closeModal);
@@ -986,6 +1169,15 @@
     el("closeStoreVariantsModal").addEventListener("click", closeVariantsModal);
     el("closeStoreVariantsModalBtn").addEventListener("click", closeVariantsModal);
     el("saveAllVariantsBtn").addEventListener("click", saveAllVariants);
+
+    el("manageVariantsImagesToggle").addEventListener("click", function () {
+      const content = el("manageVariantsImagesContent");
+      const icon = el("manageVariantsImagesToggleIcon");
+      const isOpen = content.style.display !== "none";
+
+      content.style.display = isOpen ? "none" : "";
+      icon.textContent = isOpen ? "▸" : "▾";
+    });
 
     el("manageVariantsImageAttributesList").addEventListener("change", function (event) {
       const checkbox = event.target.closest("[data-manage-variants-image-attribute]");
@@ -1118,8 +1310,16 @@
       const saveVariantBtn = event.target.closest("[data-save-variant]");
       if (saveVariantBtn) {
         saveVariantRow(saveVariantBtn.dataset.saveVariant, saveVariantBtn);
+        return;
+      }
+
+      const deleteVariantBtn = event.target.closest("[data-delete-variant]");
+      if (deleteVariantBtn) {
+        deleteVariantRow(deleteVariantBtn.dataset.deleteVariant, deleteVariantBtn);
       }
     });
+
+    el("addVariantBtn").addEventListener("click", addNewVariant);
   }
 
   if (document.readyState === "loading") {
