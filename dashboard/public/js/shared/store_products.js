@@ -15,6 +15,10 @@
   let lmsCourses = [];
   let uploadedImageUrl = "";
   let uploadedDigitalFileUrl = "";
+  // Each row is {url} for an already-uploaded photo or {file} for one
+  // picked but not yet uploaded - both render as a thumbnail, only
+  // {file} rows get uploaded (turning into {url}) at save time.
+  let galleryItems = [];
   let generatedVariants = [];
   let imageKeyAttribute = "";
   let variantImagesByValue = {};
@@ -265,9 +269,37 @@
     el("storeVariantImageAttribute").innerHTML = "";
   }
 
-  function openModal(product) {
+  function renderGalleryList() {
+    const container = el("storeProductGalleryList");
+    if (!container) return;
+
+    container.innerHTML = galleryItems.map((item, index) => {
+      const src = item.url || (item.objectUrl || (item.objectUrl = URL.createObjectURL(item.file)));
+      return `
+        <div style="position:relative;">
+          <img src="${src}" alt="" style="width:60px; height:60px; object-fit:cover; border-radius:8px; display:block;">
+          <button type="button" data-remove-gallery-item="${index}"
+            style="position:absolute; top:-6px; right:-6px; width:20px; height:20px; border-radius:50%; border:none; background:#C0392B; color:#fff; font-size:12px; line-height:1; cursor:pointer;">×</button>
+        </div>
+      `;
+    }).join("");
+  }
+
+  async function openModal(product) {
     uploadedImageUrl = product ? product.image || "" : "";
     uploadedDigitalFileUrl = product ? product.digital_file || "" : "";
+
+    galleryItems = [];
+    renderGalleryList();
+    if (product) {
+      try {
+        const urls = await apiPost(`${API}.get_product_gallery`, { item_code: product.name });
+        galleryItems = (urls || []).map((url) => ({ url }));
+        renderGalleryList();
+      } catch (error) {
+        console.error("Could not load gallery photos", error);
+      }
+    }
 
     const isVariantTemplate = !!(product && product.has_variants);
 
@@ -491,6 +523,14 @@
         uploadedImageUrl = uploaded.file_url || uploadedImageUrl;
       }
 
+      for (const item of galleryItems) {
+        if (item.file && !item.url) {
+          const uploaded = await uploadFile(item.file, false);
+          item.url = uploaded.file_url || "";
+        }
+      }
+      const galleryUrls = galleryItems.map((item) => item.url).filter(Boolean);
+
       if (hasVariations) {
         await uploadVariantImagesByValue();
 
@@ -502,6 +542,7 @@
           item_group: el("storeProductGroup").value,
           brands: collectBrands(),
           image: uploadedImageUrl,
+          gallery_images: galleryUrls,
           attributes: attributeValueLists(),
           variants: collectVariantSpecs(),
         });
@@ -527,6 +568,7 @@
           item_group: el("storeProductGroup").value,
           brands: collectBrands(),
           image: uploadedImageUrl,
+          gallery_images: galleryUrls,
         };
 
         const isVariantTemplate = itemCode && products.some((p) => p.name === itemCode && p.has_variants);
@@ -732,6 +774,21 @@
       const preview = el("storeProductImagePreview");
       preview.src = URL.createObjectURL(file);
       preview.style.display = "";
+    });
+
+    el("storeProductGalleryFile").addEventListener("change", function () {
+      Array.from(this.files || []).forEach((file) => galleryItems.push({ file }));
+      this.value = "";
+      renderGalleryList();
+    });
+
+    el("storeProductGalleryList").addEventListener("click", function (event) {
+      const btn = event.target.closest("[data-remove-gallery-item]");
+      if (!btn) return;
+      const index = parseInt(btn.dataset.removeGalleryItem, 10);
+      const removed = galleryItems.splice(index, 1)[0];
+      if (removed && removed.objectUrl) URL.revokeObjectURL(removed.objectUrl);
+      renderGalleryList();
     });
 
     el("storeProductShortDescription").addEventListener("input", function () {

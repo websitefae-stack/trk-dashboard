@@ -106,6 +106,24 @@ def _slugify(value):
     return "".join(ch if ch.isalnum() else "-" for ch in str(value).strip().lower()).strip("-")
 
 
+def _apply_gallery_images(item, gallery_images):
+    """
+    gallery_images: list of file URLs (already-uploaded, via
+    uploadFile() same as the main image) - replaces the item's whole
+    Additional Photos table with this set. None-vs-[] matters: None means
+    "not sent, leave alone" (e.g. a variant save that never touches
+    gallery at all), [] means "clear it".
+    """
+    if gallery_images is None or not _item_meta_has_field("custom_gallery"):
+        return
+
+    item.set("custom_gallery", [])
+    for url in gallery_images:
+        url = (url or "").strip()
+        if url:
+            item.append("custom_gallery", {"image": url})
+
+
 def _store_company():
     settings = get_settings()
 
@@ -312,6 +330,32 @@ def _ensure_item_attribute(attribute_name, values):
 
 
 @frappe.whitelist()
+def get_product_gallery(item_code=None):
+    """
+    A separate, lightweight lookup rather than bundling this into
+    get_store_products()'s list - that list is fetched via frappe.get_all
+    (no child tables) for every product at once, and gallery images are
+    only ever needed when actually opening one product to edit it.
+    """
+    _ensure_store_access()
+
+    item_code = (item_code or "").strip()
+
+    if not item_code or not frappe.db.exists("Item", item_code) or not _item_meta_has_field("custom_gallery"):
+        return []
+
+    rows = frappe.get_all(
+        "Item Gallery Image",
+        filters={"parent": item_code, "parenttype": "Item"},
+        fields=["image"],
+        order_by="idx asc",
+        limit_page_length=50,
+    )
+
+    return [row.image for row in rows if row.image]
+
+
+@frappe.whitelist()
 def get_store_products(search=None):
     _ensure_store_access()
 
@@ -384,7 +428,7 @@ def get_store_products(search=None):
 @frappe.whitelist()
 def create_store_product(item_name=None, description=None, short_description=None, item_group=None, price=None,
                           stock_qty=None, unlimited_stock=None, brands=None, image=None,
-                          digital_file=None, unlocks_course=None, sku=None):
+                          digital_file=None, unlocks_course=None, sku=None, gallery_images=None):
     _ensure_store_access()
 
     item_name = (item_name or "").strip()
@@ -432,6 +476,8 @@ def create_store_product(item_name=None, description=None, short_description=Non
     if image:
         item.image = image
 
+    _apply_gallery_images(item, _parse_json_list(gallery_images) if gallery_images is not None else None)
+
     if digital_file and _item_meta_has_field("custom_digital_file"):
         item.custom_digital_file = digital_file
 
@@ -462,7 +508,8 @@ def create_store_product(item_name=None, description=None, short_description=Non
 @frappe.whitelist()
 def update_store_product(item_code=None, item_name=None, description=None, short_description=None,
                           item_group=None, price=None, stock_qty=None, unlimited_stock=None, brands=None,
-                          disabled=None, image=None, digital_file=None, unlocks_course=None, sku=None):
+                          disabled=None, image=None, digital_file=None, unlocks_course=None, sku=None,
+                          gallery_images=None):
     _ensure_store_access()
 
     item_code = (item_code or "").strip()
@@ -498,6 +545,8 @@ def update_store_product(item_code=None, item_name=None, description=None, short
 
     if image is not None:
         item.image = image
+
+    _apply_gallery_images(item, _parse_json_list(gallery_images) if gallery_images is not None else None)
 
     if digital_file is not None and _item_meta_has_field("custom_digital_file"):
         item.custom_digital_file = digital_file
@@ -549,9 +598,12 @@ def update_store_stock(item_code=None, stock_qty=None, unlimited_stock=None):
 def get_stock_take_rows(item_codes=None):
     """
     Expands a chosen set of store items (template or simple) into one row
-    per actually-countable variant/item - the Stock Take page's "build my
-    count sheet" step. An item/variant with unlimited_stock ticked is left
-    out entirely, since there's nothing to count for it.
+    per variant/item - the Stock Take page's "build my count sheet" step.
+    An item/variant currently set to unlimited_stock (Always Available) is
+    included too, flagged via "unlimited_stock" - the frontend warns
+    before counting one of these, since stock_take_update() always
+    switches it to tracked stock (unlimited_stock=0) once it's actually
+    been counted here.
     """
     _ensure_store_access()
 
@@ -574,9 +626,6 @@ def get_stock_take_rows(item_codes=None):
 
         if item.has_variants:
             for variant in get_product_variants(item_code):
-                if variant.get("unlimited_stock"):
-                    continue
-
                 label = " / ".join((variant.get("attributes") or {}).values()) or variant.get("item_name")
 
                 rows.append({
@@ -585,17 +634,16 @@ def get_stock_take_rows(item_codes=None):
                     "variant_label": label,
                     "sku": variant.get("sku") or "",
                     "current_stock_qty": variant.get("stock_qty") or 0,
+                    "unlimited_stock": bool(variant.get("unlimited_stock")),
                 })
         else:
-            if item.custom_unlimited_stock:
-                continue
-
             rows.append({
                 "item_code": item_code,
                 "item_name": item.item_name,
                 "variant_label": "",
                 "sku": item.get("custom_sku") or "",
                 "current_stock_qty": item.custom_stock_qty or 0,
+                "unlimited_stock": bool(item.custom_unlimited_stock),
             })
 
     return rows
@@ -607,6 +655,12 @@ def stock_take_update(updates=None):
     updates: [{"item_code": "...", "stock_qty": 12}, ...] - one bulk save
     for every row on the Stock Take page's count sheet, rather than one
     round trip per item.
+
+    Always also clears unlimited_stock - a counted item is, by
+    definition, now being actively tracked (the frontend already warned
+    before including a previously-"Always Available" item in the count
+    sheet at all), so this is safe to do unconditionally rather than only
+    for rows that were unlimited before.
     """
     _ensure_store_access()
 
@@ -624,7 +678,10 @@ def stock_take_update(updates=None):
         if not item_code or stock_qty in (None, "") or not frappe.db.exists("Item", item_code):
             continue
 
-        frappe.db.set_value("Item", item_code, "custom_stock_qty", _to_int(stock_qty))
+        frappe.db.set_value("Item", item_code, {
+            "custom_stock_qty": _to_int(stock_qty),
+            "custom_unlimited_stock": 0,
+        })
         updated += 1
 
     frappe.db.commit()
@@ -681,7 +738,8 @@ def _create_variant_item(template, attribute_values, price, stock_qty, unlimited
 
 @frappe.whitelist()
 def create_variant_store_product(item_name=None, description=None, short_description=None, item_group=None,
-                                  brands=None, image=None, attributes=None, variants=None, sku=None):
+                                  brands=None, image=None, attributes=None, variants=None, sku=None,
+                                  gallery_images=None):
     """
     attributes: [{"attribute": "Size", "values": ["Small", "Large"]}, ...]
     variants: [{"attribute_values": {"Size": "Small"}, "price": 10,
@@ -781,6 +839,8 @@ def create_variant_store_product(item_name=None, description=None, short_descrip
 
         if image:
             template.image = image
+
+        _apply_gallery_images(template, _parse_json_list(gallery_images) if gallery_images is not None else None)
 
         parsed_brands = _parse_brands(brands)
         for fieldname in BRAND_FIELDNAMES:

@@ -108,3 +108,5 @@ dashboard.patches.add_item_short_description_field
 dashboard.patches.backfill_store_item_show_on_site
 dashboard.patches.backfill_store_item_price_list
 dashboard.patches.add_item_sku_field
+dashboard.patches.backfill_variant_store_enabled
+dashboard.patches.add_school_sequence_enrollment_previous_stage

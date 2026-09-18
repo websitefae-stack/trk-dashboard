@@ -49,8 +49,15 @@ fixtures = []
 # runs once at the very end of `bench migrate`, after every patch and
 # every doctype sync, so this is the version-safe way to run something
 # that depends on a doctype introduced in the same deploy. Re-runs every
-# migrate, which is fine - the function itself is idempotent.
-after_migrate = "dashboard.patches.create_store_manager_for_rachel_v2.execute"
+# migrate, which is fine - each function here is idempotent.
+#
+# add_item_gallery_field needs the Item Gallery Image child doctype to
+# already exist (its Custom Field on Item is fieldtype Table, options
+# "Item Gallery Image") - same ordering trap, same fix.
+after_migrate = [
+    "dashboard.patches.create_store_manager_for_rachel_v2.execute",
+    "dashboard.patches.add_item_gallery_field.execute",
+]
 
 # Keep appointments Private (Frappe's own permission model then restricts
 # visibility/reminders to the owner - coaches shouldn't see each other's

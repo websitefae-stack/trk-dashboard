@@ -44,14 +44,6 @@ STEP_DOCTYPE = "School Sequence Step"
 ENROLLMENT_DOCTYPE = "School Sequence Enrollment"
 BRANDING_DOCTYPE = "School Pipeline Branding"
 
-# Stages a school can already be past the point where the automatic
-# sequence machinery (starting/finishing a run) should be allowed to move
-# it backwards - e.g. a school that's already Responded or become a
-# Customer should never get silently reset to "In Sequence" or "Idle"
-# just because a sequence happened to start or finish around the same
-# time.
-RESTING_STAGES = ("Responded", "Call Booked", "Customer", "Declined")
-
 VALID_STAGES = ("New", "In Sequence", "Idle", "Responded", "Call Booked", "Customer", "Declined")
 
 
@@ -690,6 +682,14 @@ def enroll_schools(school_names=None, sequence=None, start_date=None):
             skipped.append(school_name)
             continue
 
+        # Whatever the school's real stage is right now (Customer, Declined,
+        # Responded, ...) is captured here so it can be restored once this
+        # run finishes with no response - the school visibly moves through
+        # "In Sequence" again for the duration regardless of where it
+        # already was, since a fresh sequence is now actively being worked.
+        current_stage = frappe.db.get_value(SCHOOL_DOCTYPE, school_name, "stage")
+        previous_stage = current_stage if current_stage != "In Sequence" else "Idle"
+
         enrollment = frappe.new_doc(ENROLLMENT_DOCTYPE)
         enrollment.school = school_name
         enrollment.sequence = sequence
@@ -697,11 +697,10 @@ def enroll_schools(school_names=None, sequence=None, start_date=None):
         enrollment.current_step = 0
         enrollment.start_date = start
         enrollment.next_send_date = add_days(start, first_delay)
+        enrollment.previous_stage = previous_stage
         enrollment.insert(ignore_permissions=True)
 
-        current_stage = frappe.db.get_value(SCHOOL_DOCTYPE, school_name, "stage")
-        if current_stage not in RESTING_STAGES:
-            frappe.db.set_value(SCHOOL_DOCTYPE, school_name, "stage", "In Sequence")
+        frappe.db.set_value(SCHOOL_DOCTYPE, school_name, "stage", "In Sequence")
 
         enrolled.append(school_name)
 
@@ -746,7 +745,7 @@ def cancel_enrollment(enrollment=None):
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 
-    _settle_school_stage_after_sequence(doc.school)
+    _settle_school_stage_after_sequence(doc.school, doc.get("previous_stage"))
 
     return {"ok": 1}
 
@@ -928,13 +927,17 @@ def process_due_school_sequences():
         _send_next_school_step(name)
 
 
-def _settle_school_stage_after_sequence(school_name):
-    """A sequence finishing with no response settles the school into
-    Idle rather than leaving it badged "In Sequence" forever - never
-    downgrades a school that's already moved further along."""
+def _settle_school_stage_after_sequence(school_name, previous_stage=None):
+    """A sequence finishing with no response settles the school back to
+    whatever it really was before this run started (e.g. a re-engagement
+    sequence run against an existing Customer settles back to Customer,
+    not a generic Idle) rather than leaving it badged "In Sequence"
+    forever - never downgrades a school that's already moved further
+    along (e.g. a genuine reply during the run already moved it to
+    Responded)."""
     current_stage = frappe.db.get_value(SCHOOL_DOCTYPE, school_name, "stage")
     if current_stage == "In Sequence":
-        frappe.db.set_value(SCHOOL_DOCTYPE, school_name, "stage", "Idle")
+        frappe.db.set_value(SCHOOL_DOCTYPE, school_name, "stage", previous_stage or "Idle")
 
 
 def _send_next_school_step(enrollment_name):
@@ -977,7 +980,7 @@ def _send_next_school_step(enrollment_name):
             enrollment.status = "Completed"
             enrollment.save(ignore_permissions=True)
             frappe.db.commit()
-            _settle_school_stage_after_sequence(school.name)
+            _settle_school_stage_after_sequence(school.name, enrollment.get("previous_stage"))
             return
 
         step = steps[step_index]
@@ -1016,7 +1019,7 @@ def _send_next_school_step(enrollment_name):
             enrollment.status = "Completed"
             enrollment.save(ignore_permissions=True)
             frappe.db.commit()
-            _settle_school_stage_after_sequence(school.name)
+            _settle_school_stage_after_sequence(school.name, enrollment.get("previous_stage"))
             return
 
         next_step = steps[enrollment.current_step]

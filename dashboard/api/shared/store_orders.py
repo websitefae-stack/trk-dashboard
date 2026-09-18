@@ -12,6 +12,8 @@ from frappe import _
 from frappe.utils import now_datetime, nowdate
 
 from dashboard.api.shared.store_products import _ensure_store_access, _to_int
+from dashboard.api.shared.email_templates import plain_text_to_email_html
+from dashboard.dashboard.doctype.webshop_payment_settings.webshop_payment_settings import get_settings
 
 ORDER_DOCTYPE = "Webshop Checkout"
 
@@ -207,6 +209,39 @@ def mark_order_packed(name=None):
     return {"ok": 1}
 
 
+def _send_shipped_email(order):
+    settings = get_settings()
+
+    message = (
+        f"Hi {order.full_name},\n"
+        "\n"
+        "Good news - your order is on its way!\n"
+        "\n"
+        f"Order reference: {order.name}\n"
+    )
+
+    if order.tracking_number:
+        message += f"Tracking number: {order.tracking_number}\n"
+
+    message += (
+        "\n"
+        "Warm regards,\n"
+        f"{settings.company}"
+    )
+
+    cc = [settings.office_notification_email] if settings.office_notification_email else []
+
+    frappe.sendmail(
+        recipients=[order.email],
+        cc=cc,
+        subject="Your order has been shipped",
+        message=plain_text_to_email_html(message),
+        now=True,
+        reference_doctype=ORDER_DOCTYPE,
+        reference_name=order.name,
+    )
+
+
 @frappe.whitelist()
 def mark_order_shipped(name=None, tracking_number=None):
     _ensure_store_access()
@@ -216,18 +251,30 @@ def mark_order_shipped(name=None, tracking_number=None):
     if not name or not frappe.db.exists(ORDER_DOCTYPE, name):
         frappe.throw(_("Order not found."))
 
-    status = frappe.db.get_value(ORDER_DOCTYPE, name, "status")
+    order = frappe.get_doc(ORDER_DOCTYPE, name)
 
-    if status not in ("Paid", "Packed", "Shipped"):
+    if order.status not in ("Paid", "Packed", "Shipped"):
         frappe.throw(_("This order can't be marked as shipped."))
 
-    updates = {"status": "Shipped", "shipped_on": now_datetime()}
+    was_already_shipped = order.status == "Shipped"
 
     tracking_number = (tracking_number or "").strip()
+
+    updates = {"status": "Shipped", "shipped_on": now_datetime()}
     if tracking_number:
         updates["tracking_number"] = tracking_number
 
     frappe.db.set_value(ORDER_DOCTYPE, name, updates)
     frappe.db.commit()
+
+    # Only notify the customer on the actual Paid/Packed -> Shipped
+    # transition - re-saving (e.g. to add a tracking number afterwards)
+    # shouldn't send a second "it's shipped" email.
+    if not was_already_shipped:
+        order.reload()
+        try:
+            _send_shipped_email(order)
+        except Exception:
+            frappe.log_error(title="Could not send order-shipped email", message=frappe.get_traceback())
 
     return {"ok": 1}
