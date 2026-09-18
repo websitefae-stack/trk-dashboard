@@ -19,7 +19,6 @@ from frappe import _
 
 from dashboard.api.shared.permissions import ensure_logged_in, is_office_user, is_store_manager
 from dashboard.api.shared.item_access import DEFAULT_PRICE_LIST, BRAND_FIELDS, _get_default_warehouse_for_company
-from dashboard.api.shared.webshop_purchase import LOGO_CHOICE_DOCTYPE, LOGO_CHOICES
 from dashboard.dashboard.doctype.webshop_payment_settings.webshop_payment_settings import get_settings
 
 BRAND_FIELDNAMES = list(BRAND_FIELDS.keys())
@@ -180,6 +179,14 @@ def save_logo_choice_options(kid_logo=None, teen_logo=None, people_logo=None, sc
     webshop_purchase.py, which this Store dashboard panel also reads
     from to show what's currently uploaded)."""
     _ensure_store_access()
+
+    # Local import - webshop_purchase.py imports store_coupons.py, which
+    # imports this module, so a module-level import back the other way
+    # here is a circular import (confirmed live: it broke every /buy
+    # page with "cannot import name 'LOGO_CHOICE_DOCTYPE' from partially
+    # initialized module"). By the time this function actually runs,
+    # both modules are fully loaded, so the import is safe here.
+    from dashboard.api.shared.webshop_purchase import LOGO_CHOICE_DOCTYPE, LOGO_CHOICES
 
     if not frappe.db.exists("DocType", LOGO_CHOICE_DOCTYPE):
         frappe.throw(_("Store Logo Choice isn't set up yet - run bench migrate."))
