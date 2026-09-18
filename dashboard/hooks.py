@@ -166,6 +166,12 @@ doc_events = {
     "Coach": {
         "on_update": [
             "dashboard.api.shared.practice_documents.sync_coach_brand_document_requirements",
+            # A coach's company decides her Item Access (see item_access.py's
+            # module docstring) - when it changes (e.g. a franchise
+            # transfer), any item-linked Workshop Resource's access needs
+            # re-evaluating for her too, which the brand-based hook above
+            # never covers. See item_access.sync_coach_item_access_resource_requirements.
+            "dashboard.api.shared.item_access.sync_coach_item_access_resource_requirements",
             # Provisions the Coach Onboarding Journey the one time
             # start_onboarding is ticked - see onboarding.provision_onboarding_steps.
             "dashboard.api.shared.onboarding.provision_onboarding_steps",

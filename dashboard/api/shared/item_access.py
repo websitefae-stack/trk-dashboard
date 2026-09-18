@@ -551,6 +551,61 @@ def _resync_resource_access_for_item(item_code):
         _resync_practice_document_coaches(practice_document_name)
 
 
+def resync_all_linked_item_practice_documents(error_context=""):
+    """Re-runs _resync_practice_document_coaches for every Practice
+    Document that has at least one Linked Item - shared by the
+    Coach-company-change hook below and the one-off catch-up patch, so
+    there's a single place that walks "every item-gated resource
+    document" rather than the two keeping their own copies in sync.
+    Each document is wrapped individually so one failure can't stop the
+    rest from being reconciled."""
+    if not _has_doctype(PRACTICE_DOCUMENT_ITEM_DOCTYPE):
+        return
+
+    for practice_document_name in frappe.get_all(
+        PRACTICE_DOCUMENT_ITEM_DOCTYPE,
+        filters={"parenttype": PRACTICE_DOCUMENT_DOCTYPE},
+        pluck="parent",
+        distinct=True,
+    ):
+        try:
+            _resync_practice_document_coaches(practice_document_name)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"{error_context} - {practice_document_name}".strip(" -"))
+
+
+def sync_coach_item_access_resource_requirements(doc, method=None):
+    """
+    Coach.on_update hook - Item Access (and so an item-linked Workshop
+    Resource's access, via _resync_practice_document_coaches) is decided
+    entirely by which company a coach belongs to (see this module's own
+    docstring), so when a coach's company changes - most commonly as
+    part of a franchise transfer - every Practice Document with at least
+    one Linked Item needs re-evaluating for her: she may have just
+    gained access to some items and lost access to others, purely
+    because her company changed, with no edit to the item or the
+    document itself to hang a resync off.
+
+    Nothing else catches this: sync_coach_brand_document_requirements
+    (practice_documents.py, the other Coach.on_update hook) only ever
+    reconciles Brand-based access, never Item Access, and
+    sync_practice_document_resource_access only fires when the document
+    itself is saved. Without this, a coach who changes company keeps
+    whichever item-gated Workshop Resource access she had under her old
+    company indefinitely - confirmed as a real, observed case, not just
+    a theoretical gap.
+
+    Skipped entirely unless company actually changed, since this walks
+    every Linked-Items document on every Coach save otherwise - cheap
+    per document, but there's no reason to do it on saves that can't
+    possibly have changed the answer.
+    """
+    if not doc.name or not doc.has_value_changed("company"):
+        return
+
+    resync_all_linked_item_practice_documents(f"Coach Item Access Resource Resync Failed ({doc.name})")
+
+
 def sync_practice_document_resource_access(doc, method=None):
     """
     Practice Document.on_update hook (see hooks.py's doc_events) - Linked
