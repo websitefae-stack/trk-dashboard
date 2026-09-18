@@ -9,5 +9,13 @@
             {% endif %}
         </div>
 
+        {% if is_franchisor_user() %}
+        <div class="dashboard-topbar-actions">
+            <a href="/franchisor_db" class="dashboard-btn dashboard-btn-light dashboard-topbar-portal-link" title="Back to the franchisor dashboard">
+                Back to Dashboard
+            </a>
+        </div>
+        {% endif %}
+
     </div>
 </div>
