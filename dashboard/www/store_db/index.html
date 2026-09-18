@@ -176,9 +176,9 @@
         </button>
 
         <div id="storeVariantImagesSection" style="display:none; margin:14px 0;">
-          <label for="storeVariantImageAttribute">Upload one photo per</label>
-          <select id="storeVariantImageAttribute" class="dashboard-select"></select>
-          <p class="dashboard-help">One photo per value below is used for every combination that has it - e.g. one photo per Style, reused across every Size, so you don't need a separate photo for each Size/Style pair.</p>
+          <label>Which attributes change the photo?</label>
+          <p class="dashboard-help" style="margin-top:-4px;">Tick every attribute that actually looks different in a photo (e.g. Colour, Print Colour, Slogan) - leave out ones that don't (e.g. Size). One photo is then needed per combination of the ticked attributes, reused across every value of the ones left unticked.</p>
+          <div id="storeVariantImageAttributesList" style="display:flex; flex-wrap:wrap; gap:14px; margin:8px 0 14px;"></div>
           <div id="storeVariantImagesBody"></div>
         </div>
 
@@ -223,7 +223,7 @@
 </div>
 
 <div class="dashboard-modal-backdrop" id="storeVariantsModal">
-  <div class="dashboard-modal dashboard-modal-wide">
+  <div class="dashboard-modal dashboard-modal-full">
     <div class="dashboard-modal-head">
       <h3 id="storeVariantsModalTitle">Manage Variants</h3>
       <button type="button" class="dashboard-modal-close" id="closeStoreVariantsModal">×</button>
@@ -231,6 +231,13 @@
 
     <div class="dashboard-modal-body">
       <input type="hidden" id="storeVariantsTemplateCode" value="">
+
+      <div id="manageVariantsImagesSection" style="display:none; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid #E6EFEF;">
+        <label>Bulk-update photos</label>
+        <p class="dashboard-help" style="margin-top:-4px;">Tick every attribute that actually looks different in a photo (e.g. Colour, Print Colour, Slogan) - leave out ones that don't (e.g. Size). Upload one photo per combination below and click Apply - it fills in that photo for every matching variant, then click Save/Save All to keep it.</p>
+        <div id="manageVariantsImageAttributesList" style="display:flex; flex-wrap:wrap; gap:14px; margin:8px 0 14px;"></div>
+        <div id="manageVariantsImagesBody"></div>
+      </div>
 
       <div class="dashboard-table-wrap">
         <table class="dashboard-table">

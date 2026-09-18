@@ -62,33 +62,37 @@
     });
   }
 
-  function selectedValues(selectEl) {
-    if (!selectEl) return [];
-    return Array.from(selectEl.selectedOptions || []).map(function (opt) { return opt.value; }).filter(Boolean);
-  }
-
-  // A real dropdown of actual Coach records (not free text) - Ctrl/Cmd
-  // click picks more than one, narrowing the Access grid down to just
-  // those coaches' columns instead of scrolling a wide table for them.
-  // Nothing selected shows every coach.
-  function filteredCoaches(selectedNames) {
-    if (!selectedNames || !selectedNames.length) return state.coaches;
+  // A real dropdown of actual Coach records (not free text) - picking one
+  // narrows the Access grid down to just that coach's own column, and
+  // (see renderAccessBody) to just the items they actually have access
+  // to, rather than scrolling a wide table looking for them. "All
+  // coaches" shows the full grid.
+  function filteredCoaches(selectedName) {
+    if (!selectedName) return state.coaches;
 
     return state.coaches.filter(function (coach) {
-      return selectedNames.indexOf(coach.name) !== -1;
+      return coach.name === selectedName;
     });
+  }
+
+  function coachHasAccess(itemName, coach) {
+    const grant = (state.grantsByItem[itemName] || {})[coach.company];
+    return !!(grant && grant.access);
   }
 
   function populateCoachFilter() {
     const select = el("itemAccessCoachSearch");
     if (!select) return;
 
-    const previouslySelected = selectedValues(select);
+    const previouslySelected = select.value;
 
-    select.innerHTML = state.coaches.map(function (coach) {
-      const selected = previouslySelected.indexOf(coach.name) !== -1 ? " selected" : "";
+    let html = '<option value="">All coaches</option>';
+    html += state.coaches.map(function (coach) {
+      const selected = previouslySelected === coach.name ? " selected" : "";
       return '<option value="' + escapeHtml(coach.name) + '"' + selected + '>' + escapeHtml(coach.label) + "</option>";
     }).join("");
+
+    select.innerHTML = html;
   }
 
   // ---------------------------------------------------------------
@@ -197,11 +201,19 @@
       + '</td>';
   }
 
-  function renderAccessBody(filterText, coaches) {
+  function renderAccessBody(filterText, coaches, selectedCoachName) {
     const body = el("itemAccessTableBody");
     if (!body) return;
 
-    const rows = filteredItems(filterText);
+    let rows = filteredItems(filterText);
+
+    // A specific coach is chosen (not "All coaches") - show only what
+    // they actually have access to, not the whole item list narrowed to
+    // one empty-looking column.
+    if (selectedCoachName && coaches.length === 1) {
+      const coach = coaches[0];
+      rows = rows.filter(function (item) { return coachHasAccess(item.name, coach); });
+    }
 
     if (!coaches.length) {
       body.innerHTML = '<tr><td class="dashboard-empty">No coaches match that filter.</td></tr>';
@@ -210,7 +222,8 @@
 
     if (!rows.length) {
       const colspan = coaches.length + 1;
-      body.innerHTML = '<tr><td colspan="' + colspan + '" class="dashboard-empty">No items found.</td></tr>';
+      const message = selectedCoachName ? "This coach doesn't have access to anything yet." : "No items found.";
+      body.innerHTML = '<tr><td colspan="' + colspan + '" class="dashboard-empty">' + message + '</td></tr>';
       return;
     }
 
@@ -363,13 +376,13 @@
 
   // ---------------------------------------------------------------
 
-  function renderAll(filterText, coachFilterText) {
-    const coaches = filteredCoaches(coachFilterText);
+  function renderAll(filterText, selectedCoachName) {
+    const coaches = filteredCoaches(selectedCoachName);
 
     renderBrandsHead();
     renderBrandsBody(filterText);
     renderAccessHead(coaches);
-    renderAccessBody(filterText, coaches);
+    renderAccessBody(filterText, coaches, selectedCoachName);
   }
 
   async function loadGrid() {
@@ -400,7 +413,7 @@
 
       renderAll(
         el("itemAccessSearch") ? el("itemAccessSearch").value : "",
-        selectedValues(el("itemAccessCoachSearch"))
+        el("itemAccessCoachSearch") ? el("itemAccessCoachSearch").value : ""
       );
     } catch (error) {
       const message = escapeHtml(error.message || "Could not load items.");
@@ -503,7 +516,7 @@
     const coachSearch = el("itemAccessCoachSearch");
 
     const rerender = Dashboard.debounce(function () {
-      renderAll(search ? search.value : "", selectedValues(coachSearch));
+      renderAll(search ? search.value : "", coachSearch ? coachSearch.value : "");
     }, 200);
 
     if (search) search.addEventListener("input", rerender);
