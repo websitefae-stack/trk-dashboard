@@ -186,6 +186,36 @@ def _notify_transfer_completed(transfer):
             frappe.log_error(frappe.get_traceback(), f"Transfer Notification Failed - {transfer.name}")
 
 
+def _notify_transfer_fee_invoice_failed(transfer):
+    """Invoicing at conversion time is best-effort (see
+    invoice_pending_transfer_fees_for_lead) - this is the safety net that
+    replaces the old "block signing until it works" behaviour, since a
+    billing problem now surfaces long after signing, on a conversion the
+    transferring coach isn't necessarily even part of."""
+    message = (
+        "The £{0} client transfer fee for {1} ({2} to {3}) couldn't be "
+        "invoiced automatically now the lead has converted - check {2}'s "
+        "Coach record (company/bank account) and invoice it manually."
+    ).format(
+        transfer.transfer_fee_amount or DEFAULT_TRANSFER_FEE,
+        transfer.client_name,
+        _coach_label(transfer.transferring_coach),
+        _coach_label(transfer.receiving_coach),
+    )
+
+    for user in FRANCHISOR_USERS:
+        try:
+            create_trk_notification(
+                recipient_user=user,
+                notification_type="Task",
+                message=message,
+                reference_doctype=TRANSFER_DOCTYPE,
+                reference_name=transfer.name,
+            )
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"Transfer Notification Failed - {transfer.name}")
+
+
 def _notify_transfer_declined(transfer):
     coach_user = _get_coach_login(transfer.transferring_coach)
     if not coach_user:
@@ -382,6 +412,47 @@ def _create_transfer_fee_invoice(transfer):
     return invoice.name
 
 
+def invoice_pending_transfer_fees_for_lead(lead_name):
+    """
+    Called once a Client Lead actually becomes a Client - leads.py's
+    convert_lead_to_client() and link_lead_to_existing_client() both call
+    this right after marking the lead Converted. The transfer fee is only
+    ever invoiced here, never when the transfer agreement itself
+    completes (sign_transfer) - a lead can sit around for a long time
+    after a transfer completes, or even go Declined and later be
+    reactivated, before actually converting, and the fee must only ever
+    be billed once that conversion genuinely happens.
+
+    Best-effort per transfer: a billing problem (e.g. the transferring
+    coach's Coach record missing a bank account) must never block the
+    conversion itself, since conversion can happen long after signing and
+    isn't necessarily done by anyone involved in the transfer - the
+    franchisor is notified instead so it doesn't go unnoticed.
+    """
+    transfers = frappe.get_all(
+        TRANSFER_DOCTYPE,
+        filters={"client_lead": lead_name, "status": STATUS_COMPLETED},
+        fields=["name", "invoice"],
+    )
+
+    for row in transfers:
+        if row.invoice:
+            continue
+
+        transfer = frappe.get_doc(TRANSFER_DOCTYPE, row.name)
+
+        try:
+            transfer.invoice = _create_transfer_fee_invoice(transfer)
+            transfer.append("activity", _log_row(
+                f"Transfer fee invoice {transfer.invoice} created (lead converted to client)"
+            ))
+            transfer.save(ignore_permissions=True)
+            frappe.db.commit()
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"Transfer Fee Invoice Failed On Conversion - {row.name}")
+            _notify_transfer_fee_invoice_failed(transfer)
+
+
 # =====================================================
 # API
 # =====================================================
@@ -553,13 +624,14 @@ def sign_transfer(name=None, signature=None):
     transfer.status = new_status
 
     if new_status == STATUS_COMPLETED:
-        # Raised (and committed) before this doc is saved - if it throws
-        # (e.g. the transferring coach has no bank account on file), the
-        # signature itself is never persisted, so they can fix the problem
-        # and sign again rather than the agreement silently completing
-        # with no invoice.
-        transfer.invoice = _create_transfer_fee_invoice(transfer)
-        transfer.append("activity", _log_row(f"Transfer fee invoice {transfer.invoice} created"))
+        # The transfer fee is deliberately NOT invoiced here - only once
+        # this lead actually converts to a Client (see
+        # invoice_pending_transfer_fees_for_lead) is money actually owed;
+        # a completed transfer whose lead never converts should never
+        # have generated a fee at all.
+        transfer.append("activity", _log_row(
+            "Transfer completed - fee will be invoiced once the lead converts to a client"
+        ))
 
     transfer.save(ignore_permissions=True)
     frappe.db.commit()
@@ -570,6 +642,14 @@ def sign_transfer(name=None, signature=None):
         lead_doc.active_transfer = None
         lead_doc.save(ignore_permissions=True)
         frappe.db.commit()
+
+        if lead_doc.status == "Converted":
+            # This lead already became a Client before this transfer
+            # finished signing - the fee is owed right now, since
+            # leads.py only calls invoice_pending_transfer_fees_for_lead
+            # at the moment of conversion, which has already passed and
+            # won't happen again for this lead.
+            invoice_pending_transfer_fees_for_lead(lead_doc.name)
 
         _notify_transfer_completed(transfer)
     else:

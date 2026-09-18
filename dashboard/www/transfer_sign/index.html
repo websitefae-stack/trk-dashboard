@@ -445,7 +445,9 @@
           "<p>7.3 This Agreement may only be amended in writing and with the agreement of all parties.</p>" +
           "<p>7.4 If any clause of this Agreement is found to be unenforceable, the remaining clauses shall " +
           "continue in full force and effect.</p>" +
-          (data.invoice ? row("Transfer Fee Invoice", escapeHtml(data.invoice)) : ""),
+          (data.invoice
+            ? row("Transfer Fee Invoice", escapeHtml(data.invoice))
+            : (data.status === "Completed" ? row("Transfer Fee Invoice", "Will be issued once the lead converts to a client") : "")),
           "ts-doc"
         );
 
