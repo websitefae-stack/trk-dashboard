@@ -232,18 +232,23 @@
     <div class="dashboard-modal-body">
       <input type="hidden" id="storeVariantsTemplateCode" value="">
 
-      <div id="manageVariantsImagesSection" style="display:none; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid #E6EFEF;">
-        <label>Bulk-update photos</label>
-        <p class="dashboard-help" style="margin-top:-4px;">Tick every attribute that actually looks different in a photo (e.g. Colour, Print Colour, Slogan) - leave out ones that don't (e.g. Size). Upload one photo per combination below and click Apply - it fills in that photo for every matching variant, then click Save/Save All to keep it.</p>
-        <div id="manageVariantsImageAttributesList" style="display:flex; flex-wrap:wrap; gap:14px; margin:8px 0 14px;"></div>
-        <div id="manageVariantsImagesBody"></div>
+      <div id="manageVariantsImagesSection" style="display:none; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #E6EFEF;">
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="manageVariantsImagesToggle">
+          <span id="manageVariantsImagesToggleIcon">▸</span> Bulk-update photos
+        </button>
+
+        <div id="manageVariantsImagesContent" style="display:none; margin-top:12px;">
+          <p class="dashboard-help" style="margin-top:0;">Tick every attribute that actually looks different in a photo (e.g. Colour, Print Colour, Slogan) - leave out ones that don't (e.g. Size). Upload one photo per combination below and click Apply - it fills in that photo for every matching variant, then click Save/Save All to keep it.</p>
+          <div id="manageVariantsImageAttributesList" style="display:flex; flex-wrap:wrap; gap:14px; margin:8px 0 14px;"></div>
+          <div id="manageVariantsImagesBody"></div>
+        </div>
       </div>
 
       <div class="dashboard-table-wrap">
         <table class="dashboard-table">
           <thead>
             <tr>
-              <th>Variant</th>
+              <th style="min-width:260px;">Variant</th>
               <th>Image</th>
               <th>SKU</th>
               <th>Price (£)</th>

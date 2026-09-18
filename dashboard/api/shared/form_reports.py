@@ -531,6 +531,11 @@ def get_form_module_doctypes():
     form picker. Discovered from Frappe's own DocType metadata rather than
     a hardcoded list, so a form added in Desk shows up here with no code
     change needed.
+
+    The label shown is the DocType's own Web Form's title (e.g. "Client
+    Wellbeing Check-In"), not the DocType's internal name (e.g.
+    "Client Wellbeing Check In Response") - falls back to the DocType
+    name only for the rare one with no published Web Form at all.
     """
     ensure_logged_in()
 
@@ -548,7 +553,22 @@ def get_form_module_doctypes():
     else:
         rows = [row for row in rows if not _is_form_restricted_to_franchisors(row.name)]
 
-    return [{"value": row.name, "label": row.name} for row in rows]
+    doctype_names = [row.name for row in rows]
+    web_form_titles = {}
+
+    if doctype_names:
+        for web_form in frappe.get_all(
+            "Web Form", filters={"doc_type": ["in", doctype_names]}, fields=["doc_type", "title"],
+        ):
+            if web_form.title and web_form.doc_type not in web_form_titles:
+                web_form_titles[web_form.doc_type] = web_form.title
+
+    result = [
+        {"value": row.name, "label": web_form_titles.get(row.name) or row.name}
+        for row in rows
+    ]
+
+    return sorted(result, key=lambda row: row["label"])
 
 
 @frappe.whitelist()

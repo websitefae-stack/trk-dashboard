@@ -819,6 +819,8 @@
     const body = el("storeVariantsBody");
     body.innerHTML = '<tr><td colspan="8" class="dashboard-empty">Loading…</td></tr>';
     el("manageVariantsImagesSection").style.display = "none";
+    el("manageVariantsImagesContent").style.display = "none";
+    el("manageVariantsImagesToggleIcon").textContent = "▸";
     pendingVariantImageUrls = {};
     el("storeVariantsModal").classList.add("is-open");
 
@@ -986,6 +988,15 @@
     el("closeStoreVariantsModal").addEventListener("click", closeVariantsModal);
     el("closeStoreVariantsModalBtn").addEventListener("click", closeVariantsModal);
     el("saveAllVariantsBtn").addEventListener("click", saveAllVariants);
+
+    el("manageVariantsImagesToggle").addEventListener("click", function () {
+      const content = el("manageVariantsImagesContent");
+      const icon = el("manageVariantsImagesToggleIcon");
+      const isOpen = content.style.display !== "none";
+
+      content.style.display = isOpen ? "none" : "";
+      icon.textContent = isOpen ? "▸" : "▾";
+    });
 
     el("manageVariantsImageAttributesList").addEventListener("change", function (event) {
       const checkbox = event.target.closest("[data-manage-variants-image-attribute]");
