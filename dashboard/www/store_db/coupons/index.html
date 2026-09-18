@@ -1,5 +1,5 @@
 {% include "dashboard/templates/includes/head/store_head.html" %}
-<script src="/assets/dashboard/js/shared/store_coupons.js?v=1"></script>
+<script src="/assets/dashboard/js/shared/store_coupons.js?v=2"></script>
 
 <div class="dashboard-page" id="storeCouponsPage">
   {% include "dashboard/templates/includes/sidebar/store_sidebar.html" %}
@@ -33,6 +33,7 @@
               <tr>
                 <th>Code</th>
                 <th>Discount</th>
+                <th>Applies To</th>
                 <th>Expiry</th>
                 <th>Uses</th>
                 <th>Status</th>
@@ -40,7 +41,7 @@
               </tr>
             </thead>
             <tbody id="storeCouponsBody">
-              <tr><td colspan="6" class="dashboard-empty">Loading coupons…</td></tr>
+              <tr><td colspan="7" class="dashboard-empty">Loading coupons…</td></tr>
             </tbody>
           </table>
         </div>
@@ -74,6 +75,19 @@
         <div style="flex:1;">
           <label for="storeCouponDiscountValue" id="storeCouponDiscountValueLabel">Discount (%)</label>
           <input type="number" id="storeCouponDiscountValue" class="dashboard-input" min="0" step="0.01">
+        </div>
+      </div>
+
+      <label for="storeCouponScope">Applies To</label>
+      <select id="storeCouponScope" class="dashboard-input">
+        <option value="Entire Store">Entire Store - any product in the cart</option>
+        <option value="Specific Items">Specific Items - only these products</option>
+      </select>
+
+      <div id="storeCouponItemsSection" style="display:none; margin-top:8px;">
+        <label>Which products</label>
+        <div id="storeCouponItemsList" style="max-height:220px; overflow-y:auto; border:1px solid #E6EFEF; border-radius:8px; padding:8px;">
+          <div class="dashboard-help">Loading products…</div>
         </div>
       </div>
 

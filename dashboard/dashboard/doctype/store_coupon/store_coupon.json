@@ -11,6 +11,9 @@
   "column_break_1",
   "discount_type",
   "discount_value",
+  "scope_section",
+  "scope",
+  "items",
   "limits_section",
   "expiry_date",
   "column_break_2",
@@ -53,6 +56,27 @@
    "in_list_view": 1,
    "label": "Discount Value",
    "reqd": 1
+  },
+  {
+   "fieldname": "scope_section",
+   "fieldtype": "Section Break",
+   "label": "Applies To"
+  },
+  {
+   "default": "Entire Store",
+   "fieldname": "scope",
+   "fieldtype": "Select",
+   "label": "Applies To",
+   "options": "Entire Store\nSpecific Items",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.scope == \"Specific Items\"",
+   "description": "The discount only counts towards these products (and any of their variants) - anything else in the cart is charged at full price. Ignored when \"Applies To\" is Entire Store.",
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "Store Coupon Item"
   },
   {
    "fieldname": "limits_section",

@@ -398,7 +398,7 @@ def create_checkout_session(
     checkout.coach = coach or None
 
     line_items = []
-    subtotal = 0
+    priced_lines = []
 
     for line in cart_lines:
         item = _get_purchasable_item(line["item_code"], settings.company)
@@ -407,7 +407,7 @@ def create_checkout_session(
         if unit_amount <= 0:
             frappe.throw(_("{0} cannot be purchased online right now.").format(item["item_name"]))
 
-        subtotal += _to_float(item["rate"]) * line["qty"]
+        priced_lines.append({"item_code": item["item_code"], "qty": line["qty"], "price": item["rate"]})
 
         checkout.append("items", {
             "item_code": item["item_code"],
@@ -427,9 +427,9 @@ def create_checkout_session(
         })
 
     # Re-validated here rather than trusted from the browser - a coupon
-    # is only ever honoured at the amount/eligibility this same check
-    # would allow right now.
-    discount_amount, coupon = calculate_checkout_discount(coupon_code, subtotal)
+    # is only ever honoured at the amount/eligibility (including which
+    # items it actually applies to) this same check would allow right now.
+    discount_amount, coupon = calculate_checkout_discount(coupon_code, priced_lines)
 
     if coupon:
         checkout.coupon_code = coupon.code
