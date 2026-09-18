@@ -89,7 +89,7 @@ def get_item_access_grid():
     # through the Store dashboard instead, never per-coach, so it never
     # belonged in this grid. See get_store_items_for_franchisor() below
     # for where store products actually show on this page.
-    filters = {}
+    filters = {"disabled": 0}
     if item_meta.has_field("custom_store_enabled"):
         filters["custom_store_enabled"] = 0
 

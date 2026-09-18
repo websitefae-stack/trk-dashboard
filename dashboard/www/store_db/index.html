@@ -90,6 +90,18 @@
       <div id="storeProductGalleryList" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:8px;"></div>
       <input type="file" id="storeProductGalleryFile" accept="image/*" multiple>
 
+      <div style="margin:14px 0;">
+        <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
+          <input type="checkbox" id="storeProductPersonalizationEnabled">
+          This product can be personalised (e.g. a name printed on it)
+        </label>
+
+        <div id="storeProductPersonalizationLabelField" style="display:none; margin-top:8px;">
+          <label for="storeProductPersonalizationLabel">What to show the customer above the text box</label>
+          <input type="text" id="storeProductPersonalizationLabel" class="dashboard-input" placeholder="e.g. Add the name to be printed">
+        </div>
+      </div>
+
       <div id="storeProductPriceField" style="margin-top:14px;">
         <label for="storeProductPrice">Price (£)</label>
         <input type="number" id="storeProductPrice" class="dashboard-input" min="0" step="0.01">
@@ -242,7 +254,9 @@
     </div>
 
     <div class="dashboard-modal-foot">
+      <span class="dashboard-help" id="saveAllVariantsStatus" style="margin-right:auto;"></span>
       <button type="button" class="dashboard-btn dashboard-btn-light" id="closeStoreVariantsModalBtn">Close</button>
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveAllVariantsBtn">Save All</button>
     </div>
   </div>
 </div>

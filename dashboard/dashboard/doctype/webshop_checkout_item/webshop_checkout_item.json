@@ -10,7 +10,8 @@
   "item_name",
   "qty",
   "rate",
-  "currency"
+  "currency",
+  "personalization"
  ],
  "fields": [
   {
@@ -26,6 +27,12 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Item Name"
+  },
+  {
+   "fieldname": "personalization",
+   "fieldtype": "Data",
+   "label": "Personalization",
+   "description": "Free text the customer entered for this line (e.g. a name to print) - blank if the item isn't personalizable or they skipped it."
   },
   {
    "default": "1",

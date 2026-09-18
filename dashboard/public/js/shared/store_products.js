@@ -217,6 +217,10 @@
     el("storeProductUnlocksCourseWrap").style.display = el("storeProductUnlocksCourseEnabled").checked ? "" : "none";
   }
 
+  function updatePersonalizationFieldVisibility() {
+    el("storeProductPersonalizationLabelField").style.display = el("storeProductPersonalizationEnabled").checked ? "" : "none";
+  }
+
   function collectBrands() {
     return {
       custom_brand_hub: el("storeProductBrandHub").checked,
@@ -325,6 +329,10 @@
 
     el("storeProductIsDigital").checked = !!(product && product.digital_file);
     updateDigitalFieldVisibility();
+
+    el("storeProductPersonalizationEnabled").checked = !!(product && product.personalization_enabled);
+    el("storeProductPersonalizationLabel").value = product ? product.personalization_label || "" : "";
+    updatePersonalizationFieldVisibility();
 
     const digitalLink = el("storeProductDigitalFileLink");
     if (uploadedDigitalFileUrl) {
@@ -530,6 +538,8 @@
         }
       }
       const galleryUrls = galleryItems.map((item) => item.url).filter(Boolean);
+      const personalizationEnabled = el("storeProductPersonalizationEnabled").checked;
+      const personalizationLabel = el("storeProductPersonalizationLabel").value;
 
       if (hasVariations) {
         await uploadVariantImagesByValue();
@@ -543,6 +553,8 @@
           brands: collectBrands(),
           image: uploadedImageUrl,
           gallery_images: galleryUrls,
+          personalization_enabled: personalizationEnabled,
+          personalization_label: personalizationLabel,
           attributes: attributeValueLists(),
           variants: collectVariantSpecs(),
         });
@@ -569,6 +581,8 @@
           brands: collectBrands(),
           image: uploadedImageUrl,
           gallery_images: galleryUrls,
+          personalization_enabled: personalizationEnabled,
+          personalization_label: personalizationLabel,
         };
 
         const isVariantTemplate = itemCode && products.some((p) => p.name === itemCode && p.has_variants);
@@ -672,7 +686,7 @@
     el("storeVariantsModal").classList.remove("is-open");
   }
 
-  async function saveVariantRow(itemCode, button) {
+  async function saveOneVariant(itemCode) {
     const skuInput = document.querySelector(`[data-existing-variant-sku="${CSS.escape(itemCode)}"]`);
     const priceInput = document.querySelector(`[data-existing-variant-price="${CSS.escape(itemCode)}"]`);
     const stockInput = document.querySelector(`[data-existing-variant-stock="${CSS.escape(itemCode)}"]`);
@@ -680,26 +694,30 @@
     const activeInput = document.querySelector(`[data-existing-variant-active="${CSS.escape(itemCode)}"]`);
     const imageInput = document.querySelector(`[data-existing-variant-image-input="${CSS.escape(itemCode)}"]`);
 
+    let imageUrl = "";
+    const imageFile = imageInput ? imageInput.files[0] : null;
+    if (imageFile) {
+      const uploaded = await uploadFile(imageFile, false);
+      imageUrl = uploaded.file_url || "";
+    }
+
+    await apiPost(API + ".update_variant", {
+      item_code: itemCode,
+      sku: skuInput ? skuInput.value : "",
+      price: priceInput ? priceInput.value : 0,
+      stock_qty: stockInput ? stockInput.value : 0,
+      unlimited_stock: unlimitedInput ? unlimitedInput.checked : false,
+      disabled: activeInput ? !activeInput.checked : false,
+      image: imageUrl,
+    });
+  }
+
+  async function saveVariantRow(itemCode, button) {
     button.disabled = true;
     button.textContent = "Saving…";
 
     try {
-      let imageUrl = "";
-      const imageFile = imageInput ? imageInput.files[0] : null;
-      if (imageFile) {
-        const uploaded = await uploadFile(imageFile, false);
-        imageUrl = uploaded.file_url || "";
-      }
-
-      await apiPost(API + ".update_variant", {
-        item_code: itemCode,
-        sku: skuInput ? skuInput.value : "",
-        price: priceInput ? priceInput.value : 0,
-        stock_qty: stockInput ? stockInput.value : 0,
-        unlimited_stock: unlimitedInput ? unlimitedInput.checked : false,
-        disabled: activeInput ? !activeInput.checked : false,
-        image: imageUrl,
-      });
+      await saveOneVariant(itemCode);
       button.textContent = "Saved";
       window.setTimeout(() => {
         button.textContent = "Save";
@@ -710,6 +728,42 @@
       button.disabled = false;
       button.textContent = "Save";
     }
+  }
+
+  async function saveAllVariants() {
+    const rows = Array.from(document.querySelectorAll("[data-variant-row]"));
+    if (!rows.length) return;
+
+    const saveAllBtn = el("saveAllVariantsBtn");
+    const statusEl = el("saveAllVariantsStatus");
+
+    saveAllBtn.disabled = true;
+    const failed = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const itemCode = rows[i].dataset.variantRow;
+      const rowButton = document.querySelector(`[data-save-variant="${CSS.escape(itemCode)}"]`);
+
+      statusEl.textContent = `Saving ${i + 1} of ${rows.length}…`;
+      if (rowButton) { rowButton.disabled = true; rowButton.textContent = "Saving…"; }
+
+      try {
+        await saveOneVariant(itemCode);
+        if (rowButton) rowButton.textContent = "Saved";
+      } catch (error) {
+        failed.push(itemCode);
+        if (rowButton) rowButton.textContent = "Save";
+      } finally {
+        if (rowButton) rowButton.disabled = false;
+      }
+    }
+
+    saveAllBtn.disabled = false;
+    statusEl.textContent = failed.length
+      ? `Saved ${rows.length - failed.length} of ${rows.length} - ${failed.length} failed, see above.`
+      : `Saved all ${rows.length} variant${rows.length === 1 ? "" : "s"}.`;
+
+    window.setTimeout(() => { statusEl.textContent = ""; }, 4000);
   }
 
   // ---------------------------------------------------------------
@@ -753,6 +807,7 @@
     el("storeProductHasVariations").addEventListener("change", updateVariationsVisibility);
     el("storeProductIsDigital").addEventListener("change", updateDigitalFieldVisibility);
     el("storeProductUnlocksCourseEnabled").addEventListener("change", updateUnlocksCourseFieldVisibility);
+    el("storeProductPersonalizationEnabled").addEventListener("change", updatePersonalizationFieldVisibility);
     el("generateVariantsBtn").addEventListener("click", generateVariants);
     el("addAttributeBtn").addEventListener("click", addAttributeRow);
 
@@ -767,6 +822,7 @@
 
     el("closeStoreVariantsModal").addEventListener("click", closeVariantsModal);
     el("closeStoreVariantsModalBtn").addEventListener("click", closeVariantsModal);
+    el("saveAllVariantsBtn").addEventListener("click", saveAllVariants);
 
     el("storeProductImageFile").addEventListener("change", function () {
       const file = this.files[0];

@@ -41,6 +41,16 @@ website_route_rules = []
 
 fixtures = []
 
+# Exposes is_franchisor_user() to Jinja templates - shared_topbar.html uses
+# it to show the franchisor-only "Store" link (next to Client Portal)
+# without needing every coach_db/session_worker_db/franchisor_db page's own
+# get_context() to pass it through individually.
+jinja = {
+    "methods": [
+        "dashboard.api.shared.permissions.is_franchisor_user",
+    ],
+}
+
 # create_store_manager_for_rachel_v2 needs the Store Manager doctype to
 # already exist - patches.txt entries run before schema/doctype sync
 # (that's what broke the first attempt at this, in patches.txt directly:
@@ -295,14 +305,13 @@ scheduler_events = {
             "dashboard.api.shared.booking_confirmations.send_pending_booking_confirmations",
             "dashboard.api.shared.booking_confirmations.send_pending_meet_link_followups",
         ],
-        # Was in the "daily" bucket below, which only fires once every 24
-        # hours - a school enrolled (or a step due) any time after that
-        # day's single run would then sit for up to a full day before its
-        # email actually went out. next_send_date is date-only (not a
-        # timestamp), so running this hourly instead can't cause a step to
-        # send more than once a day - it only shortens how long a due step
-        # waits to be picked up.
-        "0 * * * *": [
+        # Fires once a day at 10am (site/server time) rather than hourly -
+        # Ashley wants every outgoing email to go out at a predictable
+        # daytime hour, not whenever a step happens to become due
+        # overnight. next_send_date is date-only, so a single run per day
+        # is all a due step ever needs - it just always lands at 10am now
+        # instead of at whatever hour it crossed midnight.
+        "0 10 * * *": [
             "dashboard.api.shared.school_pipeline.process_due_school_sequences",
         ],
     },

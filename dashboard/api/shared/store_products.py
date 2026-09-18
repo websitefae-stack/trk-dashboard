@@ -124,6 +124,16 @@ def _apply_gallery_images(item, gallery_images):
             item.append("custom_gallery", {"image": url})
 
 
+def _apply_personalization(item, enabled, label):
+    """enabled/label are None when the caller never sent them (e.g. a
+    variant row save that doesn't touch this) - left alone in that case."""
+    if enabled is not None and _item_meta_has_field("custom_personalization_enabled"):
+        item.custom_personalization_enabled = 1 if _to_bool(enabled) else 0
+
+    if label is not None and _item_meta_has_field("custom_personalization_label"):
+        item.custom_personalization_label = label.strip()
+
+
 def _store_company():
     settings = get_settings()
 
@@ -344,12 +354,20 @@ def get_product_gallery(item_code=None):
     if not item_code or not frappe.db.exists("Item", item_code) or not _item_meta_has_field("custom_gallery"):
         return []
 
+    # ignore_permissions=True - "Item Gallery Image" is a plain child
+    # table with no permission rows of its own (see its doctype json);
+    # queried standalone like this (rather than read off an already-
+    # loaded parent Item doc) it has no role to inherit from, so a Store
+    # Manager (who has no direct role permission on Item either - see
+    # _as_administrator() above) was getting a bare PermissionError just
+    # from opening the edit-product modal, before ever trying to save.
     rows = frappe.get_all(
         "Item Gallery Image",
         filters={"parent": item_code, "parenttype": "Item"},
         fields=["image"],
         order_by="idx asc",
         limit_page_length=50,
+        ignore_permissions=True,
     )
 
     return [row.image for row in rows if row.image]
@@ -368,7 +386,10 @@ def get_store_products(search=None):
         filters["item_name"] = ["like", f"%{search}%"]
 
     extra_fieldnames = [
-        f for f in ["custom_digital_file", "custom_unlocks_lms_course", "custom_short_description", "custom_sku"]
+        f for f in [
+            "custom_digital_file", "custom_unlocks_lms_course", "custom_short_description", "custom_sku",
+            "custom_personalization_enabled", "custom_personalization_label",
+        ]
         if item_meta.has_field(f)
     ]
 
@@ -420,6 +441,8 @@ def get_store_products(search=None):
             "digital_file": item.get("custom_digital_file") or "",
             "unlocks_course": item.get("custom_unlocks_lms_course") or "",
             "sku": item.get("custom_sku") or "",
+            "personalization_enabled": bool(item.get("custom_personalization_enabled")),
+            "personalization_label": item.get("custom_personalization_label") or "",
         }
         for item in items
     ]
@@ -428,7 +451,8 @@ def get_store_products(search=None):
 @frappe.whitelist()
 def create_store_product(item_name=None, description=None, short_description=None, item_group=None, price=None,
                           stock_qty=None, unlimited_stock=None, brands=None, image=None,
-                          digital_file=None, unlocks_course=None, sku=None, gallery_images=None):
+                          digital_file=None, unlocks_course=None, sku=None, gallery_images=None,
+                          personalization_enabled=None, personalization_label=None):
     _ensure_store_access()
 
     item_name = (item_name or "").strip()
@@ -467,6 +491,8 @@ def create_store_product(item_name=None, description=None, short_description=Non
 
     if sku is not None and _item_meta_has_field("custom_sku"):
         item.custom_sku = sku.strip()
+
+    _apply_personalization(item, personalization_enabled, personalization_label)
 
     item.disabled = 0
     item.custom_store_enabled = 1
@@ -509,7 +535,7 @@ def create_store_product(item_name=None, description=None, short_description=Non
 def update_store_product(item_code=None, item_name=None, description=None, short_description=None,
                           item_group=None, price=None, stock_qty=None, unlimited_stock=None, brands=None,
                           disabled=None, image=None, digital_file=None, unlocks_course=None, sku=None,
-                          gallery_images=None):
+                          gallery_images=None, personalization_enabled=None, personalization_label=None):
     _ensure_store_access()
 
     item_code = (item_code or "").strip()
@@ -530,6 +556,8 @@ def update_store_product(item_code=None, item_name=None, description=None, short
 
     if sku is not None and _item_meta_has_field("custom_sku"):
         item.custom_sku = sku.strip()
+
+    _apply_personalization(item, personalization_enabled, personalization_label)
 
     if item_group is not None and item_group.strip():
         item.item_group = _ensure_item_group(item_group.strip())
@@ -739,7 +767,7 @@ def _create_variant_item(template, attribute_values, price, stock_qty, unlimited
 @frappe.whitelist()
 def create_variant_store_product(item_name=None, description=None, short_description=None, item_group=None,
                                   brands=None, image=None, attributes=None, variants=None, sku=None,
-                                  gallery_images=None):
+                                  gallery_images=None, personalization_enabled=None, personalization_label=None):
     """
     attributes: [{"attribute": "Size", "values": ["Small", "Large"]}, ...]
     variants: [{"attribute_values": {"Size": "Small"}, "price": 10,
@@ -831,6 +859,8 @@ def create_variant_store_product(item_name=None, description=None, short_descrip
 
         if sku and _item_meta_has_field("custom_sku"):
             template.custom_sku = sku.strip()
+
+        _apply_personalization(template, personalization_enabled, personalization_label)
 
         template.stock_uom = "Nos"
         template.is_stock_item = 0
