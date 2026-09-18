@@ -74,7 +74,7 @@ def _eligible_item_codes(coupon):
         return set()
 
     variant_codes = frappe.get_all(
-        "Item", filters={"variant_of": ["in", list(direct)]}, pluck="name",
+        "Item", filters={"variant_of": ["in", list(direct)]}, pluck="name", ignore_permissions=True,
     )
 
     return direct | set(variant_codes)

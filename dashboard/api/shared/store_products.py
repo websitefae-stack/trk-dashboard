@@ -344,12 +344,20 @@ def get_product_gallery(item_code=None):
     if not item_code or not frappe.db.exists("Item", item_code) or not _item_meta_has_field("custom_gallery"):
         return []
 
+    # ignore_permissions=True - "Item Gallery Image" is a plain child
+    # table with no permission rows of its own (see its doctype json);
+    # queried standalone like this (rather than read off an already-
+    # loaded parent Item doc) it has no role to inherit from, so a Store
+    # Manager (who has no direct role permission on Item either - see
+    # _as_administrator() above) was getting a bare PermissionError just
+    # from opening the edit-product modal, before ever trying to save.
     rows = frappe.get_all(
         "Item Gallery Image",
         filters={"parent": item_code, "parenttype": "Item"},
         fields=["image"],
         order_by="idx asc",
         limit_page_length=50,
+        ignore_permissions=True,
     )
 
     return [row.image for row in rows if row.image]
