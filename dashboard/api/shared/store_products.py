@@ -124,6 +124,38 @@ def _apply_gallery_images(item, gallery_images):
             item.append("custom_gallery", {"image": url})
 
 
+def _sync_gallery_images_raw(item_code, gallery_images):
+    """
+    Same replace-the-whole-set behaviour as _apply_gallery_images(), but
+    writes the child rows directly (delete then re-insert) instead of
+    going through item.save() - see update_store_product()'s own
+    docstring for why an already-existing Item is updated this way now.
+    """
+    if gallery_images is None or not _item_meta_has_field("custom_gallery"):
+        return
+
+    frappe.db.sql(
+        "DELETE FROM `tabItem Gallery Image` WHERE parent=%s AND parenttype=%s",
+        (item_code, "Item"),
+    )
+
+    idx = 0
+    for url in gallery_images:
+        url = (url or "").strip()
+        if not url:
+            continue
+
+        idx += 1
+        frappe.get_doc({
+            "doctype": "Item Gallery Image",
+            "parent": item_code,
+            "parenttype": "Item",
+            "parentfield": "custom_gallery",
+            "idx": idx,
+            "image": url,
+        }).insert(ignore_permissions=True)
+
+
 def _apply_personalization(item, enabled, label):
     """enabled/label are None when the caller never sent them (e.g. a
     variant row save that doesn't touch this) - left alone in that case."""
@@ -189,6 +221,48 @@ def _ensure_item_default_row(item, company):
         new_row.custom_show_on_site = 1
 
     return new_row
+
+
+def _sync_item_default_row_raw(item_code, company):
+    """Same job as _ensure_item_default_row(), but for an Item that
+    already exists in the database - reads/writes the Item Default row
+    directly rather than through the parent Item doc, see
+    update_store_product()'s own docstring for why."""
+    has_show_on_site_field = frappe.get_meta("Item Default").has_field("custom_show_on_site")
+
+    existing_name = frappe.db.get_value(
+        "Item Default", {"parent": item_code, "parenttype": "Item", "company": company}, "name"
+    )
+
+    if existing_name:
+        updates = {"default_price_list": DEFAULT_PRICE_LIST}
+        if has_show_on_site_field:
+            updates["custom_show_on_site"] = 1
+        frappe.db.set_value("Item Default", existing_name, updates)
+        return
+
+    warehouse = _get_default_warehouse_for_company(company)
+
+    if not warehouse:
+        frappe.throw(_("No default warehouse found for {0} - please set one up first.").format(company))
+
+    next_idx = frappe.db.count("Item Default", {"parent": item_code, "parenttype": "Item"}) + 1
+
+    row = frappe.get_doc({
+        "doctype": "Item Default",
+        "parent": item_code,
+        "parenttype": "Item",
+        "parentfield": "item_defaults",
+        "idx": next_idx,
+        "company": company,
+        "default_warehouse": warehouse,
+        "default_price_list": DEFAULT_PRICE_LIST,
+    })
+
+    if has_show_on_site_field:
+        row.custom_show_on_site = 1
+
+    row.insert(ignore_permissions=True)
 
 
 def _get_item_price_row(item_code, price_list):
@@ -453,6 +527,21 @@ def create_store_product(item_name=None, description=None, short_description=Non
                           stock_qty=None, unlimited_stock=None, brands=None, image=None,
                           digital_file=None, unlocks_course=None, sku=None, gallery_images=None,
                           personalization_enabled=None, personalization_label=None):
+    """
+    An Item with this exact name can already exist without being a store
+    product yet - e.g. something tracked elsewhere in the system
+    (coaching stock, an old catalog entry) that Rachel now also wants to
+    sell online. Adopt it into the store rather than blocking with a
+    dead-end "already exists" error; only a name already used by another
+    *store* product is a genuine duplicate.
+
+    Adopting an existing Item writes straight to the database rather
+    than loading it as a Document and calling .save() - same reasoning
+    as update_store_product()'s own docstring (a nested Webshop app hook
+    on Item's on_update doesn't respect frappe.flags.ignore_permissions
+    for a Store Manager). A genuinely brand-new Item still goes through
+    item.insert() below, which hasn't shown this problem.
+    """
     _ensure_store_access()
 
     item_name = (item_name or "").strip()
@@ -461,30 +550,69 @@ def create_store_product(item_name=None, description=None, short_description=Non
         frappe.throw(_("Product name is required."))
 
     company = _store_company()
+    item_meta = frappe.get_meta("Item")
 
-    # An Item with this exact name can already exist without being a
-    # store product yet - e.g. something tracked elsewhere in the system
-    # (coaching stock, an old catalog entry) that Rachel now also wants
-    # to sell online. Adopt it into the store rather than blocking with
-    # a dead-end "already exists" error; only a name already used by
-    # another *store* product is a genuine duplicate.
     existing_item_code = frappe.db.get_value("Item", {"item_name": item_name}, "name")
-    is_new = not existing_item_code
 
     if existing_item_code:
-        item = frappe.get_doc("Item", existing_item_code)
-
-        if item.get("custom_store_enabled"):
+        if frappe.db.get_value("Item", existing_item_code, "custom_store_enabled"):
             frappe.throw(_("A product named {0} already exists.").format(item_name))
-    else:
-        item = frappe.new_doc("Item")
-        item.item_code = item_name
-        item.item_name = item_name
-        item.stock_uom = item.stock_uom or "Nos"
-        item.is_stock_item = 0
 
-    item.item_group = _ensure_item_group((item_group or "").strip() or item.item_group or "Products")
-    item.description = description or item.description or ""
+        existing = frappe.db.get_value("Item", existing_item_code, ["item_group", "description"], as_dict=True) or {}
+
+        updates = {
+            "item_group": _ensure_item_group((item_group or "").strip() or existing.get("item_group") or "Products"),
+            "description": description or existing.get("description") or "",
+            "disabled": 0,
+            "custom_store_enabled": 1,
+            "custom_unlimited_stock": 1 if _to_bool(unlimited_stock) else 0,
+            "custom_stock_qty": _to_int(stock_qty),
+        }
+
+        if short_description is not None and item_meta.has_field("custom_short_description"):
+            updates["custom_short_description"] = short_description.strip()[:200]
+
+        if sku is not None and item_meta.has_field("custom_sku"):
+            updates["custom_sku"] = sku.strip()
+
+        if personalization_enabled is not None and item_meta.has_field("custom_personalization_enabled"):
+            updates["custom_personalization_enabled"] = 1 if _to_bool(personalization_enabled) else 0
+
+        if personalization_label is not None and item_meta.has_field("custom_personalization_label"):
+            updates["custom_personalization_label"] = personalization_label.strip()
+
+        if image:
+            updates["image"] = image
+
+        if digital_file and item_meta.has_field("custom_digital_file"):
+            updates["custom_digital_file"] = digital_file
+
+        if unlocks_course and item_meta.has_field("custom_unlocks_lms_course"):
+            updates["custom_unlocks_lms_course"] = unlocks_course
+
+        parsed_brands = _parse_brands(brands)
+        for fieldname in BRAND_FIELDNAMES:
+            if item_meta.has_field(fieldname):
+                updates[fieldname] = 1 if parsed_brands.get(fieldname) else 0
+
+        frappe.db.set_value("Item", existing_item_code, updates)
+        _sync_gallery_images_raw(existing_item_code, _parse_json_list(gallery_images) if gallery_images is not None else None)
+        _sync_item_default_row_raw(existing_item_code, company)
+
+        if price is not None:
+            _set_item_price(existing_item_code, DEFAULT_PRICE_LIST, _to_float(price))
+
+        frappe.db.commit()
+
+        return {"ok": 1, "item_code": existing_item_code}
+
+    item = frappe.new_doc("Item")
+    item.item_code = item_name
+    item.item_name = item_name
+    item.stock_uom = item.stock_uom or "Nos"
+    item.is_stock_item = 0
+    item.item_group = _ensure_item_group((item_group or "").strip() or "Products")
+    item.description = description or ""
 
     if short_description is not None and _item_meta_has_field("custom_short_description"):
         item.custom_short_description = short_description.strip()[:200]
@@ -518,10 +646,7 @@ def create_store_product(item_name=None, description=None, short_description=Non
     _ensure_item_default_row(item, company)
 
     with _as_administrator():
-        if is_new:
-            item.insert(ignore_permissions=True)
-        else:
-            item.save(ignore_permissions=True)
+        item.insert(ignore_permissions=True)
 
         if price is not None:
             _set_item_price(item.name, DEFAULT_PRICE_LIST, _to_float(price))
@@ -536,6 +661,22 @@ def update_store_product(item_code=None, item_name=None, description=None, short
                           item_group=None, price=None, stock_qty=None, unlimited_stock=None, brands=None,
                           disabled=None, image=None, digital_file=None, unlocks_course=None, sku=None,
                           gallery_images=None, personalization_enabled=None, personalization_label=None):
+    """
+    Writes straight to the database (frappe.db.set_value + direct child-
+    row management) rather than loading the Item as a Document and
+    calling .save() - confirmed live that even with
+    frappe.flags.ignore_permissions set (_as_administrator() above),
+    saving an existing Item still hit "does not have doctype access...
+    for document Item" for a Store Manager, coming from deep inside a
+    nested hook (the stock Webshop app's own Website Item auto-sync on
+    Item's on_update) that doesn't respect that flag. Bypassing
+    Document.save() entirely for an UPDATE sidesteps that hook
+    altogether - matches the same pattern already used successfully by
+    update_variant()/update_store_stock()/stock_take_update() below.
+    create_store_product()'s brand-new-Item path still uses insert()
+    (there's no way to "raw write" a document that doesn't exist yet),
+    which hasn't shown this problem.
+    """
     _ensure_store_access()
 
     item_code = (item_code or "").strip()
@@ -543,58 +684,63 @@ def update_store_product(item_code=None, item_name=None, description=None, short
     if not item_code or not frappe.db.exists("Item", item_code):
         frappe.throw(_("Product not found."))
 
-    item = frappe.get_doc("Item", item_code)
+    item_meta = frappe.get_meta("Item")
+    updates = {}
 
     if item_name is not None and item_name.strip():
-        item.item_name = item_name.strip()
+        updates["item_name"] = item_name.strip()
 
     if description is not None:
-        item.description = description
+        updates["description"] = description
 
-    if short_description is not None and _item_meta_has_field("custom_short_description"):
-        item.custom_short_description = short_description.strip()[:200]
+    if short_description is not None and item_meta.has_field("custom_short_description"):
+        updates["custom_short_description"] = short_description.strip()[:200]
 
-    if sku is not None and _item_meta_has_field("custom_sku"):
-        item.custom_sku = sku.strip()
+    if sku is not None and item_meta.has_field("custom_sku"):
+        updates["custom_sku"] = sku.strip()
 
-    _apply_personalization(item, personalization_enabled, personalization_label)
+    if personalization_enabled is not None and item_meta.has_field("custom_personalization_enabled"):
+        updates["custom_personalization_enabled"] = 1 if _to_bool(personalization_enabled) else 0
+
+    if personalization_label is not None and item_meta.has_field("custom_personalization_label"):
+        updates["custom_personalization_label"] = personalization_label.strip()
 
     if item_group is not None and item_group.strip():
-        item.item_group = _ensure_item_group(item_group.strip())
+        updates["item_group"] = _ensure_item_group(item_group.strip())
 
     if stock_qty is not None:
-        item.custom_stock_qty = _to_int(stock_qty)
+        updates["custom_stock_qty"] = _to_int(stock_qty)
 
     if unlimited_stock is not None:
-        item.custom_unlimited_stock = 1 if _to_bool(unlimited_stock) else 0
+        updates["custom_unlimited_stock"] = 1 if _to_bool(unlimited_stock) else 0
 
     if disabled is not None:
-        item.disabled = 1 if _to_bool(disabled) else 0
+        updates["disabled"] = 1 if _to_bool(disabled) else 0
 
     if image is not None:
-        item.image = image
+        updates["image"] = image
 
-    _apply_gallery_images(item, _parse_json_list(gallery_images) if gallery_images is not None else None)
+    if digital_file is not None and item_meta.has_field("custom_digital_file"):
+        updates["custom_digital_file"] = digital_file
 
-    if digital_file is not None and _item_meta_has_field("custom_digital_file"):
-        item.custom_digital_file = digital_file
-
-    if unlocks_course is not None and _item_meta_has_field("custom_unlocks_lms_course"):
-        item.custom_unlocks_lms_course = unlocks_course
+    if unlocks_course is not None and item_meta.has_field("custom_unlocks_lms_course"):
+        updates["custom_unlocks_lms_course"] = unlocks_course
 
     parsed_brands = _parse_brands(brands)
     for fieldname in BRAND_FIELDNAMES:
-        if fieldname in parsed_brands and _item_meta_has_field(fieldname):
-            item.set(fieldname, 1 if parsed_brands.get(fieldname) else 0)
+        if fieldname in parsed_brands and item_meta.has_field(fieldname):
+            updates[fieldname] = 1 if parsed_brands.get(fieldname) else 0
+
+    if updates:
+        frappe.db.set_value("Item", item_code, updates)
+
+    _sync_gallery_images_raw(item_code, _parse_json_list(gallery_images) if gallery_images is not None else None)
 
     company = _store_company()
-    _ensure_item_default_row(item, company)
+    _sync_item_default_row_raw(item_code, company)
 
-    with _as_administrator():
-        item.save(ignore_permissions=True)
-
-        if price is not None:
-            _set_item_price(item.name, DEFAULT_PRICE_LIST, _to_float(price))
+    if price is not None:
+        _set_item_price(item_code, DEFAULT_PRICE_LIST, _to_float(price))
 
     frappe.db.commit()
 
