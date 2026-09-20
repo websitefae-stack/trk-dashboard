@@ -17,6 +17,18 @@ checklist's verification/sign-off columns (identity checked, references
 followed up, induction completed, etc.) are a separate internal
 franchisor/coach compliance record, not something a worker self-reports,
 so they're out of scope here.
+
+Client Lead has accumulated so many custom fields over this project's
+life that it's sitting right at MariaDB's 65535-byte row-size ceiling
+(not counting BLOBs) - a first version of this patch's columns pushed it
+over and failed the whole migration. Free-text fields below are
+deliberately Small Text (stored off-page, ~nothing counted against the
+row-size limit) rather than Data/varchar(140), and the few Data fields
+that remain (fees_guide_token, fees_guide_signer_ip) have an explicit
+`length` well under the 140 default, to keep this patch's footprint as
+small as possible. Any *future* patch adding fields here should do the
+same - Data with `length` or Small Text, never a bare 140-byte Data
+field, since there's no more headroom to spend carelessly.
 """
 
 import frappe
@@ -35,7 +47,7 @@ CLIENT_LEAD_FIELDS = [
     },
     {
         "fieldname": "franchisee_intake_work_locations",
-        "fieldtype": "Data",
+        "fieldtype": "Small Text",
         "label": "Main Work Locations / Areas",
         "read_only": 1,
         "insert_after": "franchisee_intake_qualifications",
@@ -43,7 +55,7 @@ CLIENT_LEAD_FIELDS = [
     },
     {
         "fieldname": "franchisee_intake_public_liability_insurer",
-        "fieldtype": "Data",
+        "fieldtype": "Small Text",
         "label": "Public Liability Insurer & Policy Number",
         "read_only": 1,
         "insert_after": "franchisee_intake_work_locations",
@@ -51,7 +63,7 @@ CLIENT_LEAD_FIELDS = [
     },
     {
         "fieldname": "franchisee_intake_indemnity_insurer",
-        "fieldtype": "Data",
+        "fieldtype": "Small Text",
         "label": "Professional Indemnity Insurer & Policy Number",
         "read_only": 1,
         "insert_after": "franchisee_intake_public_liability_insurer",
@@ -69,6 +81,7 @@ CLIENT_LEAD_FIELDS = [
     {
         "fieldname": "fees_guide_token",
         "fieldtype": "Data",
+        "length": 40,
         "label": "Fees and Expectations Guide Token",
         "read_only": 1,
         "unique": 1,
@@ -120,6 +133,7 @@ CLIENT_LEAD_FIELDS = [
     {
         "fieldname": "fees_guide_invoicing_frequency",
         "fieldtype": "Select",
+        "length": 20,
         "label": "Invoicing Frequency",
         "options": "\nWeekly\nFortnightly\nMonthly",
         "read_only": 1,
@@ -128,7 +142,7 @@ CLIENT_LEAD_FIELDS = [
     },
     {
         "fieldname": "fees_guide_recipient_name",
-        "fieldtype": "Data",
+        "fieldtype": "Small Text",
         "label": "Fees and Expectations Guide Recipient Name",
         "read_only": 1,
         "insert_after": "fees_guide_invoicing_frequency",
@@ -136,7 +150,7 @@ CLIENT_LEAD_FIELDS = [
     },
     {
         "fieldname": "fees_guide_signature_name",
-        "fieldtype": "Data",
+        "fieldtype": "Small Text",
         "label": "Fees and Expectations Guide Signature",
         "read_only": 1,
         "insert_after": "fees_guide_recipient_name",
@@ -163,6 +177,7 @@ CLIENT_LEAD_FIELDS = [
     {
         "fieldname": "fees_guide_signer_ip",
         "fieldtype": "Data",
+        "length": 45,
         "label": "Fees and Expectations Guide Signer IP",
         "read_only": 1,
         "no_copy": 1,
@@ -171,7 +186,7 @@ CLIENT_LEAD_FIELDS = [
     },
     {
         "fieldname": "fees_guide_signer_user_agent",
-        "fieldtype": "Data",
+        "fieldtype": "Small Text",
         "label": "Fees and Expectations Guide Signer Browser/Device",
         "read_only": 1,
         "no_copy": 1,
