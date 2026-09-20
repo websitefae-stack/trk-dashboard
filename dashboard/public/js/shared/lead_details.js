@@ -143,6 +143,8 @@
     }).join("");
 
     renderNdaBlock(lead);
+    renderIntentBlock(lead);
+    renderFranchiseeIntakeBlock(lead);
   }
 
   async function saveStage1Milestone(row) {
@@ -259,6 +261,221 @@
       if (modal) modal.classList.add("show");
     } catch (error) {
       window.alert(error.message || "Could not load the signed NDA.");
+    }
+  }
+
+  function renderIntentBlock(lead) {
+    const block = el("leadIntentBlock");
+    if (!block) return;
+
+    if (lead.intent_signed) {
+      block.innerHTML = `
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="viewSignedIntentBtn">View Signed Agreement</button>
+      `;
+      const viewBtn = el("viewSignedIntentBtn");
+      if (viewBtn) viewBtn.addEventListener("click", viewSignedIntent);
+      return;
+    }
+
+    if (lead.intent_link_generated) {
+      block.innerHTML = `
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="getIntentLinkBtn">Get Sign Link Again</button>
+        <div id="intentLinkResult" style="margin-top:10px; display:none;">
+          <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">
+            Copy this link and send it to the franchisee to sign:
+          </label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="intentLinkInput" class="dashboard-input" readonly style="flex:1;">
+            <button type="button" class="dashboard-btn dashboard-btn-secondary" id="copyIntentLinkBtn">Copy</button>
+          </div>
+        </div>
+      `;
+    } else {
+      block.innerHTML = `
+        <div class="dashboard-field-row" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+          <input type="text" id="intentTerritoryInput" class="dashboard-input" placeholder="Territory (e.g. postcode areas)" style="flex:1; min-width:200px;">
+          <input type="number" id="intentDepositInput" class="dashboard-input" placeholder="Deposit Amount (£)" min="0" step="0.01" style="width:160px;">
+          <input type="date" id="intentEndDateInput" class="dashboard-input" style="width:160px;" title="Agreement End Date">
+        </div>
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="getIntentLinkBtn">Generate Sign Link</button>
+        <div id="intentLinkResult" style="margin-top:10px; display:none;">
+          <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">
+            Copy this link and send it to the franchisee to sign:
+          </label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="intentLinkInput" class="dashboard-input" readonly style="flex:1;">
+            <button type="button" class="dashboard-btn dashboard-btn-secondary" id="copyIntentLinkBtn">Copy</button>
+          </div>
+        </div>
+      `;
+    }
+
+    const getLinkBtn = el("getIntentLinkBtn");
+    if (getLinkBtn) getLinkBtn.addEventListener("click", getIntentSignLink);
+
+    const copyBtn = el("copyIntentLinkBtn");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", () => {
+        const input = el("intentLinkInput");
+        if (!input) return;
+        input.select();
+        navigator.clipboard?.writeText(input.value).catch(() => {});
+      });
+    }
+  }
+
+  async function getIntentSignLink() {
+    const name = getValue("leadDocname");
+    const btn = el("getIntentLinkBtn");
+    if (!name) return;
+
+    if (btn) { btn.disabled = true; btn.textContent = "Generating..."; }
+
+    try {
+      const territoryInput = el("intentTerritoryInput");
+      const depositInput = el("intentDepositInput");
+      const endDateInput = el("intentEndDateInput");
+
+      const result = await apiPost(`${SHARED_API}.get_intent_sign_url`, {
+        name,
+        territory: territoryInput ? territoryInput.value : "",
+        deposit_amount: depositInput ? depositInput.value : "",
+        end_date: endDateInput ? endDateInput.value : "",
+      });
+      const resultBlock = el("intentLinkResult");
+      const input = el("intentLinkInput");
+      if (input) input.value = result.url || "";
+      if (resultBlock) resultBlock.style.display = "";
+    } catch (error) {
+      window.alert(error.message || "Could not generate the sign link.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Get Sign Link Again"; }
+    }
+  }
+
+  async function viewSignedIntent() {
+    const name = getValue("leadDocname");
+    if (!name) return;
+
+    try {
+      const result = await apiPost(`${SHARED_API}.get_signed_intent`, { name });
+      const content = el("intentViewModalContent");
+      if (content) {
+        const auditRows = [
+          result.signed_at ? `Signed: ${escapeHtml(result.signed_at)}` : "",
+          result.signer_ip ? `IP address: ${escapeHtml(result.signer_ip)}` : "",
+          result.signer_user_agent ? `Browser/device: ${escapeHtml(result.signer_user_agent)}` : "",
+        ].filter(Boolean);
+
+        const auditBlock = auditRows.length
+          ? `<div style="margin-top:16px; padding:12px 14px; background:#F2F8F8; border-radius:10px; font-size:12px; color:#839898;">
+              <strong style="display:block; margin-bottom:4px; color:#434B49;">Signing Record</strong>
+              ${auditRows.join("<br>")}
+            </div>`
+          : "";
+
+        content.innerHTML = (result.signed_html || "") + auditBlock;
+      }
+      const modal = el("intentViewModal");
+      if (modal) modal.classList.add("show");
+    } catch (error) {
+      window.alert(error.message || "Could not load the signed agreement.");
+    }
+  }
+
+  function renderFranchiseeIntakeBlock(lead) {
+    const block = el("leadFranchiseeIntakeBlock");
+    if (!block) return;
+
+    if (lead.franchisee_intake_submitted) {
+      block.innerHTML = `<div id="franchiseeIntakeSummary" class="dashboard-help">Loading…</div>`;
+      loadFranchiseeIntakeSummary();
+      return;
+    }
+
+    block.innerHTML = `
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="getFranchiseeIntakeLinkBtn">
+        ${lead.franchisee_intake_link_generated ? "Get Form Link Again" : "Generate Form Link"}
+      </button>
+      <div id="franchiseeIntakeLinkResult" style="margin-top:10px; display:none;">
+        <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">
+          Copy this link and send it to the franchisee to fill in:
+        </label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="franchiseeIntakeLinkInput" class="dashboard-input" readonly style="flex:1;">
+          <button type="button" class="dashboard-btn dashboard-btn-secondary" id="copyFranchiseeIntakeLinkBtn">Copy</button>
+        </div>
+      </div>
+    `;
+
+    const getLinkBtn = el("getFranchiseeIntakeLinkBtn");
+    if (getLinkBtn) getLinkBtn.addEventListener("click", getFranchiseeIntakeLink);
+
+    const copyBtn = el("copyFranchiseeIntakeLinkBtn");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", () => {
+        const input = el("franchiseeIntakeLinkInput");
+        if (!input) return;
+        input.select();
+        navigator.clipboard?.writeText(input.value).catch(() => {});
+      });
+    }
+  }
+
+  async function getFranchiseeIntakeLink() {
+    const name = getValue("leadDocname");
+    const btn = el("getFranchiseeIntakeLinkBtn");
+    if (!name) return;
+
+    if (btn) { btn.disabled = true; btn.textContent = "Generating..."; }
+
+    try {
+      const result = await apiPost(`${SHARED_API}.get_franchisee_intake_url`, { name });
+      const resultBlock = el("franchiseeIntakeLinkResult");
+      const input = el("franchiseeIntakeLinkInput");
+      if (input) input.value = result.url || "";
+      if (resultBlock) resultBlock.style.display = "";
+    } catch (error) {
+      window.alert(error.message || "Could not generate the form link.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Get Form Link Again"; }
+    }
+  }
+
+  async function loadFranchiseeIntakeSummary() {
+    const name = getValue("leadDocname");
+    const summary = el("franchiseeIntakeSummary");
+    if (!name || !summary) return;
+
+    try {
+      const result = await apiPost(`${SHARED_API}.get_franchisee_intake`, { name });
+
+      const rows = [
+        ["Name", `${result.first_name} ${result.last_name}`.trim()],
+        ["Phone", result.phone],
+        ["Gender", result.gender],
+        ["Date of Birth", result.dob],
+        ["DBS Number", result.dbs_number],
+        ["DBS Date Received", result.dbs_date_received],
+        ["DBS Expiry Date", result.dbs_expiry_date],
+        ["Submitted", result.submitted_at],
+      ].filter(([, value]) => value);
+
+      const rowsHtml = rows.map(([label, value]) => `
+        <div class="dashboard-field-value-row">
+          <div class="dashboard-field-value-label">${escapeHtml(label)}</div>
+          <div class="dashboard-field-value-text">${escapeHtml(value)}</div>
+        </div>
+      `).join("");
+
+      const fileLinks = [
+        result.dbs_certificate ? `<a href="${escapeHtml(result.dbs_certificate)}" target="_blank" rel="noopener" class="dashboard-btn dashboard-btn-light">View DBS Certificate</a>` : "",
+        result.additional_document ? `<a href="${escapeHtml(result.additional_document)}" target="_blank" rel="noopener" class="dashboard-btn dashboard-btn-light">View Additional Document</a>` : "",
+      ].filter(Boolean).join(" ");
+
+      summary.innerHTML = rowsHtml + `<div style="margin-top:10px; display:flex; gap:8px;">${fileLinks}</div>`;
+    } catch (error) {
+      summary.textContent = error.message || "Could not load the submitted intake form.";
     }
   }
 
@@ -1083,6 +1300,14 @@
     if (ndaViewModalClose) {
       ndaViewModalClose.addEventListener("click", () => {
         const modal = el("ndaViewModal");
+        if (modal) modal.classList.remove("show");
+      });
+    }
+
+    const intentViewModalClose = el("intentViewModalClose");
+    if (intentViewModalClose) {
+      intentViewModalClose.addEventListener("click", () => {
+        const modal = el("intentViewModal");
         if (modal) modal.classList.remove("show");
       });
     }

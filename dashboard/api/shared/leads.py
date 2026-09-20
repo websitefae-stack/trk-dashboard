@@ -2,7 +2,8 @@ import re
 
 import frappe
 from frappe import _
-from frappe.utils import now_datetime, get_url, get_fullname
+from frappe.utils import now_datetime, get_url, get_fullname, fmt_money
+from werkzeug.utils import secure_filename
 
 from dashboard.api.shared.permissions import (
     ensure_logged_in,
@@ -374,6 +375,10 @@ def get_lead(name=None):
         }
         row["nda_signed"] = 1 if doc.get("nda_signed_snapshot") else 0
         row["nda_link_generated"] = 1 if doc.get("nda_token") else 0
+        row["intent_signed"] = 1 if doc.get("intent_signed_snapshot") else 0
+        row["intent_link_generated"] = 1 if doc.get("intent_token") else 0
+        row["franchisee_intake_submitted"] = 1 if doc.get("franchisee_intake_submitted") else 0
+        row["franchisee_intake_link_generated"] = 1 if doc.get("franchisee_intake_token") else 0
 
     for fieldname in INTAKE_TEXT_FIELDS + INTAKE_DATE_FIELDS:
         row[fieldname] = doc.get(fieldname) or ""
@@ -881,6 +886,338 @@ def sign_nda(token=None, recipient_name=None, recipient_address=None, signature_
     frappe.db.commit()
 
     return {"ok": True}
+
+
+# -------------------------------------------------------------------
+# Deposit and Intent to Proceed Agreement - same e-signing shape as the
+# NDA above, one step later in the Stage 1 pipeline. Territory/deposit
+# amount/end date are Ashley's own inputs (the deal's business terms),
+# fixed the first time she generates the link for a lead - the
+# franchisee only ever supplies her name/address/signature, same as NDA.
+# -------------------------------------------------------------------
+
+INTENT_PRACTICE_DOCUMENT_TITLE = "Deposit and Intent to Proceed Agreement"
+
+
+def _intent_template_text():
+    name = frappe.db.get_value(
+        "Practice Document", {"document_title": INTENT_PRACTICE_DOCUMENT_TITLE}, "name"
+    )
+    if not name:
+        frappe.throw(_("The Intent to Proceed template hasn't been set up yet."))
+
+    return frappe.db.get_value("Practice Document", name, "document_text") or ""
+
+
+def _get_lead_by_intent_token(token):
+    token = (token or "").strip()
+    if not token:
+        frappe.throw(_("This link is invalid."))
+
+    lead_name = frappe.db.get_value("Client Lead", {"intent_token": token}, "name")
+    if not lead_name:
+        frappe.throw(_("This link is invalid."))
+
+    return frappe.get_doc(LEAD_DOCTYPE, lead_name)
+
+
+@frappe.whitelist()
+def get_intent_sign_url(name=None, territory=None, deposit_amount=None, end_date=None):
+    """
+    Franchisor-only: generates (the first time) or reuses this lead's
+    Intent to Proceed sign link. territory/deposit_amount/end_date are
+    only used the first time - Ashley's own business terms for this
+    deal, fixed from then on exactly like nda_agreement_date is for the
+    NDA, so an already-generated link never changes underneath someone
+    who's already been sent it.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not is_franchise_lead(doc.get("appointment_type")):
+        frappe.throw(_("This lead isn't a Franchisee Call - the Intent to Proceed flow doesn't apply to it."))
+
+    if doc.get("intent_signed_snapshot"):
+        frappe.throw(_("This lead's Intent to Proceed has already been signed."))
+
+    if not doc.get("intent_token"):
+        territory = coalesce_str("territory", territory)
+        end_date = coalesce_raw("end_date", end_date)
+
+        if not territory:
+            frappe.throw(_("Enter the Territory before generating the sign link."))
+        if not deposit_amount:
+            frappe.throw(_("Enter the Deposit Amount before generating the sign link."))
+        if not end_date:
+            frappe.throw(_("Enter the Agreement End Date before generating the sign link."))
+
+        doc.intent_token = frappe.generate_hash(length=40)
+        doc.intent_agreement_date = frappe.utils.today()
+        doc.intent_territory = territory
+        doc.intent_deposit_amount = coalesce_raw("deposit_amount", deposit_amount)
+        doc.intent_end_date = end_date
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+
+    return {"url": get_url(f"/franchisee-intent?token={doc.intent_token}")}
+
+
+@frappe.whitelist()
+def get_signed_intent(name=None):
+    """Franchisor-only: the frozen signed snapshot plus its audit trail, for the Lead Details page."""
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.get("intent_signed_snapshot"):
+        frappe.throw(_("This Intent to Proceed hasn't been signed yet."))
+
+    return {
+        "signed_html": doc.get("intent_signed_snapshot"),
+        "signed_at": frappe.utils.format_datetime(doc.get("intent_signed_at"), "dd-MM-yyyy HH:mm") if doc.get("intent_signed_at") else "",
+        "signer_ip": doc.get("intent_signer_ip") or "",
+        "signer_user_agent": doc.get("intent_signer_user_agent") or "",
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def get_intent_preview(token=None):
+    """Guest-accessible - what the public /franchisee-intent page shows."""
+    token = coalesce_str("token", token)
+    doc = _get_lead_by_intent_token(token)
+
+    if doc.get("intent_signed_snapshot"):
+        return {"already_signed": True, "signed_html": doc.get("intent_signed_snapshot")}
+
+    context = {
+        "agreement_date": frappe.utils.formatdate(doc.get("intent_agreement_date"), "dd-MM-yyyy"),
+        "territory": doc.get("intent_territory") or "",
+        "deposit_amount": fmt_money(doc.get("intent_deposit_amount") or 0, currency="GBP"),
+        "end_date": frappe.utils.formatdate(doc.get("intent_end_date"), "dd-MM-yyyy") if doc.get("intent_end_date") else "",
+        "recipient_name": doc.get("contact_name") or NDA_BLANK_PLACEHOLDER,
+        "recipient_address": NDA_BLANK_PLACEHOLDER,
+        "franchisee_signature": NDA_BLANK_PLACEHOLDER,
+        "franchisee_date": NDA_BLANK_PLACEHOLDER,
+    }
+
+    return {
+        "already_signed": False,
+        "preview_html": _render_nda_text(_intent_template_text(), context),
+        "recipient_name": doc.get("contact_name") or "",
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def sign_intent(token=None, recipient_name=None, recipient_address=None, signature_name=None):
+    token = coalesce_str("token", token)
+    recipient_name = coalesce_str("recipient_name", recipient_name)
+    recipient_address = coalesce_str("recipient_address", recipient_address)
+    signature_name = coalesce_str("signature_name", signature_name)
+
+    doc = _get_lead_by_intent_token(token)
+
+    if doc.get("intent_signed_snapshot"):
+        frappe.throw(_("This Intent to Proceed has already been signed."))
+
+    if not recipient_name:
+        frappe.throw(_("Please enter your full name."))
+    if not recipient_address:
+        frappe.throw(_("Please enter your address."))
+    if not signature_name:
+        frappe.throw(_("Please type your name to sign."))
+
+    today = frappe.utils.getdate(frappe.utils.today())
+
+    context = {
+        "agreement_date": frappe.utils.formatdate(doc.get("intent_agreement_date"), "dd-MM-yyyy"),
+        "territory": doc.get("intent_territory") or "",
+        "deposit_amount": fmt_money(doc.get("intent_deposit_amount") or 0, currency="GBP"),
+        "end_date": frappe.utils.formatdate(doc.get("intent_end_date"), "dd-MM-yyyy") if doc.get("intent_end_date") else "",
+        "recipient_name": recipient_name,
+        "recipient_address": recipient_address,
+        "franchisee_signature": signature_name,
+        "franchisee_date": frappe.utils.formatdate(today, "dd-MM-yyyy"),
+    }
+
+    doc.intent_recipient_name = recipient_name
+    doc.intent_recipient_address = recipient_address
+    doc.intent_signature_name = signature_name
+    doc.intent_signed_snapshot = _render_nda_text(_intent_template_text(), context)
+    doc.intent_signed_at = frappe.utils.now_datetime()
+    doc.intent_signer_ip = frappe.local.request_ip
+    doc.intent_signer_user_agent = frappe.get_request_header("User-Agent") or ""
+
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True}
+
+
+# -------------------------------------------------------------------
+# Franchisee Intake + DBS/Insurance form - the step after Intent to
+# Proceed, before converting the lead to a real Client. Not a
+# signature flow, just personal details plus two file uploads
+# (required DBS certificate, optional additional document e.g.
+# insurance). "franchisee_intake_" prefix deliberately avoids the
+# "intake_"/INTAKE_* names already used above for the unrelated general
+# client-enquiry Intake Doctype flow.
+# -------------------------------------------------------------------
+
+FRANCHISEE_INTAKE_FILE_FIELDS = {
+    "dbs_certificate": "franchisee_intake_dbs_certificate",
+    "additional_document": "franchisee_intake_additional_document",
+}
+
+
+def _get_lead_by_franchisee_intake_token(token):
+    token = (token or "").strip()
+    if not token:
+        frappe.throw(_("This link is invalid."))
+
+    lead_name = frappe.db.get_value("Client Lead", {"franchisee_intake_token": token}, "name")
+    if not lead_name:
+        frappe.throw(_("This link is invalid."))
+
+    return frappe.get_doc(LEAD_DOCTYPE, lead_name)
+
+
+@frappe.whitelist()
+def get_franchisee_intake_url(name=None):
+    """Franchisor-only: generates (the first time) or reuses this lead's Intake/DBS form link."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not is_franchise_lead(doc.get("appointment_type")):
+        frappe.throw(_("This lead isn't a Franchisee Call - the intake form doesn't apply to it."))
+
+    if not doc.get("franchisee_intake_token"):
+        doc.franchisee_intake_token = frappe.generate_hash(length=40)
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+
+    return {"url": get_url(f"/franchisee-intake?token={doc.franchisee_intake_token}")}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_franchisee_intake_status(token=None):
+    """Guest-accessible - lets the public form show "already submitted" instead of a blank form."""
+    token = coalesce_str("token", token)
+    doc = _get_lead_by_franchisee_intake_token(token)
+
+    return {
+        "submitted": bool(doc.get("franchisee_intake_submitted")),
+        "contact_name": doc.get("contact_name") or "",
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def upload_franchisee_intake_file(token=None, field=None):
+    """
+    Guest-accessible file upload for the DBS certificate / additional
+    document - scoped to a valid, not-yet-submitted intake token so
+    this can never become an open upload endpoint, and to a fixed
+    allow-list of target fields. Stored private - only reachable by
+    someone who already has permission to open this Client Lead.
+    """
+    token = coalesce_str("token", token)
+    field = coalesce_str("field", field)
+
+    doc = _get_lead_by_franchisee_intake_token(token)
+
+    if doc.get("franchisee_intake_submitted"):
+        frappe.throw(_("This intake form has already been submitted."))
+
+    fieldname = FRANCHISEE_INTAKE_FILE_FIELDS.get(field)
+    if not fieldname:
+        frappe.throw(_("Invalid file field."))
+
+    uploaded_file = frappe.request.files.get("file") if getattr(frappe, "request", None) else None
+    if not uploaded_file:
+        frappe.throw(_("No file was uploaded."))
+
+    file_doc = frappe.get_doc({
+        "doctype": "File",
+        "file_name": secure_filename(uploaded_file.filename or field),
+        "attached_to_doctype": LEAD_DOCTYPE,
+        "attached_to_name": doc.name,
+        "attached_to_field": fieldname,
+        "is_private": 1,
+        "content": uploaded_file.stream.read(),
+    })
+    file_doc.insert(ignore_permissions=True)
+
+    frappe.db.set_value(LEAD_DOCTYPE, doc.name, fieldname, file_doc.file_url)
+    frappe.db.commit()
+
+    return {"url": file_doc.file_url}
+
+
+@frappe.whitelist(allow_guest=True)
+def submit_franchisee_intake(token=None, first_name=None, last_name=None, phone=None, gender=None,
+                              dob=None, dbs_number=None, dbs_date_received=None, dbs_expiry_date=None):
+    token = coalesce_str("token", token)
+    doc = _get_lead_by_franchisee_intake_token(token)
+
+    if doc.get("franchisee_intake_submitted"):
+        frappe.throw(_("This intake form has already been submitted."))
+
+    first_name = coalesce_str("first_name", first_name)
+    last_name = coalesce_str("last_name", last_name)
+    phone = coalesce_str("phone", phone)
+    gender = coalesce_str("gender", gender)
+    dbs_number = coalesce_str("dbs_number", dbs_number)
+
+    if not first_name or not last_name:
+        frappe.throw(_("Please enter your first and last name."))
+    if not phone:
+        frappe.throw(_("Please enter a phone number."))
+    if not doc.get("franchisee_intake_dbs_certificate"):
+        frappe.throw(_("Please upload your DBS certificate before submitting."))
+
+    doc.franchisee_intake_first_name = first_name
+    doc.franchisee_intake_last_name = last_name
+    doc.franchisee_intake_phone = phone
+    doc.franchisee_intake_gender = gender
+    doc.franchisee_intake_dob = coalesce_raw("dob", dob) or None
+    doc.franchisee_intake_dbs_number = dbs_number
+    doc.franchisee_intake_dbs_date_received = coalesce_raw("dbs_date_received", dbs_date_received) or None
+    doc.franchisee_intake_dbs_expiry_date = coalesce_raw("dbs_expiry_date", dbs_expiry_date) or None
+    doc.franchisee_intake_submitted = 1
+    doc.franchisee_intake_submitted_at = frappe.utils.now_datetime()
+
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True}
+
+
+@frappe.whitelist()
+def get_franchisee_intake(name=None):
+    """Franchisor-only: the submitted intake details + file links, for the Lead Details page."""
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.get("franchisee_intake_submitted"):
+        frappe.throw(_("This intake form hasn't been submitted yet."))
+
+    return {
+        "first_name": doc.get("franchisee_intake_first_name") or "",
+        "last_name": doc.get("franchisee_intake_last_name") or "",
+        "phone": doc.get("franchisee_intake_phone") or "",
+        "gender": doc.get("franchisee_intake_gender") or "",
+        "dob": doc.get("franchisee_intake_dob") or "",
+        "dbs_number": doc.get("franchisee_intake_dbs_number") or "",
+        "dbs_date_received": doc.get("franchisee_intake_dbs_date_received") or "",
+        "dbs_expiry_date": doc.get("franchisee_intake_dbs_expiry_date") or "",
+        "dbs_certificate": doc.get("franchisee_intake_dbs_certificate") or "",
+        "additional_document": doc.get("franchisee_intake_additional_document") or "",
+        "submitted_at": frappe.utils.format_datetime(doc.get("franchisee_intake_submitted_at"), "dd-MM-yyyy HH:mm") if doc.get("franchisee_intake_submitted_at") else "",
+    }
 
 
 @frappe.whitelist()
