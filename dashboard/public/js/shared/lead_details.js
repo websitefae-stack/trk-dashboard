@@ -35,6 +35,34 @@
     return `stage1Actions_${fieldname}`;
   }
 
+  // Backs the shared "compose before send" modal (franchiseeEmailModal)
+  // reused by the NDA, Intent to Proceed and Franchisee Intake sends -
+  // each just needs a title plus a defaults/send API method pair, same
+  // shape as get_intake_email_defaults()/send_intake_form() above for
+  // the unrelated generic client-intake flow.
+  const FRANCHISEE_EMAIL_ACTIONS = {
+    nda: {
+      title: "Send Non-Disclosure Agreement",
+      defaultsMethod: `${SHARED_API}.get_nda_email_defaults`,
+      sendMethod: `${SHARED_API}.send_nda_link`,
+    },
+    intent: {
+      title: "Send Deposit and Intent to Proceed Agreement",
+      defaultsMethod: `${SHARED_API}.get_intent_email_defaults`,
+      sendMethod: `${SHARED_API}.send_intent_link`,
+    },
+    intake: {
+      title: "Send Franchisee Intake + DBS Form",
+      defaultsMethod: `${SHARED_API}.get_franchisee_intake_email_defaults`,
+      sendMethod: `${SHARED_API}.send_franchisee_intake_form`,
+    },
+  };
+
+  // { kind, extraParams } for whichever of the above is currently open in
+  // the modal - extraParams carries the intent flow's territory/deposit/
+  // end date inputs through from prepare to confirm.
+  let franchiseeEmailState = { kind: null, extraParams: null };
+
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
     return meta && meta.content ? meta.content : "";
@@ -205,11 +233,15 @@
     }
 
     block.innerHTML = `
-      <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendNdaBtn">Send NDA</button>
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendNdaBtn">
+        ${lead.nda_sent_at ? "Resend NDA" : "Send NDA"}
+      </button>
       <button type="button" class="dashboard-btn dashboard-btn-light" id="getNdaLinkBtn">
         ${lead.nda_link_generated ? "Get NDA Sign Link Again" : "Generate NDA Sign Link"}
       </button>
-      <div id="ndaSendStatus" class="dashboard-help" style="flex-basis:100%;"></div>
+      <div id="ndaSendStatus" class="dashboard-help" style="flex-basis:100%;">
+        ${lead.nda_sent_at ? `Sent ${escapeHtml(lead.nda_sent_at)}` : ""}
+      </div>
       <div id="ndaLinkResult" style="flex-basis:100%; margin-top:8px; display:none;">
         <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">
           Copy this link and send it to the franchisee to sign:
@@ -222,7 +254,7 @@
     `;
 
     const sendBtn = el("sendNdaBtn");
-    if (sendBtn) sendBtn.addEventListener("click", sendNdaLink);
+    if (sendBtn) sendBtn.addEventListener("click", () => prepareFranchiseeEmail("nda"));
 
     const getLinkBtn = el("getNdaLinkBtn");
     if (getLinkBtn) getLinkBtn.addEventListener("click", getNdaSignLink);
@@ -235,25 +267,6 @@
         input.select();
         navigator.clipboard?.writeText(input.value).catch(() => {});
       });
-    }
-  }
-
-  async function sendNdaLink() {
-    const name = getValue("leadDocname");
-    const btn = el("sendNdaBtn");
-    const statusEl = el("ndaSendStatus");
-    if (!name) return;
-
-    if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
-    if (statusEl) statusEl.textContent = "";
-
-    try {
-      await apiPost(`${SHARED_API}.send_nda_link`, { name });
-      if (statusEl) statusEl.textContent = "Sent to the franchisee's email address.";
-    } catch (error) {
-      if (statusEl) statusEl.textContent = error.message || "Could not send the NDA.";
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = "Send NDA"; }
     }
   }
 
@@ -332,11 +345,16 @@
       </div>
     `;
 
+    const sendBtnLabel = lead.intent_sent_at ? "Resend Intent to Proceed" : "Send Intent to Proceed";
+    const sentStatusHtml = lead.intent_sent_at
+      ? `<div id="intentSendStatus" class="dashboard-help" style="flex-basis:100%;">Sent ${escapeHtml(lead.intent_sent_at)}</div>`
+      : `<div id="intentSendStatus" class="dashboard-help" style="flex-basis:100%;"></div>`;
+
     if (lead.intent_link_generated) {
       block.innerHTML = `
-        <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendIntentBtn">Send Intent to Proceed</button>
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendIntentBtn">${sendBtnLabel}</button>
         <button type="button" class="dashboard-btn dashboard-btn-light" id="getIntentLinkBtn">Get Sign Link Again</button>
-        <div id="intentSendStatus" class="dashboard-help" style="flex-basis:100%;"></div>
+        ${sentStatusHtml}
         ${linkRowHtml}
       `;
     } else {
@@ -346,15 +364,15 @@
           <input type="number" id="intentDepositInput" class="dashboard-input" placeholder="Deposit Amount (£)" min="0" step="0.01" style="width:160px;">
           <input type="date" id="intentEndDateInput" class="dashboard-input" style="width:160px;" title="Agreement End Date">
         </div>
-        <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendIntentBtn">Send Intent to Proceed</button>
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendIntentBtn">${sendBtnLabel}</button>
         <button type="button" class="dashboard-btn dashboard-btn-light" id="getIntentLinkBtn">Generate Sign Link</button>
-        <div id="intentSendStatus" class="dashboard-help" style="flex-basis:100%;"></div>
+        ${sentStatusHtml}
         ${linkRowHtml}
       `;
     }
 
     const sendBtn = el("sendIntentBtn");
-    if (sendBtn) sendBtn.addEventListener("click", sendIntentLink);
+    if (sendBtn) sendBtn.addEventListener("click", () => prepareFranchiseeEmail("intent", intentTermsPayload()));
 
     const getLinkBtn = el("getIntentLinkBtn");
     if (getLinkBtn) getLinkBtn.addEventListener("click", getIntentSignLink);
@@ -380,26 +398,6 @@
       deposit_amount: depositInput ? depositInput.value : "",
       end_date: endDateInput ? endDateInput.value : "",
     };
-  }
-
-  async function sendIntentLink() {
-    const name = getValue("leadDocname");
-    const btn = el("sendIntentBtn");
-    const statusEl = el("intentSendStatus");
-    if (!name) return;
-
-    if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
-    if (statusEl) statusEl.textContent = "";
-
-    try {
-      await apiPost(`${SHARED_API}.send_intent_link`, { name, ...intentTermsPayload() });
-      if (statusEl) statusEl.textContent = "Sent to the franchisee's email address.";
-      await loadLead();
-    } catch (error) {
-      if (statusEl) statusEl.textContent = error.message || "Could not send the agreement.";
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = "Send Intent to Proceed"; }
-    }
   }
 
   async function getIntentSignLink() {
@@ -483,11 +481,15 @@
     }
 
     block.innerHTML = `
-      <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendFranchiseeIntakeBtn">Send Intake Form</button>
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendFranchiseeIntakeBtn">
+        ${lead.franchisee_intake_sent_at ? "Resend Intake Form" : "Send Intake Form"}
+      </button>
       <button type="button" class="dashboard-btn dashboard-btn-light" id="getFranchiseeIntakeLinkBtn">
         ${lead.franchisee_intake_link_generated ? "Get Form Link Again" : "Generate Form Link"}
       </button>
-      <div id="franchiseeIntakeSendStatus" class="dashboard-help" style="flex-basis:100%;"></div>
+      <div id="franchiseeIntakeSendStatus" class="dashboard-help" style="flex-basis:100%;">
+        ${lead.franchisee_intake_sent_at ? `Sent ${escapeHtml(lead.franchisee_intake_sent_at)}` : ""}
+      </div>
       <div id="franchiseeIntakeLinkResult" style="flex-basis:100%; margin-top:8px; display:none;">
         <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">
           Copy this link and send it to the franchisee to fill in:
@@ -500,7 +502,7 @@
     `;
 
     const sendBtn = el("sendFranchiseeIntakeBtn");
-    if (sendBtn) sendBtn.addEventListener("click", sendFranchiseeIntakeForm);
+    if (sendBtn) sendBtn.addEventListener("click", () => prepareFranchiseeEmail("intake"));
 
     const getLinkBtn = el("getFranchiseeIntakeLinkBtn");
     if (getLinkBtn) getLinkBtn.addEventListener("click", getFranchiseeIntakeLink);
@@ -552,25 +554,6 @@
       window.alert(error.message || "Could not generate the form link.");
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = "Get Form Link Again"; }
-    }
-  }
-
-  async function sendFranchiseeIntakeForm() {
-    const name = getValue("leadDocname");
-    const btn = el("sendFranchiseeIntakeBtn");
-    const statusEl = el("franchiseeIntakeSendStatus");
-    if (!name) return;
-
-    if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
-    if (statusEl) statusEl.textContent = "";
-
-    try {
-      await apiPost(`${SHARED_API}.send_franchisee_intake_form`, { name });
-      if (statusEl) statusEl.textContent = "Sent to the franchisee's email address.";
-    } catch (error) {
-      if (statusEl) statusEl.textContent = error.message || "Could not send the intake form.";
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = "Send Intake Form"; }
     }
   }
 
@@ -1173,6 +1156,116 @@
     if (submitBtn) submitBtn.addEventListener("click", confirmSendIntakeForm);
   }
 
+  function openFranchiseeEmailModal() {
+    const modal = el("franchiseeEmailModal");
+    if (modal) modal.classList.add("show");
+  }
+
+  function closeFranchiseeEmailModal() {
+    const modal = el("franchiseeEmailModal");
+    if (modal) modal.classList.remove("show");
+  }
+
+  async function prepareFranchiseeEmail(kind, extraParams) {
+    const action = FRANCHISEE_EMAIL_ACTIONS[kind];
+    if (!action) return;
+
+    const name = getValue("leadDocname");
+    franchiseeEmailState = { kind, extraParams: extraParams || {} };
+
+    const titleEl = el("franchiseeEmailTitle");
+    if (titleEl) titleEl.textContent = action.title;
+
+    try {
+      const defaults = await apiPost(action.defaultsMethod, { name, ...franchiseeEmailState.extraParams });
+
+      const recipientField = el("franchiseeEmailRecipient");
+      const subjectField = el("franchiseeEmailSubject");
+      const messageField = el("franchiseeEmailMessage");
+      const statusField = el("franchiseeEmailStatus");
+      const senderField = el("franchiseeEmailSender");
+      const ccField = el("franchiseeEmailCc");
+
+      if (recipientField) recipientField.value = defaults.recipient || "";
+      if (subjectField) subjectField.value = defaults.subject || "";
+      if (messageField) messageField.value = defaults.message || "";
+      if (statusField) statusField.textContent = "";
+      if (ccField) ccField.value = "";
+
+      if (senderField) {
+        try {
+          const senderOptions = await apiPost("dashboard.api.shared.email_templates.get_email_sender_options", {});
+          senderField.innerHTML = "";
+          (senderOptions || []).forEach((opt) => {
+            const option = document.createElement("option");
+            option.value = opt.value;
+            option.textContent = opt.label;
+            senderField.appendChild(option);
+          });
+          Dashboard.attachSenderHint(senderField);
+        } catch (error) {
+          console.error("Could not load sender options", error);
+        }
+      }
+
+      openFranchiseeEmailModal();
+    } catch (error) {
+      showMessage(error.message || "Could not load this email.", true);
+    }
+  }
+
+  async function confirmSendFranchiseeEmail() {
+    const { kind, extraParams } = franchiseeEmailState;
+    const action = FRANCHISEE_EMAIL_ACTIONS[kind];
+    if (!action) return;
+
+    const name = getValue("leadDocname");
+    const subjectField = el("franchiseeEmailSubject");
+    const messageField = el("franchiseeEmailMessage");
+    const ccField = el("franchiseeEmailCc");
+    const statusField = el("franchiseeEmailStatus");
+    const submitBtn = el("franchiseeEmailSubmit");
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Sending...";
+    }
+
+    if (statusField) statusField.textContent = "";
+
+    try {
+      await apiPost(action.sendMethod, {
+        name,
+        ...(extraParams || {}),
+        subject: subjectField ? subjectField.value.trim() : "",
+        message: messageField ? messageField.value.trim() : "",
+        cc: ccField ? ccField.value.trim() : "",
+      });
+
+      showMessage("Sent to the franchisee's email address.", false);
+      closeFranchiseeEmailModal();
+      await loadLead();
+    } catch (error) {
+      if (statusField) statusField.textContent = error.message || "Could not send this email.";
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Send";
+      }
+    }
+  }
+
+  function initFranchiseeEmailModal() {
+    const closeBtn = el("franchiseeEmailModalClose");
+    if (closeBtn) closeBtn.addEventListener("click", closeFranchiseeEmailModal);
+
+    const cancelBtn = el("franchiseeEmailCancel");
+    if (cancelBtn) cancelBtn.addEventListener("click", closeFranchiseeEmailModal);
+
+    const submitBtn = el("franchiseeEmailSubmit");
+    if (submitBtn) submitBtn.addEventListener("click", confirmSendFranchiseeEmail);
+  }
+
   async function convertLead() {
     const name = getValue("leadDocname");
     const baseUrl = getValue("leadBaseUrl") || "/coach_db";
@@ -1401,6 +1494,7 @@
     if (addNoteBtn) addNoteBtn.addEventListener("click", addNote);
 
     initIntakeEmailModal();
+    initFranchiseeEmailModal();
     initLinkClientDiffModal();
     initTransferConfirmModal();
 

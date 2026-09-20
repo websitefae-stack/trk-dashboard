@@ -382,10 +382,20 @@ def get_lead(name=None):
         }
         row["nda_signed"] = 1 if doc.get("nda_signed_snapshot") else 0
         row["nda_link_generated"] = 1 if doc.get("nda_token") else 0
+        row["nda_sent_at"] = (
+            frappe.utils.format_datetime(doc.get("nda_sent_at"), "dd-MM-yyyy HH:mm") if doc.get("nda_sent_at") else ""
+        )
         row["intent_signed"] = 1 if doc.get("intent_signed_snapshot") else 0
         row["intent_link_generated"] = 1 if doc.get("intent_token") else 0
+        row["intent_sent_at"] = (
+            frappe.utils.format_datetime(doc.get("intent_sent_at"), "dd-MM-yyyy HH:mm") if doc.get("intent_sent_at") else ""
+        )
         row["franchisee_intake_submitted"] = 1 if doc.get("franchisee_intake_submitted") else 0
         row["franchisee_intake_link_generated"] = 1 if doc.get("franchisee_intake_token") else 0
+        row["franchisee_intake_sent_at"] = (
+            frappe.utils.format_datetime(doc.get("franchisee_intake_sent_at"), "dd-MM-yyyy HH:mm")
+            if doc.get("franchisee_intake_sent_at") else ""
+        )
 
     for fieldname in INTAKE_TEXT_FIELDS + INTAKE_DATE_FIELDS:
         row[fieldname] = doc.get(fieldname) or ""
@@ -794,12 +804,25 @@ def get_nda_sign_url(name=None):
     return {"url": get_url(f"/franchisee-nda?token={doc.nda_token}")}
 
 
+def _nda_email_text(doc, nda_url):
+    contact_name = doc.contact_name or "there"
+    subject = "Please sign: Non-Disclosure Agreement"
+    message = (
+        f"Hi {contact_name},\n\n"
+        "Please read and sign the Non-Disclosure Agreement below to continue with becoming a "
+        "Resilient franchisee:\n\n"
+        f"{nda_url}"
+    )
+    return subject, message
+
+
 @frappe.whitelist()
-def send_nda_link(name=None):
+def get_nda_email_defaults(name=None):
     """
-    Franchisor-only: emails the NDA sign link straight to this lead's
-    own contact email, reusing get_nda_sign_url's generate-or-reuse
-    logic so this never creates a second, different link.
+    Subject/message the compose modal pre-fills so Ashley can see and
+    edit the NDA invite before it's actually sent - mirrors
+    get_intake_email_defaults() above for the unrelated generic intake
+    flow.
     """
     name = coalesce_str("name", name)
     doc = ensure_lead_access(name)
@@ -808,24 +831,61 @@ def send_nda_link(name=None):
         frappe.throw(_("This lead has no contact email address to send the NDA to."))
 
     nda_url = get_nda_sign_url(name=name)["url"]
-    contact_name = doc.contact_name or "there"
+    subject, message = _nda_email_text(doc, nda_url)
 
-    message = plain_text_to_email_html(
-        f"Hi {contact_name},\n\n"
-        "Please read and sign the Non-Disclosure Agreement below to continue with becoming a "
-        "Resilient franchisee:\n\n"
-        f"{nda_url}"
-    )
+    return {"subject": subject, "message": message, "recipient": doc.contact_email, "url": nda_url}
 
-    frappe.sendmail(
-        recipients=[doc.contact_email],
-        subject="Please sign: Non-Disclosure Agreement",
-        message=message,
-        now=True,
-        reply_to=frappe.session.user,
-    )
 
-    return {"ok": 1, "url": nda_url}
+@frappe.whitelist()
+def send_nda_link(name=None, subject=None, message=None, cc=None, reply_to=None):
+    """
+    Franchisor-only: emails the NDA sign link straight to this lead's
+    own contact email, reusing get_nda_sign_url's generate-or-reuse
+    logic so this never creates a second, different link. subject/
+    message default to the standard wording when left blank (a direct
+    resend without reopening the compose modal), same as
+    send_intake_form does.
+    """
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.contact_email:
+        frappe.throw(_("This lead has no contact email address to send the NDA to."))
+
+    nda_url = get_nda_sign_url(name=name)["url"]
+
+    subject = (subject or "").strip()
+    message = (message or "").strip()
+    if not subject or not message:
+        default_subject, default_message = _nda_email_text(doc, nda_url)
+        subject = subject or default_subject
+        message = message or default_message
+
+    reply_to = (reply_to or "").strip() or frappe.session.user
+
+    kwargs = {
+        "recipients": [doc.contact_email],
+        "subject": subject,
+        "message": plain_text_to_email_html(message),
+        "now": True,
+        "reply_to": reply_to,
+    }
+
+    cc_list = parse_email_list(cc)
+    if cc_list:
+        kwargs["cc"] = cc_list
+
+    frappe.sendmail(**kwargs)
+
+    doc.nda_sent_at = frappe.utils.now_datetime()
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "ok": 1,
+        "url": nda_url,
+        "sent_at": frappe.utils.format_datetime(doc.nda_sent_at, "dd-MM-yyyy HH:mm"),
+    }
 
 
 @frappe.whitelist()
@@ -1006,13 +1066,25 @@ def get_intent_sign_url(name=None, territory=None, deposit_amount=None, end_date
     return {"url": get_url(f"/franchisee-intent?token={doc.intent_token}")}
 
 
+def _intent_email_text(doc, intent_url):
+    contact_name = doc.contact_name or "there"
+    subject = "Please sign: Deposit and Intent to Proceed Agreement"
+    message = (
+        f"Hi {contact_name},\n\n"
+        "Please read and sign the Deposit and Intent to Proceed Agreement below to keep things "
+        "moving:\n\n"
+        f"{intent_url}"
+    )
+    return subject, message
+
+
 @frappe.whitelist()
-def send_intent_link(name=None, territory=None, deposit_amount=None, end_date=None):
+def get_intent_email_defaults(name=None, territory=None, deposit_amount=None, end_date=None):
     """
-    Franchisor-only: emails the Deposit and Intent to Proceed sign link
-    straight to this lead's own contact email, reusing get_intent_sign_
-    url's generate-or-reuse logic (territory/deposit_amount/end_date are
-    only used the first time, same as there).
+    Subject/message the compose modal pre-fills before send_intent_link
+    actually sends it. territory/deposit_amount/end_date are only used
+    the first time (when the link doesn't exist yet) - same rule as
+    get_intent_sign_url.
     """
     name = coalesce_str("name", name)
     doc = ensure_lead_access(name)
@@ -1023,24 +1095,62 @@ def send_intent_link(name=None, territory=None, deposit_amount=None, end_date=No
     intent_url = get_intent_sign_url(
         name=name, territory=territory, deposit_amount=deposit_amount, end_date=end_date
     )["url"]
-    contact_name = doc.contact_name or "there"
+    subject, message = _intent_email_text(doc, intent_url)
 
-    message = plain_text_to_email_html(
-        f"Hi {contact_name},\n\n"
-        "Please read and sign the Deposit and Intent to Proceed Agreement below to keep things "
-        "moving:\n\n"
-        f"{intent_url}"
-    )
+    return {"subject": subject, "message": message, "recipient": doc.contact_email, "url": intent_url}
 
-    frappe.sendmail(
-        recipients=[doc.contact_email],
-        subject="Please sign: Deposit and Intent to Proceed Agreement",
-        message=message,
-        now=True,
-        reply_to=frappe.session.user,
-    )
 
-    return {"ok": 1, "url": intent_url}
+@frappe.whitelist()
+def send_intent_link(name=None, territory=None, deposit_amount=None, end_date=None, subject=None, message=None, cc=None, reply_to=None):
+    """
+    Franchisor-only: emails the Deposit and Intent to Proceed sign link
+    straight to this lead's own contact email, reusing get_intent_sign_
+    url's generate-or-reuse logic (territory/deposit_amount/end_date are
+    only used the first time, same as there). subject/message default to
+    the standard wording when left blank.
+    """
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.contact_email:
+        frappe.throw(_("This lead has no contact email address to send the agreement to."))
+
+    intent_url = get_intent_sign_url(
+        name=name, territory=territory, deposit_amount=deposit_amount, end_date=end_date
+    )["url"]
+
+    subject = (subject or "").strip()
+    message = (message or "").strip()
+    if not subject or not message:
+        default_subject, default_message = _intent_email_text(doc, intent_url)
+        subject = subject or default_subject
+        message = message or default_message
+
+    reply_to = (reply_to or "").strip() or frappe.session.user
+
+    kwargs = {
+        "recipients": [doc.contact_email],
+        "subject": subject,
+        "message": plain_text_to_email_html(message),
+        "now": True,
+        "reply_to": reply_to,
+    }
+
+    cc_list = parse_email_list(cc)
+    if cc_list:
+        kwargs["cc"] = cc_list
+
+    frappe.sendmail(**kwargs)
+
+    doc.intent_sent_at = frappe.utils.now_datetime()
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "ok": 1,
+        "url": intent_url,
+        "sent_at": frappe.utils.format_datetime(doc.intent_sent_at, "dd-MM-yyyy HH:mm"),
+    }
 
 
 @frappe.whitelist()
@@ -1186,15 +1296,47 @@ def get_franchisee_intake_url(name=None):
     return {"url": get_url(f"/franchisee-intake?token={doc.franchisee_intake_token}")}
 
 
+def _franchisee_intake_email_text(doc, intake_url):
+    contact_name = doc.contact_name or "there"
+    subject = "Your Resilient franchisee intake form"
+    message = (
+        f"Hi {contact_name},\n\n"
+        "Thanks for your continued interest in becoming a Resilient franchisee. Please "
+        "complete the short form below with your details and DBS certificate so we can "
+        "keep things moving:\n\n"
+        f"{intake_url}"
+    )
+    return subject, message
+
+
 @frappe.whitelist()
-def send_franchisee_intake_form(name=None):
+def get_franchisee_intake_email_defaults(name=None):
+    """Subject/message the compose modal pre-fills before send_franchisee_intake_form actually sends it."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.contact_email:
+        frappe.throw(_("This lead has no contact email address to send the form to."))
+
+    intake_url = get_franchisee_intake_url(name=name)["url"]
+    subject, message = _franchisee_intake_email_text(doc, intake_url)
+
+    return {"subject": subject, "message": message, "recipient": doc.contact_email, "url": intake_url}
+
+
+@frappe.whitelist()
+def send_franchisee_intake_form(name=None, subject=None, message=None, cc=None, reply_to=None):
     """
     Franchisor-only: emails the Intake/DBS form link straight to this
     lead's own contact email. Reuses whatever token already exists for
     this lead (generating one the first time, exactly like
     get_franchisee_intake_url) rather than ever creating a new one, so a
     link the franchisee has already opened (or partway filled in) keeps
-    working after a resend.
+    working after a resend. subject/message default to the standard
+    wording when left blank.
     """
     if not is_franchisor_user():
         frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
@@ -1214,25 +1356,39 @@ def send_franchisee_intake_form(name=None):
         frappe.db.commit()
 
     intake_url = get_url(f"/franchisee-intake?token={doc.franchisee_intake_token}")
-    contact_name = doc.contact_name or "there"
 
-    message = plain_text_to_email_html(
-        f"Hi {contact_name},\n\n"
-        "Thanks for your continued interest in becoming a Resilient franchisee. Please "
-        "complete the short form below with your details and DBS certificate so we can "
-        "keep things moving:\n\n"
-        f"{intake_url}"
-    )
+    subject = (subject or "").strip()
+    message = (message or "").strip()
+    if not subject or not message:
+        default_subject, default_message = _franchisee_intake_email_text(doc, intake_url)
+        subject = subject or default_subject
+        message = message or default_message
 
-    frappe.sendmail(
-        recipients=[doc.contact_email],
-        subject="Your Resilient franchisee intake form",
-        message=message,
-        now=True,
-        reply_to=frappe.session.user,
-    )
+    reply_to = (reply_to or "").strip() or frappe.session.user
 
-    return {"ok": 1, "url": intake_url}
+    kwargs = {
+        "recipients": [doc.contact_email],
+        "subject": subject,
+        "message": plain_text_to_email_html(message),
+        "now": True,
+        "reply_to": reply_to,
+    }
+
+    cc_list = parse_email_list(cc)
+    if cc_list:
+        kwargs["cc"] = cc_list
+
+    frappe.sendmail(**kwargs)
+
+    doc.franchisee_intake_sent_at = frappe.utils.now_datetime()
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "ok": 1,
+        "url": intake_url,
+        "sent_at": frappe.utils.format_datetime(doc.franchisee_intake_sent_at, "dd-MM-yyyy HH:mm"),
+    }
 
 
 @frappe.whitelist(allow_guest=True)
