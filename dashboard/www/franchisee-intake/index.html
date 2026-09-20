@@ -134,9 +134,44 @@
       }
 
       function renderForm(contactName, isSessionWorker) {
-        var sessionWorkerFieldsHtml = isSessionWorker
-          ? (
-              '<div class="fi-section-title">About Your Work</div>' +
+        // Safer Recruitment Checklist self-report fields - shown on this
+        // form for BOTH a potential franchisee and a session worker,
+        // since both need the same safeguarding checks before delivering
+        // sessions. The franchisor separately verifies every item on
+        // this checklist (including what's given here) once submitted.
+        var saferRecruitmentFieldsHtml =
+              '<div class="fi-section-title">Identity &amp; Right to Work</div>' +
+              '<div class="fi-field-row">' +
+                '<div class="fi-field"><label for="fiIdDocumentType">ID Document You Can Provide (e.g. passport, driving licence)</label><input type="text" id="fiIdDocumentType" name="id_document_type"></div>' +
+                '<div class="fi-field">' +
+                  '<label for="fiRightToWorkStatus">Right to Work Status</label>' +
+                  '<select id="fiRightToWorkStatus" name="right_to_work_status">' +
+                    '<option value="">Select...</option>' +
+                    '<option value="British/Irish Citizen">British/Irish Citizen</option>' +
+                    '<option value="Settled/Pre-Settled Status">Settled/Pre-Settled Status</option>' +
+                    '<option value="Visa - Right to Work">Visa - Right to Work</option>' +
+                    '<option value="To Be Confirmed">To Be Confirmed</option>' +
+                  "</select>" +
+                "</div>" +
+              "</div>" +
+              '<div class="fi-field">' +
+                '<label for="fiRightToWorkExpiry">Visa Expiry Date (if applicable)</label>' +
+                '<input type="date" id="fiRightToWorkExpiry" name="right_to_work_expiry">' +
+              "</div>" +
+              '<div class="fi-field">' +
+                '<label for="fiAddressHistory">Address History (Last 5 Years)</label>' +
+                '<input type="text" id="fiAddressHistory" name="address_history" placeholder="List each address and the dates you lived there">' +
+              "</div>" +
+              '<div class="fi-field">' +
+                '<label for="fiOverseasChecks">Overseas Police Clearance / Working With Children Check (if you have lived/worked overseas)</label>' +
+                '<input type="text" id="fiOverseasChecks" name="overseas_checks">' +
+              "</div>" +
+
+              '<div class="fi-section-title">Work History, Qualifications &amp; References</div>' +
+              '<div class="fi-field">' +
+                '<label for="fiWorkHistory">Relevant Work History / Experience</label>' +
+                '<input type="text" id="fiWorkHistory" name="work_history">' +
+              "</div>" +
               '<div class="fi-field">' +
                 '<label for="fiWorkLocations">Main Work Locations / Areas</label>' +
                 '<input type="text" id="fiWorkLocations" name="work_locations">' +
@@ -145,6 +180,11 @@
                 '<label for="fiQualifications">Relevant Qualifications / Training (e.g. counselling, coaching, education, first aid, safeguarding)</label>' +
                 '<input type="text" id="fiQualifications" name="qualifications">' +
               "</div>" +
+              '<div class="fi-field-row">' +
+                '<div class="fi-field"><label for="fiReference1Details">Reference 1 - Name, Relationship &amp; Contact Details</label><input type="text" id="fiReference1Details" name="reference1_details"></div>' +
+                '<div class="fi-field"><label for="fiReference2Details">Reference 2 - Name, Relationship &amp; Contact Details</label><input type="text" id="fiReference2Details" name="reference2_details"></div>' +
+              "</div>" +
+
               '<div class="fi-section-title">Insurance</div>' +
               '<div class="fi-field-row">' +
                 '<div class="fi-field"><label for="fiPublicLiabilityInsurer">Public Liability Insurer &amp; Policy Number</label><input type="text" id="fiPublicLiabilityInsurer" name="public_liability_insurer"></div>' +
@@ -153,9 +193,7 @@
               '<div class="fi-field">' +
                 '<label for="fiInsuranceRenewalDate">Insurance Policy Renewal Date</label>' +
                 '<input type="date" id="fiInsuranceRenewalDate" name="insurance_renewal_date">' +
-              "</div>"
-            )
-          : "";
+              "</div>";
 
         page.innerHTML =
           '<div class="fi-card">' +
@@ -200,7 +238,7 @@
                 '<input type="file" id="fiAdditionalDocument" accept="image/*,.pdf">' +
               "</div>" +
 
-              sessionWorkerFieldsHtml +
+              saferRecruitmentFieldsHtml +
 
               '<button type="submit" class="fi-submit-btn" id="fiSubmitBtn">Submit</button>' +
               '<div class="fi-form-message" id="fiFormMessage"></div>' +
@@ -250,7 +288,15 @@
               work_locations: form.work_locations ? form.work_locations.value : "",
               public_liability_insurer: form.public_liability_insurer ? form.public_liability_insurer.value : "",
               indemnity_insurer: form.indemnity_insurer ? form.indemnity_insurer.value : "",
-              insurance_renewal_date: form.insurance_renewal_date ? form.insurance_renewal_date.value : ""
+              insurance_renewal_date: form.insurance_renewal_date ? form.insurance_renewal_date.value : "",
+              id_document_type: form.id_document_type ? form.id_document_type.value : "",
+              right_to_work_status: form.right_to_work_status ? form.right_to_work_status.value : "",
+              right_to_work_expiry: form.right_to_work_expiry ? form.right_to_work_expiry.value : "",
+              address_history: form.address_history ? form.address_history.value : "",
+              overseas_checks: form.overseas_checks ? form.overseas_checks.value : "",
+              work_history: form.work_history ? form.work_history.value : "",
+              reference1_details: form.reference1_details ? form.reference1_details.value : "",
+              reference2_details: form.reference2_details ? form.reference2_details.value : ""
             });
           }).then(function () {
             renderSubmitted();

@@ -718,16 +718,24 @@
     if (!block) return;
 
     if (lead.franchisee_intake_submitted) {
-      const convertedHtml = lead.status === "Converted" && lead.converted_client
-        ? `<a class="dashboard-btn dashboard-btn-light" id="franchiseeIntakeViewClientBtn" href="${escapeHtml((getValue("leadBaseUrl") || "/coach_db"))}/client_details?name=${encodeURIComponent(lead.converted_client)}">View Client</a>`
-        : `<button type="button" class="dashboard-btn dashboard-btn-primary" id="franchiseeIntakeConvertBtn">Convert to Client</button>`;
+      // Session Worker leads get their own "Set Up As Session Worker"
+      // action further down the pipeline (renderSessionWorkerSetupBlock)
+      // - this block only ever offers Convert to Client for a franchisee.
+      let convertHtml = "";
+      if (lead.is_franchise_lead) {
+        convertHtml = lead.status === "Converted" && lead.converted_client
+          ? `<a class="dashboard-btn dashboard-btn-light" id="franchiseeIntakeViewClientBtn" href="${escapeHtml((getValue("leadBaseUrl") || "/coach_db"))}/client_details?name=${encodeURIComponent(lead.converted_client)}">View Client</a>`
+          : `<button type="button" class="dashboard-btn dashboard-btn-primary" id="franchiseeIntakeConvertBtn">Convert to Client</button>`;
+      }
 
       block.innerHTML = `
         <div id="franchiseeIntakeSummary" class="dashboard-help" style="flex-basis:100%;">Loading…</div>
-        ${convertedHtml}
+        <div id="saferRecruitmentChecklistContainer" style="flex-basis:100%; margin-top:10px;">Loading checklist…</div>
+        ${convertHtml}
         <div id="franchiseeIntakeConvertStatus" class="dashboard-help" style="flex-basis:100%;"></div>
       `;
       loadFranchiseeIntakeSummary();
+      loadSaferRecruitmentChecklist();
 
       const convertBtn = el("franchiseeIntakeConvertBtn");
       if (convertBtn) convertBtn.addEventListener("click", convertFranchiseeLeadToClient);
@@ -824,9 +832,22 @@
         ["Phone", result.phone],
         ["Gender", result.gender],
         ["Date of Birth", result.dob],
+        ["ID Document", result.id_document_type],
+        ["Right to Work Status", result.right_to_work_status],
+        ["Visa Expiry", result.right_to_work_expiry],
+        ["Address History", result.address_history],
+        ["Overseas Checks", result.overseas_checks],
+        ["Work History", result.work_history],
+        ["Work Locations / Areas", result.work_locations],
+        ["Qualifications / Training", result.qualifications],
+        ["Reference 1", result.reference1_details],
+        ["Reference 2", result.reference2_details],
         ["DBS Number", result.dbs_number],
         ["DBS Date Received", result.dbs_date_received],
         ["DBS Expiry Date", result.dbs_expiry_date],
+        ["Public Liability Insurer", result.public_liability_insurer],
+        ["Professional Indemnity Insurer", result.indemnity_insurer],
+        ["Insurance Renewal Date", result.insurance_renewal_date],
         ["Submitted", result.submitted_at],
       ].filter(([, value]) => value);
 
@@ -845,6 +866,132 @@
       summary.innerHTML = rowsHtml + `<div style="margin-top:10px; display:flex; gap:8px;">${fileLinks}</div>`;
     } catch (error) {
       summary.textContent = error.message || "Could not load the submitted intake form.";
+    }
+  }
+
+  const SAFER_RECRUITMENT_STATUS_OPTIONS = ["Pending", "Complete", "N/A"];
+
+  async function loadSaferRecruitmentChecklist() {
+    const name = getValue("leadDocname");
+    const container = el("saferRecruitmentChecklistContainer");
+    if (!name || !container) return;
+
+    try {
+      const result = await apiPost(`${SHARED_API}.get_safer_recruitment_checklist`, { name });
+      renderSaferRecruitmentChecklist(result.rows || [], result.outstanding_actions || "");
+    } catch (error) {
+      container.textContent = error.message || "Could not load the Safer Recruitment Checklist.";
+    }
+  }
+
+  function renderSaferRecruitmentChecklist(rows, outstandingActions) {
+    const container = el("saferRecruitmentChecklistContainer");
+    if (!container) return;
+
+    const completeCount = rows.filter((r) => r.status && r.status !== "Pending").length;
+
+    const sections = [];
+    const sectionIndex = {};
+    rows.forEach((row) => {
+      if (!(row.section in sectionIndex)) {
+        sectionIndex[row.section] = sections.length;
+        sections.push({ section: row.section, rows: [] });
+      }
+      sections[sectionIndex[row.section]].rows.push(row);
+    });
+
+    const rowsHtml = sections.map((group) => `
+      <tr><td colspan="4" style="font-weight:700; padding-top:12px; border:none;">${escapeHtml(group.section)}</td></tr>
+      ${group.rows.map((row) => `
+        <tr data-checklist-row="${escapeHtml(row.item_key)}">
+          <td>${escapeHtml(row.item_label)}</td>
+          <td>
+            <select class="dashboard-input" data-checklist-field="status" style="min-width:110px;">
+              ${SAFER_RECRUITMENT_STATUS_OPTIONS.map((opt) => `<option value="${opt}" ${row.status === opt ? "selected" : ""}>${opt}</option>`).join("")}
+            </select>
+          </td>
+          <td><input type="date" class="dashboard-input" data-checklist-field="checked_date" value="${escapeHtml(row.checked_date || "")}" style="min-width:140px;"></td>
+          <td><input type="text" class="dashboard-input" data-checklist-field="notes" value="${escapeHtml(row.notes || "")}" placeholder="Notes / expiry">
+            ${row.checked_by ? `<div class="dashboard-help" style="margin-top:2px;">Checked by ${escapeHtml(row.checked_by)}</div>` : ""}
+          </td>
+        </tr>
+      `).join("")}
+    `).join("");
+
+    container.innerHTML = `
+      <details ${completeCount < rows.length ? "open" : ""} style="width:100%;">
+        <summary style="cursor:pointer; font-weight:600;">
+          Safer Recruitment Checklist - ${completeCount} of ${rows.length} reviewed
+        </summary>
+        <p class="dashboard-help">Go through every item below and mark it off before converting this lead - what the franchisee/worker gave on their intake form is above.</p>
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table">
+            <thead><tr><th>Requirement</th><th>Status</th><th>Date</th><th>Notes</th></tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>
+        <div style="margin-top:10px;">
+          <label style="display:block; font-weight:600; font-size:13px; margin-bottom:4px;">Outstanding Actions &amp; Conditions</label>
+          <textarea id="saferRecruitmentOutstandingActions" class="dashboard-textarea" rows="3" placeholder="Any follow-up actions or conditions before this can proceed">${escapeHtml(outstandingActions)}</textarea>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="saveSaferRecruitmentOutstandingActionsBtn" style="margin-top:6px;">Save</button>
+          <span class="dashboard-help" id="saferRecruitmentOutstandingActionsStatus"></span>
+        </div>
+      </details>
+    `;
+
+    container.querySelectorAll("[data-checklist-row]").forEach((rowEl) => {
+      const itemKey = rowEl.dataset.checklistRow;
+
+      rowEl.querySelectorAll("[data-checklist-field]").forEach((fieldEl) => {
+        fieldEl.addEventListener("change", () => saveSaferRecruitmentChecklistItem(itemKey, rowEl));
+      });
+    });
+
+    const outstandingBtn = el("saveSaferRecruitmentOutstandingActionsBtn");
+    if (outstandingBtn) outstandingBtn.addEventListener("click", saveSaferRecruitmentOutstandingActions);
+  }
+
+  async function saveSaferRecruitmentChecklistItem(itemKey, rowEl) {
+    const name = getValue("leadDocname");
+    if (!name) return;
+
+    const status = rowEl.querySelector('[data-checklist-field="status"]').value;
+    const checkedDate = rowEl.querySelector('[data-checklist-field="checked_date"]').value;
+    const notes = rowEl.querySelector('[data-checklist-field="notes"]').value;
+
+    try {
+      await apiPost(`${SHARED_API}.update_safer_recruitment_checklist_item`, {
+        name,
+        item_key: itemKey,
+        status,
+        checked_date: checkedDate,
+        notes,
+      });
+      await loadSaferRecruitmentChecklist();
+    } catch (error) {
+      window.alert(error.message || "Could not save this checklist item.");
+    }
+  }
+
+  async function saveSaferRecruitmentOutstandingActions() {
+    const name = getValue("leadDocname");
+    const textarea = el("saferRecruitmentOutstandingActions");
+    const statusEl = el("saferRecruitmentOutstandingActionsStatus");
+    const btn = el("saveSaferRecruitmentOutstandingActionsBtn");
+    if (!name || !textarea) return;
+
+    if (btn) { btn.disabled = true; btn.textContent = "Saving..."; }
+
+    try {
+      await apiPost(`${SHARED_API}.update_safer_recruitment_outstanding_actions`, {
+        name,
+        outstanding_actions: textarea.value,
+      });
+      if (statusEl) statusEl.textContent = "Saved.";
+    } catch (error) {
+      if (statusEl) statusEl.textContent = error.message || "Could not save this.";
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Save"; }
     }
   }
 
