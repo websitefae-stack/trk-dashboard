@@ -12,6 +12,7 @@ those two pieces are reused directly rather than re-implemented here.
 """
 
 import contextlib
+import itertools
 import re
 
 import frappe
@@ -1289,3 +1290,119 @@ def add_product_variant(template_item_code=None, attribute_values=None, price=No
     frappe.db.commit()
 
     return {"ok": 1, "item_code": variant_name}
+
+
+@frappe.whitelist()
+def add_product_variants_bulk(template_item_code=None, attribute_value_lists=None, price=None, stock_qty=None,
+                               unlimited_stock=None):
+    """
+    Generates every combination across several values per attribute in
+    one go (e.g. 20 Colours x 6 Sizes = up to 120 variants) instead of
+    add_product_variant's one-at-a-time form - built for exactly that
+    "adding 120 variations by hand is taking forever" case. All new
+    variants share the one price/stock/unlimited_stock given here; SKUs
+    and images stay editable per-row afterwards (image can also be
+    applied in bulk per attribute-value combination further down this
+    same modal). Combinations that already exist are silently skipped
+    rather than erroring, so this is safe to run again after adding more
+    values to top up a range.
+
+    attribute_value_lists: {"Colour": ["Red", "Blue", ...], "Size": ["S", "M", "L"]}
+    - one entry per attribute on the product template, each a list of
+    the values to generate every combination across.
+    """
+    _ensure_store_access()
+
+    template_item_code = (template_item_code or "").strip()
+
+    if not template_item_code or not frappe.db.exists("Item", template_item_code):
+        frappe.throw(_("Product not found."))
+
+    template = frappe.get_doc("Item", template_item_code)
+
+    if not template.has_variants:
+        frappe.throw(_("This product doesn't have variations."))
+
+    if isinstance(attribute_value_lists, dict):
+        parsed_lists = attribute_value_lists
+    else:
+        try:
+            parsed_lists = frappe.parse_json(attribute_value_lists) or {}
+        except Exception:
+            parsed_lists = {}
+
+    template_attributes = [row.attribute for row in (template.get("attributes") or [])]
+
+    value_lists = []
+    missing = []
+
+    for attribute_name in template_attributes:
+        values = [
+            v.strip() for v in (parsed_lists.get(attribute_name) or [])
+            if (v or "").strip()
+        ]
+        # De-duplicate while keeping the order the user typed them in, so
+        # a repeated value in a pasted/comma-separated list doesn't
+        # double up in the combination count below.
+        seen = set()
+        deduped = []
+        for v in values:
+            if v not in seen:
+                seen.add(v)
+                deduped.append(v)
+
+        if not deduped:
+            missing.append(attribute_name)
+        else:
+            value_lists.append(deduped)
+
+    if missing:
+        frappe.throw(_("Add at least one value for: {0}").format(", ".join(missing)))
+
+    combinations = list(itertools.product(*value_lists))
+
+    if len(combinations) > 1000:
+        frappe.throw(_(
+            "That would create {0} combinations in one go, which is more than this can safely "
+            "handle at once - narrow down the values and add them in smaller batches."
+        ).format(len(combinations)))
+
+    existing_combos = set()
+    for existing_code in frappe.get_all("Item", filters={"variant_of": template_item_code}, pluck="name"):
+        rows = frappe.get_all(
+            "Item Variant Attribute",
+            filters={"parent": existing_code, "parenttype": "Item"},
+            fields=["attribute", "attribute_value"],
+        )
+        existing_combos.add(tuple((row.attribute, row.attribute_value) for row in sorted(rows, key=lambda r: r.attribute)))
+
+    company = _store_company()
+    created = []
+    skipped = 0
+
+    with _as_administrator():
+        for attribute_name, values in zip(template_attributes, value_lists):
+            _ensure_item_attribute(attribute_name, values)
+
+        for combo in combinations:
+            attribute_values = dict(zip(template_attributes, combo))
+            combo_key = tuple(sorted(attribute_values.items()))
+
+            if combo_key in existing_combos:
+                skipped += 1
+                continue
+
+            variant_name = _create_variant_item(
+                template,
+                attribute_values,
+                price,
+                stock_qty,
+                unlimited_stock,
+                company,
+            )
+            created.append(variant_name)
+            existing_combos.add(combo_key)
+
+    frappe.db.commit()
+
+    return {"ok": 1, "created": created, "created_count": len(created), "skipped_count": skipped}

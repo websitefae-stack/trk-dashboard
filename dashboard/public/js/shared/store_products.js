@@ -894,6 +894,100 @@
     }).join("");
   }
 
+  function bulkAddVariantsAttributeInputs() {
+    return Array.from(document.querySelectorAll("[data-bulk-add-variant-attribute]"));
+  }
+
+  function renderBulkAddVariantsAttributes() {
+    const container = el("bulkAddVariantsAttributesList");
+    if (!container) return;
+
+    const lists = manageVariantsAttributeLists();
+
+    container.innerHTML = lists.map((a) => `
+      <div>
+        <label style="display:block; font-weight:normal; margin-bottom:2px;">${escapeHtml(a.attribute)}</label>
+        <input type="text" class="dashboard-input" style="width:100%;"
+          data-bulk-add-variant-attribute="${escapeHtml(a.attribute)}"
+          placeholder="Comma separated, e.g. ${escapeHtml(a.values.slice(0, 3).join(", ") || "Red, Blue, Green")}">
+      </div>
+    `).join("");
+
+    updateBulkAddVariantsCount();
+  }
+
+  function parseBulkAddVariantsValues() {
+    const values = {};
+
+    bulkAddVariantsAttributeInputs().forEach((input) => {
+      values[input.dataset.bulkAddVariantAttribute] = input.value
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean);
+    });
+
+    return values;
+  }
+
+  function updateBulkAddVariantsCount() {
+    const countEl = el("bulkAddVariantsCount");
+    if (!countEl) return;
+
+    const values = parseBulkAddVariantsValues();
+    const lists = Object.values(values);
+
+    if (!lists.length || lists.some((list) => !list.length)) {
+      countEl.textContent = "";
+      return;
+    }
+
+    const total = lists.reduce((acc, list) => acc * list.length, 1);
+    countEl.textContent = `${total} combination${total === 1 ? "" : "s"} (existing ones are skipped automatically).`;
+  }
+
+  async function bulkAddVariants() {
+    const templateItemCode = el("storeVariantsTemplateCode").value;
+    const values = parseBulkAddVariantsValues();
+    const missing = Object.entries(values).filter(([, list]) => !list.length).map(([attr]) => attr);
+
+    const statusEl = el("bulkAddVariantsStatus");
+
+    if (missing.length) {
+      statusEl.textContent = `Add at least one value for: ${missing.join(", ")}.`;
+      return;
+    }
+
+    const btn = el("bulkAddVariantsBtn");
+    btn.disabled = true;
+    statusEl.textContent = "Adding…";
+
+    try {
+      const result = await apiPost(API + ".add_product_variants_bulk", {
+        template_item_code: templateItemCode,
+        attribute_value_lists: JSON.stringify(values),
+        price: el("bulkAddVariantsPrice").value,
+        stock_qty: el("bulkAddVariantsStock").value,
+        unlimited_stock: el("bulkAddVariantsUnlimited").checked,
+      });
+
+      await openVariantsModal(templateItemCode);
+
+      const parts = [`Added ${result.created_count} new variant${result.created_count === 1 ? "" : "s"}.`];
+      if (result.skipped_count) parts.push(`${result.skipped_count} already existed and were skipped.`);
+      const refreshedStatusEl = el("bulkAddVariantsStatus");
+      if (refreshedStatusEl) refreshedStatusEl.textContent = parts.join(" ");
+
+      const content = el("bulkAddVariantsContent");
+      if (content) content.style.display = "";
+      const icon = el("bulkAddVariantsToggleIcon");
+      if (icon) icon.textContent = "▾";
+    } catch (error) {
+      statusEl.textContent = error.message || "Could not add these variants.";
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   async function addNewVariant() {
     const templateItemCode = el("storeVariantsTemplateCode").value;
     const attributeInputs = Array.from(document.querySelectorAll("[data-add-variant-attribute]"));
@@ -961,6 +1055,10 @@
     el("addVariantUnlimited").checked = false;
     el("addVariantImage").value = "";
     el("addVariantStatus").textContent = "";
+    el("bulkAddVariantsPrice").value = "";
+    el("bulkAddVariantsStock").value = "";
+    el("bulkAddVariantsUnlimited").checked = false;
+    el("bulkAddVariantsStatus").textContent = "";
     el("storeVariantsModal").classList.add("is-open");
 
     try {
@@ -971,6 +1069,7 @@
         : '<tr><td colspan="8" class="dashboard-empty">No variants found.</td></tr>';
       renderManageVariantsImageAttributes();
       renderAddVariantAttributes();
+      renderBulkAddVariantsAttributes();
     } catch (error) {
       body.innerHTML = '<tr><td colspan="8" class="dashboard-empty">Could not load variants.</td></tr>';
       console.error(error);
@@ -1178,6 +1277,18 @@
       content.style.display = isOpen ? "none" : "";
       icon.textContent = isOpen ? "▸" : "▾";
     });
+
+    el("bulkAddVariantsToggle").addEventListener("click", function () {
+      const content = el("bulkAddVariantsContent");
+      const icon = el("bulkAddVariantsToggleIcon");
+      const isOpen = content.style.display !== "none";
+
+      content.style.display = isOpen ? "none" : "";
+      icon.textContent = isOpen ? "▸" : "▾";
+    });
+
+    el("bulkAddVariantsAttributesList").addEventListener("input", updateBulkAddVariantsCount);
+    el("bulkAddVariantsBtn").addEventListener("click", bulkAddVariants);
 
     el("manageVariantsImageAttributesList").addEventListener("change", function (event) {
       const checkbox = event.target.closest("[data-manage-variants-image-attribute]");
