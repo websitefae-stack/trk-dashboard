@@ -119,3 +119,4 @@ dashboard.patches.add_franchise_lead_intent_fields
 dashboard.patches.add_franchisee_intent_practice_document
 dashboard.patches.add_franchisee_intake_fields
 dashboard.patches.add_franchise_agreement_practice_document
+dashboard.patches.relabel_stage1_intent_and_intake_fields

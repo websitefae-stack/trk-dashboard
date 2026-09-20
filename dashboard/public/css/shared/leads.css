@@ -311,6 +311,31 @@
   flex: 0 0 160px;
 }
 
+.dashboard-lead-stage1-row-wrap {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.dashboard-lead-stage1-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.dashboard-lead-stage1-actions {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashboard-lead-stage1-actions:empty {
+  display: none;
+  margin: 0;
+}
+
 /* =========================================================
    SUBMITTED INTAKE FORM (read-only answers on Lead Details)
 ========================================================= */

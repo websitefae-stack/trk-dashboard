@@ -348,8 +348,15 @@ def get_lead(name=None):
     row["intake_url"] = _intake_url(doc) if doc.get("intake_sent_on") else ""
     row["call"] = _get_lead_call_info(doc.event)
     row["location_address"] = doc.get("location_address") or ""
-    row["is_client_conversion"] = 1 if creates_client_on_conversion(doc.get("appointment_type")) else 0
     row["is_franchise_lead"] = 1 if is_franchise_lead(doc.get("appointment_type")) else 0
+    # A Franchisee Call is deliberately excluded from creates_client_on_
+    # conversion() (see LEGACY_NON_CLIENT_LABEL_FRAGMENTS) - that was
+    # written before this Stage 1 pipeline existed, back when converting
+    # one straight into an ordinary Client made no sense. It now does
+    # (Stage 1 finishes with a real Client, client_type Franchise - see
+    # convert_lead_to_client below), so it's forced on here regardless
+    # of whatever creates_client_on_conversion() would otherwise say.
+    row["is_client_conversion"] = 1 if (row["is_franchise_lead"] or creates_client_on_conversion(doc.get("appointment_type"))) else 0
     row["active_transfer"] = doc.get("active_transfer") or ""
     # For the franchisor: is this HER OWN lead (she's a working coach and
     # currently holds it herself), rather than one of some other coach's
@@ -788,6 +795,40 @@ def get_nda_sign_url(name=None):
 
 
 @frappe.whitelist()
+def send_nda_link(name=None):
+    """
+    Franchisor-only: emails the NDA sign link straight to this lead's
+    own contact email, reusing get_nda_sign_url's generate-or-reuse
+    logic so this never creates a second, different link.
+    """
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.contact_email:
+        frappe.throw(_("This lead has no contact email address to send the NDA to."))
+
+    nda_url = get_nda_sign_url(name=name)["url"]
+    contact_name = doc.contact_name or "there"
+
+    message = plain_text_to_email_html(
+        f"Hi {contact_name},\n\n"
+        "Please read and sign the Non-Disclosure Agreement below to continue with becoming a "
+        "Resilient franchisee:\n\n"
+        f"{nda_url}"
+    )
+
+    frappe.sendmail(
+        recipients=[doc.contact_email],
+        subject="Please sign: Non-Disclosure Agreement",
+        message=message,
+        now=True,
+        reply_to=frappe.session.user,
+    )
+
+    return {"ok": 1, "url": nda_url}
+
+
+@frappe.whitelist()
 def get_signed_nda(name=None):
     """Franchisor-only: the frozen signed snapshot plus its audit trail, for the Lead Details page."""
     name = coalesce_str("name", name)
@@ -966,6 +1007,43 @@ def get_intent_sign_url(name=None, territory=None, deposit_amount=None, end_date
 
 
 @frappe.whitelist()
+def send_intent_link(name=None, territory=None, deposit_amount=None, end_date=None):
+    """
+    Franchisor-only: emails the Deposit and Intent to Proceed sign link
+    straight to this lead's own contact email, reusing get_intent_sign_
+    url's generate-or-reuse logic (territory/deposit_amount/end_date are
+    only used the first time, same as there).
+    """
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.contact_email:
+        frappe.throw(_("This lead has no contact email address to send the agreement to."))
+
+    intent_url = get_intent_sign_url(
+        name=name, territory=territory, deposit_amount=deposit_amount, end_date=end_date
+    )["url"]
+    contact_name = doc.contact_name or "there"
+
+    message = plain_text_to_email_html(
+        f"Hi {contact_name},\n\n"
+        "Please read and sign the Deposit and Intent to Proceed Agreement below to keep things "
+        "moving:\n\n"
+        f"{intent_url}"
+    )
+
+    frappe.sendmail(
+        recipients=[doc.contact_email],
+        subject="Please sign: Deposit and Intent to Proceed Agreement",
+        message=message,
+        now=True,
+        reply_to=frappe.session.user,
+    )
+
+    return {"ok": 1, "url": intent_url}
+
+
+@frappe.whitelist()
 def get_signed_intent(name=None):
     """Franchisor-only: the frozen signed snapshot plus its audit trail, for the Lead Details page."""
     name = coalesce_str("name", name)
@@ -1048,6 +1126,11 @@ def sign_intent(token=None, recipient_name=None, recipient_address=None, signatu
     doc.intent_signed_at = frappe.utils.now_datetime()
     doc.intent_signer_ip = frappe.local.request_ip
     doc.intent_signer_user_agent = frappe.get_request_header("User-Agent") or ""
+    # Stage1's "Intent to Proceed" milestone - auto-ticked the same way
+    # sign_nda() above auto-ticks Sign NDA, rather than needing Ashley to
+    # remember to also tick it by hand.
+    doc.stage1_intent_deposit_dbs_done = 1
+    doc.stage1_intent_deposit_dbs_date = today
 
     doc.save(ignore_permissions=True)
     frappe.db.commit()
@@ -1238,6 +1321,13 @@ def submit_franchisee_intake(token=None, first_name=None, last_name=None, phone=
     doc.franchisee_intake_dbs_expiry_date = coalesce_raw("dbs_expiry_date", dbs_expiry_date) or None
     doc.franchisee_intake_submitted = 1
     doc.franchisee_intake_submitted_at = frappe.utils.now_datetime()
+    # Stage1's "Franchisee Intake + DBS/Insurance Submitted" milestone -
+    # this repurposes the field/label that used to mean "Franchisee
+    # Agreement Signed + Final Invoice Paid" (that step now lives on the
+    # Client record itself, post-conversion - see the Franchise
+    # Onboarding section on Client Details).
+    doc.stage1_agreement_invoice_done = 1
+    doc.stage1_agreement_invoice_date = frappe.utils.today()
 
     doc.save(ignore_permissions=True)
     frappe.db.commit()
@@ -2486,6 +2576,15 @@ def convert_lead_to_client(name=None):
     # date_of_birth was just set above - previously client_type was never
     # set at all on conversion.
     apply_age_and_client_type(client)
+
+    # A Franchisee Call lead converts into a Client tracked as their own
+    # "Franchise" (see client_transfers.py's own use of this same
+    # client_type, for billing a coach directly) - overrides whatever
+    # Kid/Teen/Adult/etc apply_age_and_client_type just derived, which
+    # never makes sense for a franchisee (no date of birth/client age on
+    # a lead like this to derive it from anyway).
+    if is_franchise_lead(doc.get("appointment_type")) and client_meta.has_field("client_type"):
+        client.client_type = "Franchise"
 
     # Coach-level defaults (bank account, price list, company) the client
     # inherits from their assigned primary coach - previously never applied

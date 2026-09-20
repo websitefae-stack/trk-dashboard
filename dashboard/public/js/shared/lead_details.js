@@ -16,9 +16,24 @@
     ["stage1_call_done", "Call With Ashley (Founder) / Franchise Call"],
     ["stage1_nda_done", "Sign NDA"],
     ["stage1_discovery_day_done", "Discovery Day"],
-    ["stage1_intent_deposit_dbs_done", "Intent to Proceed + Deposit + DBS/Insurance Submitted"],
-    ["stage1_agreement_invoice_done", "Franchisee Agreement Signed + Final Invoice Paid"],
+    ["stage1_intent_deposit_dbs_done", "Intent to Proceed"],
+    ["stage1_agreement_invoice_done", "Franchisee Intake + DBS/Insurance Submitted"],
   ];
+
+  // Milestones whose checkbox/date is driven automatically by a real
+  // event (an NDA/Intent signed, an intake submitted) rather than
+  // ticked by hand - their action buttons render inside this same row
+  // (see stage1ActionsId), so the row needs to wrap onto a second line
+  // instead of the plain single-line checkbox+date layout.
+  const STAGE1_ACTION_MILESTONES = new Set([
+    "stage1_nda_done",
+    "stage1_intent_deposit_dbs_done",
+    "stage1_agreement_invoice_done",
+  ]);
+
+  function stage1ActionsId(fieldname) {
+    return `stage1Actions_${fieldname}`;
+  }
 
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
@@ -129,15 +144,19 @@
       const milestone = lead.stage1[fieldname] || { done: 0, date: "" };
       const checked = milestone.done ? "checked" : "";
       const dateValue = escapeHtml(milestone.date || "");
+      const hasActions = STAGE1_ACTION_MILESTONES.has(fieldname);
 
       return `
-        <div class="dashboard-lead-stage1-row" data-milestone="${escapeHtml(fieldname)}">
-          <label class="dashboard-lead-stage1-label">
-            <input type="checkbox" class="dashboard-lead-stage1-check" ${checked}>
-            ${escapeHtml(label)}
-          </label>
-          <input type="date" class="dashboard-input dashboard-lead-stage1-date" value="${dateValue}"
-            ${milestone.done ? "" : "disabled"}>
+        <div class="dashboard-lead-stage1-row${hasActions ? " dashboard-lead-stage1-row-wrap" : ""}" data-milestone="${escapeHtml(fieldname)}">
+          <div class="dashboard-lead-stage1-row-main">
+            <label class="dashboard-lead-stage1-label">
+              <input type="checkbox" class="dashboard-lead-stage1-check" ${checked}>
+              ${escapeHtml(label)}
+            </label>
+            <input type="date" class="dashboard-input dashboard-lead-stage1-date" value="${dateValue}"
+              ${milestone.done ? "" : "disabled"}>
+          </div>
+          ${hasActions ? `<div class="dashboard-lead-stage1-actions" id="${stage1ActionsId(fieldname)}"></div>` : ""}
         </div>
       `;
     }).join("");
@@ -173,7 +192,7 @@
   }
 
   function renderNdaBlock(lead) {
-    const block = el("leadNdaBlock");
+    const block = el(stage1ActionsId("stage1_nda_done"));
     if (!block) return;
 
     if (lead.nda_signed) {
@@ -186,10 +205,12 @@
     }
 
     block.innerHTML = `
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendNdaBtn">Send NDA</button>
       <button type="button" class="dashboard-btn dashboard-btn-light" id="getNdaLinkBtn">
         ${lead.nda_link_generated ? "Get NDA Sign Link Again" : "Generate NDA Sign Link"}
       </button>
-      <div id="ndaLinkResult" style="margin-top:10px; display:none;">
+      <div id="ndaSendStatus" class="dashboard-help" style="flex-basis:100%;"></div>
+      <div id="ndaLinkResult" style="flex-basis:100%; margin-top:8px; display:none;">
         <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">
           Copy this link and send it to the franchisee to sign:
         </label>
@@ -199,6 +220,9 @@
         </div>
       </div>
     `;
+
+    const sendBtn = el("sendNdaBtn");
+    if (sendBtn) sendBtn.addEventListener("click", sendNdaLink);
 
     const getLinkBtn = el("getNdaLinkBtn");
     if (getLinkBtn) getLinkBtn.addEventListener("click", getNdaSignLink);
@@ -211,6 +235,25 @@
         input.select();
         navigator.clipboard?.writeText(input.value).catch(() => {});
       });
+    }
+  }
+
+  async function sendNdaLink() {
+    const name = getValue("leadDocname");
+    const btn = el("sendNdaBtn");
+    const statusEl = el("ndaSendStatus");
+    if (!name) return;
+
+    if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+    if (statusEl) statusEl.textContent = "";
+
+    try {
+      await apiPost(`${SHARED_API}.send_nda_link`, { name });
+      if (statusEl) statusEl.textContent = "Sent to the franchisee's email address.";
+    } catch (error) {
+      if (statusEl) statusEl.textContent = error.message || "Could not send the NDA.";
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Send NDA"; }
     }
   }
 
@@ -265,7 +308,7 @@
   }
 
   function renderIntentBlock(lead) {
-    const block = el("leadIntentBlock");
+    const block = el(stage1ActionsId("stage1_intent_deposit_dbs_done"));
     if (!block) return;
 
     if (lead.intent_signed) {
@@ -277,38 +320,41 @@
       return;
     }
 
+    const linkRowHtml = `
+      <div id="intentLinkResult" style="flex-basis:100%; margin-top:8px; display:none;">
+        <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">
+          Copy this link and send it to the franchisee to sign:
+        </label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="intentLinkInput" class="dashboard-input" readonly style="flex:1;">
+          <button type="button" class="dashboard-btn dashboard-btn-secondary" id="copyIntentLinkBtn">Copy</button>
+        </div>
+      </div>
+    `;
+
     if (lead.intent_link_generated) {
       block.innerHTML = `
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendIntentBtn">Send Intent to Proceed</button>
         <button type="button" class="dashboard-btn dashboard-btn-light" id="getIntentLinkBtn">Get Sign Link Again</button>
-        <div id="intentLinkResult" style="margin-top:10px; display:none;">
-          <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">
-            Copy this link and send it to the franchisee to sign:
-          </label>
-          <div style="display:flex; gap:8px;">
-            <input type="text" id="intentLinkInput" class="dashboard-input" readonly style="flex:1;">
-            <button type="button" class="dashboard-btn dashboard-btn-secondary" id="copyIntentLinkBtn">Copy</button>
-          </div>
-        </div>
+        <div id="intentSendStatus" class="dashboard-help" style="flex-basis:100%;"></div>
+        ${linkRowHtml}
       `;
     } else {
       block.innerHTML = `
-        <div class="dashboard-field-row" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; flex-basis:100%;">
           <input type="text" id="intentTerritoryInput" class="dashboard-input" placeholder="Territory (e.g. postcode areas)" style="flex:1; min-width:200px;">
           <input type="number" id="intentDepositInput" class="dashboard-input" placeholder="Deposit Amount (£)" min="0" step="0.01" style="width:160px;">
           <input type="date" id="intentEndDateInput" class="dashboard-input" style="width:160px;" title="Agreement End Date">
         </div>
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendIntentBtn">Send Intent to Proceed</button>
         <button type="button" class="dashboard-btn dashboard-btn-light" id="getIntentLinkBtn">Generate Sign Link</button>
-        <div id="intentLinkResult" style="margin-top:10px; display:none;">
-          <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">
-            Copy this link and send it to the franchisee to sign:
-          </label>
-          <div style="display:flex; gap:8px;">
-            <input type="text" id="intentLinkInput" class="dashboard-input" readonly style="flex:1;">
-            <button type="button" class="dashboard-btn dashboard-btn-secondary" id="copyIntentLinkBtn">Copy</button>
-          </div>
-        </div>
+        <div id="intentSendStatus" class="dashboard-help" style="flex-basis:100%;"></div>
+        ${linkRowHtml}
       `;
     }
+
+    const sendBtn = el("sendIntentBtn");
+    if (sendBtn) sendBtn.addEventListener("click", sendIntentLink);
 
     const getLinkBtn = el("getIntentLinkBtn");
     if (getLinkBtn) getLinkBtn.addEventListener("click", getIntentSignLink);
@@ -321,6 +367,38 @@
         input.select();
         navigator.clipboard?.writeText(input.value).catch(() => {});
       });
+    }
+  }
+
+  function intentTermsPayload() {
+    const territoryInput = el("intentTerritoryInput");
+    const depositInput = el("intentDepositInput");
+    const endDateInput = el("intentEndDateInput");
+
+    return {
+      territory: territoryInput ? territoryInput.value : "",
+      deposit_amount: depositInput ? depositInput.value : "",
+      end_date: endDateInput ? endDateInput.value : "",
+    };
+  }
+
+  async function sendIntentLink() {
+    const name = getValue("leadDocname");
+    const btn = el("sendIntentBtn");
+    const statusEl = el("intentSendStatus");
+    if (!name) return;
+
+    if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+    if (statusEl) statusEl.textContent = "";
+
+    try {
+      await apiPost(`${SHARED_API}.send_intent_link`, { name, ...intentTermsPayload() });
+      if (statusEl) statusEl.textContent = "Sent to the franchisee's email address.";
+      await loadLead();
+    } catch (error) {
+      if (statusEl) statusEl.textContent = error.message || "Could not send the agreement.";
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Send Intent to Proceed"; }
     }
   }
 
@@ -384,24 +462,33 @@
   }
 
   function renderFranchiseeIntakeBlock(lead) {
-    const block = el("leadFranchiseeIntakeBlock");
+    const block = el(stage1ActionsId("stage1_agreement_invoice_done"));
     if (!block) return;
 
     if (lead.franchisee_intake_submitted) {
-      block.innerHTML = `<div id="franchiseeIntakeSummary" class="dashboard-help">Loading…</div>`;
+      const convertedHtml = lead.status === "Converted" && lead.converted_client
+        ? `<a class="dashboard-btn dashboard-btn-light" id="franchiseeIntakeViewClientBtn" href="${escapeHtml((getValue("leadBaseUrl") || "/coach_db"))}/client_details?name=${encodeURIComponent(lead.converted_client)}">View Client</a>`
+        : `<button type="button" class="dashboard-btn dashboard-btn-primary" id="franchiseeIntakeConvertBtn">Convert to Client</button>`;
+
+      block.innerHTML = `
+        <div id="franchiseeIntakeSummary" class="dashboard-help" style="flex-basis:100%;">Loading…</div>
+        ${convertedHtml}
+        <div id="franchiseeIntakeConvertStatus" class="dashboard-help" style="flex-basis:100%;"></div>
+      `;
       loadFranchiseeIntakeSummary();
+
+      const convertBtn = el("franchiseeIntakeConvertBtn");
+      if (convertBtn) convertBtn.addEventListener("click", convertFranchiseeLeadToClient);
       return;
     }
 
     block.innerHTML = `
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendFranchiseeIntakeBtn">Send Intake Form</button>
-        <button type="button" class="dashboard-btn dashboard-btn-light" id="getFranchiseeIntakeLinkBtn">
-          ${lead.franchisee_intake_link_generated ? "Get Form Link Again" : "Generate Form Link"}
-        </button>
-      </div>
-      <div id="franchiseeIntakeSendStatus" class="dashboard-help" style="margin-top:8px;"></div>
-      <div id="franchiseeIntakeLinkResult" style="margin-top:10px; display:none;">
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendFranchiseeIntakeBtn">Send Intake Form</button>
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="getFranchiseeIntakeLinkBtn">
+        ${lead.franchisee_intake_link_generated ? "Get Form Link Again" : "Generate Form Link"}
+      </button>
+      <div id="franchiseeIntakeSendStatus" class="dashboard-help" style="flex-basis:100%;"></div>
+      <div id="franchiseeIntakeLinkResult" style="flex-basis:100%; margin-top:8px; display:none;">
         <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">
           Copy this link and send it to the franchisee to fill in:
         </label>
@@ -426,6 +513,25 @@
         input.select();
         navigator.clipboard?.writeText(input.value).catch(() => {});
       });
+    }
+  }
+
+  async function convertFranchiseeLeadToClient() {
+    const name = getValue("leadDocname");
+    const btn = el("franchiseeIntakeConvertBtn");
+    const statusEl = el("franchiseeIntakeConvertStatus");
+    if (!name) return;
+
+    if (btn) { btn.disabled = true; btn.textContent = "Converting…"; }
+    if (statusEl) statusEl.textContent = "";
+
+    try {
+      const result = await apiPost(`${SHARED_API}.convert_lead_to_client`, { name });
+      const baseUrl = getValue("leadBaseUrl") || "/coach_db";
+      window.location.href = `${baseUrl}/client_details?name=${encodeURIComponent(result.client)}`;
+    } catch (error) {
+      if (statusEl) statusEl.textContent = error.message || "Could not convert this lead.";
+      if (btn) { btn.disabled = false; btn.textContent = "Convert to Client"; }
     }
   }
 
@@ -668,16 +774,19 @@
       // way to get a fresh submission back out to the parent, without
       // requiring the lead to be un-sent or un-completed first.
       const intakeSent = !!lead.intake_sent_on;
-      const intakeDone = !!lead.intake_completed_on;
+      // A Franchisee Call never goes through the generic client-enquiry
+      // Intake Doctype form - the Send/Resend button here is for that
+      // unrelated flow, so it stays hidden (her own Franchisee Intake +
+      // DBS form has its own Send button inline in the Stage 1 list),
+      // and "done" for the Convert to Client gate below means her own
+      // franchisee_intake_submitted, not the generic intake_completed_on.
+      const intakeDone = lead.is_franchise_lead ? !!lead.franchisee_intake_submitted : !!lead.intake_completed_on;
       if (sendBtn) {
-        sendBtn.style.display = "";
+        sendBtn.style.display = lead.is_franchise_lead ? "none" : "";
         sendBtn.textContent = intakeSent ? "Resend Intake Form" : "Send Intake Form";
       }
 
       if (!lead.is_client_conversion) {
-        // e.g. Franchisee Call - turns into a Franchisee, not a Client;
-        // that conversion flow doesn't exist yet, so don't offer the
-        // Client-shaped conversion actions for it.
         if (convertBtn) convertBtn.style.display = "none";
         if (linkExistingSection) linkExistingSection.style.display = "none";
       } else {
