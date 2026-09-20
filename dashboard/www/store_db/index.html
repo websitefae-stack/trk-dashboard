@@ -131,12 +131,12 @@
       </div>
 
       <div id="storeProductPriceField" style="margin-top:14px; display:flex; gap:14px; flex-wrap:wrap;">
-        <div>
+        <div id="storeProductPriceWrap">
           <label for="storeProductPrice">Price (£)</label>
           <input type="number" id="storeProductPrice" class="dashboard-input" min="0" step="0.01">
         </div>
         <div>
-          <label for="storeProductCoachPrice">Coach Price (£) - optional</label>
+          <label for="storeProductCoachPrice" id="storeProductCoachPriceLabel">Coach Price (£) - optional</label>
           <input type="number" id="storeProductCoachPrice" class="dashboard-input" min="0" step="0.01" placeholder="Same as Price if left blank">
         </div>
       </div>
@@ -286,7 +286,6 @@
               <th>Image</th>
               <th>SKU</th>
               <th>Price (£)</th>
-              <th>Coach Price (£)</th>
               <th>Stock</th>
               <th>Unlimited</th>
               <th>Active</th>
@@ -294,7 +293,7 @@
             </tr>
           </thead>
           <tbody id="storeVariantsBody">
-            <tr><td colspan="9" class="dashboard-empty">Loading…</td></tr>
+            <tr><td colspan="8" class="dashboard-empty">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -308,7 +307,6 @@
         <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
           <input type="text" id="addVariantSku" class="dashboard-input" style="width:110px;" placeholder="SKU (optional)">
           <input type="number" id="addVariantPrice" class="dashboard-input" style="width:100px;" min="0" step="0.01" placeholder="Price (£)">
-          <input type="number" id="addVariantCoachPrice" class="dashboard-input" style="width:100px;" min="0" step="0.01" placeholder="Coach Price (£)">
           <input type="number" id="addVariantStock" class="dashboard-input" style="width:80px;" min="0" step="1" placeholder="Stock">
           <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
             <input type="checkbox" id="addVariantUnlimited"> Unlimited
@@ -335,7 +333,6 @@
           <div id="bulkAddVariantsAttributesList" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;"></div>
           <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
             <input type="number" id="bulkAddVariantsPrice" class="dashboard-input" style="width:100px;" min="0" step="0.01" placeholder="Price (£)">
-            <input type="number" id="bulkAddVariantsCoachPrice" class="dashboard-input" style="width:100px;" min="0" step="0.01" placeholder="Coach Price (£)">
             <input type="number" id="bulkAddVariantsStock" class="dashboard-input" style="width:80px;" min="0" step="1" placeholder="Stock">
             <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
               <input type="checkbox" id="bulkAddVariantsUnlimited"> Unlimited

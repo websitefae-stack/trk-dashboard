@@ -284,7 +284,13 @@
 
   function updateVariationsVisibility() {
     const hasVariations = el("storeProductHasVariations").checked;
-    el("storeProductPriceField").style.display = hasVariations ? "none" : "";
+    // Coach Price always stays visible - it's one flat rate for the whole
+    // product (a coach pays the same no matter which size they buy), only
+    // the regular Price input (which does vary per variant) hides here.
+    el("storeProductPriceWrap").style.display = hasVariations ? "none" : "";
+    el("storeProductCoachPriceLabel").textContent = hasVariations
+      ? "Coach Price (£) - optional, one flat price for every size/variant"
+      : "Coach Price (£) - optional";
     el("storeSimpleProductFields").style.display = hasVariations ? "none" : "";
     el("storeVariationsFields").style.display = hasVariations ? "" : "none";
   }
@@ -450,7 +456,11 @@
     updateVariationsVisibility();
 
     if (isVariantTemplate) {
-      el("storeProductPriceField").style.display = "none";
+      // Price itself lives per-variant (Manage Variants) once a template
+      // exists, but Coach Price is one flat rate for the whole product -
+      // stays editable here even for an existing variant template.
+      el("storeProductPriceWrap").style.display = "none";
+      el("storeProductCoachPriceLabel").textContent = "Coach Price (£) - optional, one flat price for every size/variant";
       el("storeSimpleProductFields").style.display = "none";
     }
 
@@ -665,10 +675,10 @@
           visibility: el("storeProductVisibility").value,
           attributes: attributeValueLists(),
           variants: collectVariantSpecs(),
+          // One flat rate for the whole product - a coach pays the same
+          // no matter which size/variant they buy - not per variant.
+          coach_price: el("storeProductCoachPrice").value,
         });
-        // Coach pricing per variant is set afterwards via Manage
-        // Variants (per-row, once the variants actually exist) rather
-        // than in this creation wizard.
       } else {
         const isDigital = el("storeProductIsDigital").checked;
         const unlocksCourseEnabled = el("storeProductUnlocksCourseEnabled").checked;
@@ -700,9 +710,14 @@
 
         const isVariantTemplate = itemCode && products.some((p) => p.name === itemCode && p.has_variants);
 
+        // Coach Price is one flat rate for the whole product, so it's
+        // always saved - even for an existing variant template, whose
+        // regular Price/stock (which do vary per variant) stay untouched
+        // here and are only ever edited via Manage Variants.
+        payload.coach_price = el("storeProductCoachPrice").value;
+
         if (!isVariantTemplate) {
           payload.price = el("storeProductPrice").value || 0;
-          payload.coach_price = el("storeProductCoachPrice").value;
           payload.unlimited_stock = el("storeProductUnlimited").checked;
           payload.stock_qty = el("storeProductStockQty").value || 0;
           payload.digital_file = isDigital ? uploadedDigitalFileUrl : "";
@@ -771,7 +786,6 @@
         </td>
         <td><input type="text" class="dashboard-input" style="width:110px;" value="${escapeHtml(variant.sku || "")}" data-existing-variant-sku="${escapeHtml(variant.name)}" placeholder="Optional"></td>
         <td><input type="number" min="0" step="0.01" class="dashboard-input" style="width:90px;" value="${variant.price || 0}" data-existing-variant-price="${escapeHtml(variant.name)}"></td>
-        <td><input type="number" min="0" step="0.01" class="dashboard-input" style="width:90px;" value="${escapeHtml(variant.coach_price ?? "")}" data-existing-variant-coach-price="${escapeHtml(variant.name)}" placeholder="Same as Price"></td>
         <td><input type="number" min="0" step="1" class="dashboard-input" style="width:70px;" value="${variant.stock_qty || 0}" data-existing-variant-stock="${escapeHtml(variant.name)}" ${variant.unlimited_stock ? "disabled" : ""}></td>
         <td style="text-align:center;"><input type="checkbox" data-existing-variant-unlimited="${escapeHtml(variant.name)}" ${variant.unlimited_stock ? "checked" : ""}></td>
         <td style="text-align:center;"><input type="checkbox" data-existing-variant-active="${escapeHtml(variant.name)}" ${variant.disabled ? "" : "checked"}></td>
@@ -979,7 +993,6 @@
         template_item_code: templateItemCode,
         attribute_value_lists: JSON.stringify(values),
         price: el("bulkAddVariantsPrice").value,
-        coach_price: el("bulkAddVariantsCoachPrice").value,
         stock_qty: el("bulkAddVariantsStock").value,
         unlimited_stock: el("bulkAddVariantsUnlimited").checked,
       });
@@ -1040,7 +1053,6 @@
         template_item_code: templateItemCode,
         attribute_values: JSON.stringify(attributeValues),
         price: el("addVariantPrice").value,
-        coach_price: el("addVariantCoachPrice").value,
         stock_qty: el("addVariantStock").value,
         unlimited_stock: el("addVariantUnlimited").checked,
         sku: el("addVariantSku").value,
@@ -1059,20 +1071,18 @@
   async function openVariantsModal(templateItemCode) {
     el("storeVariantsTemplateCode").value = templateItemCode;
     const body = el("storeVariantsBody");
-    body.innerHTML = '<tr><td colspan="9" class="dashboard-empty">Loading…</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" class="dashboard-empty">Loading…</td></tr>';
     el("manageVariantsImagesSection").style.display = "none";
     el("manageVariantsImagesContent").style.display = "none";
     el("manageVariantsImagesToggleIcon").textContent = "▸";
     pendingVariantImageUrls = {};
     el("addVariantSku").value = "";
     el("addVariantPrice").value = "";
-    el("addVariantCoachPrice").value = "";
     el("addVariantStock").value = "";
     el("addVariantUnlimited").checked = false;
     el("addVariantImage").value = "";
     el("addVariantStatus").textContent = "";
     el("bulkAddVariantsPrice").value = "";
-    el("bulkAddVariantsCoachPrice").value = "";
     el("bulkAddVariantsStock").value = "";
     el("bulkAddVariantsUnlimited").checked = false;
     el("bulkAddVariantsStatus").textContent = "";
@@ -1083,12 +1093,12 @@
       currentManageVariants = variants;
       body.innerHTML = variants.length
         ? variants.map(renderVariantRow).join("")
-        : '<tr><td colspan="9" class="dashboard-empty">No variants found.</td></tr>';
+        : '<tr><td colspan="8" class="dashboard-empty">No variants found.</td></tr>';
       renderManageVariantsImageAttributes();
       renderAddVariantAttributes();
       renderBulkAddVariantsAttributes();
     } catch (error) {
-      body.innerHTML = '<tr><td colspan="9" class="dashboard-empty">Could not load variants.</td></tr>';
+      body.innerHTML = '<tr><td colspan="8" class="dashboard-empty">Could not load variants.</td></tr>';
       console.error(error);
     }
   }
@@ -1102,7 +1112,6 @@
   async function saveOneVariant(itemCode) {
     const skuInput = document.querySelector(`[data-existing-variant-sku="${CSS.escape(itemCode)}"]`);
     const priceInput = document.querySelector(`[data-existing-variant-price="${CSS.escape(itemCode)}"]`);
-    const coachPriceInput = document.querySelector(`[data-existing-variant-coach-price="${CSS.escape(itemCode)}"]`);
     const stockInput = document.querySelector(`[data-existing-variant-stock="${CSS.escape(itemCode)}"]`);
     const unlimitedInput = document.querySelector(`[data-existing-variant-unlimited="${CSS.escape(itemCode)}"]`);
     const activeInput = document.querySelector(`[data-existing-variant-active="${CSS.escape(itemCode)}"]`);
@@ -1125,7 +1134,6 @@
       item_code: itemCode,
       sku: skuInput ? skuInput.value : "",
       price: priceInput ? priceInput.value : 0,
-      coach_price: coachPriceInput ? coachPriceInput.value : "",
       stock_qty: stockInput ? stockInput.value : 0,
       unlimited_stock: unlimitedInput ? unlimitedInput.checked : false,
       disabled: activeInput ? !activeInput.checked : false,
@@ -1170,7 +1178,7 @@
       delete pendingVariantImageUrls[itemCode];
       if (row) row.remove();
       if (!currentManageVariants.length) {
-        el("storeVariantsBody").innerHTML = '<tr><td colspan="9" class="dashboard-empty">No variants found.</td></tr>';
+        el("storeVariantsBody").innerHTML = '<tr><td colspan="8" class="dashboard-empty">No variants found.</td></tr>';
       }
       renderManageVariantsImageAttributes();
       renderAddVariantAttributes();
