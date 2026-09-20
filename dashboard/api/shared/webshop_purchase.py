@@ -31,7 +31,7 @@ from frappe.utils import nowdate, fmt_money, get_url
 from dashboard.dashboard.doctype.webshop_payment_settings.webshop_payment_settings import get_settings
 from dashboard.api.shared.email_templates import plain_text_to_email_html
 from dashboard.api.shared.item_access import _get_coach_login, COACH_ONLY_PRICE_LIST
-from dashboard.api.shared.invoices import _get_bank_account_gl_account
+from dashboard.api.shared.invoices import _get_bank_account_gl_account, _get_current_coach, _coach_label
 from dashboard.api.shared import payment_utils
 from dashboard.api.shared.email_groups import add_to_email_group
 from dashboard.api.shared.store_coupons import calculate_checkout_discount, record_coupon_use
@@ -594,6 +594,137 @@ def create_checkout_session(
     return {"checkout_url": checkout_session.url}
 
 
+def _send_coach_order_confirmation_email(invoice, coach_email, coach_display_name, order_lines, settings):
+    amount_display = fmt_money(invoice.grand_total, currency=invoice.currency)
+
+    order_lines_text = "\n".join(
+        f"{line['item_name']} x{line['qty']} - "
+        f"{fmt_money((line['rate'] or 0) * (line['qty'] or 1), currency=line['currency'] or invoice.currency)}"
+        for line in order_lines
+    )
+
+    message = (
+        f"Hi {coach_display_name},\n"
+        "\n"
+        "Thanks for your order from the Coach Store - here's your invoice.\n"
+        "\n"
+        f"{order_lines_text}\n"
+        "\n"
+        f"Total: {amount_display}\n"
+        "\n"
+        f"Order reference: {invoice.name}\n"
+        "\n"
+        "Warm regards,\n"
+        f"{settings.company}"
+    )
+
+    cc = [settings.office_notification_email] if settings.office_notification_email else []
+
+    frappe.sendmail(
+        recipients=[coach_email],
+        cc=cc,
+        subject=f"Coach Store order confirmation - {invoice.name}",
+        message=plain_text_to_email_html(message),
+        attachments=[frappe.attach_print("Sales Invoice", invoice.name, letterhead="Resilient Kid")],
+        now=True,
+        reference_doctype="Sales Invoice",
+        reference_name=invoice.name,
+    )
+
+
+@frappe.whitelist()
+def create_coach_store_order(items=None):
+    """
+    The Coach Store's own "Place Order" - deliberately not the guest
+    checkout above (no Stripe, no contact-detail form, no Online Client/
+    portal-access machinery): a coach placing this is already a known,
+    logged-in identity, so this just prices the cart server-side (the
+    same _get_purchasable_item() every other purchase goes through, so
+    Coach Only visibility/coach pricing is enforced exactly the same
+    way), raises a Sales Invoice under the same Company as every other
+    online order, and emails it to the coach and to the office - nothing
+    else, no payment step.
+
+    Deliberately NOT allow_guest - a Guest is already rejected by the
+    framework before this even runs, and _get_current_coach() below
+    additionally rejects any other logged-in user (e.g. a client_portal
+    login) that isn't actually a Coach - only a real coach's own session
+    can ever place an order here.
+    """
+    coach = _get_current_coach()
+
+    if not coach:
+        frappe.throw(_("Only a coach can place an order here."), frappe.PermissionError)
+
+    settings = get_settings()
+
+    if not settings.enabled or not settings.company:
+        frappe.throw(_("Online checkout isn't available right now."))
+
+    cart_lines = _parse_cart_items(items)
+
+    if not cart_lines:
+        frappe.throw(_("Your order is empty."))
+
+    coach_email = frappe.session.user
+    coach_display_name = _coach_label(coach) or coach_email
+
+    customer_name = _get_or_create_customer_for_contact(coach_email, coach_display_name)
+
+    invoice = frappe.new_doc("Sales Invoice")
+    invoice.customer = customer_name
+    invoice.company = settings.company
+    invoice.posting_date = nowdate()
+    invoice.due_date = nowdate()
+
+    if invoice.meta.has_field("custom_coach"):
+        invoice.custom_coach = coach.get("name")
+
+    price_list = None
+    order_lines = []
+
+    for line in cart_lines:
+        item = _get_purchasable_item(line["item_code"], settings.company)
+
+        if price_list is None:
+            price_list = item.get("price_list")
+
+        invoice.append("items", {
+            "item_code": item["item_code"],
+            "item_name": item["item_name"],
+            "qty": line["qty"],
+            "rate": item["rate"],
+        })
+
+        order_lines.append({
+            "item_name": item["item_name"],
+            "qty": line["qty"],
+            "rate": item["rate"],
+            "currency": item["currency"],
+        })
+
+    if price_list:
+        invoice.selling_price_list = price_list
+
+    if hasattr(invoice, "set_missing_values"):
+        invoice.set_missing_values()
+    if hasattr(invoice, "calculate_taxes_and_totals"):
+        invoice.calculate_taxes_and_totals()
+
+    invoice.insert(ignore_permissions=True)
+    invoice.submit()
+    frappe.db.commit()
+
+    try:
+        _send_coach_order_confirmation_email(invoice, coach_email, coach_display_name, order_lines, settings)
+    except Exception:
+        # The order/invoice is already raised - a failed email shouldn't
+        # look like a failed order to the coach placing it.
+        frappe.log_error(frappe.get_traceback(), f"Coach Store Order Confirmation Email Failed - {invoice.name}")
+
+    return {"ok": 1, "invoice": invoice.name}
+
+
 def _get_or_create_online_client(
     full_name, email, phone, address_line1, address_line2, city, postcode, country, coach,
 ):
@@ -627,22 +758,24 @@ def _get_or_create_online_client(
     return doc.name
 
 
-def _get_or_create_customer_for_online_client(online_client):
-    existing_contact_name = frappe.db.get_value(
-        "Contact Email", {"email_id": online_client.email}, "parent"
-    )
+def _get_or_create_customer_for_contact(email, full_name, phone=None):
+    """Finds (or creates) the Customer linked to this email's Contact -
+    shared by the guest checkout (an Online Client's own details) and the
+    coach store (a coach's own login email/name), since both ultimately
+    just need "whoever is paying this Sales Invoice"."""
+    existing_contact_name = frappe.db.get_value("Contact Email", {"email_id": email}, "parent")
 
     if existing_contact_name:
         contact = frappe.get_doc("Contact", existing_contact_name)
     else:
-        first_name, last_name = _split_full_name(online_client.full_name)
+        first_name, last_name = _split_full_name(full_name)
         contact = frappe.new_doc("Contact")
-        contact.first_name = first_name or online_client.email
+        contact.first_name = first_name or email
         if last_name:
             contact.last_name = last_name
-        contact.append("email_ids", {"email_id": online_client.email, "is_primary": 1})
-        if online_client.phone:
-            contact.append("phone_nos", {"phone": online_client.phone, "is_primary_mobile_no": 1})
+        contact.append("email_ids", {"email_id": email, "is_primary": 1})
+        if phone:
+            contact.append("phone_nos", {"phone": phone, "is_primary_mobile_no": 1})
         contact.insert(ignore_permissions=True)
 
     for link in contact.get("links") or []:
@@ -651,7 +784,7 @@ def _get_or_create_customer_for_online_client(online_client):
 
     customer_doc = frappe.new_doc("Customer")
     customer_doc.customer_type = "Individual"
-    customer_doc.customer_name = online_client.full_name or online_client.email
+    customer_doc.customer_name = full_name or email
     customer_doc.insert(ignore_permissions=True)
 
     contact.append("links", {"link_doctype": "Customer", "link_name": customer_doc.name})
@@ -908,7 +1041,9 @@ def _fulfil_checkout_session(session):
 
     add_to_email_group(online_client.email, WEBSHOP_CUSTOMERS_EMAIL_GROUP, full_name=online_client.full_name)
 
-    customer_name = _get_or_create_customer_for_online_client(online_client)
+    customer_name = _get_or_create_customer_for_contact(
+        online_client.email, online_client.full_name, online_client.get("phone")
+    )
 
     contact_name = frappe.db.get_value("Contact Email", {"email_id": email}, "parent")
 
