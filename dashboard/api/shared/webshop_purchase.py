@@ -36,6 +36,7 @@ from dashboard.api.shared.store_products import _get_coach_price
 from dashboard.api.shared import payment_utils
 from dashboard.api.shared.email_groups import add_to_email_group
 from dashboard.api.shared.store_coupons import calculate_checkout_discount, record_coupon_use
+from dashboard.api.shared.notifications import create_trk_notification, FRANCHISOR_USERS
 
 ONLINE_CLIENT_DOCTYPE = "Online Client"
 WEBSHOP_CUSTOMERS_EMAIL_GROUP = "Website Customers"
@@ -718,7 +719,50 @@ def create_coach_store_order(items=None):
         # look like a failed order to the coach placing it.
         frappe.log_error(frappe.get_traceback(), f"Coach Store Order Confirmation Email Failed - {invoice.name}")
 
+    _notify_coach_store_order(invoice, coach, coach_email, coach_display_name)
+
     return {"ok": 1, "invoice": invoice.name}
+
+
+def _notify_coach_store_order(invoice, coach, coach_email, coach_display_name):
+    """
+    In-app notifications alongside the email above - the coach sees their
+    own order confirmed in their notifications, and every franchisor
+    admin (FRANCHISOR_USERS) sees it too, with a nudge to actually ship
+    it (this is the only place that happens - nothing here talks to a
+    courier/fulfilment system). Best-effort, same reasoning as the email
+    just above: a broken notification must never look like a failed order.
+    """
+    try:
+        create_trk_notification(
+            recipient_user=coach_email,
+            notification_type="Task",
+            message=f"Your Coach Store order has been placed - invoice {invoice.name}.",
+            reference_doctype="Sales Invoice",
+            reference_name=invoice.name,
+            coach=coach.get("name"),
+        )
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Coach Store Order Notification (Coach) Failed - {invoice.name}")
+
+    for admin_user in FRANCHISOR_USERS:
+        if not frappe.db.exists("User", admin_user):
+            continue
+
+        try:
+            create_trk_notification(
+                recipient_user=admin_user,
+                notification_type="Task",
+                message=(
+                    f"{coach_display_name} placed a Coach Store order - invoice {invoice.name} "
+                    "created. Please ship the order."
+                ),
+                priority="High",
+                reference_doctype="Sales Invoice",
+                reference_name=invoice.name,
+            )
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"Coach Store Order Notification (Franchisor) Failed - {invoice.name}")
 
 
 def _get_or_create_online_client(
