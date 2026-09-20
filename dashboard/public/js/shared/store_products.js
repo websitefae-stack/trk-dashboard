@@ -152,9 +152,13 @@
       actionsCell = `<button type="button" class="dashboard-btn dashboard-btn-light" data-edit-product="${escapeHtml(product.name)}">Edit</button>`;
     }
 
+    const visibilityBadge = product.visibility === "Coach Only"
+      ? ' <span class="dashboard-badge dashboard-status-archived" title="Hidden from the public store - only shows in the Coach Store">Coach Only</span>'
+      : "";
+
     return `
       <tr data-product-row="${escapeHtml(product.name)}">
-        <td>${image}${escapeHtml(product.item_name)}</td>
+        <td>${image}${escapeHtml(product.item_name)}${visibilityBadge}</td>
         <td>${escapeHtml(product.item_group || "—")}</td>
         <td>${priceCell}</td>
         <td>${stockCell}</td>
@@ -392,6 +396,8 @@
     el("storeProductShortDescriptionCount").textContent = el("storeProductShortDescription").value.length;
     el("storeProductGroup").value = product ? product.item_group : "";
     el("storeProductPrice").value = product ? product.price : "";
+    el("storeProductCoachPrice").value = product ? (product.coach_price ?? "") : "";
+    el("storeProductVisibility").value = product ? (product.visibility || "Everyone") : "Everyone";
     // A new product defaults to unlimited (stock quantity stays hidden
     // until you actually untick this to say it's a fixed quantity) - an
     // existing product keeps showing whatever it was actually saved as.
@@ -656,9 +662,13 @@
           personalization_enabled: personalizationEnabled,
           personalization_label: personalizationLabel,
           logo_choice_enabled: logoChoiceEnabled,
+          visibility: el("storeProductVisibility").value,
           attributes: attributeValueLists(),
           variants: collectVariantSpecs(),
         });
+        // Coach pricing per variant is set afterwards via Manage
+        // Variants (per-row, once the variants actually exist) rather
+        // than in this creation wizard.
       } else {
         const isDigital = el("storeProductIsDigital").checked;
         const unlocksCourseEnabled = el("storeProductUnlocksCourseEnabled").checked;
@@ -685,12 +695,14 @@
           personalization_enabled: personalizationEnabled,
           personalization_label: personalizationLabel,
           logo_choice_enabled: logoChoiceEnabled,
+          visibility: el("storeProductVisibility").value,
         };
 
         const isVariantTemplate = itemCode && products.some((p) => p.name === itemCode && p.has_variants);
 
         if (!isVariantTemplate) {
           payload.price = el("storeProductPrice").value || 0;
+          payload.coach_price = el("storeProductCoachPrice").value;
           payload.unlimited_stock = el("storeProductUnlimited").checked;
           payload.stock_qty = el("storeProductStockQty").value || 0;
           payload.digital_file = isDigital ? uploadedDigitalFileUrl : "";
@@ -759,6 +771,7 @@
         </td>
         <td><input type="text" class="dashboard-input" style="width:110px;" value="${escapeHtml(variant.sku || "")}" data-existing-variant-sku="${escapeHtml(variant.name)}" placeholder="Optional"></td>
         <td><input type="number" min="0" step="0.01" class="dashboard-input" style="width:90px;" value="${variant.price || 0}" data-existing-variant-price="${escapeHtml(variant.name)}"></td>
+        <td><input type="number" min="0" step="0.01" class="dashboard-input" style="width:90px;" value="${escapeHtml(variant.coach_price ?? "")}" data-existing-variant-coach-price="${escapeHtml(variant.name)}" placeholder="Same as Price"></td>
         <td><input type="number" min="0" step="1" class="dashboard-input" style="width:70px;" value="${variant.stock_qty || 0}" data-existing-variant-stock="${escapeHtml(variant.name)}" ${variant.unlimited_stock ? "disabled" : ""}></td>
         <td style="text-align:center;"><input type="checkbox" data-existing-variant-unlimited="${escapeHtml(variant.name)}" ${variant.unlimited_stock ? "checked" : ""}></td>
         <td style="text-align:center;"><input type="checkbox" data-existing-variant-active="${escapeHtml(variant.name)}" ${variant.disabled ? "" : "checked"}></td>
@@ -966,6 +979,7 @@
         template_item_code: templateItemCode,
         attribute_value_lists: JSON.stringify(values),
         price: el("bulkAddVariantsPrice").value,
+        coach_price: el("bulkAddVariantsCoachPrice").value,
         stock_qty: el("bulkAddVariantsStock").value,
         unlimited_stock: el("bulkAddVariantsUnlimited").checked,
       });
@@ -1026,6 +1040,7 @@
         template_item_code: templateItemCode,
         attribute_values: JSON.stringify(attributeValues),
         price: el("addVariantPrice").value,
+        coach_price: el("addVariantCoachPrice").value,
         stock_qty: el("addVariantStock").value,
         unlimited_stock: el("addVariantUnlimited").checked,
         sku: el("addVariantSku").value,
@@ -1044,18 +1059,20 @@
   async function openVariantsModal(templateItemCode) {
     el("storeVariantsTemplateCode").value = templateItemCode;
     const body = el("storeVariantsBody");
-    body.innerHTML = '<tr><td colspan="8" class="dashboard-empty">Loading…</td></tr>';
+    body.innerHTML = '<tr><td colspan="9" class="dashboard-empty">Loading…</td></tr>';
     el("manageVariantsImagesSection").style.display = "none";
     el("manageVariantsImagesContent").style.display = "none";
     el("manageVariantsImagesToggleIcon").textContent = "▸";
     pendingVariantImageUrls = {};
     el("addVariantSku").value = "";
     el("addVariantPrice").value = "";
+    el("addVariantCoachPrice").value = "";
     el("addVariantStock").value = "";
     el("addVariantUnlimited").checked = false;
     el("addVariantImage").value = "";
     el("addVariantStatus").textContent = "";
     el("bulkAddVariantsPrice").value = "";
+    el("bulkAddVariantsCoachPrice").value = "";
     el("bulkAddVariantsStock").value = "";
     el("bulkAddVariantsUnlimited").checked = false;
     el("bulkAddVariantsStatus").textContent = "";
@@ -1066,12 +1083,12 @@
       currentManageVariants = variants;
       body.innerHTML = variants.length
         ? variants.map(renderVariantRow).join("")
-        : '<tr><td colspan="8" class="dashboard-empty">No variants found.</td></tr>';
+        : '<tr><td colspan="9" class="dashboard-empty">No variants found.</td></tr>';
       renderManageVariantsImageAttributes();
       renderAddVariantAttributes();
       renderBulkAddVariantsAttributes();
     } catch (error) {
-      body.innerHTML = '<tr><td colspan="8" class="dashboard-empty">Could not load variants.</td></tr>';
+      body.innerHTML = '<tr><td colspan="9" class="dashboard-empty">Could not load variants.</td></tr>';
       console.error(error);
     }
   }
@@ -1085,6 +1102,7 @@
   async function saveOneVariant(itemCode) {
     const skuInput = document.querySelector(`[data-existing-variant-sku="${CSS.escape(itemCode)}"]`);
     const priceInput = document.querySelector(`[data-existing-variant-price="${CSS.escape(itemCode)}"]`);
+    const coachPriceInput = document.querySelector(`[data-existing-variant-coach-price="${CSS.escape(itemCode)}"]`);
     const stockInput = document.querySelector(`[data-existing-variant-stock="${CSS.escape(itemCode)}"]`);
     const unlimitedInput = document.querySelector(`[data-existing-variant-unlimited="${CSS.escape(itemCode)}"]`);
     const activeInput = document.querySelector(`[data-existing-variant-active="${CSS.escape(itemCode)}"]`);
@@ -1107,6 +1125,7 @@
       item_code: itemCode,
       sku: skuInput ? skuInput.value : "",
       price: priceInput ? priceInput.value : 0,
+      coach_price: coachPriceInput ? coachPriceInput.value : "",
       stock_qty: stockInput ? stockInput.value : 0,
       unlimited_stock: unlimitedInput ? unlimitedInput.checked : false,
       disabled: activeInput ? !activeInput.checked : false,
@@ -1151,7 +1170,7 @@
       delete pendingVariantImageUrls[itemCode];
       if (row) row.remove();
       if (!currentManageVariants.length) {
-        el("storeVariantsBody").innerHTML = '<tr><td colspan="8" class="dashboard-empty">No variants found.</td></tr>';
+        el("storeVariantsBody").innerHTML = '<tr><td colspan="9" class="dashboard-empty">No variants found.</td></tr>';
       }
       renderManageVariantsImageAttributes();
       renderAddVariantAttributes();

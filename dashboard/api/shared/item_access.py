@@ -34,6 +34,14 @@ from dashboard.api.shared.permissions import ensure_office_user
 
 DEFAULT_PRICE_LIST = "Coach Pricelist"
 
+# A separate, genuinely coach-specific price list (despite the name
+# above, "Coach Pricelist" is the one and only price list used for every
+# buyer - a historical naming choice, not a coach discount tier). A Store
+# item only ever gets an Item Price on this list when Ashley has set one
+# deliberately (see store_products.py's coach_price handling) - a coach
+# still pays the normal price on anything without one.
+COACH_ONLY_PRICE_LIST = "Coach Only Price List"
+
 # Login fields tried in order to resolve a Coach record's own sign-in
 # identity - matches invoices.py's _get_current_coach()/_get_coach_company()
 # convention, since not every site has all of these fields.

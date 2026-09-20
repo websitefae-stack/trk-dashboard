@@ -63,6 +63,22 @@ def get_current_coach():
     return frappe.get_doc(COACH_DOCTYPE, coach_name)
 
 
+def is_current_user_coach():
+    """
+    Boolean, never throws (unlike get_current_coach_name) - for places
+    that just need to know whether to show something coach-specific,
+    e.g. the topbar's Coach Store link, not to actually load the Coach
+    record.
+    """
+    user = frappe.session.user
+    if not user or user == "Guest":
+        return False
+    return bool(
+        frappe.db.exists(COACH_DOCTYPE, {"user": user})
+        or frappe.db.exists(COACH_DOCTYPE, {"coach_email": user})
+    )
+
+
 def get_current_session_worker_name(optional=False):
     ensure_logged_in()
 
