@@ -220,11 +220,16 @@ def _get_purchasable_item(item_code, company):
 
     # A coach's own fixed price (only ever set deliberately per item -
     # see store_products.py's coach_price handling) wins over the normal
-    # price list; falls straight through to it when there isn't one.
+    # price list; falls straight through to it when there isn't one. For
+    # a variant (e.g. one size of a hoodie), the coach price always lives
+    # on the template, never the variant itself - a coach pays the same
+    # set amount no matter which size/colour they buy, unlike the regular
+    # price which does vary by variant.
     if is_coach:
+        coach_price_item_code = item_doc.get("variant_of") or item_code
         coach_price_rows = frappe.get_all(
             "Item Price",
-            filters={"item_code": item_code, "price_list": COACH_ONLY_PRICE_LIST, "selling": 1},
+            filters={"item_code": coach_price_item_code, "price_list": COACH_ONLY_PRICE_LIST, "selling": 1},
             fields=["price_list_rate", "currency"],
             order_by="valid_from desc, modified desc",
             limit_page_length=1,

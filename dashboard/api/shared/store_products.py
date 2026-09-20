@@ -981,7 +981,7 @@ def stock_take_update(updates=None):
 # priced higher, each with its own stock count)
 # -------------------------------------------------------------------
 
-def _create_variant_item(template, attribute_values, price, stock_qty, unlimited_stock, company, image=None, sku=None, coach_price=None):
+def _create_variant_item(template, attribute_values, price, stock_qty, unlimited_stock, company, image=None, sku=None):
     suffix = "-".join(_slugify(v) for v in attribute_values.values()) or "VAR"
     item_code = f"{template.name}-{suffix}"
 
@@ -1025,8 +1025,6 @@ def _create_variant_item(template, attribute_values, price, stock_qty, unlimited
     if price:
         _set_item_price(variant.name, DEFAULT_PRICE_LIST, price)
 
-    _set_coach_price(variant.name, coach_price)
-
     return variant.name
 
 
@@ -1034,16 +1032,22 @@ def _create_variant_item(template, attribute_values, price, stock_qty, unlimited
 def create_variant_store_product(item_name=None, description=None, short_description=None, item_group=None,
                                   brands=None, image=None, attributes=None, variants=None, sku=None,
                                   gallery_images=None, personalization_enabled=None, personalization_label=None,
-                                  logo_choice_enabled=None, visibility=None):
+                                  logo_choice_enabled=None, visibility=None, coach_price=None):
     """
     attributes: [{"attribute": "Size", "values": ["Small", "Large"]}, ...]
     variants: [{"attribute_values": {"Size": "Small"}, "price": 10,
-                "stock_qty": 5, "unlimited_stock": false, "coach_price": 8}, ...]
+                "stock_qty": 5, "unlimited_stock": false}, ...]
 
     Creates the template Item (has_variants=1, never itself purchasable)
     plus one real Item per entry in `variants`, each with its own Item
     Default/Item Price/stock - exactly what webshop_purchase.py's
     get_item_or_variants() already knows how to read for checkout.
+
+    coach_price is a single flat rate stored on the template only, never
+    per-variant - a coach pays the same price no matter which size/colour
+    they buy, unlike the regular price which does vary by variant. See
+    webshop_purchase.py's _get_purchasable_item(), which looks this up via
+    the variant's own variant_of rather than its own item_code.
     """
     _ensure_store_access()
 
@@ -1153,6 +1157,8 @@ def create_variant_store_product(item_name=None, description=None, short_descrip
 
         template.insert(ignore_permissions=True)
 
+        _set_coach_price(template.name, coach_price)
+
         created = []
         first_variant_image = ""
 
@@ -1168,7 +1174,6 @@ def create_variant_store_product(item_name=None, description=None, short_descrip
                 company,
                 image=variant_image,
                 sku=variant_spec.get("sku"),
-                coach_price=variant_spec.get("coach_price"),
             )
             created.append(variant_name)
 
@@ -1215,7 +1220,6 @@ def get_product_variants(template_item_code=None):
             order_by="idx asc",
         )
         price_row = _get_item_price_row(variant.name, DEFAULT_PRICE_LIST)
-        coach_price = _get_coach_price(variant.name)
 
         result.append({
             "name": variant.name,
@@ -1225,7 +1229,6 @@ def get_product_variants(template_item_code=None):
             "stock_qty": variant.custom_stock_qty or 0,
             "unlimited_stock": bool(variant.custom_unlimited_stock),
             "price": price_row.price_list_rate if price_row else 0,
-            "coach_price": coach_price if coach_price is not None else "",
             "attributes": {row.attribute: row.attribute_value for row in attr_rows},
             "sku": variant.get("custom_sku") or "",
         })
@@ -1234,7 +1237,7 @@ def get_product_variants(template_item_code=None):
 
 
 @frappe.whitelist()
-def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=None, disabled=None, image=None, sku=None, coach_price=None):
+def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=None, disabled=None, image=None, sku=None):
     _ensure_store_access()
 
     item_code = (item_code or "").strip()
@@ -1264,10 +1267,6 @@ def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=N
     if price is not None:
         with _as_administrator():
             _set_item_price(item_code, DEFAULT_PRICE_LIST, _to_float(price))
-
-    if coach_price is not None:
-        with _as_administrator():
-            _set_coach_price(item_code, coach_price)
 
     frappe.db.commit()
 
@@ -1303,7 +1302,7 @@ def delete_variant(item_code=None):
 
 @frappe.whitelist()
 def add_product_variant(template_item_code=None, attribute_values=None, price=None, stock_qty=None,
-                         unlimited_stock=None, sku=None, image=None, coach_price=None):
+                         unlimited_stock=None, sku=None, image=None):
     """Adds one new variant (e.g. a size that wasn't offered when the
     product was first set up) onto an existing variant template, without
     touching anything already there - unlike create_variant_store_product,
@@ -1364,7 +1363,6 @@ def add_product_variant(template_item_code=None, attribute_values=None, price=No
             company,
             image=(image or "").strip(),
             sku=sku,
-            coach_price=coach_price,
         )
 
     frappe.db.commit()
@@ -1374,7 +1372,7 @@ def add_product_variant(template_item_code=None, attribute_values=None, price=No
 
 @frappe.whitelist()
 def add_product_variants_bulk(template_item_code=None, attribute_value_lists=None, price=None, stock_qty=None,
-                               unlimited_stock=None, coach_price=None):
+                               unlimited_stock=None):
     """
     Generates every combination across several values per attribute in
     one go (e.g. 20 Colours x 6 Sizes = up to 120 variants) instead of
@@ -1386,6 +1384,10 @@ def add_product_variants_bulk(template_item_code=None, attribute_value_lists=Non
     same modal). Combinations that already exist are silently skipped
     rather than erroring, so this is safe to run again after adding more
     values to top up a range.
+
+    Coach pricing isn't set here - it's a single flat rate on the
+    template itself (see create_variant_store_product/update_store_product),
+    the same for every variant regardless of size/colour.
 
     attribute_value_lists: {"Colour": ["Red", "Blue", ...], "Size": ["S", "M", "L"]}
     - one entry per attribute on the product template, each a list of
@@ -1479,7 +1481,6 @@ def add_product_variants_bulk(template_item_code=None, attribute_value_lists=Non
                 stock_qty,
                 unlimited_stock,
                 company,
-                coach_price=coach_price,
             )
             created.append(variant_name)
             existing_combos.add(combo_key)
