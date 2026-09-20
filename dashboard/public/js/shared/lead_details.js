@@ -721,16 +721,28 @@
       // Session Worker leads get their own "Set Up As Session Worker"
       // action further down the pipeline (renderSessionWorkerSetupBlock)
       // - this block only ever offers Convert to Client for a franchisee.
+      const alreadyConverted = (lead.is_franchise_lead && lead.status === "Converted" && lead.converted_client)
+        || (!lead.is_franchise_lead && lead.converted_session_worker);
+
       let convertHtml = "";
       if (lead.is_franchise_lead) {
-        convertHtml = lead.status === "Converted" && lead.converted_client
+        convertHtml = alreadyConverted
           ? `<a class="dashboard-btn dashboard-btn-light" id="franchiseeIntakeViewClientBtn" href="${escapeHtml((getValue("leadBaseUrl") || "/coach_db"))}/client_details?name=${encodeURIComponent(lead.converted_client)}">View Client</a>`
           : `<button type="button" class="dashboard-btn dashboard-btn-primary" id="franchiseeIntakeConvertBtn">Convert to Client</button>`;
       }
 
+      // Covers "submitted by accident before it was actually finished" -
+      // hidden once the lead's already moved past this point, since
+      // reopening then wouldn't reach anyone (see reopen_franchisee_
+      // intake's own guard for the same rule, enforced server-side).
+      const reopenHtml = alreadyConverted
+        ? ""
+        : `<button type="button" class="dashboard-btn dashboard-btn-light" id="franchiseeIntakeReopenBtn">Reopen Intake Form</button>`;
+
       block.innerHTML = `
         <div id="franchiseeIntakeSummary" class="dashboard-help" style="flex-basis:100%;">Loading…</div>
         <div id="saferRecruitmentChecklistContainer" style="flex-basis:100%; margin-top:10px;">Loading checklist…</div>
+        ${reopenHtml}
         ${convertHtml}
         <div id="franchiseeIntakeConvertStatus" class="dashboard-help" style="flex-basis:100%;"></div>
       `;
@@ -739,6 +751,9 @@
 
       const convertBtn = el("franchiseeIntakeConvertBtn");
       if (convertBtn) convertBtn.addEventListener("click", convertFranchiseeLeadToClient);
+
+      const reopenBtn = el("franchiseeIntakeReopenBtn");
+      if (reopenBtn) reopenBtn.addEventListener("click", reopenFranchiseeIntake);
       return;
     }
 
@@ -777,6 +792,28 @@
         input.select();
         navigator.clipboard?.writeText(input.value).catch(() => {});
       });
+    }
+  }
+
+  async function reopenFranchiseeIntake() {
+    const name = getValue("leadDocname");
+    const btn = el("franchiseeIntakeReopenBtn");
+    const statusEl = el("franchiseeIntakeConvertStatus");
+    if (!name) return;
+
+    if (!window.confirm("Reopen this intake form? The franchisee/worker will be able to use their existing link to go back in and finish or correct it - nothing already submitted is lost.")) {
+      return;
+    }
+
+    if (btn) { btn.disabled = true; btn.textContent = "Reopening…"; }
+    if (statusEl) statusEl.textContent = "";
+
+    try {
+      await apiPost(`${SHARED_API}.reopen_franchisee_intake`, { name });
+      await loadLead();
+    } catch (error) {
+      if (statusEl) statusEl.textContent = error.message || "Could not reopen this intake form.";
+      if (btn) { btn.disabled = false; btn.textContent = "Reopen Intake Form"; }
     }
   }
 
