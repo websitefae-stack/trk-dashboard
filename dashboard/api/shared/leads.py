@@ -3293,14 +3293,19 @@ def _proposed_client_field_values(doc):
     """
     field_values = {
         "email": doc.contact_email,
-        "mobile": doc.contact_mobile,
+        "mobile": doc.get("franchisee_intake_phone") or doc.contact_mobile,
         "zip_code": doc.postal_code,
         "address": doc.location_address,
-        # A franchisee/session worker's own self-reported DOB/gender (see
-        # submit_franchisee_intake) - blank on every other kind of lead
-        # (there's no franchisee_intake_* data on a young-person/adult/
-        # school enquiry), so safe to include unconditionally; the final
-        # filter below drops it when there's nothing there.
+        # A franchisee/session worker's own self-reported name/DOB/gender
+        # (see submit_franchisee_intake) take priority over the headline
+        # contact_name/contact_mobile fields collected at the original
+        # enquiry stage - they typed these themselves, so it's the more
+        # accurate source. Blank on every other kind of lead (there's no
+        # franchisee_intake_* data on a young-person/adult/school
+        # enquiry), so safe to include unconditionally; the final filter
+        # below drops it when there's nothing there.
+        "name1": doc.get("franchisee_intake_first_name"),
+        "last_name": doc.get("franchisee_intake_last_name"),
         "date_of_birth": doc.get("franchisee_intake_dob"),
         "gender_identity": doc.get("franchisee_intake_gender"),
     }
