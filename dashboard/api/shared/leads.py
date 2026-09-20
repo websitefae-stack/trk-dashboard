@@ -1475,9 +1475,9 @@ def send_franchisee_intake_form(name=None, subject=None, message=None, cc=None, 
 def get_franchisee_intake_status(token=None):
     """
     Guest-accessible - lets the public form show "already submitted"
-    instead of a blank form, and tells it whether to show the extra
-    session-worker-only fields (qualifications/insurance/work locations -
-    not relevant to a franchisee).
+    instead of a blank form. is_session_worker only changes the page's
+    wording (a Session Worker vs a franchisee) - the Safer Recruitment
+    Checklist fields on this form apply to both lead kinds alike.
     """
     token = coalesce_str("token", token)
     doc = _get_lead_by_franchisee_intake_token(token)
@@ -1535,7 +1535,10 @@ def upload_franchisee_intake_file(token=None, field=None):
 def submit_franchisee_intake(token=None, first_name=None, last_name=None, phone=None, gender=None,
                               dob=None, dbs_number=None, dbs_date_received=None, dbs_expiry_date=None,
                               qualifications=None, work_locations=None, public_liability_insurer=None,
-                              indemnity_insurer=None, insurance_renewal_date=None):
+                              indemnity_insurer=None, insurance_renewal_date=None, id_document_type=None,
+                              right_to_work_status=None, right_to_work_expiry=None, address_history=None,
+                              overseas_checks=None, work_history=None, reference1_details=None,
+                              reference2_details=None):
     token = coalesce_str("token", token)
     doc = _get_lead_by_franchisee_intake_token(token)
 
@@ -1564,16 +1567,26 @@ def submit_franchisee_intake(token=None, first_name=None, last_name=None, phone=
     doc.franchisee_intake_dbs_date_received = coalesce_raw("dbs_date_received", dbs_date_received) or None
     doc.franchisee_intake_dbs_expiry_date = coalesce_raw("dbs_expiry_date", dbs_expiry_date) or None
 
-    # Session-worker-only self-report fields (see the Safer Recruitment
-    # Checklist) - always accepted but only ever shown/filled in on the
-    # public form for a Session Worker lead (get_franchisee_intake_status's
-    # is_session_worker flag), so these stay blank for a franchisee.
-    if is_session_worker_lead(doc.get("appointment_type")):
-        doc.franchisee_intake_qualifications = coalesce_str("qualifications", qualifications)
-        doc.franchisee_intake_work_locations = coalesce_str("work_locations", work_locations)
-        doc.franchisee_intake_public_liability_insurer = coalesce_str("public_liability_insurer", public_liability_insurer)
-        doc.franchisee_intake_indemnity_insurer = coalesce_str("indemnity_insurer", indemnity_insurer)
-        doc.franchisee_intake_insurance_renewal_date = coalesce_raw("insurance_renewal_date", insurance_renewal_date) or None
+    # Safer Recruitment Checklist self-report fields - shown on the form
+    # and accepted for BOTH lead kinds that share this form (a Franchisee
+    # Call and a Session Worker both need the same safeguarding checks
+    # before they're delivering sessions - see is_onboarding_pipeline_
+    # lead). The franchisor's own verification of every item (including
+    # these) happens separately afterwards - see get_safer_recruitment_
+    # checklist/update_safer_recruitment_checklist_item below.
+    doc.franchisee_intake_qualifications = coalesce_str("qualifications", qualifications)
+    doc.franchisee_intake_work_locations = coalesce_str("work_locations", work_locations)
+    doc.franchisee_intake_public_liability_insurer = coalesce_str("public_liability_insurer", public_liability_insurer)
+    doc.franchisee_intake_indemnity_insurer = coalesce_str("indemnity_insurer", indemnity_insurer)
+    doc.franchisee_intake_insurance_renewal_date = coalesce_raw("insurance_renewal_date", insurance_renewal_date) or None
+    doc.franchisee_intake_id_document_type = coalesce_str("id_document_type", id_document_type)
+    doc.franchisee_intake_right_to_work_status = coalesce_str("right_to_work_status", right_to_work_status)
+    doc.franchisee_intake_right_to_work_expiry = coalesce_raw("right_to_work_expiry", right_to_work_expiry) or None
+    doc.franchisee_intake_address_history = coalesce_str("address_history", address_history)
+    doc.franchisee_intake_overseas_checks = coalesce_str("overseas_checks", overseas_checks)
+    doc.franchisee_intake_work_history = coalesce_str("work_history", work_history)
+    doc.franchisee_intake_reference1_details = coalesce_str("reference1_details", reference1_details)
+    doc.franchisee_intake_reference2_details = coalesce_str("reference2_details", reference2_details)
 
     doc.franchisee_intake_submitted = 1
     doc.franchisee_intake_submitted_at = frappe.utils.now_datetime()
@@ -1616,8 +1629,172 @@ def get_franchisee_intake(name=None):
         "public_liability_insurer": doc.get("franchisee_intake_public_liability_insurer") or "",
         "indemnity_insurer": doc.get("franchisee_intake_indemnity_insurer") or "",
         "insurance_renewal_date": doc.get("franchisee_intake_insurance_renewal_date") or "",
+        "id_document_type": doc.get("franchisee_intake_id_document_type") or "",
+        "right_to_work_status": doc.get("franchisee_intake_right_to_work_status") or "",
+        "right_to_work_expiry": doc.get("franchisee_intake_right_to_work_expiry") or "",
+        "address_history": doc.get("franchisee_intake_address_history") or "",
+        "overseas_checks": doc.get("franchisee_intake_overseas_checks") or "",
+        "work_history": doc.get("franchisee_intake_work_history") or "",
+        "reference1_details": doc.get("franchisee_intake_reference1_details") or "",
+        "reference2_details": doc.get("franchisee_intake_reference2_details") or "",
         "submitted_at": frappe.utils.format_datetime(doc.get("franchisee_intake_submitted_at"), "dd-MM-yyyy HH:mm") if doc.get("franchisee_intake_submitted_at") else "",
     }
+
+
+# -------------------------------------------------------------------
+# Safer Recruitment Checklist - the franchisor's own verification of a
+# Franchisee Call or Session Worker lead's suitability to work with
+# children, one row per requirement from "Session Worker Onboarding &
+# Safer Recruitment Checklist". Filled in by the franchisor (not the
+# worker/franchisee - see submit_franchisee_intake above for what THEY
+# self-report) once the intake form is submitted, before converting the
+# lead (to a Client, or setting them up as a Session Worker). Rows are
+# seeded from SAFER_RECRUITMENT_CHECKLIST_ITEMS the first time this is
+# read for a lead, rather than by a patch touching every lead up front.
+# -------------------------------------------------------------------
+
+SAFER_RECRUITMENT_CHECKLIST_ITEMS = [
+    # (section, item_key, item_label)
+    ("Identity, right to work and overseas checks", "identity_verified", "Identity verified"),
+    ("Identity, right to work and overseas checks", "right_to_work_verified", "UK right to work verified"),
+    ("Identity, right to work and overseas checks", "address_history_confirmed", "Address history confirmed"),
+    ("Identity, right to work and overseas checks", "overseas_police_clearance_reviewed", "Overseas police clearance reviewed (if applicable)"),
+    ("Identity, right to work and overseas checks", "working_with_children_check_reviewed", "Working With Children Check reviewed (if applicable)"),
+    ("UK DBS and barred-list checks", "role_eligibility_assessed", "Role eligibility assessed"),
+    ("UK DBS and barred-list checks", "enhanced_dbs_application_submitted", "Enhanced DBS application submitted"),
+    ("UK DBS and barred-list checks", "barred_list_eligibility_confirmed", "Children's Barred List eligibility confirmed"),
+    ("UK DBS and barred-list checks", "original_dbs_certificate_reviewed", "Original DBS certificate reviewed"),
+    ("UK DBS and barred-list checks", "dbs_risk_assessment_completed", "DBS risk assessment completed"),
+    ("UK DBS and barred-list checks", "dbs_update_service_discussed", "DBS Update Service discussed"),
+    ("Qualifications, work history and references", "work_history_reviewed", "Application / work history reviewed"),
+    ("Qualifications, work history and references", "qualifications_verified", "Qualifications and training verified"),
+    ("Qualifications, work history and references", "reference1_obtained", "Reference 1 obtained and verified"),
+    ("Qualifications, work history and references", "reference2_obtained", "Reference 2 obtained and verified"),
+    ("Qualifications, work history and references", "safer_recruitment_interview_completed", "Safer-recruitment interview completed"),
+    ("Safeguarding and organisational induction", "safeguarding_training_completed", "Safeguarding training completed"),
+    ("Safeguarding and organisational induction", "dsl_briefing", "Designated Safeguarding Lead briefing"),
+    ("Safeguarding and organisational induction", "policies_read_and_signed", "Policies read and signed"),
+    ("Safeguarding and organisational induction", "trk_practice_model_induction", "TRK practice model induction"),
+    ("Safeguarding and organisational induction", "information_governance_access_set_up", "Information governance access set up"),
+    ("Contracting, insurance and readiness", "written_agreement_issued_and_signed", "Written agreement issued and signed"),
+    ("Contracting, insurance and readiness", "employment_status_confirmed", "Employment-status / tax position confirmed"),
+    ("Contracting, insurance and readiness", "insurance_confirmed", "Insurance confirmed"),
+    ("Contracting, insurance and readiness", "supervision_arrangements_agreed", "Supervision arrangements agreed"),
+    ("Contracting, insurance and readiness", "role_boundaries_and_escalation_agreed", "Role boundaries and escalation agreed"),
+    ("Contracting, insurance and readiness", "practical_onboarding_completed", "Practical onboarding completed"),
+]
+
+
+def _ensure_safer_recruitment_checklist_seeded(doc):
+    existing_keys = {row.item_key for row in (doc.get("safer_recruitment_checklist") or [])}
+    changed = False
+
+    for section, item_key, item_label in SAFER_RECRUITMENT_CHECKLIST_ITEMS:
+        if item_key in existing_keys:
+            continue
+
+        doc.append("safer_recruitment_checklist", {
+            "section": section,
+            "item_key": item_key,
+            "item_label": item_label,
+            "status": "Pending",
+        })
+        changed = True
+
+    if changed:
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+
+
+@frappe.whitelist()
+def get_safer_recruitment_checklist(name=None):
+    """
+    Franchisor-only: the full checklist for this lead, seeding it from
+    SAFER_RECRUITMENT_CHECKLIST_ITEMS the first time (or topping up any
+    new items added to that list since this lead's rows were first
+    created - existing rows/answers are never touched).
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not is_onboarding_pipeline_lead(doc.get("appointment_type")):
+        frappe.throw(_("This lead isn't a Franchisee Call or Session Worker."))
+
+    _ensure_safer_recruitment_checklist_seeded(doc)
+    doc.reload()
+
+    rows = [
+        {
+            "item_key": row.item_key,
+            "section": row.section,
+            "item_label": row.item_label,
+            "status": row.status or "Pending",
+            "checked_date": row.checked_date or "",
+            "checked_by": row.checked_by or "",
+            "notes": row.notes or "",
+        }
+        for row in (doc.get("safer_recruitment_checklist") or [])
+    ]
+
+    return {
+        "rows": rows,
+        "outstanding_actions": doc.get("safer_recruitment_outstanding_actions") or "",
+    }
+
+
+@frappe.whitelist()
+def update_safer_recruitment_checklist_item(name=None, item_key=None, status=None, checked_date=None, notes=None):
+    """Franchisor-only: updates one checklist row's status/date/notes. checked_by is always the current user, never typed."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    item_key = coalesce_str("item_key", item_key)
+    doc = ensure_lead_access(name)
+
+    _ensure_safer_recruitment_checklist_seeded(doc)
+    doc.reload()
+
+    row = next((r for r in (doc.get("safer_recruitment_checklist") or []) if r.item_key == item_key), None)
+    if not row:
+        frappe.throw(_("Unknown checklist item."))
+
+    status = coalesce_str("status", status)
+    if status:
+        row.status = status
+    if checked_date is not None:
+        row.checked_date = coalesce_raw("checked_date", checked_date) or None
+    if notes is not None:
+        row.notes = coalesce_str("notes", notes)
+
+    if status and status != "Pending" and not row.checked_by:
+        row.checked_by = get_fullname(frappe.session.user)
+    if not row.checked_date and status and status != "Pending":
+        row.checked_date = frappe.utils.today()
+
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True}
+
+
+@frappe.whitelist()
+def update_safer_recruitment_outstanding_actions(name=None, outstanding_actions=None):
+    """Franchisor-only: the free-text catch-all for the document's "Outstanding actions and conditions" table."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    doc.safer_recruitment_outstanding_actions = coalesce_str("outstanding_actions", outstanding_actions)
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True}
 
 
 # -------------------------------------------------------------------

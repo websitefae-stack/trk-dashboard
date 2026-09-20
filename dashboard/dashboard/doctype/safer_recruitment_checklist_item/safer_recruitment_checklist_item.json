@@ -1,0 +1,76 @@
+{
+ "actions": [],
+ "creation": "2026-09-20 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section",
+  "item_key",
+  "item_label",
+  "status",
+  "checked_date",
+  "checked_by",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "section",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Section",
+   "read_only": 1
+  },
+  {
+   "fieldname": "item_key",
+   "fieldtype": "Data",
+   "label": "Item Key",
+   "read_only": 1
+  },
+  {
+   "fieldname": "item_label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Requirement",
+   "read_only": 1
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending\nComplete\nN/A"
+  },
+  {
+   "fieldname": "checked_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date"
+  },
+  {
+   "fieldname": "checked_by",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Checked By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes / Expiry"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-20 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "Safer Recruitment Checklist Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "ASC",
+ "states": []
+}
