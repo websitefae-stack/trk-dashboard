@@ -1722,42 +1722,63 @@ def get_franchisee_intake(name=None):
 # -------------------------------------------------------------------
 
 SAFER_RECRUITMENT_CHECKLIST_ITEMS = [
-    # (section, item_key, item_label)
-    ("Identity, right to work and overseas checks", "identity_verified", "Identity verified"),
-    ("Identity, right to work and overseas checks", "right_to_work_verified", "UK right to work verified"),
-    ("Identity, right to work and overseas checks", "address_history_confirmed", "Address history confirmed"),
-    ("Identity, right to work and overseas checks", "overseas_police_clearance_reviewed", "Overseas police clearance reviewed (if applicable)"),
-    ("Identity, right to work and overseas checks", "working_with_children_check_reviewed", "Working With Children Check reviewed (if applicable)"),
-    ("UK DBS and barred-list checks", "role_eligibility_assessed", "Role eligibility assessed"),
-    ("UK DBS and barred-list checks", "enhanced_dbs_application_submitted", "Enhanced DBS application submitted"),
-    ("UK DBS and barred-list checks", "barred_list_eligibility_confirmed", "Children's Barred List eligibility confirmed"),
-    ("UK DBS and barred-list checks", "original_dbs_certificate_reviewed", "Original DBS certificate reviewed"),
-    ("UK DBS and barred-list checks", "dbs_risk_assessment_completed", "DBS risk assessment completed"),
-    ("UK DBS and barred-list checks", "dbs_update_service_discussed", "DBS Update Service discussed"),
-    ("Qualifications, work history and references", "work_history_reviewed", "Application / work history reviewed"),
-    ("Qualifications, work history and references", "qualifications_verified", "Qualifications and training verified"),
-    ("Qualifications, work history and references", "reference1_obtained", "Reference 1 obtained and verified"),
-    ("Qualifications, work history and references", "reference2_obtained", "Reference 2 obtained and verified"),
-    ("Qualifications, work history and references", "safer_recruitment_interview_completed", "Safer-recruitment interview completed"),
-    ("Safeguarding and organisational induction", "safeguarding_training_completed", "Safeguarding training completed"),
-    ("Safeguarding and organisational induction", "dsl_briefing", "Designated Safeguarding Lead briefing"),
-    ("Safeguarding and organisational induction", "policies_read_and_signed", "Policies read and signed"),
-    ("Safeguarding and organisational induction", "trk_practice_model_induction", "TRK practice model induction"),
-    ("Safeguarding and organisational induction", "information_governance_access_set_up", "Information governance access set up"),
-    ("Contracting, insurance and readiness", "written_agreement_issued_and_signed", "Written agreement issued and signed"),
-    ("Contracting, insurance and readiness", "employment_status_confirmed", "Employment-status / tax position confirmed"),
-    ("Contracting, insurance and readiness", "insurance_confirmed", "Insurance confirmed"),
-    ("Contracting, insurance and readiness", "supervision_arrangements_agreed", "Supervision arrangements agreed"),
-    ("Contracting, insurance and readiness", "role_boundaries_and_escalation_agreed", "Role boundaries and escalation agreed"),
-    ("Contracting, insurance and readiness", "practical_onboarding_completed", "Practical onboarding completed"),
+    # (section, item_key, item_label, scope) - scope "both" applies to a
+    # Franchisee Call and a Session Worker lead alike; "session_worker"
+    # only ever applies to a Session Worker lead.
+    #
+    # Deliberately NOT on this list (dropped on Ashley's own review of
+    # the checklist against how Stage 1 actually works here):
+    # - the whole "Safeguarding and organisational induction" section -
+    #   that's part of onboarding once someone's already a Coach/Client,
+    #   not part of this pre-hire recruitment checklist.
+    # - "Written agreement issued and signed" - every contract in this
+    #   pipeline is already signed through its own dedicated flow (NDA/
+    #   Intent/Fees Guide/Franchise Agreement), so this would just be a
+    #   duplicate tick.
+    # - "Practical onboarding completed" - for both kinds; not something
+    #   Stage 1 tracks.
+    # - "Supervision arrangements agreed"/"Role boundaries and
+    #   escalation agreed" - dropped for a franchisee (not sessional
+    #   workers reporting to someone), kept for a Session Worker (they
+    #   report to their sponsoring coach).
+    ("Identity, right to work and overseas checks", "identity_verified", "Identity verified", "both"),
+    ("Identity, right to work and overseas checks", "right_to_work_verified", "UK right to work verified", "both"),
+    ("Identity, right to work and overseas checks", "address_history_confirmed", "Address history confirmed", "both"),
+    ("Identity, right to work and overseas checks", "overseas_police_clearance_reviewed", "Overseas police clearance reviewed (if applicable)", "both"),
+    ("Identity, right to work and overseas checks", "working_with_children_check_reviewed", "Working With Children Check reviewed (if applicable)", "both"),
+    ("UK DBS and barred-list checks", "role_eligibility_assessed", "Role eligibility assessed", "both"),
+    ("UK DBS and barred-list checks", "enhanced_dbs_application_submitted", "Enhanced DBS application submitted", "both"),
+    ("UK DBS and barred-list checks", "barred_list_eligibility_confirmed", "Children's Barred List eligibility confirmed", "both"),
+    ("UK DBS and barred-list checks", "original_dbs_certificate_reviewed", "Original DBS certificate reviewed", "both"),
+    ("UK DBS and barred-list checks", "dbs_risk_assessment_completed", "DBS risk assessment completed", "both"),
+    ("UK DBS and barred-list checks", "dbs_update_service_discussed", "DBS Update Service discussed", "both"),
+    ("Qualifications, work history and references", "work_history_reviewed", "Application / work history reviewed", "both"),
+    ("Qualifications, work history and references", "qualifications_verified", "Qualifications and training verified", "both"),
+    ("Qualifications, work history and references", "reference1_obtained", "Reference 1 obtained and verified", "both"),
+    ("Qualifications, work history and references", "reference2_obtained", "Reference 2 obtained and verified", "both"),
+    ("Qualifications, work history and references", "safer_recruitment_interview_completed", "Safer-recruitment interview completed", "both"),
+    ("Contracting, insurance and readiness", "employment_status_confirmed", "Employment-status / tax position confirmed", "both"),
+    ("Contracting, insurance and readiness", "insurance_confirmed", "Insurance confirmed", "both"),
+    ("Contracting, insurance and readiness", "supervision_arrangements_agreed", "Supervision arrangements agreed", "session_worker"),
+    ("Contracting, insurance and readiness", "role_boundaries_and_escalation_agreed", "Role boundaries and escalation agreed", "session_worker"),
 ]
+
+
+def _applicable_safer_recruitment_items(doc):
+    is_sw = is_session_worker_lead(doc.get("appointment_type"))
+
+    return [
+        (section, item_key, item_label)
+        for section, item_key, item_label, scope in SAFER_RECRUITMENT_CHECKLIST_ITEMS
+        if scope == "both" or (scope == "session_worker" and is_sw)
+    ]
 
 
 def _ensure_safer_recruitment_checklist_seeded(doc):
     existing_keys = {row.item_key for row in (doc.get("safer_recruitment_checklist") or [])}
     changed = False
 
-    for section, item_key, item_label in SAFER_RECRUITMENT_CHECKLIST_ITEMS:
+    for section, item_key, item_label in _applicable_safer_recruitment_items(doc):
         if item_key in existing_keys:
             continue
 
@@ -1794,6 +1815,13 @@ def get_safer_recruitment_checklist(name=None):
     _ensure_safer_recruitment_checklist_seeded(doc)
     doc.reload()
 
+    # Seeding only ever adds missing rows, never removes ones that are no
+    # longer applicable (e.g. after SAFER_RECRUITMENT_CHECKLIST_ITEMS is
+    # trimmed), so filter here too - this hides now-removed items on leads
+    # that were seeded under an older, longer item list without deleting
+    # any franchisor-entered data on those rows.
+    applicable_keys = {item_key for _section, item_key, _label in _applicable_safer_recruitment_items(doc)}
+
     rows = [
         {
             "item_key": row.item_key,
@@ -1805,6 +1833,7 @@ def get_safer_recruitment_checklist(name=None):
             "notes": row.notes or "",
         }
         for row in (doc.get("safer_recruitment_checklist") or [])
+        if row.item_key in applicable_keys
     ]
 
     return {
