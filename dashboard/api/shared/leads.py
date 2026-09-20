@@ -1,4 +1,5 @@
 import re
+from urllib.parse import quote
 
 import frappe
 from frappe import _
@@ -122,9 +123,40 @@ STAGE1_MILESTONES = [
     ("stage1_agreement_invoice_done", "stage1_agreement_invoice_date"),
 ]
 
+# A Session Worker lead's own onboarding checklist - shorter than a
+# Franchisee Call's (no Discovery Day, Intent to Proceed, or Franchise
+# Agreement). Reuses the same "Call" and "Sign NDA" fields as
+# STAGE1_MILESTONES above (the underlying nda_* e-signing fields don't
+# care which kind of lead they're on) plus "Franchisee Intake + DBS/
+# Insurance Submitted" reused as the shared Intake/DBS step, then its own
+# Fees and Expectations Guide + final setup milestones below.
+SESSION_WORKER_STAGE_MILESTONES = [
+    ("stage1_call_done", "stage1_call_date"),
+    ("stage1_nda_done", "stage1_nda_date"),
+    ("stage1_agreement_invoice_done", "stage1_agreement_invoice_date"),
+    ("fees_guide_done", "fees_guide_date"),
+    ("sw_setup_done", "sw_setup_date"),
+]
+
 
 def is_franchise_lead(appointment_type):
     return "franchisee call" in (appointment_type or "").strip().lower()
+
+
+def is_session_worker_lead(appointment_type):
+    return "session worker" in (appointment_type or "").strip().lower()
+
+
+def is_onboarding_pipeline_lead(appointment_type):
+    """
+    True for either lead kind that goes through the shared NDA + Intake/
+    DBS steps (see STAGE1_MILESTONES's "Sign NDA" milestone and the
+    franchisee_intake_* fields below) - a Franchisee Call and a Session
+    Worker lead share those two steps; everything after (Intent to
+    Proceed/Franchise Agreement for franchisees, the Fees and
+    Expectations Guide for session workers) is kind-specific.
+    """
+    return is_franchise_lead(appointment_type) or is_session_worker_lead(appointment_type)
 
 
 def is_podcast_lead(appointment_type):
@@ -349,14 +381,24 @@ def get_lead(name=None):
     row["call"] = _get_lead_call_info(doc.event)
     row["location_address"] = doc.get("location_address") or ""
     row["is_franchise_lead"] = 1 if is_franchise_lead(doc.get("appointment_type")) else 0
+    row["is_session_worker_lead"] = 1 if is_session_worker_lead(doc.get("appointment_type")) else 0
     # A Franchisee Call is deliberately excluded from creates_client_on_
     # conversion() (see LEGACY_NON_CLIENT_LABEL_FRAGMENTS) - that was
     # written before this Stage 1 pipeline existed, back when converting
     # one straight into an ordinary Client made no sense. It now does
     # (Stage 1 finishes with a real Client, client_type Franchise - see
     # convert_lead_to_client below), so it's forced on here regardless
-    # of whatever creates_client_on_conversion() would otherwise say.
-    row["is_client_conversion"] = 1 if (row["is_franchise_lead"] or creates_client_on_conversion(doc.get("appointment_type"))) else 0
+    # of whatever creates_client_on_conversion() would otherwise say. A
+    # Session Worker lead never becomes a Client at all (see sw_setup_done
+    # below - Session Worker is a separate doctype set up manually in
+    # Desk). creates_client_on_conversion() would otherwise say True for
+    # a "Session Worker" label too (it isn't in LEGACY_NON_CLIENT_LABEL_
+    # FRAGMENTS), so it's explicitly forced off here rather than left to
+    # fall through.
+    if row["is_session_worker_lead"]:
+        row["is_client_conversion"] = 0
+    else:
+        row["is_client_conversion"] = 1 if (row["is_franchise_lead"] or creates_client_on_conversion(doc.get("appointment_type"))) else 0
     row["active_transfer"] = doc.get("active_transfer") or ""
     # For the franchisor: is this HER OWN lead (she's a working coach and
     # currently holds it herself), rather than one of some other coach's
@@ -380,15 +422,36 @@ def get_lead(name=None):
             }
             for done_field, date_field in STAGE1_MILESTONES
         }
-        row["nda_signed"] = 1 if doc.get("nda_signed_snapshot") else 0
-        row["nda_link_generated"] = 1 if doc.get("nda_token") else 0
-        row["nda_sent_at"] = (
-            frappe.utils.format_datetime(doc.get("nda_sent_at"), "dd-MM-yyyy HH:mm") if doc.get("nda_sent_at") else ""
-        )
         row["intent_signed"] = 1 if doc.get("intent_signed_snapshot") else 0
         row["intent_link_generated"] = 1 if doc.get("intent_token") else 0
         row["intent_sent_at"] = (
             frappe.utils.format_datetime(doc.get("intent_sent_at"), "dd-MM-yyyy HH:mm") if doc.get("intent_sent_at") else ""
+        )
+
+    if row["is_session_worker_lead"]:
+        row["session_worker_stage"] = {
+            done_field: {
+                "done": int(doc.get(done_field) or 0),
+                "date": doc.get(date_field) or "",
+            }
+            for done_field, date_field in SESSION_WORKER_STAGE_MILESTONES
+        }
+        row["fees_guide_signed"] = 1 if doc.get("fees_guide_signed_snapshot") else 0
+        row["fees_guide_link_generated"] = 1 if doc.get("fees_guide_token") else 0
+        row["fees_guide_sent_at"] = (
+            frappe.utils.format_datetime(doc.get("fees_guide_sent_at"), "dd-MM-yyyy HH:mm")
+            if doc.get("fees_guide_sent_at") else ""
+        )
+        row["converted_session_worker"] = doc.get("converted_session_worker") or ""
+
+    if row["is_franchise_lead"] or row["is_session_worker_lead"]:
+        # Shared between both lead kinds - the NDA and Intake/DBS steps
+        # are identical regardless of which one this lead is (see
+        # is_onboarding_pipeline_lead above).
+        row["nda_signed"] = 1 if doc.get("nda_signed_snapshot") else 0
+        row["nda_link_generated"] = 1 if doc.get("nda_token") else 0
+        row["nda_sent_at"] = (
+            frappe.utils.format_datetime(doc.get("nda_sent_at"), "dd-MM-yyyy HH:mm") if doc.get("nda_sent_at") else ""
         )
         row["franchisee_intake_submitted"] = 1 if doc.get("franchisee_intake_submitted") else 0
         row["franchisee_intake_link_generated"] = 1 if doc.get("franchisee_intake_token") else 0
@@ -710,16 +773,16 @@ def update_franchise_pipeline(name=None, milestone=None, done=None, milestone_da
     done = coalesce_raw("done", done)
     is_done = str(done).lower() in ["1", "true", "yes", "on"]
 
-    valid_fields = {done_field for done_field, _date_field in STAGE1_MILESTONES}
+    valid_fields = {done_field for done_field, _date_field in STAGE1_MILESTONES + SESSION_WORKER_STAGE_MILESTONES}
     if milestone not in valid_fields:
         frappe.throw(_("Unknown Stage 1 milestone."))
 
     doc = ensure_lead_access(name)
 
-    if not is_franchise_lead(doc.get("appointment_type")):
-        frappe.throw(_("This lead isn't a Franchisee Call - Stage 1 doesn't apply to it."))
+    if not is_onboarding_pipeline_lead(doc.get("appointment_type")):
+        frappe.throw(_("This lead isn't a Franchisee Call or Session Worker - Stage 1 doesn't apply to it."))
 
-    date_field = dict(STAGE1_MILESTONES)[milestone]
+    date_field = dict(STAGE1_MILESTONES + SESSION_WORKER_STAGE_MILESTONES)[milestone]
 
     doc.set(milestone, 1 if is_done else 0)
     doc.set(date_field, milestone_date if is_done else None)
@@ -789,8 +852,8 @@ def get_nda_sign_url(name=None):
     name = coalesce_str("name", name)
     doc = ensure_lead_access(name)
 
-    if not is_franchise_lead(doc.get("appointment_type")):
-        frappe.throw(_("This lead isn't a Franchisee Call - the NDA flow doesn't apply to it."))
+    if not is_onboarding_pipeline_lead(doc.get("appointment_type")):
+        frappe.throw(_("This lead isn't a Franchisee Call or Session Worker - the NDA flow doesn't apply to it."))
 
     if doc.get("nda_signed_snapshot"):
         frappe.throw(_("This lead's NDA has already been signed."))
@@ -807,10 +870,15 @@ def get_nda_sign_url(name=None):
 def _nda_email_text(doc, nda_url):
     contact_name = doc.contact_name or "there"
     subject = "Please sign: Non-Disclosure Agreement"
+
+    if is_session_worker_lead(doc.get("appointment_type")):
+        continuing_as = "becoming a Resilient Kid session worker"
+    else:
+        continuing_as = "becoming a Resilient franchisee"
+
     message = (
         f"Hi {contact_name},\n\n"
-        "Please read and sign the Non-Disclosure Agreement below to continue with becoming a "
-        "Resilient franchisee:\n\n"
+        f"Please read and sign the Non-Disclosure Agreement below to continue with {continuing_as}:\n\n"
         f"{nda_url}"
     )
     return subject, message
@@ -1285,8 +1353,8 @@ def get_franchisee_intake_url(name=None):
     name = coalesce_str("name", name)
     doc = ensure_lead_access(name)
 
-    if not is_franchise_lead(doc.get("appointment_type")):
-        frappe.throw(_("This lead isn't a Franchisee Call - the intake form doesn't apply to it."))
+    if not is_onboarding_pipeline_lead(doc.get("appointment_type")):
+        frappe.throw(_("This lead isn't a Franchisee Call or Session Worker - the intake form doesn't apply to it."))
 
     if not doc.get("franchisee_intake_token"):
         doc.franchisee_intake_token = frappe.generate_hash(length=40)
@@ -1298,6 +1366,18 @@ def get_franchisee_intake_url(name=None):
 
 def _franchisee_intake_email_text(doc, intake_url):
     contact_name = doc.contact_name or "there"
+
+    if is_session_worker_lead(doc.get("appointment_type")):
+        subject = "Your Resilient Kid session worker intake form"
+        message = (
+            f"Hi {contact_name},\n\n"
+            "Thanks for your interest in joining The Resilient Kid as a session worker. Please "
+            "complete the short form below with your details and DBS certificate so we can "
+            "keep things moving:\n\n"
+            f"{intake_url}"
+        )
+        return subject, message
+
     subject = "Your Resilient franchisee intake form"
     message = (
         f"Hi {contact_name},\n\n"
@@ -1344,8 +1424,8 @@ def send_franchisee_intake_form(name=None, subject=None, message=None, cc=None, 
     name = coalesce_str("name", name)
     doc = ensure_lead_access(name)
 
-    if not is_franchise_lead(doc.get("appointment_type")):
-        frappe.throw(_("This lead isn't a Franchisee Call - the intake form doesn't apply to it."))
+    if not is_onboarding_pipeline_lead(doc.get("appointment_type")):
+        frappe.throw(_("This lead isn't a Franchisee Call or Session Worker - the intake form doesn't apply to it."))
 
     if not doc.contact_email:
         frappe.throw(_("This lead has no contact email address to send the form to."))
@@ -1393,13 +1473,19 @@ def send_franchisee_intake_form(name=None, subject=None, message=None, cc=None, 
 
 @frappe.whitelist(allow_guest=True)
 def get_franchisee_intake_status(token=None):
-    """Guest-accessible - lets the public form show "already submitted" instead of a blank form."""
+    """
+    Guest-accessible - lets the public form show "already submitted"
+    instead of a blank form, and tells it whether to show the extra
+    session-worker-only fields (qualifications/insurance/work locations -
+    not relevant to a franchisee).
+    """
     token = coalesce_str("token", token)
     doc = _get_lead_by_franchisee_intake_token(token)
 
     return {
         "submitted": bool(doc.get("franchisee_intake_submitted")),
         "contact_name": doc.get("contact_name") or "",
+        "is_session_worker": bool(is_session_worker_lead(doc.get("appointment_type"))),
     }
 
 
@@ -1447,7 +1533,9 @@ def upload_franchisee_intake_file(token=None, field=None):
 
 @frappe.whitelist(allow_guest=True)
 def submit_franchisee_intake(token=None, first_name=None, last_name=None, phone=None, gender=None,
-                              dob=None, dbs_number=None, dbs_date_received=None, dbs_expiry_date=None):
+                              dob=None, dbs_number=None, dbs_date_received=None, dbs_expiry_date=None,
+                              qualifications=None, work_locations=None, public_liability_insurer=None,
+                              indemnity_insurer=None, insurance_renewal_date=None):
     token = coalesce_str("token", token)
     doc = _get_lead_by_franchisee_intake_token(token)
 
@@ -1475,6 +1563,18 @@ def submit_franchisee_intake(token=None, first_name=None, last_name=None, phone=
     doc.franchisee_intake_dbs_number = dbs_number
     doc.franchisee_intake_dbs_date_received = coalesce_raw("dbs_date_received", dbs_date_received) or None
     doc.franchisee_intake_dbs_expiry_date = coalesce_raw("dbs_expiry_date", dbs_expiry_date) or None
+
+    # Session-worker-only self-report fields (see the Safer Recruitment
+    # Checklist) - always accepted but only ever shown/filled in on the
+    # public form for a Session Worker lead (get_franchisee_intake_status's
+    # is_session_worker flag), so these stay blank for a franchisee.
+    if is_session_worker_lead(doc.get("appointment_type")):
+        doc.franchisee_intake_qualifications = coalesce_str("qualifications", qualifications)
+        doc.franchisee_intake_work_locations = coalesce_str("work_locations", work_locations)
+        doc.franchisee_intake_public_liability_insurer = coalesce_str("public_liability_insurer", public_liability_insurer)
+        doc.franchisee_intake_indemnity_insurer = coalesce_str("indemnity_insurer", indemnity_insurer)
+        doc.franchisee_intake_insurance_renewal_date = coalesce_raw("insurance_renewal_date", insurance_renewal_date) or None
+
     doc.franchisee_intake_submitted = 1
     doc.franchisee_intake_submitted_at = frappe.utils.now_datetime()
     # Stage1's "Franchisee Intake + DBS/Insurance Submitted" milestone -
@@ -1511,8 +1611,335 @@ def get_franchisee_intake(name=None):
         "dbs_expiry_date": doc.get("franchisee_intake_dbs_expiry_date") or "",
         "dbs_certificate": doc.get("franchisee_intake_dbs_certificate") or "",
         "additional_document": doc.get("franchisee_intake_additional_document") or "",
+        "qualifications": doc.get("franchisee_intake_qualifications") or "",
+        "work_locations": doc.get("franchisee_intake_work_locations") or "",
+        "public_liability_insurer": doc.get("franchisee_intake_public_liability_insurer") or "",
+        "indemnity_insurer": doc.get("franchisee_intake_indemnity_insurer") or "",
+        "insurance_renewal_date": doc.get("franchisee_intake_insurance_renewal_date") or "",
         "submitted_at": frappe.utils.format_datetime(doc.get("franchisee_intake_submitted_at"), "dd-MM-yyyy HH:mm") if doc.get("franchisee_intake_submitted_at") else "",
     }
+
+
+# -------------------------------------------------------------------
+# Sessional Worker Fees and Expectations Guide - the step after Intake/
+# DBS on a Session Worker lead, before setting them up as a real Session
+# Worker record. Same e-signing shape as the NDA/Intent above, but the
+# second party is the lead's own sponsoring Coach rather than Ashley -
+# the Coach's name is looked up and printed into the document the same
+# way Ashley's is on the NDA (nothing for the coach to separately click
+# or sign; agreeing to the rates and sending the link IS the coach's
+# side of this). rate_1to1/rate_group/rate_workshop/invoicing_frequency/
+# effective_date are the coach's own business terms, fixed the first
+# time the link is generated for this worker, exactly like Intent's
+# territory/deposit/end_date.
+# -------------------------------------------------------------------
+
+FEES_GUIDE_PRACTICE_DOCUMENT_TITLE = "Sessional Worker Fees and Expectations Guide"
+
+
+def _fees_guide_template_text():
+    name = frappe.db.get_value(
+        "Practice Document", {"document_title": FEES_GUIDE_PRACTICE_DOCUMENT_TITLE}, "name"
+    )
+    if not name:
+        frappe.throw(_("The Fees and Expectations Guide template hasn't been set up yet."))
+
+    return frappe.db.get_value("Practice Document", name, "document_text") or ""
+
+
+def _get_lead_by_fees_guide_token(token):
+    token = (token or "").strip()
+    if not token:
+        frappe.throw(_("This link is invalid."))
+
+    lead_name = frappe.db.get_value("Client Lead", {"fees_guide_token": token}, "name")
+    if not lead_name:
+        frappe.throw(_("This link is invalid."))
+
+    return frappe.get_doc(LEAD_DOCTYPE, lead_name)
+
+
+def _fees_guide_context(doc, worker_name="", worker_address="", worker_signature=""):
+    today = frappe.utils.getdate(frappe.utils.today())
+    return {
+        "franchisee_name": get_coach_label(doc.get("coach")) or NDA_BLANK_PLACEHOLDER,
+        "effective_date": frappe.utils.formatdate(doc.get("fees_guide_agreement_date"), "dd-MM-yyyy"),
+        "rate_1to1": fmt_money(doc.get("fees_guide_rate_1to1") or 0, currency="GBP"),
+        "rate_group": fmt_money(doc.get("fees_guide_rate_group") or 0, currency="GBP"),
+        "rate_workshop": fmt_money(doc.get("fees_guide_rate_workshop") or 0, currency="GBP"),
+        "invoicing_frequency": doc.get("fees_guide_invoicing_frequency") or NDA_BLANK_PLACEHOLDER,
+        "dbs_number": doc.get("franchisee_intake_dbs_number") or NDA_BLANK_PLACEHOLDER,
+        "dbs_date_received": frappe.utils.formatdate(doc.get("franchisee_intake_dbs_date_received"), "dd-MM-yyyy") if doc.get("franchisee_intake_dbs_date_received") else NDA_BLANK_PLACEHOLDER,
+        "public_liability_insurer": doc.get("franchisee_intake_public_liability_insurer") or NDA_BLANK_PLACEHOLDER,
+        "indemnity_insurer": doc.get("franchisee_intake_indemnity_insurer") or NDA_BLANK_PLACEHOLDER,
+        "worker_name": worker_name or doc.get("contact_name") or NDA_BLANK_PLACEHOLDER,
+        "worker_signature": worker_signature or NDA_BLANK_PLACEHOLDER,
+        "worker_date": frappe.utils.formatdate(today, "dd-MM-yyyy") if worker_signature else NDA_BLANK_PLACEHOLDER,
+        "coach_date": frappe.utils.formatdate(doc.get("fees_guide_agreement_date"), "dd-MM-yyyy"),
+    }
+
+
+@frappe.whitelist()
+def get_fees_guide_sign_url(name=None, rate_1to1=None, rate_group=None, rate_workshop=None, invoicing_frequency=None, effective_date=None):
+    """
+    Franchisor-only: generates (the first time) or reuses this Session
+    Worker lead's Fees and Expectations Guide sign link. The rate/
+    frequency/effective_date terms are only used the first time - the
+    sponsoring coach's own business terms for this worker, fixed from
+    then on exactly like Intent's territory/deposit/end_date.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not is_session_worker_lead(doc.get("appointment_type")):
+        frappe.throw(_("This lead isn't a Session Worker - the Fees and Expectations Guide doesn't apply to it."))
+
+    if doc.get("fees_guide_signed_snapshot"):
+        frappe.throw(_("This lead's Fees and Expectations Guide has already been signed."))
+
+    if not doc.get("fees_guide_token"):
+        effective_date = coalesce_raw("effective_date", effective_date)
+        invoicing_frequency = coalesce_str("invoicing_frequency", invoicing_frequency)
+
+        if not rate_1to1 or not rate_group or not rate_workshop:
+            frappe.throw(_("Enter the session fee rates before generating the sign link."))
+        if not invoicing_frequency:
+            frappe.throw(_("Choose an invoicing frequency before generating the sign link."))
+        if not effective_date:
+            frappe.throw(_("Enter the Effective From date before generating the sign link."))
+        if not doc.get("coach"):
+            frappe.throw(_("This lead has no coach assigned to sponsor this worker."))
+
+        doc.fees_guide_token = frappe.generate_hash(length=40)
+        doc.fees_guide_agreement_date = effective_date
+        doc.fees_guide_rate_1to1 = coalesce_raw("rate_1to1", rate_1to1)
+        doc.fees_guide_rate_group = coalesce_raw("rate_group", rate_group)
+        doc.fees_guide_rate_workshop = coalesce_raw("rate_workshop", rate_workshop)
+        doc.fees_guide_invoicing_frequency = invoicing_frequency
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+
+    return {"url": get_url(f"/session-worker-fees-guide?token={doc.fees_guide_token}")}
+
+
+def _fees_guide_email_text(doc, fees_guide_url):
+    contact_name = doc.contact_name or "there"
+    coach_display = get_coach_label(doc.get("coach")) or "your Franchisee"
+    subject = "Please sign: Fees and Expectations Guide"
+    message = (
+        f"Hi {contact_name},\n\n"
+        f"Please read and sign the Fees and Expectations Guide below, agreed with {coach_display}, "
+        "to finish setting you up as a session worker:\n\n"
+        f"{fees_guide_url}"
+    )
+    return subject, message
+
+
+@frappe.whitelist()
+def get_fees_guide_email_defaults(name=None, rate_1to1=None, rate_group=None, rate_workshop=None, invoicing_frequency=None, effective_date=None):
+    """Subject/message the compose modal pre-fills before send_fees_guide_link actually sends it."""
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.contact_email:
+        frappe.throw(_("This lead has no contact email address to send the guide to."))
+
+    fees_guide_url = get_fees_guide_sign_url(
+        name=name, rate_1to1=rate_1to1, rate_group=rate_group, rate_workshop=rate_workshop,
+        invoicing_frequency=invoicing_frequency, effective_date=effective_date,
+    )["url"]
+    subject, message = _fees_guide_email_text(doc, fees_guide_url)
+
+    return {"subject": subject, "message": message, "recipient": doc.contact_email, "url": fees_guide_url}
+
+
+@frappe.whitelist()
+def send_fees_guide_link(name=None, rate_1to1=None, rate_group=None, rate_workshop=None, invoicing_frequency=None,
+                          effective_date=None, subject=None, message=None, cc=None, reply_to=None):
+    """
+    Franchisor-only: emails the Fees and Expectations Guide sign link,
+    reusing get_fees_guide_sign_url's generate-or-reuse logic. subject/
+    message default to the standard wording when left blank.
+    """
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.contact_email:
+        frappe.throw(_("This lead has no contact email address to send the guide to."))
+
+    fees_guide_url = get_fees_guide_sign_url(
+        name=name, rate_1to1=rate_1to1, rate_group=rate_group, rate_workshop=rate_workshop,
+        invoicing_frequency=invoicing_frequency, effective_date=effective_date,
+    )["url"]
+
+    subject = (subject or "").strip()
+    message = (message or "").strip()
+    if not subject or not message:
+        default_subject, default_message = _fees_guide_email_text(doc, fees_guide_url)
+        subject = subject or default_subject
+        message = message or default_message
+
+    reply_to = (reply_to or "").strip() or frappe.session.user
+
+    kwargs = {
+        "recipients": [doc.contact_email],
+        "subject": subject,
+        "message": plain_text_to_email_html(message),
+        "now": True,
+        "reply_to": reply_to,
+    }
+
+    cc_list = parse_email_list(cc)
+    if cc_list:
+        kwargs["cc"] = cc_list
+
+    frappe.sendmail(**kwargs)
+
+    doc.fees_guide_sent_at = frappe.utils.now_datetime()
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "ok": 1,
+        "url": fees_guide_url,
+        "sent_at": frappe.utils.format_datetime(doc.fees_guide_sent_at, "dd-MM-yyyy HH:mm"),
+    }
+
+
+@frappe.whitelist()
+def get_signed_fees_guide(name=None):
+    """Franchisor-only: the frozen signed snapshot plus its audit trail, for the Lead Details page."""
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.get("fees_guide_signed_snapshot"):
+        frappe.throw(_("This Fees and Expectations Guide hasn't been signed yet."))
+
+    return {
+        "signed_html": doc.get("fees_guide_signed_snapshot"),
+        "signed_at": frappe.utils.format_datetime(doc.get("fees_guide_signed_at"), "dd-MM-yyyy HH:mm") if doc.get("fees_guide_signed_at") else "",
+        "signer_ip": doc.get("fees_guide_signer_ip") or "",
+        "signer_user_agent": doc.get("fees_guide_signer_user_agent") or "",
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def get_fees_guide_preview(token=None):
+    """Guest-accessible - what the public /session-worker-fees-guide page shows."""
+    token = coalesce_str("token", token)
+    doc = _get_lead_by_fees_guide_token(token)
+
+    if doc.get("fees_guide_signed_snapshot"):
+        return {"already_signed": True, "signed_html": doc.get("fees_guide_signed_snapshot")}
+
+    return {
+        "already_signed": False,
+        "preview_html": _render_nda_text(_fees_guide_template_text(), _fees_guide_context(doc)),
+        "recipient_name": doc.get("contact_name") or "",
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def sign_fees_guide(token=None, recipient_name=None, signature_name=None):
+    token = coalesce_str("token", token)
+    recipient_name = coalesce_str("recipient_name", recipient_name)
+    signature_name = coalesce_str("signature_name", signature_name)
+
+    doc = _get_lead_by_fees_guide_token(token)
+
+    if doc.get("fees_guide_signed_snapshot"):
+        frappe.throw(_("This Fees and Expectations Guide has already been signed."))
+
+    if not recipient_name:
+        frappe.throw(_("Please enter your full name."))
+    if not signature_name:
+        frappe.throw(_("Please type your name to sign."))
+
+    context = _fees_guide_context(doc, worker_name=recipient_name, worker_signature=signature_name)
+
+    doc.fees_guide_recipient_name = recipient_name
+    doc.fees_guide_signature_name = signature_name
+    doc.fees_guide_signed_snapshot = _render_nda_text(_fees_guide_template_text(), context)
+    doc.fees_guide_signed_at = frappe.utils.now_datetime()
+    doc.fees_guide_signer_ip = frappe.local.request_ip
+    doc.fees_guide_signer_user_agent = frappe.get_request_header("User-Agent") or ""
+    doc.fees_guide_done = 1
+    doc.fees_guide_date = frappe.utils.getdate(frappe.utils.today())
+
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True}
+
+
+@frappe.whitelist()
+def get_session_worker_setup_url(name=None):
+    """
+    Franchisor-only: a deep link to a pre-filled New Session Worker form
+    in Desk. Session Worker is a doctype this app doesn't own (unlike
+    Client Lead) - see session_workers.py's defensive field-name lookups
+    - so rather than guess at its mandatory fields with an auto-insert
+    that could fail unpredictably, Ashley finishes creating the record
+    by hand in Desk, with what this lead already collected pre-filled.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not is_session_worker_lead(doc.get("appointment_type")):
+        frappe.throw(_("This lead isn't a Session Worker."))
+
+    full_name = (
+        f"{doc.get('franchisee_intake_first_name') or ''} {doc.get('franchisee_intake_last_name') or ''}".strip()
+        or doc.contact_name or ""
+    )
+
+    params = {
+        "sw_name": full_name,
+        "sw_email": doc.contact_email or "",
+        "phone": doc.get("franchisee_intake_phone") or doc.contact_mobile or "",
+    }
+    query = "&".join(
+        f"{key}={quote(str(value))}" for key, value in params.items() if value
+    )
+
+    return {"url": get_url(f"/app/session-worker/new?{query}" if query else "/app/session-worker/new")}
+
+
+@frappe.whitelist()
+def set_session_worker_link(name=None, session_worker=None):
+    """
+    Franchisor-only: records which Session Worker record this lead
+    became (created manually in Desk - see get_session_worker_setup_url
+    above) and ticks the final "Set Up As Session Worker" milestone.
+    Clearing session_worker unticks it again, in case the wrong record
+    was linked by mistake.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    session_worker = coalesce_str("session_worker", session_worker)
+    doc = ensure_lead_access(name)
+
+    if not is_session_worker_lead(doc.get("appointment_type")):
+        frappe.throw(_("This lead isn't a Session Worker."))
+
+    if session_worker and not frappe.db.exists("Session Worker", session_worker):
+        frappe.throw(_("That Session Worker record doesn't exist."))
+
+    doc.converted_session_worker = session_worker or None
+    doc.sw_setup_done = 1 if session_worker else 0
+    doc.sw_setup_date = frappe.utils.today() if session_worker else None
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True, "converted_session_worker": doc.converted_session_worker}
 
 
 @frappe.whitelist()
@@ -2646,6 +3073,9 @@ def _attach_intake_pdf_to_client(doc, client_name):
 @frappe.whitelist()
 def convert_lead_to_client(name=None):
     doc = ensure_lead_access(coalesce_str("name", name))
+
+    if is_session_worker_lead(doc.get("appointment_type")):
+        frappe.throw(_("A Session Worker lead doesn't convert to a Client - set them up as a Session Worker instead."))
 
     if doc.status == "Converted" and doc.converted_client:
         return {"ok": True, "client": doc.converted_client, "contact": doc.converted_contact}

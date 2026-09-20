@@ -20,15 +20,29 @@
     ["stage1_agreement_invoice_done", "Franchisee Intake + DBS/Insurance Submitted"],
   ];
 
+  // Mirrors leads.SESSION_WORKER_STAGE_MILESTONES exactly - the shorter
+  // onboarding checklist for a Session Worker lead (shares the Call/NDA/
+  // Intake fieldnames with STAGE1_MILESTONES above, since those steps are
+  // identical regardless of lead kind - see is_onboarding_pipeline_lead).
+  const SESSION_WORKER_STAGE_MILESTONES = [
+    ["stage1_call_done", "Initial Call"],
+    ["stage1_nda_done", "Sign NDA"],
+    ["stage1_agreement_invoice_done", "Intake + DBS/Insurance Submitted"],
+    ["fees_guide_done", "Fees and Expectations Guide"],
+    ["sw_setup_done", "Set Up As Session Worker"],
+  ];
+
   // Milestones whose checkbox/date is driven automatically by a real
-  // event (an NDA/Intent signed, an intake submitted) rather than
-  // ticked by hand - their action buttons render inside this same row
-  // (see stage1ActionsId), so the row needs to wrap onto a second line
-  // instead of the plain single-line checkbox+date layout.
+  // event (an NDA/Intent/Fees Guide signed, an intake submitted) rather
+  // than ticked by hand - their action buttons render inside this same
+  // row (see stage1ActionsId), so the row needs to wrap onto a second
+  // line instead of the plain single-line checkbox+date layout.
   const STAGE1_ACTION_MILESTONES = new Set([
     "stage1_nda_done",
     "stage1_intent_deposit_dbs_done",
     "stage1_agreement_invoice_done",
+    "fees_guide_done",
+    "sw_setup_done",
   ]);
 
   function stage1ActionsId(fieldname) {
@@ -55,6 +69,11 @@
       title: "Send Franchisee Intake + DBS Form",
       defaultsMethod: `${SHARED_API}.get_franchisee_intake_email_defaults`,
       sendMethod: `${SHARED_API}.send_franchisee_intake_form`,
+    },
+    fees_guide: {
+      title: "Send Fees and Expectations Guide",
+      defaultsMethod: `${SHARED_API}.get_fees_guide_email_defaults`,
+      sendMethod: `${SHARED_API}.send_fees_guide_link`,
     },
   };
 
@@ -161,15 +180,29 @@
     const list = el("leadStage1List");
     if (!section || !list) return;
 
-    if (!lead.is_franchise_lead || !lead.stage1) {
+    const isSessionWorker = !!lead.is_session_worker_lead;
+    const stageData = isSessionWorker ? lead.session_worker_stage : lead.stage1;
+
+    if (!(lead.is_franchise_lead || isSessionWorker) || !stageData) {
       section.style.display = "none";
       return;
     }
 
     section.style.display = "";
 
-    list.innerHTML = STAGE1_MILESTONES.map(([fieldname, label]) => {
-      const milestone = lead.stage1[fieldname] || { done: 0, date: "" };
+    const titleEl = el("leadStage1Title");
+    const hintEl = el("leadStage1Hint");
+    if (titleEl) titleEl.textContent = isSessionWorker ? "Session Worker Onboarding" : "Stage 1 - Decide & Commit";
+    if (hintEl) {
+      hintEl.textContent = isSessionWorker
+        ? "The pre-hire pipeline for a session worker, before a real Session Worker record exists. Once the last item's ticked, set them up as a Session Worker in Desk."
+        : "The pre-hire pipeline, before a real Coach record exists. Once the last item's ticked, go create their Coach record to begin Stage 2.";
+    }
+
+    const milestones = isSessionWorker ? SESSION_WORKER_STAGE_MILESTONES : STAGE1_MILESTONES;
+
+    list.innerHTML = milestones.map(([fieldname, label]) => {
+      const milestone = stageData[fieldname] || { done: 0, date: "" };
       const checked = milestone.done ? "checked" : "";
       const dateValue = escapeHtml(milestone.date || "");
       const hasActions = STAGE1_ACTION_MILESTONES.has(fieldname);
@@ -190,8 +223,14 @@
     }).join("");
 
     renderNdaBlock(lead);
-    renderIntentBlock(lead);
     renderFranchiseeIntakeBlock(lead);
+
+    if (isSessionWorker) {
+      renderFeesGuideBlock(lead);
+      renderSessionWorkerSetupBlock(lead);
+    } else {
+      renderIntentBlock(lead);
+    }
   }
 
   async function saveStage1Milestone(row) {
@@ -456,6 +495,221 @@
       if (modal) modal.classList.add("show");
     } catch (error) {
       window.alert(error.message || "Could not load the signed agreement.");
+    }
+  }
+
+  function renderFeesGuideBlock(lead) {
+    const block = el(stage1ActionsId("fees_guide_done"));
+    if (!block) return;
+
+    if (lead.fees_guide_signed) {
+      block.innerHTML = `
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="viewSignedFeesGuideBtn">View Signed Guide</button>
+      `;
+      const viewBtn = el("viewSignedFeesGuideBtn");
+      if (viewBtn) viewBtn.addEventListener("click", viewSignedFeesGuide);
+      return;
+    }
+
+    const linkRowHtml = `
+      <div id="feesGuideLinkResult" style="flex-basis:100%; margin-top:8px; display:none;">
+        <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">
+          Copy this link and send it to the worker to sign:
+        </label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="feesGuideLinkInput" class="dashboard-input" readonly style="flex:1;">
+          <button type="button" class="dashboard-btn dashboard-btn-secondary" id="copyFeesGuideLinkBtn">Copy</button>
+        </div>
+      </div>
+    `;
+
+    const sendBtnLabel = lead.fees_guide_sent_at ? "Resend Fees and Expectations Guide" : "Send Fees and Expectations Guide";
+    const sentStatusHtml = lead.fees_guide_sent_at
+      ? `<div id="feesGuideSendStatus" class="dashboard-help" style="flex-basis:100%;">Sent ${escapeHtml(lead.fees_guide_sent_at)}</div>`
+      : `<div id="feesGuideSendStatus" class="dashboard-help" style="flex-basis:100%;"></div>`;
+
+    if (lead.fees_guide_link_generated) {
+      block.innerHTML = `
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendFeesGuideBtn">${sendBtnLabel}</button>
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="getFeesGuideLinkBtn">Get Sign Link Again</button>
+        ${sentStatusHtml}
+        ${linkRowHtml}
+      `;
+    } else {
+      block.innerHTML = `
+        <div style="display:flex; gap:10px; flex-wrap:wrap; flex-basis:100%;">
+          <input type="number" id="feesGuideRate1to1Input" class="dashboard-input" placeholder="1:1 Session Rate (£)" min="0" step="0.01" style="width:170px;">
+          <input type="number" id="feesGuideRateGroupInput" class="dashboard-input" placeholder="Group Session Rate (£)" min="0" step="0.01" style="width:170px;">
+          <input type="number" id="feesGuideRateWorkshopInput" class="dashboard-input" placeholder="Workshop Rate (£)" min="0" step="0.01" style="width:170px;">
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; flex-basis:100%; margin-top:8px;">
+          <select id="feesGuideInvoicingFrequencyInput" class="dashboard-input" style="width:170px;">
+            <option value="">Invoicing Frequency...</option>
+            <option value="Weekly">Weekly</option>
+            <option value="Fortnightly">Fortnightly</option>
+            <option value="Monthly">Monthly</option>
+          </select>
+          <input type="date" id="feesGuideEffectiveDateInput" class="dashboard-input" style="width:170px;" title="Effective From">
+        </div>
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendFeesGuideBtn">${sendBtnLabel}</button>
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="getFeesGuideLinkBtn">Generate Sign Link</button>
+        ${sentStatusHtml}
+        ${linkRowHtml}
+      `;
+    }
+
+    const sendBtn = el("sendFeesGuideBtn");
+    if (sendBtn) sendBtn.addEventListener("click", () => prepareFranchiseeEmail("fees_guide", feesGuideTermsPayload()));
+
+    const getLinkBtn = el("getFeesGuideLinkBtn");
+    if (getLinkBtn) getLinkBtn.addEventListener("click", getFeesGuideSignLink);
+
+    const copyBtn = el("copyFeesGuideLinkBtn");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", () => {
+        const input = el("feesGuideLinkInput");
+        if (!input) return;
+        input.select();
+        navigator.clipboard?.writeText(input.value).catch(() => {});
+      });
+    }
+  }
+
+  function feesGuideTermsPayload() {
+    const rate1to1Input = el("feesGuideRate1to1Input");
+    const rateGroupInput = el("feesGuideRateGroupInput");
+    const rateWorkshopInput = el("feesGuideRateWorkshopInput");
+    const invoicingFrequencyInput = el("feesGuideInvoicingFrequencyInput");
+    const effectiveDateInput = el("feesGuideEffectiveDateInput");
+
+    return {
+      rate_1to1: rate1to1Input ? rate1to1Input.value : "",
+      rate_group: rateGroupInput ? rateGroupInput.value : "",
+      rate_workshop: rateWorkshopInput ? rateWorkshopInput.value : "",
+      invoicing_frequency: invoicingFrequencyInput ? invoicingFrequencyInput.value : "",
+      effective_date: effectiveDateInput ? effectiveDateInput.value : "",
+    };
+  }
+
+  async function getFeesGuideSignLink() {
+    const name = getValue("leadDocname");
+    const btn = el("getFeesGuideLinkBtn");
+    if (!name) return;
+
+    if (btn) { btn.disabled = true; btn.textContent = "Generating..."; }
+
+    try {
+      const result = await apiPost(`${SHARED_API}.get_fees_guide_sign_url`, { name, ...feesGuideTermsPayload() });
+      const resultBlock = el("feesGuideLinkResult");
+      const input = el("feesGuideLinkInput");
+      if (input) input.value = result.url || "";
+      if (resultBlock) resultBlock.style.display = "";
+    } catch (error) {
+      window.alert(error.message || "Could not generate the sign link.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Get Sign Link Again"; }
+    }
+  }
+
+  async function viewSignedFeesGuide() {
+    const name = getValue("leadDocname");
+    if (!name) return;
+
+    try {
+      const result = await apiPost(`${SHARED_API}.get_signed_fees_guide`, { name });
+      const content = el("feesGuideViewModalContent");
+      if (content) {
+        const auditRows = [
+          result.signed_at ? `Signed: ${escapeHtml(result.signed_at)}` : "",
+          result.signer_ip ? `IP address: ${escapeHtml(result.signer_ip)}` : "",
+          result.signer_user_agent ? `Browser/device: ${escapeHtml(result.signer_user_agent)}` : "",
+        ].filter(Boolean);
+
+        const auditBlock = auditRows.length
+          ? `<div style="margin-top:16px; padding:12px 14px; background:#F2F8F8; border-radius:10px; font-size:12px; color:#839898;">
+              <strong style="display:block; margin-bottom:4px; color:#434B49;">Signing Record</strong>
+              ${auditRows.join("<br>")}
+            </div>`
+          : "";
+
+        content.innerHTML = (result.signed_html || "") + auditBlock;
+      }
+      const modal = el("feesGuideViewModal");
+      if (modal) modal.classList.add("show");
+    } catch (error) {
+      window.alert(error.message || "Could not load the signed guide.");
+    }
+  }
+
+  function renderSessionWorkerSetupBlock(lead) {
+    const block = el(stage1ActionsId("sw_setup_done"));
+    if (!block) return;
+
+    if (lead.converted_session_worker) {
+      block.innerHTML = `
+        <a class="dashboard-btn dashboard-btn-light" href="/app/session-worker/${encodeURIComponent(lead.converted_session_worker)}" target="_blank" rel="noopener">
+          View Session Worker Record
+        </a>
+      `;
+      return;
+    }
+
+    block.innerHTML = `
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="openSessionWorkerSetupBtn">Open New Session Worker Form</button>
+      <div style="display:flex; gap:8px; align-items:center; flex-basis:100%; margin-top:8px;">
+        <input type="text" id="sessionWorkerLinkInput" class="dashboard-input" placeholder="Session Worker record name, once created" style="flex:1;">
+        <button type="button" class="dashboard-btn dashboard-btn-secondary" id="saveSessionWorkerLinkBtn">Save</button>
+      </div>
+      <div id="sessionWorkerSetupStatus" class="dashboard-help" style="flex-basis:100%;"></div>
+    `;
+
+    const openBtn = el("openSessionWorkerSetupBtn");
+    if (openBtn) openBtn.addEventListener("click", openSessionWorkerSetupForm);
+
+    const saveBtn = el("saveSessionWorkerLinkBtn");
+    if (saveBtn) saveBtn.addEventListener("click", saveSessionWorkerLink);
+  }
+
+  async function openSessionWorkerSetupForm() {
+    const name = getValue("leadDocname");
+    const btn = el("openSessionWorkerSetupBtn");
+    if (!name) return;
+
+    if (btn) { btn.disabled = true; btn.textContent = "Opening..."; }
+
+    try {
+      const result = await apiPost(`${SHARED_API}.get_session_worker_setup_url`, { name });
+      if (result.url) window.open(result.url, "_blank", "noopener");
+    } catch (error) {
+      window.alert(error.message || "Could not open the New Session Worker form.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Open New Session Worker Form"; }
+    }
+  }
+
+  async function saveSessionWorkerLink() {
+    const name = getValue("leadDocname");
+    const input = el("sessionWorkerLinkInput");
+    const statusEl = el("sessionWorkerSetupStatus");
+    const btn = el("saveSessionWorkerLinkBtn");
+    if (!name || !input) return;
+
+    const sessionWorker = input.value.trim();
+    if (!sessionWorker) {
+      if (statusEl) statusEl.textContent = "Enter the Session Worker record's name first.";
+      return;
+    }
+
+    if (btn) { btn.disabled = true; btn.textContent = "Saving..."; }
+    if (statusEl) statusEl.textContent = "";
+
+    try {
+      await apiPost(`${SHARED_API}.set_session_worker_link`, { name, session_worker: sessionWorker });
+      await loadLead();
+    } catch (error) {
+      if (statusEl) statusEl.textContent = error.message || "Could not save this.";
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Save"; }
     }
   }
 
@@ -763,9 +1017,9 @@
       // DBS form has its own Send button inline in the Stage 1 list),
       // and "done" for the Convert to Client gate below means her own
       // franchisee_intake_submitted, not the generic intake_completed_on.
-      const intakeDone = lead.is_franchise_lead ? !!lead.franchisee_intake_submitted : !!lead.intake_completed_on;
+      const intakeDone = (lead.is_franchise_lead || lead.is_session_worker_lead) ? !!lead.franchisee_intake_submitted : !!lead.intake_completed_on;
       if (sendBtn) {
-        sendBtn.style.display = lead.is_franchise_lead ? "none" : "";
+        sendBtn.style.display = (lead.is_franchise_lead || lead.is_session_worker_lead) ? "none" : "";
         sendBtn.textContent = intakeSent ? "Resend Intake Form" : "Send Intake Form";
       }
 
@@ -1537,6 +1791,14 @@
     if (intentViewModalClose) {
       intentViewModalClose.addEventListener("click", () => {
         const modal = el("intentViewModal");
+        if (modal) modal.classList.remove("show");
+      });
+    }
+
+    const feesGuideViewModalClose = el("feesGuideViewModalClose");
+    if (feesGuideViewModalClose) {
+      feesGuideViewModalClose.addEventListener("click", () => {
+        const modal = el("feesGuideViewModal");
         if (modal) modal.classList.remove("show");
       });
     }
