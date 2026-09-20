@@ -133,11 +133,34 @@
         page.innerHTML = '<div class="fi-card"><div class="fi-submitted-banner">Thank you - this form has already been submitted.</div></div>';
       }
 
-      function renderForm(contactName) {
+      function renderForm(contactName, isSessionWorker) {
+        var sessionWorkerFieldsHtml = isSessionWorker
+          ? (
+              '<div class="fi-section-title">About Your Work</div>' +
+              '<div class="fi-field">' +
+                '<label for="fiWorkLocations">Main Work Locations / Areas</label>' +
+                '<input type="text" id="fiWorkLocations" name="work_locations">' +
+              "</div>" +
+              '<div class="fi-field">' +
+                '<label for="fiQualifications">Relevant Qualifications / Training (e.g. counselling, coaching, education, first aid, safeguarding)</label>' +
+                '<input type="text" id="fiQualifications" name="qualifications">' +
+              "</div>" +
+              '<div class="fi-section-title">Insurance</div>' +
+              '<div class="fi-field-row">' +
+                '<div class="fi-field"><label for="fiPublicLiabilityInsurer">Public Liability Insurer &amp; Policy Number</label><input type="text" id="fiPublicLiabilityInsurer" name="public_liability_insurer"></div>' +
+                '<div class="fi-field"><label for="fiIndemnityInsurer">Professional Indemnity Insurer &amp; Policy Number</label><input type="text" id="fiIndemnityInsurer" name="indemnity_insurer"></div>' +
+              "</div>" +
+              '<div class="fi-field">' +
+                '<label for="fiInsuranceRenewalDate">Insurance Policy Renewal Date</label>' +
+                '<input type="date" id="fiInsuranceRenewalDate" name="insurance_renewal_date">' +
+              "</div>"
+            )
+          : "";
+
         page.innerHTML =
           '<div class="fi-card">' +
-            "<h3>Franchisee Intake Form</h3>" +
-            '<p class="fi-help">Please fill in your details below and upload your DBS certificate. This information is kept private and only used by The Resilient People for your franchise onboarding.</p>' +
+            "<h3>" + (isSessionWorker ? "Session Worker Intake Form" : "Franchisee Intake Form") + "</h3>" +
+            '<p class="fi-help">Please fill in your details below and upload your DBS certificate. This information is kept private and only used by The Resilient People for your onboarding.</p>' +
             '<form id="fiForm">' +
               '<div class="fi-field-row">' +
                 '<div class="fi-field"><label for="fiFirstName">First Name</label><input type="text" id="fiFirstName" name="first_name" required></div>' +
@@ -176,6 +199,8 @@
                 '<label for="fiAdditionalDocument">Additional Document (e.g. Proof of Insurance) - optional</label>' +
                 '<input type="file" id="fiAdditionalDocument" accept="image/*,.pdf">' +
               "</div>" +
+
+              sessionWorkerFieldsHtml +
 
               '<button type="submit" class="fi-submit-btn" id="fiSubmitBtn">Submit</button>' +
               '<div class="fi-form-message" id="fiFormMessage"></div>' +
@@ -220,7 +245,12 @@
               dob: form.dob.value,
               dbs_number: form.dbs_number.value,
               dbs_date_received: form.dbs_date_received.value,
-              dbs_expiry_date: form.dbs_expiry_date.value
+              dbs_expiry_date: form.dbs_expiry_date.value,
+              qualifications: form.qualifications ? form.qualifications.value : "",
+              work_locations: form.work_locations ? form.work_locations.value : "",
+              public_liability_insurer: form.public_liability_insurer ? form.public_liability_insurer.value : "",
+              indemnity_insurer: form.indemnity_insurer ? form.indemnity_insurer.value : "",
+              insurance_renewal_date: form.insurance_renewal_date ? form.insurance_renewal_date.value : ""
             });
           }).then(function () {
             renderSubmitted();
@@ -244,7 +274,7 @@
           if (data.submitted) {
             renderSubmitted();
           } else {
-            renderForm(data.contact_name);
+            renderForm(data.contact_name, !!data.is_session_worker);
           }
         })
         .catch(function (error) {

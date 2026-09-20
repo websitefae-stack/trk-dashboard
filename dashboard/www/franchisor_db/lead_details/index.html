@@ -73,6 +73,7 @@
                 <select id="lead_appointment_type" class="dashboard-input">
                   <option value="Initial Consultation">Initial Consultation</option>
                   <option value="Franchisee Call">Franchisee Call</option>
+                  <option value="Session Worker">Session Worker</option>
                   <option value="Podcast Recording">Podcast Recording</option>
                   <option value="School Meeting">School Meeting</option>
                 </select>
@@ -129,9 +130,9 @@
 
           <section class="dashboard-detail-section" id="leadStage1Section" style="display:none;">
             <div class="dashboard-detail-section-head">
-              <h2 class="dashboard-detail-section-title">Stage 1 - Decide &amp; Commit</h2>
+              <h2 class="dashboard-detail-section-title" id="leadStage1Title">Stage 1 - Decide &amp; Commit</h2>
             </div>
-            <p class="dashboard-field-hint">
+            <p class="dashboard-field-hint" id="leadStage1Hint">
               The pre-hire pipeline, before a real Coach record exists. Once the last item's ticked, go create
               their Coach record to begin Stage 2.
             </p>
@@ -325,6 +326,57 @@
     </div>
   </div>
 
+  <div class="trk-calendar-modal-backdrop" id="franchiseeEmailModal">
+    <div class="trk-calendar-modal">
+      <div class="trk-calendar-modal-head">
+        <h3 id="franchiseeEmailTitle">Send Email</h3>
+
+        <button type="button" class="trk-calendar-icon-btn" id="franchiseeEmailModalClose">
+          ✕
+        </button>
+      </div>
+
+      <div class="trk-calendar-modal-body">
+        <div class="trk-calendar-field">
+          <label for="franchiseeEmailRecipient">To</label>
+          <input type="text" id="franchiseeEmailRecipient" class="dashboard-input" readonly>
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="franchiseeEmailSender">From</label>
+          <select id="franchiseeEmailSender" class="dashboard-input"></select>
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="franchiseeEmailCc">Cc</label>
+          <input type="text" id="franchiseeEmailCc" class="dashboard-input" placeholder="Optional, comma separated">
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="franchiseeEmailSubject">Subject</label>
+          <input type="text" id="franchiseeEmailSubject" class="dashboard-input">
+        </div>
+
+        <div class="trk-calendar-field">
+          <label for="franchiseeEmailMessage">Message</label>
+          <textarea id="franchiseeEmailMessage" class="dashboard-textarea" rows="10"></textarea>
+        </div>
+
+        <div class="dashboard-help" id="franchiseeEmailStatus"></div>
+      </div>
+
+      <div class="trk-calendar-modal-foot">
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="franchiseeEmailCancel">
+          Cancel
+        </button>
+
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="franchiseeEmailSubmit">
+          Send
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div class="trk-calendar-modal-backdrop" id="linkClientDiffModal">
     <div class="trk-calendar-modal">
       <div class="trk-calendar-modal-head">
@@ -380,6 +432,22 @@
 
       <div class="trk-calendar-modal-body">
         <div id="intentViewModalContent"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-calendar-modal-backdrop" id="feesGuideViewModal">
+    <div class="trk-calendar-modal">
+      <div class="trk-calendar-modal-head">
+        <h3>Signed Fees and Expectations Guide</h3>
+
+        <button type="button" class="trk-calendar-icon-btn" id="feesGuideViewModalClose">
+          ✕
+        </button>
+      </div>
+
+      <div class="trk-calendar-modal-body">
+        <div id="feesGuideViewModalContent"></div>
       </div>
     </div>
   </div>
