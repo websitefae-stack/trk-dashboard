@@ -3087,6 +3087,65 @@ def _split_name(full_name):
     return first, last
 
 
+def _format_franchisee_intake_notes(doc):
+    """
+    Everything the franchisee/session worker's own Intake/DBS form
+    collects (submit_franchisee_intake) that has no matching field on
+    Client at all - DBS/insurance/right-to-work/reference/qualification
+    details are a recruitment-vetting concept, Client has nothing for
+    them. (Name/phone/DOB/gender DO have real Client fields and are
+    mapped there directly instead - see _proposed_client_field_values -
+    so aren't repeated here.) Same "dump into Additional Comments"
+    approach _format_intake_notes uses for the client-facing intake's own
+    leftover fields - this is what was missing before: converting a
+    Franchisee Call or Session Worker lead carried over only the name,
+    silently dropping everything else the person had already told them.
+    """
+    lines = []
+
+    if doc.get("franchisee_intake_id_document_type"):
+        lines.append(f"ID document type: {doc.franchisee_intake_id_document_type}")
+    if doc.get("franchisee_intake_right_to_work_status"):
+        lines.append(f"Right to work status: {doc.franchisee_intake_right_to_work_status}")
+    if doc.get("franchisee_intake_right_to_work_expiry"):
+        lines.append(f"Right to work expiry: {frappe.utils.formatdate(doc.franchisee_intake_right_to_work_expiry)}")
+    if doc.get("franchisee_intake_address_history"):
+        lines.append(f"Address history: {doc.franchisee_intake_address_history}")
+    if doc.get("franchisee_intake_overseas_checks"):
+        lines.append(f"Overseas police clearance / checks: {doc.franchisee_intake_overseas_checks}")
+    if doc.get("franchisee_intake_work_history"):
+        lines.append(f"Work history: {doc.franchisee_intake_work_history}")
+    if doc.get("franchisee_intake_qualifications"):
+        lines.append(f"Qualifications: {doc.franchisee_intake_qualifications}")
+    if doc.get("franchisee_intake_work_locations"):
+        lines.append(f"Work locations: {doc.franchisee_intake_work_locations}")
+    if doc.get("franchisee_intake_dbs_number"):
+        lines.append(f"DBS number: {doc.franchisee_intake_dbs_number}")
+    if doc.get("franchisee_intake_dbs_date_received"):
+        lines.append(f"DBS date received: {frappe.utils.formatdate(doc.franchisee_intake_dbs_date_received)}")
+    if doc.get("franchisee_intake_dbs_expiry_date"):
+        lines.append(f"DBS expiry date: {frappe.utils.formatdate(doc.franchisee_intake_dbs_expiry_date)}")
+    if doc.get("franchisee_intake_public_liability_insurer"):
+        lines.append(f"Public liability insurer: {doc.franchisee_intake_public_liability_insurer}")
+    if doc.get("franchisee_intake_indemnity_insurer"):
+        lines.append(f"Indemnity insurer: {doc.franchisee_intake_indemnity_insurer}")
+    if doc.get("franchisee_intake_insurance_renewal_date"):
+        lines.append(f"Insurance renewal date: {frappe.utils.formatdate(doc.franchisee_intake_insurance_renewal_date)}")
+    if doc.get("franchisee_intake_reference1_details"):
+        lines.append(f"Reference 1: {doc.franchisee_intake_reference1_details}")
+    if doc.get("franchisee_intake_reference2_details"):
+        lines.append(f"Reference 2: {doc.franchisee_intake_reference2_details}")
+    if doc.get("franchisee_intake_dbs_certificate"):
+        lines.append("DBS certificate: uploaded - see the original lead record's Files for the document itself.")
+    if doc.get("franchisee_intake_additional_document"):
+        lines.append("Additional document: uploaded - see the original lead record's Files for the document itself.")
+
+    if not lines:
+        return ""
+
+    return "<p><strong>From Intake/DBS form:</strong></p><p>" + "</p><p>".join(lines) + "</p>"
+
+
 def _format_intake_notes(doc):
     """
     A few things the intake form collects have no single matching field on
@@ -3517,7 +3576,11 @@ def convert_lead_to_client(name=None):
     if client_meta.has_field("date_added"):
         client.date_added = frappe.utils.today()
     if client_meta.has_field("additional_comments"):
-        intake_notes = _format_intake_notes(doc)
+        # A lead is either the client-facing intake (young person/adult/
+        # school/etc) or the franchisee/session worker's own Intake/DBS
+        # form, never both, so these two never actually collide - just
+        # whichever one this lead went through contributes anything.
+        intake_notes = _format_intake_notes(doc) + _format_franchisee_intake_notes(doc)
         if intake_notes:
             client.additional_comments = intake_notes
 
