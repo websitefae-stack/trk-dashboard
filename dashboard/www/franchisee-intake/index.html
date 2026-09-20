@@ -133,7 +133,8 @@
         page.innerHTML = '<div class="fi-card"><div class="fi-submitted-banner">Thank you - this form has already been submitted.</div></div>';
       }
 
-      function renderForm(contactName, isSessionWorker) {
+      function renderForm(contactName, isSessionWorker, answers) {
+        answers = answers || {};
         // Safer Recruitment Checklist self-report fields - shown on this
         // form for BOTH a potential franchisee and a session worker,
         // since both need the same safeguarding checks before delivering
@@ -230,8 +231,8 @@
                 '<div class="fi-field"><label for="fiDbsExpiryDate">Expiry Date</label><input type="date" id="fiDbsExpiryDate" name="dbs_expiry_date"></div>' +
               "</div>" +
               '<div class="fi-field">' +
-                '<label for="fiDbsCertificate">Upload DBS Certificate</label>' +
-                '<input type="file" id="fiDbsCertificate" accept="image/*,.pdf" required>' +
+                '<label for="fiDbsCertificate">Upload DBS Certificate' + (answers.dbs_certificate ? " (already on file - choose a new one only to replace it)" : "") + '</label>' +
+                '<input type="file" id="fiDbsCertificate" accept="image/*,.pdf"' + (answers.dbs_certificate ? "" : " required") + '>' +
               "</div>" +
               '<div class="fi-field">' +
                 '<label for="fiAdditionalDocument">Additional Document (e.g. Proof of Insurance) - optional</label>' +
@@ -248,7 +249,16 @@
         var nameField = document.getElementById("fiFirstName");
         if (nameField && contactName) nameField.value = contactName.split(" ")[0] || "";
 
+        // Pre-fill from whatever's already saved - blank on a genuinely
+        // fresh form, but populated if this was reopened after being
+        // submitted too early/incomplete, so nothing already given has
+        // to be retyped.
         var form = document.getElementById("fiForm");
+        Object.keys(answers).forEach(function (key) {
+          var field = form.elements[key];
+          if (field && answers[key]) field.value = answers[key];
+        });
+
         form.addEventListener("submit", function (event) {
           event.preventDefault();
 
@@ -259,7 +269,7 @@
           var dbsFile = document.getElementById("fiDbsCertificate").files[0];
           var additionalFile = document.getElementById("fiAdditionalDocument").files[0];
 
-          if (!dbsFile) {
+          if (!dbsFile && !answers.dbs_certificate) {
             messageEl.textContent = "Please upload your DBS certificate.";
             messageEl.className = "fi-form-message is-error";
             messageEl.style.display = "block";
@@ -269,7 +279,11 @@
           btn.disabled = true;
           btn.textContent = "Uploading...";
 
-          var uploads = [uploadFile("dbs_certificate", dbsFile)];
+          // Only re-uploads if a new file was actually chosen - the
+          // certificate already on file (from before this form was
+          // reopened) stays exactly as it was otherwise.
+          var uploads = [];
+          if (dbsFile) uploads.push(uploadFile("dbs_certificate", dbsFile));
           if (additionalFile) uploads.push(uploadFile("additional_document", additionalFile));
 
           Promise.all(uploads).then(function () {
@@ -320,7 +334,7 @@
           if (data.submitted) {
             renderSubmitted();
           } else {
-            renderForm(data.contact_name, !!data.is_session_worker);
+            renderForm(data.contact_name, !!data.is_session_worker, data.answers);
           }
         })
         .catch(function (error) {

@@ -1478,6 +1478,13 @@ def get_franchisee_intake_status(token=None):
     instead of a blank form. is_session_worker only changes the page's
     wording (a Session Worker vs a franchisee) - the Safer Recruitment
     Checklist fields on this form apply to both lead kinds alike.
+
+    Also returns whatever's already saved on this lead (blank on a
+    genuinely fresh form, since nothing's written until a first submit -
+    but populated after Ashley reopens one that was submitted too early/
+    incomplete, via reopen_franchisee_intake below), so the form can
+    pre-fill instead of asking someone to retype answers they've already
+    given once.
     """
     token = coalesce_str("token", token)
     doc = _get_lead_by_franchisee_intake_token(token)
@@ -1486,7 +1493,68 @@ def get_franchisee_intake_status(token=None):
         "submitted": bool(doc.get("franchisee_intake_submitted")),
         "contact_name": doc.get("contact_name") or "",
         "is_session_worker": bool(is_session_worker_lead(doc.get("appointment_type"))),
+        "answers": {
+            "first_name": doc.get("franchisee_intake_first_name") or "",
+            "last_name": doc.get("franchisee_intake_last_name") or "",
+            "phone": doc.get("franchisee_intake_phone") or "",
+            "gender": doc.get("franchisee_intake_gender") or "",
+            "dob": doc.get("franchisee_intake_dob") or "",
+            "dbs_number": doc.get("franchisee_intake_dbs_number") or "",
+            "dbs_date_received": doc.get("franchisee_intake_dbs_date_received") or "",
+            "dbs_expiry_date": doc.get("franchisee_intake_dbs_expiry_date") or "",
+            "dbs_certificate": doc.get("franchisee_intake_dbs_certificate") or "",
+            "additional_document": doc.get("franchisee_intake_additional_document") or "",
+            "qualifications": doc.get("franchisee_intake_qualifications") or "",
+            "work_locations": doc.get("franchisee_intake_work_locations") or "",
+            "public_liability_insurer": doc.get("franchisee_intake_public_liability_insurer") or "",
+            "indemnity_insurer": doc.get("franchisee_intake_indemnity_insurer") or "",
+            "insurance_renewal_date": doc.get("franchisee_intake_insurance_renewal_date") or "",
+            "id_document_type": doc.get("franchisee_intake_id_document_type") or "",
+            "right_to_work_status": doc.get("franchisee_intake_right_to_work_status") or "",
+            "right_to_work_expiry": doc.get("franchisee_intake_right_to_work_expiry") or "",
+            "address_history": doc.get("franchisee_intake_address_history") or "",
+            "overseas_checks": doc.get("franchisee_intake_overseas_checks") or "",
+            "work_history": doc.get("franchisee_intake_work_history") or "",
+            "reference1_details": doc.get("franchisee_intake_reference1_details") or "",
+            "reference2_details": doc.get("franchisee_intake_reference2_details") or "",
+        },
     }
+
+
+@frappe.whitelist()
+def reopen_franchisee_intake(name=None):
+    """
+    Franchisor-only: un-submits this lead's Franchisee Intake + DBS form
+    so the franchisee/worker can get back into it with the same link and
+    finish/correct it - for exactly the "submitted by accident before it
+    was actually complete" case. Never clears any of the answers/files
+    already saved (get_franchisee_intake_status above feeds them back
+    into the form so nothing already given has to be retyped), just the
+    submitted flag and the milestone it had ticked.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.get("franchisee_intake_submitted"):
+        frappe.throw(_("This intake form hasn't been submitted yet."))
+
+    if doc.status == "Converted" and doc.get("converted_client"):
+        frappe.throw(_("This lead has already been converted to a Client - reopening the intake form now wouldn't reach them anymore."))
+
+    if doc.get("converted_session_worker"):
+        frappe.throw(_("This lead has already been set up as a Session Worker - reopening the intake form now wouldn't reach them anymore."))
+
+    doc.franchisee_intake_submitted = 0
+    doc.franchisee_intake_submitted_at = None
+    doc.stage1_agreement_invoice_done = 0
+    doc.stage1_agreement_invoice_date = None
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True}
 
 
 @frappe.whitelist(allow_guest=True)
