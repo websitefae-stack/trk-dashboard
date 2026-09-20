@@ -540,6 +540,13 @@ def create_lead(
     if not client_name:
         frappe.throw(_("Please enter the client's (young person's) name."))
 
+    # A Franchisee Call lead is HQ's own recruitment pipeline - a coach's
+    # New Lead form never even offers this option (see coach_db/
+    # lead_details/index.html), but this is enforced here too rather than
+    # trusted from the browser.
+    if is_franchise_lead(appointment_type) and not is_franchisor_user():
+        frappe.throw(_("Only the franchisor can create a Franchisee Call lead."), frappe.PermissionError)
+
     if is_franchisor_user() or dashboard_type == "franchisor":
         if coach and not frappe.db.exists("Coach", coach):
             frappe.throw(_("Selected coach was not found."))

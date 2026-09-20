@@ -32,6 +32,7 @@ from dashboard.dashboard.doctype.webshop_payment_settings.webshop_payment_settin
 from dashboard.api.shared.email_templates import plain_text_to_email_html
 from dashboard.api.shared.item_access import _get_coach_login, COACH_ONLY_PRICE_LIST
 from dashboard.api.shared.invoices import _get_bank_account_gl_account, _get_current_coach, _coach_label
+from dashboard.api.shared.store_products import _get_coach_price
 from dashboard.api.shared import payment_utils
 from dashboard.api.shared.email_groups import add_to_email_group
 from dashboard.api.shared.store_coupons import calculate_checkout_discount, record_coupon_use
@@ -219,25 +220,20 @@ def _get_purchasable_item(item_code, company):
     currency = "GBP"
 
     # A coach's own fixed price (only ever set deliberately per item -
-    # see store_products.py's coach_price handling) wins over the normal
+    # see store_products.py's _get_coach_price()) wins over the normal
     # price list; falls straight through to it when there isn't one. For
     # a variant (e.g. one size of a hoodie), the coach price always lives
     # on the template, never the variant itself - a coach pays the same
     # set amount no matter which size/colour they buy, unlike the regular
-    # price which does vary by variant.
+    # price which does vary by variant. _get_coach_price() itself knows
+    # a template can never hold an Item Price row (core Frappe rejects
+    # that outright) and reads its custom_coach_price field instead.
     if is_coach:
         coach_price_item_code = item_doc.get("variant_of") or item_code
-        coach_price_rows = frappe.get_all(
-            "Item Price",
-            filters={"item_code": coach_price_item_code, "price_list": COACH_ONLY_PRICE_LIST, "selling": 1},
-            fields=["price_list_rate", "currency"],
-            order_by="valid_from desc, modified desc",
-            limit_page_length=1,
-            ignore_permissions=True,
-        )
-        if coach_price_rows and coach_price_rows[0].get("price_list_rate"):
-            rate = coach_price_rows[0].get("price_list_rate") or 0
-            currency = coach_price_rows[0].get("currency") or currency
+        coach_price = _get_coach_price(coach_price_item_code)
+        if coach_price:
+            rate = coach_price
+            currency = "GBP"
 
     if not rate and price_list:
         price_rows = frappe.get_all(
