@@ -28,6 +28,14 @@
                title="Open the Store dashboard">
                 Store
             </a>
+            {% elif is_current_user_coach() %}
+            <a href="/coach-store"
+               target="_blank"
+               rel="noopener noreferrer"
+               class="dashboard-btn dashboard-btn-light dashboard-topbar-portal-link"
+               title="Buy internal resources, uniform and store items at your coach price">
+                Store
+            </a>
             {% endif %}
 
             <a href="https://theresilienthub.co.uk/client_portal"

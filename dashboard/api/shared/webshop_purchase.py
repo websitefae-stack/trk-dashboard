@@ -30,7 +30,7 @@ from frappe.utils import nowdate, fmt_money, get_url
 
 from dashboard.dashboard.doctype.webshop_payment_settings.webshop_payment_settings import get_settings
 from dashboard.api.shared.email_templates import plain_text_to_email_html
-from dashboard.api.shared.item_access import _get_coach_login
+from dashboard.api.shared.item_access import _get_coach_login, COACH_ONLY_PRICE_LIST
 from dashboard.api.shared.invoices import _get_bank_account_gl_account
 from dashboard.api.shared import payment_utils
 from dashboard.api.shared.email_groups import add_to_email_group
@@ -38,6 +38,22 @@ from dashboard.api.shared.store_coupons import calculate_checkout_discount, reco
 
 ONLINE_CLIENT_DOCTYPE = "Online Client"
 WEBSHOP_CUSTOMERS_EMAIL_GROUP = "Website Customers"
+
+
+def _is_current_user_coach():
+    """
+    Guest-safe - unlike permissions.get_current_coach_name(), never
+    throws for an anonymous checkout (the overwhelming majority of
+    these), it just says False. A coach who's actually logged in while
+    buying (e.g. via the Coach Store) carries the same session here, so
+    this is the one server-side source of truth for "does this buyer get
+    the coach price / Coach Only items" - never trust anything the
+    browser sends for this.
+    """
+    user = frappe.session.user
+    if not user or user == "Guest":
+        return False
+    return bool(frappe.db.exists("Coach", {"user": user}) or frappe.db.exists("Coach", {"coach_email": user}))
 
 # The Table fieldname add_client_contact_link_table_field.py (client_portal
 # app) added to Client - not imported from that app (this app never
@@ -189,11 +205,36 @@ def _get_purchasable_item(item_code, company):
     if not item_default or not item_default.get("custom_show_on_site"):
         frappe.throw(_("This item is not available for online purchase."))
 
+    item_doc = frappe.get_doc("Item", item_code)
+    is_coach = _is_current_user_coach()
+
+    # "Coach Only" items simply aren't available for anyone else to buy -
+    # same wording as the "not shown on site" case above, doesn't hint
+    # that a coach-only version exists.
+    if (item_doc.get("custom_item_visibility") or "Everyone") == "Coach Only" and not is_coach:
+        frappe.throw(_("This item is not available for online purchase."))
+
     price_list = item_default.get("default_price_list")
     rate = 0
     currency = "GBP"
 
-    if price_list:
+    # A coach's own fixed price (only ever set deliberately per item -
+    # see store_products.py's coach_price handling) wins over the normal
+    # price list; falls straight through to it when there isn't one.
+    if is_coach:
+        coach_price_rows = frappe.get_all(
+            "Item Price",
+            filters={"item_code": item_code, "price_list": COACH_ONLY_PRICE_LIST, "selling": 1},
+            fields=["price_list_rate", "currency"],
+            order_by="valid_from desc, modified desc",
+            limit_page_length=1,
+            ignore_permissions=True,
+        )
+        if coach_price_rows and coach_price_rows[0].get("price_list_rate"):
+            rate = coach_price_rows[0].get("price_list_rate") or 0
+            currency = coach_price_rows[0].get("currency") or currency
+
+    if not rate and price_list:
         price_rows = frappe.get_all(
             "Item Price",
             filters={"item_code": item_code, "price_list": price_list, "selling": 1},
@@ -209,8 +250,6 @@ def _get_purchasable_item(item_code, company):
 
     if not rate:
         frappe.throw(_("This item doesn't have a price set for online purchase yet."))
-
-    item_doc = frappe.get_doc("Item", item_code)
 
     # Only Store products carry a stock concept at all (custom_stock_qty/
     # custom_unlimited_stock default to 0/unticked on every Item, store

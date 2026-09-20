@@ -19,7 +19,7 @@ import frappe
 from frappe import _
 
 from dashboard.api.shared.permissions import ensure_logged_in, is_office_user, is_store_manager
-from dashboard.api.shared.item_access import DEFAULT_PRICE_LIST, BRAND_FIELDS, _get_default_warehouse_for_company
+from dashboard.api.shared.item_access import DEFAULT_PRICE_LIST, COACH_ONLY_PRICE_LIST, BRAND_FIELDS, _get_default_warehouse_for_company
 from dashboard.dashboard.doctype.webshop_payment_settings.webshop_payment_settings import get_settings
 
 BRAND_FIELDNAMES = list(BRAND_FIELDS.keys())
@@ -334,6 +334,36 @@ def _set_item_price(item_code, price_list, rate):
     return price_doc.name
 
 
+def _clear_item_price(item_code, price_list):
+    """Removes an Item Price row entirely (rather than leaving a stale
+    0/blank rate behind) - used to un-set a coach price back to "no
+    override, same as everyone else"."""
+    existing = _get_item_price_row(item_code, price_list)
+    if existing:
+        frappe.delete_doc("Item Price", existing.name, ignore_permissions=True, force=True)
+
+
+def _set_coach_price(item_code, coach_price):
+    """coach_price is optional - blank/None clears any existing coach-
+    only price for this item rather than setting a 0 rate, so it falls
+    back to the normal price everyone else pays."""
+    if coach_price is None:
+        return
+
+    coach_price = (str(coach_price)).strip()
+
+    if not coach_price:
+        _clear_item_price(item_code, COACH_ONLY_PRICE_LIST)
+        return
+
+    _set_item_price(item_code, COACH_ONLY_PRICE_LIST, _to_float(coach_price))
+
+
+def _get_coach_price(item_code):
+    row = _get_item_price_row(item_code, COACH_ONLY_PRICE_LIST)
+    return row.price_list_rate if row else None
+
+
 def _root_item_group():
     root = frappe.db.get_value(
         "Item Group", {"is_group": 1, "parent_item_group": ["in", ["", None]]}, "name"
@@ -505,6 +535,7 @@ def get_store_products(search=None):
         f for f in [
             "custom_digital_file", "custom_unlocks_lms_course", "custom_short_description", "custom_sku",
             "custom_personalization_enabled", "custom_personalization_label", "custom_logo_choice_enabled",
+            "custom_item_visibility",
         ]
         if item_meta.has_field(f)
     ]
@@ -540,6 +571,19 @@ def get_store_products(search=None):
         )
         prices = {row.item_code: row.price_list_rate for row in price_rows}
 
+    coach_prices = {}
+    if items:
+        coach_price_rows = frappe.get_all(
+            "Item Price",
+            filters={
+                "price_list": COACH_ONLY_PRICE_LIST,
+                "selling": 1,
+                "item_code": ["in", [i.name for i in items]],
+            },
+            fields=["item_code", "price_list_rate"],
+        )
+        coach_prices = {row.item_code: row.price_list_rate for row in coach_price_rows}
+
     return [
         {
             "name": item.name,
@@ -553,6 +597,8 @@ def get_store_products(search=None):
             "stock_qty": item.custom_stock_qty or 0,
             "unlimited_stock": bool(item.custom_unlimited_stock),
             "price": prices.get(item.name) or 0,
+            "coach_price": coach_prices.get(item.name) or "",
+            "visibility": item.get("custom_item_visibility") or "Everyone",
             "brands": {fieldname: bool(item.get(fieldname)) for fieldname in brand_fieldnames},
             "digital_file": item.get("custom_digital_file") or "",
             "unlocks_course": item.get("custom_unlocks_lms_course") or "",
@@ -569,7 +615,8 @@ def get_store_products(search=None):
 def create_store_product(item_name=None, description=None, short_description=None, item_group=None, price=None,
                           stock_qty=None, unlimited_stock=None, brands=None, image=None,
                           digital_file=None, unlocks_course=None, sku=None, gallery_images=None,
-                          personalization_enabled=None, personalization_label=None, logo_choice_enabled=None):
+                          personalization_enabled=None, personalization_label=None, logo_choice_enabled=None,
+                          visibility=None, coach_price=None):
     """
     An Item with this exact name can already exist without being a store
     product yet - e.g. something tracked elsewhere in the system
@@ -627,6 +674,9 @@ def create_store_product(item_name=None, description=None, short_description=Non
         if logo_choice_enabled is not None and item_meta.has_field("custom_logo_choice_enabled"):
             updates["custom_logo_choice_enabled"] = 1 if _to_bool(logo_choice_enabled) else 0
 
+        if visibility is not None and item_meta.has_field("custom_item_visibility"):
+            updates["custom_item_visibility"] = visibility
+
         if image:
             updates["image"] = image
 
@@ -647,6 +697,8 @@ def create_store_product(item_name=None, description=None, short_description=Non
 
         if price is not None:
             _set_item_price(existing_item_code, DEFAULT_PRICE_LIST, _to_float(price))
+
+        _set_coach_price(existing_item_code, coach_price)
 
         frappe.db.commit()
 
@@ -690,6 +742,9 @@ def create_store_product(item_name=None, description=None, short_description=Non
         if _item_meta_has_field(fieldname):
             item.set(fieldname, 1 if parsed_brands.get(fieldname) else 0)
 
+    if visibility is not None and _item_meta_has_field("custom_item_visibility"):
+        item.custom_item_visibility = visibility
+
     _ensure_item_default_row(item, company)
 
     with _as_administrator():
@@ -697,6 +752,8 @@ def create_store_product(item_name=None, description=None, short_description=Non
 
         if price is not None:
             _set_item_price(item.name, DEFAULT_PRICE_LIST, _to_float(price))
+
+        _set_coach_price(item.name, coach_price)
 
     frappe.db.commit()
 
@@ -708,7 +765,7 @@ def update_store_product(item_code=None, item_name=None, description=None, short
                           item_group=None, price=None, stock_qty=None, unlimited_stock=None, brands=None,
                           disabled=None, image=None, digital_file=None, unlocks_course=None, sku=None,
                           gallery_images=None, personalization_enabled=None, personalization_label=None,
-                          logo_choice_enabled=None):
+                          logo_choice_enabled=None, visibility=None, coach_price=None):
     """
     Writes straight to the database (frappe.db.set_value + direct child-
     row management) rather than loading the Item as a Document and
@@ -782,6 +839,9 @@ def update_store_product(item_code=None, item_name=None, description=None, short
         if fieldname in parsed_brands and item_meta.has_field(fieldname):
             updates[fieldname] = 1 if parsed_brands.get(fieldname) else 0
 
+    if visibility is not None and item_meta.has_field("custom_item_visibility"):
+        updates["custom_item_visibility"] = visibility
+
     if updates:
         frappe.db.set_value("Item", item_code, updates)
 
@@ -792,6 +852,8 @@ def update_store_product(item_code=None, item_name=None, description=None, short
 
     if price is not None:
         _set_item_price(item_code, DEFAULT_PRICE_LIST, _to_float(price))
+
+    _set_coach_price(item_code, coach_price)
 
     frappe.db.commit()
 
@@ -919,7 +981,7 @@ def stock_take_update(updates=None):
 # priced higher, each with its own stock count)
 # -------------------------------------------------------------------
 
-def _create_variant_item(template, attribute_values, price, stock_qty, unlimited_stock, company, image=None, sku=None):
+def _create_variant_item(template, attribute_values, price, stock_qty, unlimited_stock, company, image=None, sku=None, coach_price=None):
     suffix = "-".join(_slugify(v) for v in attribute_values.values()) or "VAR"
     item_code = f"{template.name}-{suffix}"
 
@@ -947,6 +1009,11 @@ def _create_variant_item(template, attribute_values, price, stock_qty, unlimited
         if _item_meta_has_field(fieldname):
             variant.set(fieldname, template.get(fieldname))
 
+    # A variant always shares its template's Store Visibility - there's
+    # no per-variant option for this, same as the brand fields above.
+    if _item_meta_has_field("custom_item_visibility"):
+        variant.custom_item_visibility = template.get("custom_item_visibility")
+
     for attribute_name, value in attribute_values.items():
         variant.append("attributes", {"attribute": attribute_name, "attribute_value": value})
 
@@ -958,6 +1025,8 @@ def _create_variant_item(template, attribute_values, price, stock_qty, unlimited
     if price:
         _set_item_price(variant.name, DEFAULT_PRICE_LIST, price)
 
+    _set_coach_price(variant.name, coach_price)
+
     return variant.name
 
 
@@ -965,11 +1034,11 @@ def _create_variant_item(template, attribute_values, price, stock_qty, unlimited
 def create_variant_store_product(item_name=None, description=None, short_description=None, item_group=None,
                                   brands=None, image=None, attributes=None, variants=None, sku=None,
                                   gallery_images=None, personalization_enabled=None, personalization_label=None,
-                                  logo_choice_enabled=None):
+                                  logo_choice_enabled=None, visibility=None):
     """
     attributes: [{"attribute": "Size", "values": ["Small", "Large"]}, ...]
     variants: [{"attribute_values": {"Size": "Small"}, "price": 10,
-                "stock_qty": 5, "unlimited_stock": false}, ...]
+                "stock_qty": 5, "unlimited_stock": false, "coach_price": 8}, ...]
 
     Creates the template Item (has_variants=1, never itself purchasable)
     plus one real Item per entry in `variants`, each with its own Item
@@ -1076,6 +1145,9 @@ def create_variant_store_product(item_name=None, description=None, short_descrip
             if _item_meta_has_field(fieldname):
                 template.set(fieldname, 1 if parsed_brands.get(fieldname) else 0)
 
+        if visibility is not None and _item_meta_has_field("custom_item_visibility"):
+            template.custom_item_visibility = visibility
+
         for attr in attributes:
             template.append("attributes", {"attribute": attr.get("attribute")})
 
@@ -1096,6 +1168,7 @@ def create_variant_store_product(item_name=None, description=None, short_descrip
                 company,
                 image=variant_image,
                 sku=variant_spec.get("sku"),
+                coach_price=variant_spec.get("coach_price"),
             )
             created.append(variant_name)
 
@@ -1142,6 +1215,7 @@ def get_product_variants(template_item_code=None):
             order_by="idx asc",
         )
         price_row = _get_item_price_row(variant.name, DEFAULT_PRICE_LIST)
+        coach_price = _get_coach_price(variant.name)
 
         result.append({
             "name": variant.name,
@@ -1151,6 +1225,7 @@ def get_product_variants(template_item_code=None):
             "stock_qty": variant.custom_stock_qty or 0,
             "unlimited_stock": bool(variant.custom_unlimited_stock),
             "price": price_row.price_list_rate if price_row else 0,
+            "coach_price": coach_price if coach_price is not None else "",
             "attributes": {row.attribute: row.attribute_value for row in attr_rows},
             "sku": variant.get("custom_sku") or "",
         })
@@ -1159,7 +1234,7 @@ def get_product_variants(template_item_code=None):
 
 
 @frappe.whitelist()
-def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=None, disabled=None, image=None, sku=None):
+def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=None, disabled=None, image=None, sku=None, coach_price=None):
     _ensure_store_access()
 
     item_code = (item_code or "").strip()
@@ -1189,6 +1264,10 @@ def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=N
     if price is not None:
         with _as_administrator():
             _set_item_price(item_code, DEFAULT_PRICE_LIST, _to_float(price))
+
+    if coach_price is not None:
+        with _as_administrator():
+            _set_coach_price(item_code, coach_price)
 
     frappe.db.commit()
 
@@ -1224,7 +1303,7 @@ def delete_variant(item_code=None):
 
 @frappe.whitelist()
 def add_product_variant(template_item_code=None, attribute_values=None, price=None, stock_qty=None,
-                         unlimited_stock=None, sku=None, image=None):
+                         unlimited_stock=None, sku=None, image=None, coach_price=None):
     """Adds one new variant (e.g. a size that wasn't offered when the
     product was first set up) onto an existing variant template, without
     touching anything already there - unlike create_variant_store_product,
@@ -1285,6 +1364,7 @@ def add_product_variant(template_item_code=None, attribute_values=None, price=No
             company,
             image=(image or "").strip(),
             sku=sku,
+            coach_price=coach_price,
         )
 
     frappe.db.commit()
@@ -1294,7 +1374,7 @@ def add_product_variant(template_item_code=None, attribute_values=None, price=No
 
 @frappe.whitelist()
 def add_product_variants_bulk(template_item_code=None, attribute_value_lists=None, price=None, stock_qty=None,
-                               unlimited_stock=None):
+                               unlimited_stock=None, coach_price=None):
     """
     Generates every combination across several values per attribute in
     one go (e.g. 20 Colours x 6 Sizes = up to 120 variants) instead of
@@ -1399,6 +1479,7 @@ def add_product_variants_bulk(template_item_code=None, attribute_value_lists=Non
                 stock_qty,
                 unlimited_stock,
                 company,
+                coach_price=coach_price,
             )
             created.append(variant_name)
             existing_combos.add(combo_key)
