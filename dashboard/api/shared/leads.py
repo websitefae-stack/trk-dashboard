@@ -1061,6 +1061,8 @@ def sign_nda(token=None, recipient_name=None, recipient_address=None, signature_
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 
+    _notify_coach_of_lead_step(doc, "signed the NDA")
+
     return {"ok": True}
 
 
@@ -1319,6 +1321,8 @@ def sign_intent(token=None, recipient_name=None, recipient_address=None, signatu
 
     doc.save(ignore_permissions=True)
     frappe.db.commit()
+
+    _notify_coach_of_lead_step(doc, "signed the Intent to Proceed agreement")
 
     return {"ok": True}
 
@@ -1675,6 +1679,8 @@ def submit_franchisee_intake(token=None, first_name=None, last_name=None, phone=
 
     doc.save(ignore_permissions=True)
     frappe.db.commit()
+
+    _notify_coach_of_lead_step(doc, "submitted their Intake/DBS form")
 
     return {"ok": True}
 
@@ -2153,6 +2159,8 @@ def sign_fees_guide(token=None, recipient_name=None, signature_name=None):
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 
+    _notify_coach_of_lead_step(doc, "signed the Fees and Expectations Guide")
+
     return {"ok": True}
 
 
@@ -2503,6 +2511,52 @@ def _notify_intake_completed(doc):
             )
         except Exception:
             frappe.log_error(frappe.get_traceback(), "Intake Submission - Admin Notification Failed")
+
+
+def _notify_coach_of_lead_step(doc, step_label):
+    """
+    Tells doc's (a Franchisee Call or Session Worker Client Lead)
+    sponsoring coach that the franchisee/session worker just completed
+    one more step of their own Stage 1 pipeline - signed the NDA,
+    submitted their Intake/DBS form, etc. - so the coach knows to check
+    in and action whatever comes next, rather than finding out only once
+    everything's already done.
+
+    Unlike _notify_intake_completed's own one-off "Client Request" (which
+    dedupes against ever repeating for the same lead+recipient), this
+    fires again on every subsequent step, right up until the lead is
+    actually converted. No separate dedupe guard is needed here - each of
+    sign_nda/sign_intent/sign_fees_guide/submit_franchisee_intake already
+    throws if called a second time on the same lead, so this can never
+    double-fire for the same step either.
+    """
+    if doc.status == "Converted" and doc.get("converted_client"):
+        return
+
+    if doc.get("converted_session_worker") or doc.get("sw_setup_done"):
+        return
+
+    if not doc.coach:
+        return
+
+    coach_user = frappe.db.get_value("Coach", doc.coach, "user") or frappe.db.get_value(
+        "Coach", doc.coach, "coach_email"
+    )
+
+    if not coach_user:
+        return
+
+    try:
+        create_trk_notification(
+            recipient_user=coach_user,
+            notification_type="Client Request",
+            message=f"{doc.client_name} - {step_label}. Check their Stage 1 progress and action the next step.",
+            priority="High",
+            reference_doctype=LEAD_DOCTYPE,
+            reference_name=doc.name,
+        )
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Lead Step Coach Notification Failed - {doc.name}")
 
 
 def _intake_doctype_display_names(doc):
@@ -3242,6 +3296,13 @@ def _proposed_client_field_values(doc):
         "mobile": doc.contact_mobile,
         "zip_code": doc.postal_code,
         "address": doc.location_address,
+        # A franchisee/session worker's own self-reported DOB/gender (see
+        # submit_franchisee_intake) - blank on every other kind of lead
+        # (there's no franchisee_intake_* data on a young-person/adult/
+        # school enquiry), so safe to include unconditionally; the final
+        # filter below drops it when there's nothing there.
+        "date_of_birth": doc.get("franchisee_intake_dob"),
+        "gender_identity": doc.get("franchisee_intake_gender"),
     }
     field_values.update(_client_field_values(doc))
     return {k: v for k, v in field_values.items() if v}
@@ -3351,6 +3412,54 @@ def _attach_intake_pdf_to_client(doc, client_name):
         frappe.log_error(frappe.get_traceback(), "Attach Intake PDF to Client Failed")
 
 
+# A Franchisee Call lead's resulting Client is always managed centrally by
+# Ashley (the franchisor), never by whichever individual coach the
+# original enquiry happened to land with - fixed record names, matched
+# against a stable attribute (Ashley's own login email) or an exact
+# record name that must still exist, rather than assumed blindly, so a
+# rename in Desk doesn't leave this half-broken.
+FRANCHISEE_CLIENT_ASHLEY_LOGIN = "ashley@theresilientkid.co.uk"
+FRANCHISEE_CLIENT_BANK_ACCOUNT = "HQ Bank Account - Starling"
+FRANCHISEE_CLIENT_PRICE_LIST = "Ashley Pricelist"
+FRANCHISEE_CLIENT_COMPANY = "The Resilient Kid"
+
+
+def _apply_franchisee_client_defaults(client, client_meta):
+    """
+    Every Franchisee Call lead becomes a Client tracked centrally under
+    Ashley - Status Active, Client Type Franchise (set by the caller),
+    Primary/Attending Coach both Ashley, HQ's own bank account/pricelist/
+    company - regardless of doc.coach (the coach who originally took the
+    enquiry call isn't who manages this franchisee's own account).
+    """
+    if client_meta.has_field("status"):
+        client.status = "Active"
+
+    if client_meta.has_field("session_worker"):
+        client.session_worker = None
+
+    ashley_coach = (
+        frappe.db.get_value("Coach", {"user": FRANCHISEE_CLIENT_ASHLEY_LOGIN}, "name")
+        or frappe.db.get_value("Coach", {"coach_email": FRANCHISEE_CLIENT_ASHLEY_LOGIN}, "name")
+    )
+
+    if ashley_coach:
+        if client_meta.has_field("primary_coach"):
+            client.primary_coach = ashley_coach
+        if client_meta.has_field("attending_coach"):
+            client.attending_coach = ashley_coach
+
+    for fieldname, record_doctype, record_name in [
+        ("coach_banking_details", "Bank Account", FRANCHISEE_CLIENT_BANK_ACCOUNT),
+        ("banking", "Bank Account", FRANCHISEE_CLIENT_BANK_ACCOUNT),
+        ("pricelist", "Price List", FRANCHISEE_CLIENT_PRICE_LIST),
+        ("price_list", "Price List", FRANCHISEE_CLIENT_PRICE_LIST),
+        ("company", "Company", FRANCHISEE_CLIENT_COMPANY),
+    ]:
+        if client_meta.has_field(fieldname) and frappe.db.exists(record_doctype, record_name):
+            client.set(fieldname, record_name)
+
+
 @frappe.whitelist()
 def convert_lead_to_client(name=None):
     doc = ensure_lead_access(coalesce_str("name", name))
@@ -3450,20 +3559,30 @@ def convert_lead_to_client(name=None):
     # Kid/Teen/Adult/etc apply_age_and_client_type just derived, which
     # never makes sense for a franchisee (no date of birth/client age on
     # a lead like this to derive it from anyway).
-    if is_franchise_lead(doc.get("appointment_type")) and client_meta.has_field("client_type"):
+    is_franchisee_conversion = is_franchise_lead(doc.get("appointment_type"))
+
+    if is_franchisee_conversion and client_meta.has_field("client_type"):
         client.client_type = "Franchise"
 
-    # Coach-level defaults (bank account, price list, company) the client
-    # inherits from their assigned primary coach - previously never applied
-    # on conversion, so every converted client needed these filled in by
-    # hand afterwards. These must win over whatever the Client doctype's
-    # own field-level default put on the new doc (e.g. a blanket default
-    # Company) - a not-already-set check here would just leave that
-    # doctype default in place and never reach the coach's real value.
-    coach_defaults = get_coach_defaults_from_coach(doc.coach)
-    for fieldname in ["coach_banking_details", "banking", "pricelist", "price_list", "company"]:
-        if client_meta.has_field(fieldname) and coach_defaults.get(fieldname):
-            client.set(fieldname, coach_defaults.get(fieldname))
+    if is_franchisee_conversion:
+        # A franchisee's Administration settings are fixed (see docstring
+        # on _apply_franchisee_client_defaults) - takes priority over the
+        # generic coach-inherited defaults below, so applied instead of
+        # them, not alongside.
+        _apply_franchisee_client_defaults(client, client_meta)
+    else:
+        # Coach-level defaults (bank account, price list, company) the
+        # client inherits from their assigned primary coach - previously
+        # never applied on conversion, so every converted client needed
+        # these filled in by hand afterwards. These must win over whatever
+        # the Client doctype's own field-level default put on the new doc
+        # (e.g. a blanket default Company) - a not-already-set check here
+        # would just leave that doctype default in place and never reach
+        # the coach's real value.
+        coach_defaults = get_coach_defaults_from_coach(doc.coach)
+        for fieldname in ["coach_banking_details", "banking", "pricelist", "price_list", "company"]:
+            if client_meta.has_field(fieldname) and coach_defaults.get(fieldname):
+                client.set(fieldname, coach_defaults.get(fieldname))
 
     client.insert(ignore_permissions=True)
     _attach_intake_pdf_to_client(doc, client.name)

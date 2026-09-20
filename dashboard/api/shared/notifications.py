@@ -603,6 +603,9 @@ def _get_reference_link(reference_doctype, reference_name, dashboard_base_url=""
     if reference_doctype == "Coach Document Requirement":
         return f"{dashboard_base_url}/document_view?name={reference_name}" if dashboard_base_url else ""
 
+    if reference_doctype == "Sales Invoice":
+        return f"{dashboard_base_url}/invoice_details?name={reference_name}" if dashboard_base_url else ""
+
     if reference_doctype == "Client Transfer Agreement":
         # Not scoped under dashboard_base_url like the others - the same
         # signing page serves whichever coach/franchisor's turn it is,
