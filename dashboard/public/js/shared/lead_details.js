@@ -394,9 +394,13 @@
     }
 
     block.innerHTML = `
-      <button type="button" class="dashboard-btn dashboard-btn-light" id="getFranchiseeIntakeLinkBtn">
-        ${lead.franchisee_intake_link_generated ? "Get Form Link Again" : "Generate Form Link"}
-      </button>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendFranchiseeIntakeBtn">Send Intake Form</button>
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="getFranchiseeIntakeLinkBtn">
+          ${lead.franchisee_intake_link_generated ? "Get Form Link Again" : "Generate Form Link"}
+        </button>
+      </div>
+      <div id="franchiseeIntakeSendStatus" class="dashboard-help" style="margin-top:8px;"></div>
       <div id="franchiseeIntakeLinkResult" style="margin-top:10px; display:none;">
         <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">
           Copy this link and send it to the franchisee to fill in:
@@ -407,6 +411,9 @@
         </div>
       </div>
     `;
+
+    const sendBtn = el("sendFranchiseeIntakeBtn");
+    if (sendBtn) sendBtn.addEventListener("click", sendFranchiseeIntakeForm);
 
     const getLinkBtn = el("getFranchiseeIntakeLinkBtn");
     if (getLinkBtn) getLinkBtn.addEventListener("click", getFranchiseeIntakeLink);
@@ -439,6 +446,25 @@
       window.alert(error.message || "Could not generate the form link.");
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = "Get Form Link Again"; }
+    }
+  }
+
+  async function sendFranchiseeIntakeForm() {
+    const name = getValue("leadDocname");
+    const btn = el("sendFranchiseeIntakeBtn");
+    const statusEl = el("franchiseeIntakeSendStatus");
+    if (!name) return;
+
+    if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+    if (statusEl) statusEl.textContent = "";
+
+    try {
+      await apiPost(`${SHARED_API}.send_franchisee_intake_form`, { name });
+      if (statusEl) statusEl.textContent = "Sent to the franchisee's email address.";
+    } catch (error) {
+      if (statusEl) statusEl.textContent = error.message || "Could not send the intake form.";
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Send Intake Form"; }
     }
   }
 

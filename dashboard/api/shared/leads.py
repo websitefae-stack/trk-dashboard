@@ -1103,6 +1103,55 @@ def get_franchisee_intake_url(name=None):
     return {"url": get_url(f"/franchisee-intake?token={doc.franchisee_intake_token}")}
 
 
+@frappe.whitelist()
+def send_franchisee_intake_form(name=None):
+    """
+    Franchisor-only: emails the Intake/DBS form link straight to this
+    lead's own contact email. Reuses whatever token already exists for
+    this lead (generating one the first time, exactly like
+    get_franchisee_intake_url) rather than ever creating a new one, so a
+    link the franchisee has already opened (or partway filled in) keeps
+    working after a resend.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not is_franchise_lead(doc.get("appointment_type")):
+        frappe.throw(_("This lead isn't a Franchisee Call - the intake form doesn't apply to it."))
+
+    if not doc.contact_email:
+        frappe.throw(_("This lead has no contact email address to send the form to."))
+
+    if not doc.get("franchisee_intake_token"):
+        doc.franchisee_intake_token = frappe.generate_hash(length=40)
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+
+    intake_url = get_url(f"/franchisee-intake?token={doc.franchisee_intake_token}")
+    contact_name = doc.contact_name or "there"
+
+    message = plain_text_to_email_html(
+        f"Hi {contact_name},\n\n"
+        "Thanks for your continued interest in becoming a Resilient franchisee. Please "
+        "complete the short form below with your details and DBS certificate so we can "
+        "keep things moving:\n\n"
+        f"{intake_url}"
+    )
+
+    frappe.sendmail(
+        recipients=[doc.contact_email],
+        subject="Your Resilient franchisee intake form",
+        message=message,
+        now=True,
+        reply_to=frappe.session.user,
+    )
+
+    return {"ok": 1, "url": intake_url}
+
+
 @frappe.whitelist(allow_guest=True)
 def get_franchisee_intake_status(token=None):
     """Guest-accessible - lets the public form show "already submitted" instead of a blank form."""
