@@ -554,7 +554,7 @@ def get_store_products(search=None):
         f for f in [
             "custom_digital_file", "custom_unlocks_lms_course", "custom_short_description", "custom_sku",
             "custom_personalization_enabled", "custom_personalization_label", "custom_logo_choice_enabled",
-            "custom_item_visibility",
+            "custom_item_visibility", "custom_coach_price",
         ]
         if item_meta.has_field(f)
     ]
@@ -590,18 +590,29 @@ def get_store_products(search=None):
         )
         prices = {row.item_code: row.price_list_rate for row in price_rows}
 
-    coach_prices = {}
-    if items:
+    # A plain product's Coach Price is an Item Price row (queried below,
+    # same as the normal price); a variant template can never hold one at
+    # all (Frappe rejects it outright) so its own flat Coach Price lives
+    # in custom_coach_price on the Item itself instead - see
+    # _set_coach_price/_get_coach_price.
+    coach_prices = {
+        item.name: item.get("custom_coach_price")
+        for item in items
+        if item.has_variants and item.get("custom_coach_price")
+    }
+
+    non_template_names = [i.name for i in items if not i.has_variants]
+    if non_template_names:
         coach_price_rows = frappe.get_all(
             "Item Price",
             filters={
                 "price_list": COACH_ONLY_PRICE_LIST,
                 "selling": 1,
-                "item_code": ["in", [i.name for i in items]],
+                "item_code": ["in", non_template_names],
             },
             fields=["item_code", "price_list_rate"],
         )
-        coach_prices = {row.item_code: row.price_list_rate for row in coach_price_rows}
+        coach_prices.update({row.item_code: row.price_list_rate for row in coach_price_rows})
 
     return [
         {

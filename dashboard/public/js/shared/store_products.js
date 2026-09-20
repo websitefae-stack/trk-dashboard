@@ -152,6 +152,12 @@
       actionsCell = `<button type="button" class="dashboard-btn dashboard-btn-light" data-edit-product="${escapeHtml(product.name)}">Edit</button>`;
     }
 
+    // Same flat rate whether or not this product has variations (a
+    // template's Coach Price - see store_products.py's _get_coach_price -
+    // already applies across every size), so this cell isn't "Varies"
+    // the way price itself is.
+    const coachPriceCell = product.coach_price ? formatPrice(product.coach_price) : "—";
+
     const visibilityBadge = product.visibility === "Coach Only"
       ? ' <span class="dashboard-badge dashboard-status-archived" title="Hidden from the public store - only shows in the Coach Store">Coach Only</span>'
       : "";
@@ -161,6 +167,7 @@
         <td>${image}${escapeHtml(product.item_name)}${visibilityBadge}</td>
         <td>${escapeHtml(product.item_group || "—")}</td>
         <td>${priceCell}</td>
+        <td>${coachPriceCell}</td>
         <td>${stockCell}</td>
         <td>${escapeHtml(brandsSummary(product.brands))}</td>
         <td>${product.disabled ? '<span class="dashboard-badge dashboard-status-archived">Disabled</span>' : '<span class="dashboard-badge dashboard-status-active">Active</span>'}</td>
@@ -174,7 +181,7 @@
     if (!body) return;
 
     if (!products.length) {
-      body.innerHTML = '<tr><td colspan="7" class="dashboard-empty">No products yet - click "Add Product" to create one.</td></tr>';
+      body.innerHTML = '<tr><td colspan="8" class="dashboard-empty">No products yet - click "Add Product" to create one.</td></tr>';
     } else {
       body.innerHTML = products.map(renderRow).join("");
     }
@@ -243,7 +250,7 @@
       renderProducts();
     } catch (error) {
       const body = el("storeProductsBody");
-      if (body) body.innerHTML = '<tr><td colspan="7" class="dashboard-empty">Could not load products.</td></tr>';
+      if (body) body.innerHTML = '<tr><td colspan="8" class="dashboard-empty">Could not load products.</td></tr>';
       console.error(error);
     }
   }
