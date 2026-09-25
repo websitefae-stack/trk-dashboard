@@ -288,6 +288,14 @@ doc_events = {
         "on_submit": "dashboard.api.shared.store_stock.decrement_stock_on_submit",
         "on_cancel": "dashboard.api.shared.store_stock.restore_stock_on_cancel",
     },
+    # Fires for every route an invoice can be marked paid - the dashboard's
+    # own "mark paid"/"allocate payment" buttons (dashboard.py,
+    # invoices.py) and a Payment Entry made directly in Desk alike, since
+    # both funnel through a real, submitted core Payment Entry either way.
+    # See course_unlock_on_payment.py's module docstring.
+    "Payment Entry": {
+        "on_submit": "dashboard.api.shared.course_unlock_on_payment.unlock_courses_on_payment",
+    },
 }
 
 # Two independent LMS Course settings - "Show on Website" (opt-in
