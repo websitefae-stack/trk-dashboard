@@ -66,6 +66,17 @@ def _process_invoice(invoice_name):
     if invoice.docstatus != 1:
         return
 
+    # A guest webshop order (custom_online_client only ever gets set by
+    # webshop_purchase.py's Stripe fulfilment) already runs its own
+    # course-unlock + portal-access + order-confirmation-email logic
+    # end-to-end, synchronously, as part of creating this very invoice -
+    # before this hook ever fires. Re-running it here would be harmless
+    # to the enrolment itself (already-enrolled checks are idempotent),
+    # but would send a second, redundant "you now have access" email on
+    # top of that flow's own order confirmation.
+    if invoice.meta.has_field("custom_online_client") and invoice.get("custom_online_client"):
+        return
+
     if not invoice.meta.has_field("custom_client"):
         return
 
