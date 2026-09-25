@@ -130,3 +130,4 @@ dashboard.patches.fix_stuck_spoofed_sender_email_queue_rows
 dashboard.patches.add_item_auto_grant_field
 dashboard.patches.backfill_auto_grant_coach_access_for_service_items
 dashboard.patches.backfill_course_unlocks_for_paid_invoices
+dashboard.patches.backfill_store_item_default_rows
