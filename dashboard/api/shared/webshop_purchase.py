@@ -96,12 +96,14 @@ def _get_coach_brands(coach_name):
 
 
 def _coach_can_buy_item(item_doc, coach_brands):
-    """A branded item (e.g. a Kid+Teen dual-logo shirt) needs the coach
-    to operate EVERY brand it's flagged for, not just one - so a
-    Kid-only coach can't buy Kid+Teen merch for a business they don't
-    run. An item with none of the four brand flags ticked (everything
-    today, and most things going forward) isn't brand-gated at all -
-    only deliberately branded stock needs restricting.
+    """A coach can buy a branded item as long as they operate AT LEAST
+    ONE of the brand(s) it's flagged for - ticking Kid alongside other
+    brands (e.g. an item shown on Hub/Kid/Teen/People) doesn't mean a
+    Kid-only coach loses access to it, it means every one of those
+    brands' coaches can see it. An item with none of the four brand
+    flags ticked (everything today, and most things going forward)
+    isn't brand-gated at all - only deliberately branded stock needs
+    restricting.
 
     A coach with NO Coach Brand Access rows at all is treated as
     unrestricted, not as "access to nothing" - that child table was
@@ -121,7 +123,7 @@ def _coach_can_buy_item(item_doc, coach_brands):
     if not required or not coach_brands:
         return True
 
-    return required.issubset(coach_brands)
+    return bool(required & coach_brands)
 
 # The Table fieldname add_client_contact_link_table_field.py (client_portal
 # app) added to Client - not imported from that app (this app never
@@ -292,9 +294,9 @@ def _get_purchasable_item(item_code, company):
         frappe.throw(_("This item is not available for online purchase."))
 
     # Branded clothing is only ever purchasable by a coach who operates
-    # every brand it's printed with - see _coach_can_buy_item()'s own
-    # docstring. Same generic wording as every gate above, deliberately
-    # not naming which brand is missing.
+    # at least one brand it's printed with - see _coach_can_buy_item()'s
+    # own docstring. Same generic wording as every gate above,
+    # deliberately not naming which brand is missing.
     if is_coach:
         coach = _get_current_coach()
         if not _coach_can_buy_item(item_doc, _get_coach_brands(coach.get("name") if coach else None)):
