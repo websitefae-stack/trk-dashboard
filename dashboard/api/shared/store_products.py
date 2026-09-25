@@ -436,7 +436,21 @@ def _set_coach_price(item_code, coach_price):
 
     if not coach_price:
         if is_template:
-            frappe.db.set_value("Item", item_code, "custom_coach_price", None)
+            # custom_coach_price is a Currency field - like every
+            # Frappe Currency/Float column, its DB column is NOT NULL
+            # DEFAULT 0, so writing None here throws a raw MySQL
+            # IntegrityError ("Column 'custom_coach_price' cannot be
+            # null") rather than clearing it - this was the actual
+            # cause of every "with variations" product silently ending
+            # up with zero variants: create_variant_store_product()
+            # calls this right after inserting the template, before the
+            # variant-creation loop even starts, so an empty (the
+            # default) Coach Price field crashed the save immediately
+            # every single time. 0 means the same "no override" as None
+            # does everywhere this field is read (_get_coach_price
+            # already treats it as falsy via `or None`), so it's a safe,
+            # equivalent value to write instead.
+            frappe.db.set_value("Item", item_code, "custom_coach_price", 0)
         else:
             _clear_item_price(item_code, COACH_ONLY_PRICE_LIST)
         return
