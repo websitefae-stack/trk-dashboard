@@ -39,8 +39,29 @@
           <div class="dashboard-table-count" id="storeProductsCount">Loading…</div>
         </div>
 
-        <div class="dashboard-filter-bar" style="margin-bottom:14px;">
-          <input type="text" id="storeProductsSearch" class="dashboard-input" placeholder="Search products…">
+        <div class="dashboard-filter-bar" style="margin-bottom:14px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+          <input type="text" id="storeProductsSearch" class="dashboard-input" style="flex:1; min-width:200px;" placeholder="Search products…">
+
+          <select id="storeProductsBrandFilter" class="dashboard-select" style="width:auto;">
+            <option value="">All Brands</option>
+            <option value="custom_brand_hub">The Resilient Hub</option>
+            <option value="custom_brand_kid">The Resilient Kid</option>
+            <option value="custom_brand_teen">The Resilient Teen</option>
+            <option value="custom_brand_people">The Resilient People</option>
+            <option value="custom_brand_school">The Resilient School</option>
+          </select>
+
+          <select id="storeProductsVisibilityFilter" class="dashboard-select" style="width:auto;">
+            <option value="">Everyone + Coach Only</option>
+            <option value="Everyone">Everyone</option>
+            <option value="Coach Only">Coach Only</option>
+          </select>
+
+          <select id="storeProductsStatusFilter" class="dashboard-select" style="width:auto;">
+            <option value="">Active + Archived</option>
+            <option value="active">Active only</option>
+            <option value="archived">Archived only</option>
+          </select>
         </div>
 
         <div class="dashboard-table-wrap">

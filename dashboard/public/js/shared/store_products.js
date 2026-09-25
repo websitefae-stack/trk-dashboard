@@ -136,12 +136,15 @@
     let stockCell;
     let actionsCell;
 
+    const archiveBtn = `<button type="button" class="dashboard-btn dashboard-btn-light" data-toggle-archive="${escapeHtml(product.name)}" data-currently-archived="${product.disabled ? "1" : "0"}">${product.disabled ? "Unarchive" : "Archive"}</button>`;
+
     if (product.has_variants) {
       priceCell = '<span class="dashboard-doc-list-meta">Varies</span>';
       stockCell = '<span class="dashboard-doc-list-meta">See variants</span>';
       actionsCell = (
         `<button type="button" class="dashboard-btn dashboard-btn-light" data-edit-product="${escapeHtml(product.name)}">Edit</button> ` +
-        `<button type="button" class="dashboard-btn dashboard-btn-light" data-manage-variants="${escapeHtml(product.name)}">Manage Variants</button>`
+        `<button type="button" class="dashboard-btn dashboard-btn-light" data-manage-variants="${escapeHtml(product.name)}">Manage Variants</button> ` +
+        archiveBtn
       );
     } else {
       priceCell = formatPrice(product.price);
@@ -149,7 +152,7 @@
         ? `<span class="dashboard-doc-list-meta">Unlimited</span>`
         : `<input type="number" min="0" step="1" class="dashboard-input" style="width:80px;" value="${product.stock_qty || 0}" data-stock-input="${escapeHtml(product.name)}">
            <button type="button" class="dashboard-btn dashboard-btn-light" style="padding:4px 8px;" data-save-stock="${escapeHtml(product.name)}">Save</button>`;
-      actionsCell = `<button type="button" class="dashboard-btn dashboard-btn-light" data-edit-product="${escapeHtml(product.name)}">Edit</button>`;
+      actionsCell = `<button type="button" class="dashboard-btn dashboard-btn-light" data-edit-product="${escapeHtml(product.name)}">Edit</button> ` + archiveBtn;
     }
 
     // Same flat rate whether or not this product has variations (a
@@ -170,7 +173,7 @@
         <td>${coachPriceCell}</td>
         <td>${stockCell}</td>
         <td>${escapeHtml(brandsSummary(product.brands))}</td>
-        <td>${product.disabled ? '<span class="dashboard-badge dashboard-status-archived">Disabled</span>' : '<span class="dashboard-badge dashboard-status-active">Active</span>'}</td>
+        <td>${product.disabled ? '<span class="dashboard-badge dashboard-status-archived" title="Archived - not for sale, not shown anywhere">Archived</span>' : '<span class="dashboard-badge dashboard-status-active">Active</span>'}</td>
         <td>${actionsCell}</td>
       </tr>
     `;
@@ -180,14 +183,36 @@
     const body = el("storeProductsBody");
     if (!body) return;
 
+    const visible = getFilteredProducts();
+
     if (!products.length) {
       body.innerHTML = '<tr><td colspan="8" class="dashboard-empty">No products yet - click "Add Product" to create one.</td></tr>';
+    } else if (!visible.length) {
+      body.innerHTML = '<tr><td colspan="8" class="dashboard-empty">No products match these filters.</td></tr>';
     } else {
-      body.innerHTML = products.map(renderRow).join("");
+      body.innerHTML = visible.map(renderRow).join("");
     }
 
     const count = el("storeProductsCount");
-    if (count) count.textContent = products.length + (products.length === 1 ? " product" : " products");
+    if (count) {
+      count.textContent = visible.length === products.length
+        ? products.length + (products.length === 1 ? " product" : " products")
+        : `${visible.length} of ${products.length} products`;
+    }
+  }
+
+  function getFilteredProducts() {
+    const brandField = el("storeProductsBrandFilter") ? el("storeProductsBrandFilter").value : "";
+    const visibility = el("storeProductsVisibilityFilter") ? el("storeProductsVisibilityFilter").value : "";
+    const status = el("storeProductsStatusFilter") ? el("storeProductsStatusFilter").value : "";
+
+    return products.filter((product) => {
+      if (brandField && !(product.brands && product.brands[brandField])) return false;
+      if (visibility && (product.visibility || "Everyone") !== visibility) return false;
+      if (status === "active" && product.disabled) return false;
+      if (status === "archived" && !product.disabled) return false;
+      return true;
+    });
   }
 
   function renderLogoOptionRow(choice) {
@@ -774,6 +799,28 @@
     }
   }
 
+  async function toggleArchive(itemCode, currentlyArchived, button) {
+    const archiving = !currentlyArchived;
+
+    if (archiving && !window.confirm("Archive this product? It'll stop showing anywhere in the store and can no longer be bought (including any existing variants) until you unarchive it.")) {
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = archiving ? "Archiving…" : "Unarchiving…";
+
+    try {
+      await apiPost(API + ".update_store_product", { item_code: itemCode, disabled: archiving });
+      const product = products.find((p) => p.name === itemCode);
+      if (product) product.disabled = archiving;
+      renderProducts();
+    } catch (error) {
+      alert(error.message || "Could not update this product.");
+      button.disabled = false;
+      button.textContent = currentlyArchived ? "Unarchive" : "Archive";
+    }
+  }
+
   // ---------------------------------------------------------------
   // Manage Variants modal (existing variant templates only)
   // ---------------------------------------------------------------
@@ -1249,6 +1296,13 @@
         console.error(error);
       }
     }, 250));
+
+    // Brand/visibility/archived filter purely narrow down whatever the
+    // search box already loaded - no extra round-trip needed for these.
+    ["storeProductsBrandFilter", "storeProductsVisibilityFilter", "storeProductsStatusFilter"].forEach((id) => {
+      const select = el(id);
+      if (select) select.addEventListener("change", renderProducts);
+    });
   }
 
   function initPage() {
@@ -1461,6 +1515,12 @@
       const deleteVariantBtn = event.target.closest("[data-delete-variant]");
       if (deleteVariantBtn) {
         deleteVariantRow(deleteVariantBtn.dataset.deleteVariant, deleteVariantBtn);
+        return;
+      }
+
+      const archiveBtn = event.target.closest("[data-toggle-archive]");
+      if (archiveBtn) {
+        toggleArchive(archiveBtn.dataset.toggleArchive, archiveBtn.dataset.currentlyArchived === "1", archiveBtn);
       }
     });
 
