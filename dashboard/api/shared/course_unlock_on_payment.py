@@ -31,6 +31,7 @@ import frappe
 
 from dashboard.api.shared import payment_utils
 from dashboard.api.shared.invoices import _client_display_name
+from dashboard.api.shared.permissions import ensure_office_user
 
 
 def unlock_courses_on_payment(doc, method=None):
@@ -38,6 +39,56 @@ def unlock_courses_on_payment(doc, method=None):
         _unlock_courses_on_payment(doc)
     except Exception:
         frappe.log_error(frappe.get_traceback(), f"Course Unlock On Payment Failed - {doc.name}")
+
+
+@frappe.whitelist()
+def backfill_course_unlocks_for_paid_invoices():
+    """Franchisor-triggerable, safe to re-run any time - e.g. right after
+    setting custom_unlocks_lms_course on an item for the first time, to
+    retroactively grant access on every already-paid invoice that
+    contains it (not just ones paid from now on). Every invoice it
+    touches goes through the exact same _process_invoice() the live
+    Payment Entry hook uses, so anyone already enrolled is simply
+    skipped again - no duplicate enrolment, no repeat "you now have
+    access" email.
+    """
+    ensure_office_user()
+    return _backfill_course_unlocks_for_paid_invoices()
+
+
+def _backfill_course_unlocks_for_paid_invoices():
+    if not frappe.db.exists("DocType", "LMS Course"):
+        return {"invoices_checked": 0}
+
+    if not frappe.get_meta("Item").has_field("custom_unlocks_lms_course"):
+        return {"invoices_checked": 0}
+
+    item_codes = frappe.get_all(
+        "Item",
+        filters={"custom_unlocks_lms_course": ["not in", ["", None]]},
+        pluck="name",
+    )
+
+    if not item_codes:
+        return {"invoices_checked": 0}
+
+    invoice_names = set(
+        frappe.get_all(
+            "Sales Invoice Item",
+            filters={"item_code": ["in", item_codes], "parenttype": "Sales Invoice"},
+            pluck="parent",
+        )
+    )
+
+    for invoice_name in invoice_names:
+        try:
+            _process_invoice(invoice_name)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"Backfill Course Unlock Failed - {invoice_name}")
+
+    frappe.db.commit()
+
+    return {"invoices_checked": len(invoice_names)}
 
 
 def _unlock_courses_on_payment(doc):
