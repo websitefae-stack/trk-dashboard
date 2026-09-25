@@ -611,6 +611,57 @@ def get_product_gallery(item_code=None):
 
 
 @frappe.whitelist()
+def find_empty_variant_templates():
+    """A "with variations" product (has_variants=1) is only ever priced
+    and listed via its actual variant Items underneath it (see
+    resilient_domains' _variant_template_summary) - the template itself
+    can never hold a price of its own (only custom_coach_price, a flat
+    coach-only override). If a save throws partway through creating
+    those variants (e.g. the IntegrityError seen live on "The Resilient
+    Kid Personalised Coach Hoodie"), the template can be left behind
+    with zero variants under it - custom_store_enabled=1, seemingly
+    fully configured, "Enabled" in Desk, yet permanently invisible on
+    every storefront (nothing to price it by), with nothing anywhere to
+    explain why. Finds every such orphaned template so they can be
+    fixed (re-save with variations from the Store dashboard) rather
+    than hunted down one at a time.
+    """
+    _ensure_store_access()
+
+    item_meta = frappe.get_meta("Item")
+    if not item_meta.has_field("custom_store_enabled"):
+        return []
+
+    templates = frappe.get_all(
+        "Item",
+        filters={"custom_store_enabled": 1, "has_variants": 1, "disabled": 0},
+        fields=["name", "item_name", "custom_item_visibility"],
+        order_by="item_name asc",
+    )
+
+    if not templates:
+        return []
+
+    template_codes = [t.name for t in templates]
+
+    variant_counts = {}
+    for row in frappe.get_all(
+        "Item", filters={"variant_of": ["in", template_codes]}, fields=["variant_of"], pluck="variant_of"
+    ):
+        variant_counts[row] = variant_counts.get(row, 0) + 1
+
+    return [
+        {
+            "item_code": t.name,
+            "item_name": t.item_name,
+            "visibility": t.custom_item_visibility or "Everyone",
+        }
+        for t in templates
+        if not variant_counts.get(t.name)
+    ]
+
+
+@frappe.whitelist()
 def get_store_products(search=None):
     _ensure_store_access()
 
