@@ -28,10 +28,17 @@ real payment from recording.
 """
 
 import frappe
+from frappe.utils import getdate
 
 from dashboard.api.shared import payment_utils
 from dashboard.api.shared.invoices import _client_display_name
 from dashboard.api.shared.permissions import ensure_office_user
+
+# Ashley's explicit cutoff before this feature went live: only invoices
+# dated on or after this should ever grant course access - an older
+# invoice must never retroactively unlock the course, even if it's paid
+# (or gets caught by the backfill) after this date.
+COURSE_UNLOCK_CUTOFF_DATE = "2026-03-01"
 
 
 def unlock_courses_on_payment(doc, method=None):
@@ -115,6 +122,9 @@ def _process_invoice(invoice_name):
     invoice = frappe.get_doc("Sales Invoice", invoice_name)
 
     if invoice.docstatus != 1:
+        return
+
+    if invoice.posting_date and getdate(invoice.posting_date) < getdate(COURSE_UNLOCK_CUTOFF_DATE):
         return
 
     # A guest webshop order (custom_online_client only ever gets set by
