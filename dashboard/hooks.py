@@ -83,6 +83,17 @@ after_migrate = [
 # docstring. Disable/delete that Server Script once this is deployed so the
 # same recalculation doesn't run twice on every appointment save.
 doc_events = {
+    # Frappe's own communication-thread relay can queue an outgoing copy
+    # of a reply (e.g. a client's reply to a booking confirmation, with
+    # someone here in CC) using the ORIGINAL external sender's address as
+    # the envelope sender, while actually sending it through one of our
+    # own mailboxes - any properly configured mail provider correctly
+    # rejects that as spoofing. See email_queue_fixes.py's module
+    # docstring for the full story and the "553 ... not owned by user
+    # ..." error this was producing.
+    "Email Queue": {
+        "before_insert": "dashboard.api.shared.email_queue_fixes.fix_spoofed_relay_sender",
+    },
     "Event": {
         "after_insert": [
             "dashboard.api.shared.calendar.share_event_with_admins",
