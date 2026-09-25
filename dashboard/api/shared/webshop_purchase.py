@@ -102,13 +102,26 @@ def _coach_can_buy_item(item_doc, coach_brands):
     run. An item with none of the four brand flags ticked (everything
     today, and most things going forward) isn't brand-gated at all -
     only deliberately branded stock needs restricting.
+
+    A coach with NO Coach Brand Access rows at all is treated as
+    unrestricted, not as "access to nothing" - that child table was
+    historically only filled in for a coach opting into a second
+    brand's public profile page, so plenty of real, active coaches
+    simply have zero rows despite genuinely operating a brand. Blocking
+    every branded item for anyone whose data was never entered would
+    lock real coaches out of ordering real stock - the whole point of
+    this gate is to stop a mismatched brand purchase, never to punish
+    missing data.
     """
     required = {
         brand for brand, fieldname in COACH_GATED_BRAND_FIELDS.items()
         if item_doc.get(fieldname)
     }
 
-    return required.issubset(coach_brands) if required else True
+    if not required or not coach_brands:
+        return True
+
+    return required.issubset(coach_brands)
 
 # The Table fieldname add_client_contact_link_table_field.py (client_portal
 # app) added to Client - not imported from that app (this app never
