@@ -307,6 +307,78 @@ def _sync_item_default_row_raw(item_code, company):
     row.insert(ignore_permissions=True)
 
 
+def auto_setup_store_item_for_webshop(doc, method=None):
+    """Item.on_update hook - mirrors what create_store_product/
+    update_store_product/add_product_variant already do automatically
+    through the guided Store dashboard forms (an Item Default row for
+    the webshop's configured Company, priced on DEFAULT_PRICE_LIST,
+    with custom_show_on_site ticked - see _ensure_item_default_row's
+    own docstring on why a mismatch here means the product silently
+    never appears in either store listing) for a store item touched
+    directly in Desk instead, e.g. a variant or Item created/edited by
+    hand rather than through the Store dashboard. Only ever adds/repairs
+    that plumbing, never a price - Ashley still sets that herself,
+    through the store form or a direct Item Price/custom_coach_price.
+    """
+    if not doc.get("custom_store_enabled"):
+        return
+
+    try:
+        company = _store_company()
+    except Exception:
+        return
+
+    try:
+        _sync_item_default_row_raw(doc.name, company)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Store Item Auto-Setup Failed - {doc.name}")
+
+
+@frappe.whitelist()
+def backfill_store_item_default_rows():
+    """Franchisor/Store Manager-triggerable, safe to re-run any time -
+    the same one-off fix dashboard.patches.backfill_store_item_default_rows
+    runs once on deploy, for a store item that was missing its Item
+    Default row entirely (not just an existing row with the wrong
+    fields - see that patch's own docstring) at the time this deploy
+    went out, e.g. one added directly in Desk before
+    auto_setup_store_item_for_webshop existed to catch it.
+    """
+    _ensure_store_access()
+    return _backfill_store_item_default_rows()
+
+
+def _backfill_store_item_default_rows():
+    if not frappe.get_meta("Item").has_field("custom_store_enabled"):
+        return {"items_checked": 0}
+
+    try:
+        company = _store_company()
+    except Exception:
+        return {"items_checked": 0}
+
+    store_item_codes = frappe.get_all("Item", filters={"custom_store_enabled": 1}, pluck="name")
+
+    if not store_item_codes:
+        return {"items_checked": 0}
+
+    variant_codes = frappe.get_all(
+        "Item", filters={"variant_of": ["in", store_item_codes]}, pluck="name"
+    )
+
+    all_item_codes = set(store_item_codes) | set(variant_codes)
+
+    for item_code in all_item_codes:
+        try:
+            _sync_item_default_row_raw(item_code, company)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"Backfill Store Item Default Row Failed - {item_code}")
+
+    frappe.db.commit()
+
+    return {"items_checked": len(all_item_codes)}
+
+
 def _get_item_price_row(item_code, price_list):
     return frappe.db.get_value(
         "Item Price",

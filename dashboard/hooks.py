@@ -178,7 +178,10 @@ doc_events = {
     # Access for every new service). Item is a core doctype this app
     # doesn't own the JSON for, same as Coach below.
     "Item": {
-        "on_update": "dashboard.api.shared.item_access.auto_grant_access_for_new_service_item",
+        "on_update": [
+            "dashboard.api.shared.item_access.auto_grant_access_for_new_service_item",
+            "dashboard.api.shared.store_products.auto_setup_store_item_for_webshop",
+        ],
     },
     # Other half of brand-based document access - a coach's own Brand
     # Access changing (e.g. becoming a People franchisee) picks up every
