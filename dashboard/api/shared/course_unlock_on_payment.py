@@ -28,10 +28,17 @@ real payment from recording.
 """
 
 import frappe
+from frappe.utils import getdate
 
 from dashboard.api.shared import payment_utils
 from dashboard.api.shared.invoices import _client_display_name
 from dashboard.api.shared.permissions import ensure_office_user
+
+# Ashley's explicit cutoff before this feature went live: only invoices
+# dated on or after this should ever grant course access - an older
+# invoice must never retroactively unlock the course, even if it's paid
+# (or gets caught by the backfill) after this date.
+COURSE_UNLOCK_CUTOFF_DATE = "2026-03-01"
 
 
 def unlock_courses_on_payment(doc, method=None):
@@ -117,6 +124,9 @@ def _process_invoice(invoice_name):
     if invoice.docstatus != 1:
         return
 
+    if invoice.posting_date and getdate(invoice.posting_date) < getdate(COURSE_UNLOCK_CUTOFF_DATE):
+        return
+
     # A guest webshop order (custom_online_client only ever gets set by
     # webshop_purchase.py's Stripe fulfilment) already runs its own
     # course-unlock + portal-access + order-confirmation-email logic
@@ -174,36 +184,35 @@ def _process_invoice(invoice_name):
 
 
 def _resolve_client_contact(client_name):
-    """Mirrors invoices.py's get_client_email_options priority (Client's
-    own email field, then billing contact, then any contact with an
-    email on file) without its login-required permission check, since
-    this runs from inside a system hook.
+    """The course is linked to the Client, but access only ever goes to
+    whoever is actually paying the bill - the Client's own
+    billing_contact - never any other contact linked to the Client (a
+    second parent/guardian, emergency contact, etc, even if they happen
+    to have an email on file). Falls back to the Client's own email only
+    when there's no billing_contact set at all, since a self-paying
+    adult client is their own payer with no separate contact record.
     """
     client_doc = frappe.get_doc("Client", client_name)
-    client_rows = client_doc.get("client_contacts") or []
     billing_contact = client_doc.get("billing_contact")
 
-    email = (client_doc.get("email") or "").strip() if client_doc.meta.has_field("email") else ""
+    email = ""
     contact_name = None
 
-    if email:
-        for row in client_rows:
-            if (row.get("email_id") or "").strip().lower() == email.lower():
-                contact_name = row.get("contact")
-                break
-    else:
-        for row in client_rows:
-            if billing_contact and row.get("contact") == billing_contact and row.get("email_id"):
+    if billing_contact:
+        for row in client_doc.get("client_contacts") or []:
+            if row.get("contact") == billing_contact and row.get("email_id"):
                 email = row.get("email_id")
                 contact_name = row.get("contact")
                 break
 
         if not email:
-            for row in client_rows:
-                if row.get("email_id"):
-                    email = row.get("email_id")
-                    contact_name = row.get("contact")
-                    break
+            billing_email = frappe.db.get_value("Contact", billing_contact, "email_id")
+            if billing_email:
+                email = billing_email
+                contact_name = billing_contact
+
+    if not email and client_doc.meta.has_field("email"):
+        email = (client_doc.get("email") or "").strip()
 
     full_name = _client_display_name(client_name)
 
