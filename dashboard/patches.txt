@@ -126,3 +126,4 @@ dashboard.patches.add_fees_guide_practice_document
 dashboard.patches.add_safer_recruitment_checklist
 dashboard.patches.add_item_visibility_and_coach_price_list
 dashboard.patches.add_item_coach_price_field
+dashboard.patches.fix_stuck_spoofed_sender_email_queue_rows
