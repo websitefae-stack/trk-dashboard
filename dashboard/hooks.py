@@ -170,6 +170,16 @@ doc_events = {
             "dashboard.api.shared.practice_documents.sync_practice_document_brand_requirements",
         ],
     },
+    # A new service Item (has a brand flag ticked, isn't a Store product)
+    # gets Access + Show on Site granted to every coach automatically,
+    # the first time it qualifies - see item_access.auto_grant_access_
+    # for_new_service_item's own docstring for why this exists (a
+    # franchisor no longer has to remember to separately visit Item
+    # Access for every new service). Item is a core doctype this app
+    # doesn't own the JSON for, same as Coach below.
+    "Item": {
+        "on_update": "dashboard.api.shared.item_access.auto_grant_access_for_new_service_item",
+    },
     # Other half of brand-based document access - a coach's own Brand
     # Access changing (e.g. becoming a People franchisee) picks up every
     # document already tagged with that brand. See
