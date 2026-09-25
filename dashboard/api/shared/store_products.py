@@ -875,6 +875,17 @@ def update_store_product(item_code=None, item_name=None, description=None, short
     if updates:
         frappe.db.set_value("Item", item_code, updates)
 
+    # Archiving (or unarchiving) a variant template has to reach every
+    # variant underneath it too - each one carries its own disabled flag,
+    # separately checked at checkout, so archiving only the template
+    # would leave every existing size/colour still individually buyable
+    # via its own item_code.
+    if disabled is not None:
+        variant_codes = frappe.get_all("Item", filters={"variant_of": item_code}, pluck="name")
+        if variant_codes:
+            for variant_code in variant_codes:
+                frappe.db.set_value("Item", variant_code, "disabled", updates["disabled"])
+
     _sync_gallery_images_raw(item_code, _parse_json_list(gallery_images) if gallery_images is not None else None)
 
     company = _store_company()

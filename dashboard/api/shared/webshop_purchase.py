@@ -208,6 +208,15 @@ def _get_purchasable_item(item_code, company):
         frappe.throw(_("This item is not available for online purchase."))
 
     item_doc = frappe.get_doc("Item", item_code)
+
+    # Archived (Item.disabled) - already hidden from every listing
+    # (get_store_items/get_coach_store_items both filter disabled=0), but
+    # without this check here a disabled item was still directly
+    # purchasable via its own URL/item_code - "archived" needs to mean
+    # nobody can buy it either, not just that it's unlisted.
+    if item_doc.disabled:
+        frappe.throw(_("This item is not available for online purchase."))
+
     is_coach = _is_current_user_coach()
 
     # "Coach Only" items simply aren't available for anyone else to buy -

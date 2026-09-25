@@ -1,5 +1,5 @@
 {% include "dashboard/templates/includes/head/store_head.html" %}
-<script src="/assets/dashboard/js/shared/store_stock_take.js?v=1"></script>
+<script src="/assets/dashboard/js/shared/store_stock_take.js?v=2"></script>
 
 <div class="dashboard-page" id="storeStockTakePage">
   {% include "dashboard/templates/includes/sidebar/store_sidebar.html" %}
@@ -21,8 +21,29 @@
         </div>
         <p class="dashboard-help">Only products/variations with tracked (non-unlimited) stock are shown - there's nothing to count for an unlimited item.</p>
 
-        <div class="dashboard-filter-bar" style="margin-bottom:14px; grid-template-columns: 1fr;">
-          <input type="text" id="stockTakeSearch" class="dashboard-input" placeholder="Search products…">
+        <div class="dashboard-filter-bar" style="margin-bottom:14px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+          <input type="text" id="stockTakeSearch" class="dashboard-input" style="flex:1; min-width:200px;" placeholder="Search products…">
+
+          <select id="stockTakeBrandFilter" class="dashboard-select" style="width:auto;">
+            <option value="">All Brands</option>
+            <option value="custom_brand_hub">The Resilient Hub</option>
+            <option value="custom_brand_kid">The Resilient Kid</option>
+            <option value="custom_brand_teen">The Resilient Teen</option>
+            <option value="custom_brand_people">The Resilient People</option>
+            <option value="custom_brand_school">The Resilient School</option>
+          </select>
+
+          <select id="stockTakeVisibilityFilter" class="dashboard-select" style="width:auto;">
+            <option value="">Everyone + Coach Only</option>
+            <option value="Everyone">Everyone</option>
+            <option value="Coach Only">Coach Only</option>
+          </select>
+
+          <select id="stockTakeStatusFilter" class="dashboard-select" style="width:auto;">
+            <option value="active">Active only</option>
+            <option value="">Active + Archived</option>
+            <option value="archived">Archived only</option>
+          </select>
         </div>
 
         <div id="stockTakeProductList" style="max-height:360px; overflow-y:auto; border:1px solid #D9E6E6; border-radius:8px; padding:6px;">

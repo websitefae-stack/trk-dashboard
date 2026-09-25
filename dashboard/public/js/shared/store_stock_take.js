@@ -50,8 +50,18 @@
   function renderProductList() {
     const container = el("stockTakeProductList");
     const search = el("stockTakeSearch").value.trim().toLowerCase();
+    const brandField = el("stockTakeBrandFilter") ? el("stockTakeBrandFilter").value : "";
+    const visibility = el("stockTakeVisibilityFilter") ? el("stockTakeVisibilityFilter").value : "";
+    const status = el("stockTakeStatusFilter") ? el("stockTakeStatusFilter").value : "";
 
-    const filtered = products.filter((p) => !search || p.item_name.toLowerCase().includes(search));
+    const filtered = products.filter((p) => {
+      if (search && !p.item_name.toLowerCase().includes(search)) return false;
+      if (brandField && !(p.brands && p.brands[brandField])) return false;
+      if (visibility && (p.visibility || "Everyone") !== visibility) return false;
+      if (status === "active" && p.disabled) return false;
+      if (status === "archived" && !p.disabled) return false;
+      return true;
+    });
 
     if (!filtered.length) {
       container.innerHTML = '<div class="dashboard-empty">No products found.</div>';
@@ -178,6 +188,11 @@
     el("stockTakeSearch").addEventListener("input", () => {
       window.clearTimeout(searchTimer);
       searchTimer = window.setTimeout(renderProductList, 150);
+    });
+
+    ["stockTakeBrandFilter", "stockTakeVisibilityFilter", "stockTakeStatusFilter"].forEach((id) => {
+      const select = el(id);
+      if (select) select.addEventListener("change", renderProductList);
     });
 
     el("buildStockTakeBtn").addEventListener("click", buildCountSheet);
