@@ -186,10 +186,15 @@ def get_item_access_grid():
     }
 
 
-@frappe.whitelist()
-def set_item_access(item_code=None, coach=None, granted=None):
-    ensure_office_user()
-
+def _set_item_access_unchecked(item_code, coach, granted):
+    """
+    Core of set_item_access(), without the ensure_office_user() gate - for
+    internal/system-triggered callers (see auto_grant_access_for_new_
+    service_item below) that aren't a franchisor's own whitelisted API
+    call and so have no session to check permission against. Every
+    user-facing entry point still goes through set_item_access() itself,
+    which checks permission first and then just delegates here.
+    """
     item_code = (item_code or "").strip()
     coach = (coach or "").strip()
     granted = str(granted).strip().lower() in ("1", "true", "yes", "on")
@@ -224,11 +229,23 @@ def set_item_access(item_code=None, coach=None, granted=None):
                 _("No default warehouse found for {0} - please set one up before granting access.").format(company)
             )
 
-        item.append("item_defaults", {
+        new_row = {
             "company": company,
             "default_warehouse": warehouse,
             "default_price_list": DEFAULT_PRICE_LIST,
-        })
+        }
+
+        # Granting Access defaults to also showing it on site - matches
+        # "Give access to all coaches"'s own default, so a coach ticked
+        # on individually (one cell at a time, not via that bulk button)
+        # doesn't end up invisibly missing from their public page the
+        # same way "the year stuff" did. Still a plain default, not
+        # forced - unticking Show on Site afterward is a separate,
+        # deliberate action that always sticks.
+        if frappe.get_meta("Item Default").has_field("custom_show_on_site"):
+            new_row["custom_show_on_site"] = 1
+
+        item.append("item_defaults", new_row)
         item.save(ignore_permissions=True)
 
     else:
@@ -245,9 +262,14 @@ def set_item_access(item_code=None, coach=None, granted=None):
 
 
 @frappe.whitelist()
-def set_item_show_on_site(item_code=None, coach=None, show_on_site=None):
+def set_item_access(item_code=None, coach=None, granted=None):
     ensure_office_user()
+    return _set_item_access_unchecked(item_code, coach, granted)
 
+
+def _set_item_show_on_site_unchecked(item_code, coach, show_on_site):
+    """Core of set_item_show_on_site(), without the ensure_office_user()
+    gate - see _set_item_access_unchecked's own docstring for why."""
     item_code = (item_code or "").strip()
     coach = (coach or "").strip()
     show_on_site = str(show_on_site).strip().lower() in ("1", "true", "yes", "on")
@@ -282,6 +304,12 @@ def set_item_show_on_site(item_code=None, coach=None, show_on_site=None):
 
 
 @frappe.whitelist()
+def set_item_show_on_site(item_code=None, coach=None, show_on_site=None):
+    ensure_office_user()
+    return _set_item_show_on_site_unchecked(item_code, coach, show_on_site)
+
+
+@frappe.whitelist()
 def set_item_brand(item_code=None, brand_field=None, enabled=None):
     ensure_office_user()
 
@@ -304,20 +332,11 @@ def set_item_brand(item_code=None, brand_field=None, enabled=None):
     return {"ok": 1}
 
 
-@frappe.whitelist()
-def grant_item_access_to_all_coaches(item_code=None, show_on_site=None):
-    """
-    "Give access to all coaches" button next to an item - grants Access
-    (and, unless told otherwise, Show on Site) to every coach on the grid
-    in one call instead of clicking every cell in the row by hand. Skips
-    a coach entirely if their Coach record has no company set, the same
-    way a single set_item_access() call would - rather than failing the
-    whole batch over one bad record.
-    """
-    ensure_office_user()
-
+def _grant_item_access_to_all_coaches_unchecked(item_code, show_on_site=True):
+    """Core of grant_item_access_to_all_coaches(), without the
+    ensure_office_user() gate - see _set_item_access_unchecked's own
+    docstring for why."""
     item_code = (item_code or "").strip()
-    show_on_site = show_on_site is None or str(show_on_site).strip().lower() in ("1", "true", "yes", "on")
 
     if not item_code or not frappe.db.exists("Item", item_code):
         frappe.throw(_("Item not found."))
@@ -332,13 +351,30 @@ def grant_item_access_to_all_coaches(item_code=None, show_on_site=None):
 
     for coach_name in coach_names:
         try:
-            set_item_access(item_code=item_code, coach=coach_name, granted=1)
+            _set_item_access_unchecked(item_code, coach_name, 1)
             if show_on_site:
-                set_item_show_on_site(item_code=item_code, coach=coach_name, show_on_site=1)
+                _set_item_show_on_site_unchecked(item_code, coach_name, 1)
         except Exception:
             skipped.append(coach_name)
 
     return {"ok": 1, "granted": len(coach_names) - len(skipped), "skipped": skipped}
+
+
+@frappe.whitelist()
+def grant_item_access_to_all_coaches(item_code=None, show_on_site=None):
+    """
+    "Give access to all coaches" button next to an item - grants Access
+    (and, unless told otherwise, Show on Site) to every coach on the grid
+    in one call instead of clicking every cell in the row by hand. Skips
+    a coach entirely if their Coach record has no company set, the same
+    way a single set_item_access() call would - rather than failing the
+    whole batch over one bad record.
+    """
+    ensure_office_user()
+
+    show_on_site = show_on_site is None or str(show_on_site).strip().lower() in ("1", "true", "yes", "on")
+
+    return _grant_item_access_to_all_coaches_unchecked(item_code, show_on_site=show_on_site)
 
 
 # =====================================================
@@ -642,3 +678,55 @@ def sync_practice_document_resource_access(doc, method=None):
         _resync_practice_document_coaches(doc.name)
     except Exception:
         frappe.log_error(frappe.get_traceback(), f"Practice Document Resource Resync Failed - {doc.name}")
+
+
+# =====================================================
+# AUTO-GRANTING A NEW SERVICE TO EVERY COACH
+# =====================================================
+#
+# Previously a brand-new service Item (e.g. "Year 4 - Confidence Club")
+# needed a franchisor to separately visit this Item Access grid and
+# either click "Give access to all coaches" or tick Access AND Show on
+# Site for every coach by hand - easy to forget, and the individual
+# per-cell Access checkbox never set Show on Site at all (only the bulk
+# button did), which is exactly how items ended up with Access ticked
+# for a coach but Show on Site still off, invisibly missing from that
+# coach's public page. See add_item_auto_grant_field.py's patch for the
+# one-off backfill of everything already in this state.
+
+def auto_grant_access_for_new_service_item(doc, method=None):
+    """
+    Item.on_update hook. Fires on every save, but only actually grants
+    anything the first time a non-store item ends up with at least one
+    brand flag ticked (custom_brand_hub/kid/teen/people/school) - that's
+    the moment it's declared relevant to a public coach-profile site, so
+    it should just show up there without anyone having to separately
+    remember to also open Item Access for it. custom_auto_granted_
+    coach_access marks that this has already run, so it can never re-run
+    and silently undo a coach's Access/Show on Site being deliberately
+    revoked by hand later.
+
+    Store products are excluded entirely - they're never shown via Item
+    Access/get_offered_services, only via their own custom_store_enabled/
+    custom_item_visibility mechanism (see store_products.py), so running
+    this for one would just grant a meaningless "coach invoicing access"
+    row nobody asked for.
+    """
+    if not frappe.get_meta("Item").has_field("custom_auto_granted_coach_access"):
+        return
+
+    if doc.get("custom_auto_granted_coach_access"):
+        return
+
+    if doc.get("custom_store_enabled"):
+        return
+
+    if not any(doc.get(fieldname) for fieldname in BRAND_FIELDS):
+        return
+
+    try:
+        _grant_item_access_to_all_coaches_unchecked(doc.name, show_on_site=True)
+        frappe.db.set_value("Item", doc.name, "custom_auto_granted_coach_access", 1, update_modified=False)
+        frappe.db.commit()
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Auto-Grant Coach Access Failed - {doc.name}")

@@ -296,15 +296,18 @@
       if (coach) {
         const grant = getGrant(itemCode, coach.company);
         grant.access = granted;
-        if (!granted) grant.showOnSite = false;
+        // Matches the backend default: granting Access (a brand-new row,
+        // not a re-tick of one that already existed) also shows it on
+        // site straight away - only revoking Access clears it.
+        grant.showOnSite = granted ? true : false;
       }
 
       if (showOnSiteCheckbox) {
         showOnSiteCheckbox.disabled = !granted;
-        if (!granted) showOnSiteCheckbox.checked = false;
+        showOnSiteCheckbox.checked = granted;
       }
 
-      showMessage(granted ? "Access granted." : "Access removed.");
+      showMessage(granted ? "Access granted (shown on site)." : "Access removed.");
     } catch (error) {
       checkbox.checked = !granted;
       showMessage(error.message || "Could not save this change.", true);
