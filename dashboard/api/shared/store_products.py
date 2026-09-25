@@ -705,7 +705,7 @@ def get_store_products(search=None):
             + brand_fieldnames + extra_fieldnames
         ),
         order_by="item_name asc",
-        limit_page_length=1000,
+        limit_page_length=0,
     )
 
     # A variant (e.g. one specific size) has custom_store_enabled set the
