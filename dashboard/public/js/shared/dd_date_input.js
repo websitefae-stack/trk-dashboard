@@ -4,15 +4,37 @@
  * overridden with CSS or JS, it's a browser platform behaviour. This
  * converts every date input, site-wide, into a plain dd/mm/yyyy text field
  * (auto-inserting slashes as you type, always day first) paired with the
- * original native input kept alive off-screen as both the value source of
- * truth (so every existing getElementById(id).value / setValue() call
- * elsewhere keeps working unchanged) and a calendar-icon picker trigger.
+ * original native input kept alive off-screen as the value source of truth
+ * (so every existing getElementById(id).value / setValue() call elsewhere
+ * keeps working unchanged), plus a fully custom-drawn calendar popup this
+ * script owns outright.
+ *
+ * Deliberately NOT the browser's own native picker (window.showPicker()) any
+ * more - that's OS/browser chrome this script has no API to close, which is
+ * exactly what caused it to sometimes stay open after a date was clicked.
+ * Owning the popup ourselves means the click handler that sets the date is
+ * the same handler that removes the popup from the DOM - there's no "stuck
+ * open" state possible. It also lets month/year jump straight to any value
+ * via two <select> dropdowns instead of only stepping one month at a time,
+ * which is what made picking an old date of birth so slow before.
  *
  * Loaded once, globally, in shared_head.html - no other file needs to know
  * this exists.
  */
 (function () {
   "use strict";
+
+  const MONTH_NAMES = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ];
+  const WEEKDAY_LABELS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+
+  // Wide enough either direction to cover a date of birth decades back or a
+  // document expiry years ahead, without the year <select> becoming
+  // unreasonably long.
+  const YEAR_RANGE_PAST = 120;
+  const YEAR_RANGE_FUTURE = 15;
 
   function pad2(n) {
     return String(n).padStart(2, "0");
@@ -60,19 +82,6 @@
     trigger.style.display = isDisabled ? "none" : "";
   }
 
-  function openNativePicker(nativeInput) {
-    if (typeof nativeInput.showPicker === "function") {
-      try {
-        nativeInput.showPicker();
-        return;
-      } catch (error) {
-        // falls through to focus() below (showPicker throws if the input
-        // isn't visible/focusable in some browsers)
-      }
-    }
-    nativeInput.focus();
-  }
-
   function removeSuperseded(nativeInput) {
     // Earlier, narrower fixes added one-off "formatted date" labels next to
     // specific native date inputs before this global converter existed -
@@ -85,6 +94,257 @@
       const node = document.getElementById(candidateId);
       if (node) node.remove();
     });
+  }
+
+  // ---------------------------------------------------------------
+  // Custom calendar popup - a single shared instance reused for whichever
+  // field is currently open, rather than one per field.
+  // ---------------------------------------------------------------
+
+  let popupEl = null;
+  let popupState = null; // { nativeInput, textInput, descriptor, viewYear, viewMonth }
+
+  function closePopup() {
+    if (popupEl && popupEl.parentNode) popupEl.parentNode.removeChild(popupEl);
+    popupEl = null;
+    popupState = null;
+    document.removeEventListener("mousedown", handleOutsideClick, true);
+    document.removeEventListener("keydown", handlePopupKeydown, true);
+    window.removeEventListener("scroll", closePopup, true);
+    window.removeEventListener("resize", closePopup, true);
+  }
+
+  function handleOutsideClick(event) {
+    if (!popupEl) return;
+    if (popupEl.contains(event.target)) return;
+    if (popupState && (event.target === popupState.textInput || event.target === popupState.trigger)) return;
+    closePopup();
+  }
+
+  function handlePopupKeydown(event) {
+    if (event.key === "Escape") {
+      closePopup();
+      if (popupState) popupState.textInput.focus();
+    }
+  }
+
+  function daysInMonth(year, month) {
+    return new Date(year, month + 1, 0).getDate();
+  }
+
+  function selectDate(year, month, day) {
+    const iso = `${year}-${pad2(month + 1)}-${pad2(day)}`;
+    const { nativeInput, descriptor } = popupState;
+    descriptor.set.call(nativeInput, iso);
+    nativeInput.dispatchEvent(new Event("change", { bubbles: true }));
+    nativeInput.dispatchEvent(new Event("input", { bubbles: true }));
+    // Closing here - not just after some later event - is the fix for the
+    // popup previously staying open after a date was picked: this IS the
+    // click handler for the day cell, so there's no separate "did the
+    // browser decide to dismiss its own chrome" step to fail.
+    closePopup();
+  }
+
+  function renderPopup() {
+    const { viewYear, viewMonth, nativeInput } = popupState;
+    const selectedIso = nativeInput.value || "";
+    const selectedMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(selectedIso);
+    const today = new Date();
+
+    popupEl.innerHTML = "";
+
+    const header = document.createElement("div");
+    header.className = "dd-date-popup-header";
+
+    const prevBtn = document.createElement("button");
+    prevBtn.type = "button";
+    prevBtn.className = "dd-date-popup-nav";
+    prevBtn.textContent = "‹";
+    prevBtn.setAttribute("aria-label", "Previous month");
+    prevBtn.addEventListener("click", function () {
+      popupState.viewMonth -= 1;
+      if (popupState.viewMonth < 0) {
+        popupState.viewMonth = 11;
+        popupState.viewYear -= 1;
+      }
+      renderPopup();
+    });
+
+    const monthSelect = document.createElement("select");
+    monthSelect.className = "dd-date-popup-select dd-date-popup-month-select";
+    MONTH_NAMES.forEach(function (name, index) {
+      const opt = document.createElement("option");
+      opt.value = String(index);
+      opt.textContent = name;
+      if (index === viewMonth) opt.selected = true;
+      monthSelect.appendChild(opt);
+    });
+    monthSelect.addEventListener("change", function () {
+      popupState.viewMonth = parseInt(monthSelect.value, 10);
+      renderPopup();
+    });
+
+    const yearSelect = document.createElement("select");
+    yearSelect.className = "dd-date-popup-select dd-date-popup-year-select";
+    const thisYear = today.getFullYear();
+    for (let y = thisYear + YEAR_RANGE_FUTURE; y >= thisYear - YEAR_RANGE_PAST; y--) {
+      const opt = document.createElement("option");
+      opt.value = String(y);
+      opt.textContent = String(y);
+      if (y === viewYear) opt.selected = true;
+      yearSelect.appendChild(opt);
+    }
+    yearSelect.addEventListener("change", function () {
+      popupState.viewYear = parseInt(yearSelect.value, 10);
+      renderPopup();
+    });
+
+    const nextBtn = document.createElement("button");
+    nextBtn.type = "button";
+    nextBtn.className = "dd-date-popup-nav";
+    nextBtn.textContent = "›";
+    nextBtn.setAttribute("aria-label", "Next month");
+    nextBtn.addEventListener("click", function () {
+      popupState.viewMonth += 1;
+      if (popupState.viewMonth > 11) {
+        popupState.viewMonth = 0;
+        popupState.viewYear += 1;
+      }
+      renderPopup();
+    });
+
+    header.appendChild(prevBtn);
+    header.appendChild(monthSelect);
+    header.appendChild(yearSelect);
+    header.appendChild(nextBtn);
+    popupEl.appendChild(header);
+
+    const weekdayRow = document.createElement("div");
+    weekdayRow.className = "dd-date-popup-weekdays";
+    WEEKDAY_LABELS.forEach(function (label) {
+      const cell = document.createElement("span");
+      cell.textContent = label;
+      weekdayRow.appendChild(cell);
+    });
+    popupEl.appendChild(weekdayRow);
+
+    const grid = document.createElement("div");
+    grid.className = "dd-date-popup-grid";
+
+    // Monday-first grid: JS getDay() is Sunday=0, shift so Monday=0.
+    const firstOfMonth = new Date(viewYear, viewMonth, 1).getDay();
+    const leadingBlanks = (firstOfMonth + 6) % 7;
+    const total = daysInMonth(viewYear, viewMonth);
+
+    for (let i = 0; i < leadingBlanks; i++) {
+      grid.appendChild(document.createElement("span"));
+    }
+
+    for (let day = 1; day <= total; day++) {
+      const cell = document.createElement("button");
+      cell.type = "button";
+      cell.className = "dd-date-popup-day";
+      cell.textContent = String(day);
+
+      const isSelected = !!selectedMatch
+        && parseInt(selectedMatch[1], 10) === viewYear
+        && parseInt(selectedMatch[2], 10) === viewMonth + 1
+        && parseInt(selectedMatch[3], 10) === day;
+      if (isSelected) cell.classList.add("dd-date-popup-day-selected");
+
+      const isToday = today.getFullYear() === viewYear && today.getMonth() === viewMonth && today.getDate() === day;
+      if (isToday) cell.classList.add("dd-date-popup-day-today");
+
+      cell.addEventListener("click", function () {
+        selectDate(viewYear, viewMonth, day);
+      });
+
+      grid.appendChild(cell);
+    }
+
+    popupEl.appendChild(grid);
+
+    const footer = document.createElement("div");
+    footer.className = "dd-date-popup-footer";
+
+    const todayBtn = document.createElement("button");
+    todayBtn.type = "button";
+    todayBtn.className = "dd-date-popup-footer-btn";
+    todayBtn.textContent = "Today";
+    todayBtn.addEventListener("click", function () {
+      selectDate(today.getFullYear(), today.getMonth(), today.getDate());
+    });
+    footer.appendChild(todayBtn);
+
+    const clearBtn = document.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.className = "dd-date-popup-footer-btn";
+    clearBtn.textContent = "Clear";
+    clearBtn.addEventListener("click", function () {
+      const { nativeInput, descriptor } = popupState;
+      descriptor.set.call(nativeInput, "");
+      nativeInput.dispatchEvent(new Event("change", { bubbles: true }));
+      nativeInput.dispatchEvent(new Event("input", { bubbles: true }));
+      closePopup();
+    });
+    footer.appendChild(clearBtn);
+
+    popupEl.appendChild(footer);
+  }
+
+  function positionPopup(anchorEl) {
+    const rect = anchorEl.getBoundingClientRect();
+    const popupHeight = popupEl.offsetHeight;
+    const spaceBelow = window.innerHeight - rect.bottom;
+
+    const top = spaceBelow >= popupHeight + 8 || spaceBelow >= rect.top
+      ? rect.bottom + window.scrollY + 4
+      : rect.top + window.scrollY - popupHeight - 4;
+
+    let left = rect.left + window.scrollX;
+    const overflowRight = left + popupEl.offsetWidth - (window.scrollX + window.innerWidth);
+    if (overflowRight > 0) left -= overflowRight + 8;
+    if (left < 8) left = 8;
+
+    popupEl.style.top = `${top}px`;
+    popupEl.style.left = `${left}px`;
+  }
+
+  function openPopup(nativeInput, textInput, trigger, descriptor) {
+    if (popupState && popupState.nativeInput === nativeInput) {
+      closePopup();
+      return;
+    }
+
+    closePopup();
+
+    const iso = nativeInput.value || "";
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    const today = new Date();
+
+    popupEl = document.createElement("div");
+    popupEl.className = "dd-date-popup";
+    document.body.appendChild(popupEl);
+
+    popupState = {
+      nativeInput,
+      textInput,
+      trigger,
+      descriptor,
+      viewYear: match ? parseInt(match[1], 10) : today.getFullYear(),
+      viewMonth: match ? parseInt(match[2], 10) - 1 : today.getMonth(),
+    };
+
+    renderPopup();
+    positionPopup(textInput);
+
+    // Captured on the way down (not bubble) so a click landing on another
+    // dd-date trigger while this popup is open reliably counts as
+    // "outside" before that trigger's own click handler runs.
+    document.addEventListener("mousedown", handleOutsideClick, true);
+    document.addEventListener("keydown", handlePopupKeydown, true);
+    window.addEventListener("scroll", closePopup, true);
+    window.addEventListener("resize", closePopup, true);
   }
 
   function convertDateInput(nativeInput) {
@@ -147,6 +407,7 @@
       set(v) {
         descriptor.set.call(this, v);
         textInput.value = isoToDisplay(v);
+        if (popupState && popupState.nativeInput === nativeInput) renderPopup();
       },
     });
 
@@ -161,15 +422,15 @@
       textInput.select();
     });
 
-    // Typing a date by hand is how the dd/mm/yyyy scramble bug above
-    // happened in the first place - clicking into the field now opens the
-    // real calendar picker straight away (same as clicking the 📅 button),
-    // so picking a date is the natural first thing that happens rather
-    // than something only found by noticing the small trigger button.
-    // Typing is still fully possible - the picker doesn't block the field.
+    // Clicking into the field opens the calendar popup straight away (same
+    // as clicking the 📅 button), so picking a date is the natural first
+    // thing that happens rather than something only found by noticing the
+    // small trigger button. Typing is still fully possible - the popup
+    // doesn't block the field, and picking a day just fills it in as if it
+    // had been typed.
     textInput.addEventListener("click", function () {
       if (nativeInput.disabled || nativeInput.readOnly) return;
-      openNativePicker(nativeInput);
+      openPopup(nativeInput, textInput, trigger, descriptor);
     });
 
     textInput.addEventListener("input", function () {
@@ -184,6 +445,12 @@
         descriptor.set.call(nativeInput, iso);
         nativeInput.dispatchEvent(new Event("change", { bubbles: true }));
         nativeInput.dispatchEvent(new Event("input", { bubbles: true }));
+        if (popupState && popupState.nativeInput === nativeInput) {
+          const [, y, m] = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+          popupState.viewYear = parseInt(y, 10);
+          popupState.viewMonth = parseInt(m, 10) - 1;
+          renderPopup();
+        }
       } else if (textInput.value === "") {
         descriptor.set.call(nativeInput, "");
         nativeInput.dispatchEvent(new Event("change", { bubbles: true }));
@@ -199,16 +466,9 @@
       }
     });
 
-    // The native picker's own calendar UI still fires real 'change'/'input'
-    // events (unlike a programmatic .value assignment), which is what
-    // updates the visible text when someone picks a date that way.
-    nativeInput.addEventListener("change", function () {
-      textInput.value = isoToDisplay(descriptor.get.call(nativeInput));
-    });
-
     trigger.addEventListener("click", function () {
       if (nativeInput.disabled || nativeInput.readOnly) return;
-      openNativePicker(nativeInput);
+      openPopup(nativeInput, textInput, trigger, descriptor);
     });
 
     // readOnly/disabled are standard reflected boolean attributes, so a
@@ -244,7 +504,159 @@
     observer.observe(document.body, { childList: true, subtree: true });
   }
 
+  function injectStyles() {
+    if (document.getElementById("dd-date-popup-styles")) return;
+
+    const style = document.createElement("style");
+    style.id = "dd-date-popup-styles";
+    style.textContent = `
+      .dd-date-popup {
+        position: absolute;
+        /* Higher than .trk-calendar-modal-backdrop's 99990/.trk-calendar-
+           toast's 99999 (calendar.css) - many date fields this wraps live
+           inside those modals, so this must render above them or it'd be
+           invisible behind the backdrop when opened from one. */
+        z-index: 100000;
+        background: #FFFFFF;
+        border-radius: 12px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+        border: 1px solid #E6EFEF;
+        padding: 12px;
+        width: 260px;
+        font-family: inherit;
+      }
+      .dd-date-popup-header {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-bottom: 8px;
+      }
+      .dd-date-popup-nav {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 18px;
+        line-height: 1;
+        padding: 4px 6px;
+        border-radius: 6px;
+        color: #434B49;
+      }
+      .dd-date-popup-nav:hover {
+        background: #F2F8F8;
+      }
+      .dd-date-popup-select {
+        border: 1px solid #E6EFEF;
+        border-radius: 6px;
+        padding: 4px 4px;
+        font-size: 13px;
+        background: #FFFFFF;
+        color: #434B49;
+      }
+      .dd-date-popup-month-select {
+        flex: 1;
+        min-width: 0;
+      }
+      .dd-date-popup-year-select {
+        width: 78px;
+      }
+      .dd-date-popup-weekdays {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        text-align: center;
+        font-size: 11px;
+        font-weight: 700;
+        color: #839898;
+        margin-bottom: 4px;
+      }
+      .dd-date-popup-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 2px;
+      }
+      .dd-date-popup-day {
+        border: none;
+        background: none;
+        cursor: pointer;
+        padding: 6px 0;
+        border-radius: 6px;
+        font-size: 13px;
+        color: #434B49;
+      }
+      .dd-date-popup-day:hover {
+        background: #F2F8F8;
+      }
+      .dd-date-popup-day-today {
+        font-weight: 700;
+        color: #00A19A;
+      }
+      .dd-date-popup-day-selected {
+        background: #00A19A;
+        color: #FFFFFF;
+      }
+      .dd-date-popup-day-selected:hover {
+        background: #00897F;
+      }
+      .dd-date-popup-footer {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid #E6EFEF;
+      }
+      .dd-date-popup-footer-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #00A19A;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 4px 6px;
+      }
+      .dd-date-popup-footer-btn:hover {
+        text-decoration: underline;
+      }
+      .dd-date-wrap {
+        position: relative;
+        display: block;
+        width: 100%;
+      }
+      .dd-date-wrap input[type="text"] {
+        padding-right: 40px;
+      }
+      .dd-date-trigger {
+        position: absolute;
+        top: 50%;
+        right: 6px;
+        transform: translateY(-50%);
+        width: 28px;
+        height: 28px;
+        border: none;
+        background: transparent;
+        font-size: 15px;
+        line-height: 1;
+        cursor: pointer;
+        border-radius: 6px;
+      }
+      .dd-date-trigger:hover {
+        background: #F2F8F8;
+      }
+      .dd-date-native {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+        pointer-events: none;
+        padding: 0;
+        border: none;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   function init() {
+    injectStyles();
     convertAll(document);
     watchForNewDateInputs();
   }
