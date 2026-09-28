@@ -215,6 +215,55 @@
     });
   }
 
+  function csvCell(value) {
+    const str = String(value ?? "");
+    return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+  }
+
+  function downloadProductsCsv() {
+    const rows = getFilteredProducts();
+
+    const header = [
+      "Item Code", "Product Name", "SKU", "Item Group", "Status", "Visibility",
+      "Has Variants", "Price", "Coach Price", "Stock Qty", "Unlimited Stock",
+      "Hub", "Kid", "Teen", "People", "School",
+    ];
+
+    const lines = [header.map(csvCell).join(",")];
+
+    rows.forEach((product) => {
+      lines.push([
+        product.name,
+        product.item_name,
+        product.sku || "",
+        product.item_group || "",
+        product.disabled ? "Archived" : "Active",
+        product.visibility || "Everyone",
+        product.has_variants ? "Yes" : "No",
+        product.has_variants ? "" : (product.price || 0),
+        product.coach_price || "",
+        product.has_variants ? "" : (product.stock_qty || 0),
+        product.has_variants ? "" : (product.unlimited_stock ? "Yes" : "No"),
+        product.brands && product.brands.custom_brand_hub ? "Yes" : "",
+        product.brands && product.brands.custom_brand_kid ? "Yes" : "",
+        product.brands && product.brands.custom_brand_teen ? "Yes" : "",
+        product.brands && product.brands.custom_brand_people ? "Yes" : "",
+        product.brands && product.brands.custom_brand_school ? "Yes" : "",
+      ].map(csvCell).join(","));
+    });
+
+    const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const stamp = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `store-products-${stamp}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
   function renderLogoOptionRow(choice) {
     const preview = choice.image
       ? `<img src="${escapeHtml(choice.image)}" alt="" data-logo-option-preview="${escapeHtml(choice.key)}" style="width:80px; height:80px; object-fit:contain; border-radius:8px; border:1px solid #E6EFEF; display:block; margin-bottom:6px;">`
@@ -1333,6 +1382,7 @@
     });
 
     el("addProductBtn").addEventListener("click", () => openModal(null));
+    el("downloadProductsCsvBtn").addEventListener("click", downloadProductsCsv);
     el("closeStoreProductModal").addEventListener("click", closeModal);
     el("cancelStoreProductModal").addEventListener("click", closeModal);
     el("saveStoreProduct").addEventListener("click", saveProduct);
