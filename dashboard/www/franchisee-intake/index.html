@@ -38,7 +38,7 @@
       font-size: 13px;
       margin-bottom: 6px;
     }
-    .fi-field input, .fi-field select {
+    .fi-field input, .fi-field select, .fi-field textarea {
       width: 100%;
       padding: 10px 12px;
       border: 1px solid #D9E6E6;
@@ -46,6 +46,10 @@
       font-size: 14px;
       font-family: inherit;
       background: #fff;
+    }
+    .fi-field textarea {
+      min-height: 80px;
+      resize: vertical;
     }
     .fi-help { font-size: 12px; color: #839898; margin-top: 4px; }
     .fi-section-title { font-weight: 700; margin: 24px 0 4px; }
@@ -162,29 +166,29 @@
               "</div>" +
               '<div class="fi-field">' +
                 '<label for="fiAddressHistory">Address History (Last 5 Years)</label>' +
-                '<input type="text" id="fiAddressHistory" name="address_history" placeholder="List each address and the dates you lived there">' +
+                '<textarea id="fiAddressHistory" name="address_history" rows="3" placeholder="List each address and the dates you lived there"></textarea>' +
               "</div>" +
               '<div class="fi-field">' +
                 '<label for="fiOverseasChecks">Overseas Police Clearance / Working With Children Check (if you have lived/worked overseas)</label>' +
-                '<input type="text" id="fiOverseasChecks" name="overseas_checks">' +
+                '<textarea id="fiOverseasChecks" name="overseas_checks" rows="2"></textarea>' +
               "</div>" +
 
               '<div class="fi-section-title">Work History, Qualifications &amp; References</div>' +
               '<div class="fi-field">' +
                 '<label for="fiWorkHistory">Relevant Work History / Experience</label>' +
-                '<input type="text" id="fiWorkHistory" name="work_history">' +
+                '<textarea id="fiWorkHistory" name="work_history" rows="4"></textarea>' +
               "</div>" +
               '<div class="fi-field">' +
                 '<label for="fiWorkLocations">Main Work Locations / Areas</label>' +
-                '<input type="text" id="fiWorkLocations" name="work_locations">' +
+                '<textarea id="fiWorkLocations" name="work_locations" rows="2"></textarea>' +
               "</div>" +
               '<div class="fi-field">' +
                 '<label for="fiQualifications">Relevant Qualifications / Training (e.g. counselling, coaching, education, first aid, safeguarding)</label>' +
-                '<input type="text" id="fiQualifications" name="qualifications">' +
+                '<textarea id="fiQualifications" name="qualifications" rows="3"></textarea>' +
               "</div>" +
               '<div class="fi-field-row">' +
-                '<div class="fi-field"><label for="fiReference1Details">Reference 1 - Name, Relationship &amp; Contact Details</label><input type="text" id="fiReference1Details" name="reference1_details"></div>' +
-                '<div class="fi-field"><label for="fiReference2Details">Reference 2 - Name, Relationship &amp; Contact Details</label><input type="text" id="fiReference2Details" name="reference2_details"></div>' +
+                '<div class="fi-field"><label for="fiReference1Details">Reference 1 - Name, Relationship &amp; Contact Details</label><textarea id="fiReference1Details" name="reference1_details" rows="2"></textarea></div>' +
+                '<div class="fi-field"><label for="fiReference2Details">Reference 2 - Name, Relationship &amp; Contact Details</label><textarea id="fiReference2Details" name="reference2_details" rows="2"></textarea></div>' +
               "</div>" +
 
               '<div class="fi-section-title">Insurance</div>' +
