@@ -252,10 +252,10 @@
           <h3>Recognitions / Awards</h3>
           <p class="dashboard-page-subtitle">Shown on your own public profile page - e.g. an award finalist, a feature, or any achievement you'd like to showcase.</p>
 
-          <div id="myRecognitionsList" style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">
+          <div id="myRecognitionsList" style="display:flex; flex-direction:column; gap:12px; margin-bottom:24px;">
             {% if recognitions %}
               {% for r in recognitions %}
-                <div class="dashboard-lead-note" style="display:flex; align-items:flex-start; gap:12px;">
+                <div class="dashboard-lead-note" style="display:flex; align-items:flex-start; gap:14px; padding:14px;">
                   {% if r.image %}
                     <img src="{{ r.image }}" alt="" style="width:48px; height:48px; object-fit:contain; border-radius:8px; background:#fff; flex-shrink:0;">
                   {% endif %}
@@ -266,7 +266,18 @@
                     {% if r.description %}<div class="dashboard-lead-note-meta">{{ r.description }}</div>{% endif %}
                     {% if r.link_url %}<div class="dashboard-lead-note-meta"><a href="{{ r.link_url }}" target="_blank" rel="noopener noreferrer">{{ r.link_url }}</a></div>{% endif %}
                   </div>
-                  <button type="button" class="dashboard-btn dashboard-btn-light" style="color:#B3261E;" data-delete-recognition="{{ r.name }}">Delete</button>
+                  <div style="display:flex; gap:6px; flex-shrink:0;">
+                    <button
+                      type="button"
+                      class="dashboard-btn dashboard-btn-light"
+                      data-edit-recognition="{{ r.name }}"
+                      data-edit-title="{{ r.title }}"
+                      data-edit-year="{{ r.year }}"
+                      data-edit-description="{{ r.description }}"
+                      data-edit-link-url="{{ r.link_url }}"
+                    >Edit</button>
+                    <button type="button" class="dashboard-btn dashboard-btn-light" style="color:#B3261E;" data-delete-recognition="{{ r.name }}">Delete</button>
+                  </div>
                 </div>
               {% endfor %}
             {% else %}
@@ -274,15 +285,17 @@
             {% endif %}
           </div>
 
-          <form id="addMyRecognitionForm" enctype="multipart/form-data" style="display:flex; flex-wrap:wrap; gap:10px; align-items:flex-start; border-top:1px solid #E6EFEF; padding-top:14px;">
+          <form id="addMyRecognitionForm" enctype="multipart/form-data" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; border-top:1px solid #E6EFEF; padding-top:20px;">
+            <input type="hidden" name="row_name" id="myRecognitionRowName" value="">
+
             <div style="flex:1; min-width:200px;">
               <label style="display:block; font-size:13px; font-weight:600; margin-bottom:4px;">Title</label>
-              <input type="text" name="title" class="dashboard-input" placeholder="e.g. Finalist - Best Children's Wellbeing Coach 2026" required>
+              <input type="text" name="title" id="myRecognitionTitle" class="dashboard-input" placeholder="e.g. Finalist - Best Children's Wellbeing Coach 2026" required>
             </div>
 
             <div style="width:100px;">
               <label style="display:block; font-size:13px; font-weight:600; margin-bottom:4px;">Year</label>
-              <input type="text" name="year" class="dashboard-input" placeholder="2026">
+              <input type="text" name="year" id="myRecognitionYear" class="dashboard-input" placeholder="2026">
             </div>
 
             <div style="flex:1; min-width:200px;">
@@ -293,16 +306,18 @@
 
             <div style="flex:1; min-width:200px;">
               <label style="display:block; font-size:13px; font-weight:600; margin-bottom:4px;">Link URL (optional)</label>
-              <input type="text" name="link_url" class="dashboard-input" placeholder="https://...">
+              <input type="text" name="link_url" id="myRecognitionLinkUrl" class="dashboard-input" placeholder="https://...">
             </div>
 
             <div>
               <label style="display:block; font-size:13px; font-weight:600; margin-bottom:4px;">Badge / Logo Image (optional)</label>
               <input type="file" name="image" accept="image/*">
+              <p class="dashboard-help" id="myRecognitionImageHint" style="display:none; margin:2px 0 0;">Leave blank to keep the current image.</p>
             </div>
 
-            <div style="align-self:flex-end;">
-              <button type="submit" class="dashboard-btn dashboard-btn-primary">Add Recognition</button>
+            <div style="align-self:flex-end; display:flex; gap:8px;">
+              <button type="submit" class="dashboard-btn dashboard-btn-primary" id="myRecognitionSubmitBtn">Add Recognition</button>
+              <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelMyRecognitionEditBtn" style="display:none;">Cancel</button>
             </div>
           </form>
 
