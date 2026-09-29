@@ -17,6 +17,17 @@ FRANCHISOR_USERS = [
     "office@theresilienthub.co.uk",
 ]
 
+# For a notification that's genuinely meant for one specific person, not
+# a broadcast to everyone with franchisor-level access - Ashley and office
+# do different jobs, so a task that's only ever hers (or only ever
+# office's) should only ever land in that one inbox. See
+# notify_franchisors_of_expired_legal (permissions.py) and
+# _notify_next_signer/_notify_transfer_fee_invoice_failed
+# (client_transfers.py) for call sites that were wrongly looping over
+# FRANCHISOR_USERS for a single-recipient task.
+ASHLEY_USER = "ashley@theresilientkid.co.uk"
+OFFICE_USER = "office@theresilienthub.co.uk"
+
 
 def ensure_logged_in():
     if frappe.session.user == "Guest":
