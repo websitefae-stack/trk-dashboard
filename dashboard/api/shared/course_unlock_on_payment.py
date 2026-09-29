@@ -357,17 +357,19 @@ def send_welcome_emails_to_existing_course_members(dry_run=1, only_email=None):
     """One-off, office-triggered backfill - everyone already enrolled in
     an LMS course from before send_new_enrollment_welcome_email existed
     never got a welcome/login-details email at all. One email per
-    person (not per enrollment) listing every course they already have
-    access to.
+    course enrollment - someone in several courses gets a separate email
+    for each one, matching how send_new_enrollment_welcome_email already
+    behaves for anyone newly enrolled (it fires per LMS Enrollment, so
+    joining 3 courses already sends 3 emails there too).
 
     Call with no arguments (or ?dry_run=1) first - it sends nothing,
-    just returns who WOULD be emailed and what courses they'd be told
-    about, so the list can be checked before anything actually goes
-    out. Call again with ?dry_run=0 to actually send.
+    just returns who WOULD be emailed and which course each email is
+    for, so the list can be checked before anything actually goes out.
+    Call again with ?dry_run=0 to actually send.
 
     only_email restricts an actual send (dry_run=0) to just that one
     address - e.g. ?dry_run=0&only_email=you@example.com to see the real
-    email land in one inbox first, before running it for everyone.
+    email(s) land in one inbox first, before running it for everyone.
     Ignored on a dry run (which already lists everyone regardless).
     """
     ensure_office_user()
@@ -376,13 +378,6 @@ def send_welcome_emails_to_existing_course_members(dry_run=1, only_email=None):
     only_email = (only_email or "").strip().lower()
 
     enrollments = frappe.get_all("LMS Enrollment", fields=["member", "course"])
-
-    courses_by_member = {}
-    for row in enrollments:
-        member = (row.member or "").strip()
-        if not member or "@" not in member:
-            continue
-        courses_by_member.setdefault(member, []).append(row.course)
 
     people = []
     emails_sent = 0
@@ -394,14 +389,18 @@ def send_welcome_emails_to_existing_course_members(dry_run=1, only_email=None):
     only_email_matched = False
     only_email_error = None
 
-    for member, courses in courses_by_member.items():
+    for row in enrollments:
+        member = (row.member or "").strip()
+        if not member or "@" not in member:
+            continue
+
         full_name = (
             frappe.db.get_value("User", member, "full_name")
             or frappe.db.get_value("Contact", {"email_id": member}, "full_name")
             or ""
         )
-        course_titles = [frappe.db.get_value("LMS Course", c, "title") or c for c in courses]
-        people.append({"email": member, "full_name": full_name, "courses": course_titles})
+        course_title = frappe.db.get_value("LMS Course", row.course, "title") or row.course
+        people.append({"email": member, "full_name": full_name, "course": course_title})
 
         is_only_email_target = bool(only_email) and member.strip().lower() == only_email
         if is_only_email_target:
@@ -412,11 +411,11 @@ def send_welcome_emails_to_existing_course_members(dry_run=1, only_email=None):
                 from dashboard.api.shared.portal_access import _ensure_user_account
 
                 _ensure_user_account(member, full_name)
-                _send_course_access_email(member, full_name, courses)
+                _send_course_access_email(member, full_name, [row.course])
                 emails_sent += 1
             except Exception:
                 traceback_str = frappe.get_traceback()
-                frappe.log_error(traceback_str, f"Backfill Course Welcome Email Failed - {member}")
+                frappe.log_error(traceback_str, f"Backfill Course Welcome Email Failed - {member} - {row.course}")
                 if is_only_email_target:
                     only_email_error = traceback_str
 
@@ -425,7 +424,7 @@ def send_welcome_emails_to_existing_course_members(dry_run=1, only_email=None):
         "only_email": only_email or None,
         "only_email_matched": only_email_matched if only_email else None,
         "only_email_error": only_email_error,
-        "total_people": len(people),
+        "total_emails": len(people),
         "emails_actually_sent": emails_sent,
         "people": people,
     }
