@@ -177,10 +177,10 @@ def _process_invoice(invoice_name):
     from dashboard.api.shared.webshop_purchase import _ensure_portal_access
     from dashboard.api.shared.portal_access import _ensure_user_account
 
-    granted_new_portal_access = _ensure_portal_access(client_name, contact_name, email)
-    user_created = _ensure_user_account(email, full_name)
+    _ensure_portal_access(client_name, contact_name, email)
+    _ensure_user_account(email, full_name)
 
-    _send_course_access_email(email, full_name, newly_enrolled, user_created or granted_new_portal_access)
+    _send_course_access_email(email, full_name, newly_enrolled)
 
 
 def _resolve_client_contact(client_name):
@@ -248,7 +248,29 @@ def _enrol_in_courses(email, courses):
     return newly_enrolled
 
 
-def _send_course_access_email(email, full_name, courses, mention_login_details, intro_line=None):
+# The same four brand wordmarks the standalone Web Forms show in their
+# own CUSTOM_CSS (e.g. create_twilight_meeting_form.py) - those use CSS
+# background-image on a relative /files/ URL, which doesn't work in an
+# email (no stylesheet, and relative URLs don't resolve for a reader's
+# mail client), so this embeds the same four logos as absolute-URL <img>
+# tags instead.
+EMAIL_BRAND_LOGO_PATHS = [
+    "/files/TRKid_Wordmark_Logo.png",
+    "/files/TRTeen_Wordmark_Logo.png",
+    "/files/TRPeople_Wordmark_Logo.png",
+    "/files/TRSchool_Wordmark_Logo.png",
+]
+
+
+def _email_brand_logo_row():
+    logos = "".join(
+        f'<img src="{frappe.utils.get_url(path)}" alt="" style="height:36px; margin:0 10px;">'
+        for path in EMAIL_BRAND_LOGO_PATHS
+    )
+    return f'<div style="margin-top:28px; text-align:center;">{logos}</div>'
+
+
+def _send_course_access_email(email, full_name, courses):
     course_titles = [
         frappe.db.get_value("LMS Course", course, "title") or course for course in courses
     ]
@@ -257,23 +279,19 @@ def _send_course_access_email(email, full_name, courses, mention_login_details, 
     login_url = frappe.utils.get_url("/login")
     greeting = f"Hi {full_name}," if full_name else "Hi,"
 
-    intro_line = intro_line or f"Thanks for your payment - you now have free access to: <strong>{courses_line}</strong>."
-
     message = f"""
         <p>{greeting}</p>
-        <p>{intro_line}</p>
+        <p>Thank you for signing up for <strong>{courses_line}</strong>.</p>
+        <p>You can log in by <a href="{login_url}">clicking here</a>. If this is the first time logging in,
+        please set your password by clicking "Forgot Password".</p>
+        <p>If you have any questions or issues, please reach out to
+        <a href="mailto:office@theresilienthub.co.uk">office@theresilienthub.co.uk</a>.</p>
+        <p>Kind regards,<br>
+        Chantelle Venter<br>
+        Business Manager<br>
+        The Resilient Hub</p>
+        {_email_brand_logo_row()}
     """
-
-    if mention_login_details:
-        message += f"""
-            <p><a href="{login_url}">Log in to the client portal here</a> to get started.</p>
-            <p>Your username is your email address: <strong>{email}</strong></p>
-            <p>Your temporary password is your email address (the same as above). You can change this any time using "Forgot Password" on the login page.</p>
-        """
-    else:
-        message += f"""
-            <p><a href="{login_url}">Log in to the client portal here</a> to get started - use your existing login details.</p>
-        """
 
     frappe.sendmail(
         recipients=[email],
@@ -325,7 +343,4 @@ def _send_new_enrollment_welcome_email(doc):
 
     user_created = _ensure_user_account(email, full_name)
 
-    _send_course_access_email(
-        email, full_name, [doc.course], user_created,
-        intro_line="You've been given access to a new course.",
-    )
+    _send_course_access_email(email, full_name, [doc.course])

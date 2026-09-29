@@ -622,6 +622,14 @@
       const message = el("myRecognitionMessage");
       const list = el("myRecognitionsList");
 
+      const descriptionField = el("myRecognitionDescription");
+      const descriptionCount = el("myRecognitionDescriptionCount");
+      if (descriptionField && descriptionCount) {
+        descriptionField.addEventListener("input", function () {
+          descriptionCount.textContent = String(descriptionField.value.length);
+        });
+      }
+
       if (form) {
         form.addEventListener("submit", async function (event) {
           event.preventDefault();
