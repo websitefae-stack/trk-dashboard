@@ -65,9 +65,14 @@ jinja = {
 # add_item_gallery_field needs the Item Gallery Image child doctype to
 # already exist (its Custom Field on Item is fieldtype Table, options
 # "Item Gallery Image") - same ordering trap, same fix.
+#
+# add_coach_recognition_field needs the Coach Recognition child doctype
+# to already exist for the same reason (Custom Field on Coach, fieldtype
+# Table, options "Coach Recognition").
 after_migrate = [
     "dashboard.patches.create_store_manager_for_rachel_v2.execute",
     "dashboard.patches.add_item_gallery_field.execute",
+    "dashboard.patches.add_coach_recognition_field.execute",
 ]
 
 # Keep appointments Private (Frappe's own permission model then restricts
