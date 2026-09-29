@@ -4,7 +4,7 @@ from frappe.utils import now_datetime, get_url, get_fullname, flt
 
 from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user, get_current_coach_name
 from dashboard.api.shared.utils import coalesce_str, coalesce_raw
-from dashboard.api.shared.notifications import create_trk_notification, FRANCHISOR_USERS
+from dashboard.api.shared.notifications import create_trk_notification, FRANCHISOR_USERS, ASHLEY_USER
 from dashboard.api.shared.item_access import _get_coach_login, DEFAULT_PRICE_LIST
 
 
@@ -125,18 +125,20 @@ def _notify_next_signer(transfer):
     status = transfer.status
 
     if status == STATUS_AWAITING_FRANCHISOR:
-        message = "A Client Transfer Agreement for {0} needs your signature.".format(transfer.client_name)
-        for user in FRANCHISOR_USERS:
-            try:
-                create_trk_notification(
-                    recipient_user=user,
-                    notification_type="Task",
-                    message=message,
-                    reference_doctype=TRANSFER_DOCTYPE,
-                    reference_name=transfer.name,
-                )
-            except Exception:
-                frappe.log_error(frappe.get_traceback(), f"Transfer Notification Failed - {transfer.name}")
+        # Ashley's own signing step - only her, not the whole franchisor-
+        # level group, and only when it's actually her turn (this branch
+        # only runs while status is STATUS_AWAITING_FRANCHISOR, never on
+        # the receiving/transferring coach's own steps).
+        try:
+            create_trk_notification(
+                recipient_user=ASHLEY_USER,
+                notification_type="Task",
+                message="A Client Transfer Agreement for {0} needs your signature.".format(transfer.client_name),
+                reference_doctype=TRANSFER_DOCTYPE,
+                reference_name=transfer.name,
+            )
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"Transfer Notification Failed - {transfer.name}")
         return
 
     target_coach = transfer.receiving_coach if status == STATUS_AWAITING_RECEIVING else (
@@ -203,17 +205,16 @@ def _notify_transfer_fee_invoice_failed(transfer):
         _coach_label(transfer.receiving_coach),
     )
 
-    for user in FRANCHISOR_USERS:
-        try:
-            create_trk_notification(
-                recipient_user=user,
-                notification_type="Task",
-                message=message,
-                reference_doctype=TRANSFER_DOCTYPE,
-                reference_name=transfer.name,
-            )
-        except Exception:
-            frappe.log_error(frappe.get_traceback(), f"Transfer Notification Failed - {transfer.name}")
+    try:
+        create_trk_notification(
+            recipient_user=ASHLEY_USER,
+            notification_type="Task",
+            message=message,
+            reference_doctype=TRANSFER_DOCTYPE,
+            reference_name=transfer.name,
+        )
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Transfer Notification Failed - {transfer.name}")
 
 
 def _notify_transfer_declined(transfer):

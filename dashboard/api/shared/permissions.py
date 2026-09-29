@@ -1,7 +1,7 @@
 import frappe
 from frappe import _
 
-from dashboard.api.shared.notifications import create_trk_notification
+from dashboard.api.shared.notifications import create_trk_notification, OFFICE_USER
 
 
 SESSION_WORKER_DOCTYPE = "Session Worker"
@@ -679,17 +679,19 @@ def notify_franchisors_of_expired_legal(doc, dashboard_type, expired_items):
         ]),
     )
 
-    for user in FRANCHISOR_USERS:
-        create_trk_notification(
-            recipient_user=user,
-            notification_type="Task",
-            message=message,
-            priority="High",
-            reference_doctype=doc.doctype,
-            reference_name=doc.name,
-            coach=doc.name if dashboard_type == "coach" else None,
-            session_worker=doc.name if dashboard_type == "session_worker" else None,
-        )
+    # Compliance/admin tracking - office's job, not a franchisor-strategy
+    # matter, so this goes to office alone rather than every franchisor-
+    # level inbox (see ASHLEY_USER/OFFICE_USER's own docstring).
+    create_trk_notification(
+        recipient_user=OFFICE_USER,
+        notification_type="Task",
+        message=message,
+        priority="High",
+        reference_doctype=doc.doctype,
+        reference_name=doc.name,
+        coach=doc.name if dashboard_type == "coach" else None,
+        session_worker=doc.name if dashboard_type == "session_worker" else None,
+    )
 
     frappe.cache().set_value(cache_key, 1, expires_in_sec=86400)
 
