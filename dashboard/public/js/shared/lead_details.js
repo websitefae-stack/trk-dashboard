@@ -107,6 +107,23 @@
     return data.message || {};
   }
 
+  async function apiPostForm(method, formData) {
+    const response = await fetch(`/api/method/${method}`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "X-Frappe-CSRF-Token": getCsrfToken() },
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || data.exc) {
+      throw new Error(data.message || "There was a problem.");
+    }
+
+    return data.message || {};
+  }
+
   function escapeHtml(value) {
     return String(value ?? "")
       .replace(/&/g, "&amp;")
@@ -170,6 +187,40 @@
         <div class="dashboard-lead-note">
           <div class="dashboard-lead-note-text">${escapeHtml(note.note)}</div>
           <div class="dashboard-lead-note-meta">${escapeHtml(metaBits.join(" · "))}</div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function formatFileSize(bytes) {
+    if (!bytes) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function renderAttachments(attachments) {
+    const list = el("leadAttachmentsList");
+    if (!list) return;
+
+    if (!attachments || !attachments.length) {
+      list.innerHTML = '<div class="dashboard-empty">No attachments yet.</div>';
+      return;
+    }
+
+    list.innerHTML = attachments.map((file) => {
+      const addedText = file.creation ? new Date(file.creation).toLocaleString("en-GB") : "";
+      const metaBits = [];
+      if (formatFileSize(file.file_size)) metaBits.push(formatFileSize(file.file_size));
+      if (addedText) metaBits.push(`added ${addedText}`);
+
+      return `
+        <div class="dashboard-lead-note" data-attachment-row="${escapeHtml(file.name)}">
+          <div class="dashboard-lead-note-text">
+            <a href="${escapeHtml(file.file_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(file.file_name)}</a>
+          </div>
+          <div class="dashboard-lead-note-meta">${escapeHtml(metaBits.join(" · "))}</div>
+          <button type="button" class="dashboard-btn dashboard-btn-light" style="margin-top:6px; color:#B3261E;" data-delete-attachment="${escapeHtml(file.name)}">Delete</button>
         </div>
       `;
     }).join("");
@@ -1121,6 +1172,7 @@
 
     renderIntakeAnswers(lead.intake_answers || []);
     renderNotes(lead.notes || []);
+    renderAttachments(lead.attachments || []);
     renderStage1(lead);
 
     const callSection = el("leadCallSection");
@@ -1759,6 +1811,38 @@
     }
   }
 
+  async function uploadAttachment(file) {
+    const name = getValue("leadDocname");
+    const status = el("leadAttachmentStatus");
+
+    if (status) status.textContent = "Uploading...";
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("name", name);
+
+      const result = await apiPostForm(`${SHARED_API}.upload_lead_file`, formData);
+      renderAttachments(result.attachments || []);
+      if (status) status.textContent = "";
+    } catch (error) {
+      if (status) status.textContent = error.message || "Could not upload the file.";
+    }
+  }
+
+  async function deleteAttachment(fileName) {
+    const name = getValue("leadDocname");
+    if (!window.confirm("Delete this attachment?")) return;
+
+    try {
+      const result = await apiPost(`${SHARED_API}.delete_lead_file`, { name, file_name: fileName });
+      renderAttachments(result.attachments || []);
+    } catch (error) {
+      const status = el("leadAttachmentStatus");
+      if (status) status.textContent = error.message || "Could not delete the attachment.";
+    }
+  }
+
   async function deleteLead() {
     const name = getValue("leadDocname");
     if (!name) return;
@@ -1930,6 +2014,25 @@
 
     const addNoteBtn = el("addLeadNoteBtn");
     if (addNoteBtn) addNoteBtn.addEventListener("click", addNote);
+
+    const attachmentInput = el("leadAttachmentInput");
+    if (attachmentInput) {
+      attachmentInput.addEventListener("change", function () {
+        const file = attachmentInput.files && attachmentInput.files[0];
+        if (!file) return;
+        uploadAttachment(file);
+        attachmentInput.value = "";
+      });
+    }
+
+    const attachmentsList = el("leadAttachmentsList");
+    if (attachmentsList) {
+      attachmentsList.addEventListener("click", function (event) {
+        const btn = event.target.closest("[data-delete-attachment]");
+        if (!btn) return;
+        deleteAttachment(btn.dataset.deleteAttachment);
+      });
+    }
 
     initIntakeEmailModal();
     initFranchiseeEmailModal();
