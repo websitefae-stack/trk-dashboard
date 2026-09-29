@@ -45,6 +45,7 @@ def get_context(context):
     context.dbs_update_service_rows = profile_context["dbs_update_service_rows"]
     context.insurance_rows = profile_context["insurance_rows"]
     context.indemnity_rows = profile_context["indemnity_rows"]
+    context.recognitions = profile_context["recognitions"]
 
     context.has_secret_key = coach_has_secret_key(coach.name)
     context.expired_legal_items = []
