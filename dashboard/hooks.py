@@ -184,7 +184,6 @@ doc_events = {
     # doesn't own the JSON for, same as Coach below.
     "Item": {
         "on_update": [
-            "dashboard.api.shared.item_access.auto_grant_access_for_new_service_item",
             "dashboard.api.shared.store_products.auto_setup_store_item_for_webshop",
         ],
     },
