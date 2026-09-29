@@ -904,6 +904,44 @@ def sync_web_form_report_visibility(doc, method=None):
     _upsert_form_visibility_rule(target, visibility)
 
 
+@frappe.whitelist()
+def retry_create_sessional_worker_reference_form():
+    """
+    One-off diagnostic/repair, not a permanent endpoint. The
+    create_sessional_worker_reference_form patch (patches.txt) is marked
+    complete forever the instant its own execute() returns without
+    raising - including when its try/except quietly caught and logged a
+    real failure inside it. Twilight Meeting, created by the same deploy
+    with the same pattern, came through fine; this one didn't, so
+    `bench migrate` will never retry it on its own even after the bug
+    (whatever it turns out to be) is fixed.
+
+    Re-invokes the exact same _create_doctype/_create_web_form functions
+    the patch itself calls - both already check "does this exist yet"
+    first, so calling them again is always safe and just completes
+    whichever half didn't finish last time. Returns the real traceback
+    instead of swallowing it, so the actual cause is visible in one
+    request instead of guessing through another deploy cycle.
+    """
+    ensure_logged_in()
+    if not is_franchisor_user():
+        frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+    from dashboard.patches.create_sessional_worker_reference_form import _create_doctype, _create_web_form
+
+    try:
+        _create_doctype()
+        _create_web_form()
+    except Exception:
+        return {"ok": False, "error": frappe.get_traceback()}
+
+    return {
+        "ok": True,
+        "doctype_exists": bool(frappe.db.exists("DocType", "Sessional Worker Reference Response")),
+        "web_form_exists": bool(frappe.db.exists("Web Form", {"route": "sessional-worker-reference-form"})),
+    }
+
+
 def _client_display_name(client_name):
     if not client_name:
         return ""

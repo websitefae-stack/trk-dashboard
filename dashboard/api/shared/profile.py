@@ -1010,7 +1010,7 @@ def add_my_recognition(role):
     child = profile_doc.append("recognitions", {})
     child.title = title
     child.year = (frappe.form_dict.get("year") or "").strip()
-    child.description = (frappe.form_dict.get("description") or "").strip()
+    child.description = (frappe.form_dict.get("description") or "").strip()[:200]
     child.link_url = (frappe.form_dict.get("link_url") or "").strip()
     if image_url:
         child.image = image_url

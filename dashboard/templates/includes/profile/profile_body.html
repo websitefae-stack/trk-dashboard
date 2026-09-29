@@ -286,8 +286,9 @@
             </div>
 
             <div style="flex:1; min-width:200px;">
-              <label style="display:block; font-size:13px; font-weight:600; margin-bottom:4px;">Description (optional)</label>
-              <input type="text" name="description" class="dashboard-input" placeholder="A short line shown under the title">
+              <label style="display:block; font-size:13px; font-weight:600; margin-bottom:4px;">Description (optional, max 200 characters)</label>
+              <input type="text" name="description" id="myRecognitionDescription" class="dashboard-input" maxlength="200" placeholder="A short line shown under the title">
+              <p class="dashboard-help" style="margin:2px 0 0;"><span id="myRecognitionDescriptionCount">0</span>/200</p>
             </div>
 
             <div style="flex:1; min-width:200px;">
