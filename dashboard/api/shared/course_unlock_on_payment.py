@@ -386,6 +386,14 @@ def send_welcome_emails_to_existing_course_members(dry_run=1, only_email=None):
 
     people = []
     emails_sent = 0
+    # only_email is easy to mistype or to give as an address that isn't
+    # actually the one enrolled under (e.g. a personal inbox rather than
+    # the login email on the enrollment) - surfaced explicitly below
+    # rather than just quietly sending nothing, since that's exactly what
+    # a silent no-match and a silent failure both look like otherwise.
+    only_email_matched = False
+    only_email_error = None
+
     for member, courses in courses_by_member.items():
         full_name = (
             frappe.db.get_value("User", member, "full_name")
@@ -395,7 +403,11 @@ def send_welcome_emails_to_existing_course_members(dry_run=1, only_email=None):
         course_titles = [frappe.db.get_value("LMS Course", c, "title") or c for c in courses]
         people.append({"email": member, "full_name": full_name, "courses": course_titles})
 
-        if not dry_run and (not only_email or member.strip().lower() == only_email):
+        is_only_email_target = bool(only_email) and member.strip().lower() == only_email
+        if is_only_email_target:
+            only_email_matched = True
+
+        if not dry_run and (not only_email or is_only_email_target):
             try:
                 from dashboard.api.shared.portal_access import _ensure_user_account
 
@@ -403,11 +415,16 @@ def send_welcome_emails_to_existing_course_members(dry_run=1, only_email=None):
                 _send_course_access_email(member, full_name, courses)
                 emails_sent += 1
             except Exception:
-                frappe.log_error(frappe.get_traceback(), f"Backfill Course Welcome Email Failed - {member}")
+                traceback_str = frappe.get_traceback()
+                frappe.log_error(traceback_str, f"Backfill Course Welcome Email Failed - {member}")
+                if is_only_email_target:
+                    only_email_error = traceback_str
 
     return {
         "dry_run": dry_run,
         "only_email": only_email or None,
+        "only_email_matched": only_email_matched if only_email else None,
+        "only_email_error": only_email_error,
         "total_people": len(people),
         "emails_actually_sent": emails_sent,
         "people": people,
