@@ -413,6 +413,12 @@ def send_welcome_emails_to_existing_course_members(dry_run=1, only_email=None):
                 _ensure_user_account(member, full_name)
                 _send_course_access_email(member, full_name, [row.course])
                 emails_sent += 1
+                # This is invoked as a plain GET (a link, not a form
+                # POST) - Frappe rolls back the transaction at the end
+                # of a GET request unless something commits explicitly,
+                # which otherwise undoes the send with no error raised
+                # anywhere: it looks like nothing happened at all.
+                frappe.db.commit()
             except Exception:
                 traceback_str = frappe.get_traceback()
                 frappe.log_error(traceback_str, f"Backfill Course Welcome Email Failed - {member} - {row.course}")
