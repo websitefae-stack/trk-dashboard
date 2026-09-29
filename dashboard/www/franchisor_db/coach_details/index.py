@@ -2,7 +2,6 @@ import frappe
 from frappe import _
 
 from dashboard.api.shared.permissions import redirect_if_wrong_dashboard
-from dashboard.api.shared.profile import get_coach_recognitions
 
 
 def get_franchisor_display_name():
@@ -39,4 +38,3 @@ def get_context(context):
     context.dashboard_notifications_url = "/franchisor_db/notifications"
 
     context.coach = coach
-    context.recognitions = get_coach_recognitions(coach_name)

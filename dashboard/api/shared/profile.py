@@ -496,6 +496,7 @@ def get_profile_context(role):
         ) or [],
         "insurance_rows": profile_doc.get(config["legal_parentfields"]["insurance"]) or [],
         "indemnity_rows": profile_doc.get(config["legal_parentfields"]["indemnity"]) or [],
+        "recognitions": get_coach_recognitions(profile_doc.name),
     }
 
 
@@ -988,24 +989,25 @@ def get_coach_recognitions(coach_name):
 
 
 @frappe.whitelist()
-def add_coach_recognition(coach=None):
-    """Franchisor-only (see ensure_franchisor_can_access_coach) - office
-    showcasing a specific coach's own achievement (e.g. an award
-    finalist) on that coach's public profile page, separate from the
+def add_my_recognition(role):
+    """Self-service - a coach (or franchisor, who has their own public
+    profile page too) showcasing their own achievement (e.g. an award
+    finalist) on their own public profile page, separate from the
     brand-wide Recognition page. Image is optional - a text-only
     recognition (just a title) is a valid use of this too."""
-    coach_doc = ensure_franchisor_can_access_coach((coach or "").strip())
+    ensure_logged_in()
+    profile_doc = get_profile_doc(role)
 
     title = (frappe.form_dict.get("title") or "").strip()
     if not title:
         frappe.throw(_("Please enter a title."))
 
-    if not coach_doc.meta.has_field("recognitions"):
-        frappe.throw(_("This site isn't set up for coach recognitions yet."))
+    if not profile_doc.meta.has_field("recognitions"):
+        frappe.throw(_("This site isn't set up for recognitions yet."))
 
-    image_url = _save_optional_file("image", "Coach", coach_doc.name, is_private=0)
+    image_url = _save_optional_file("image", profile_doc.doctype, profile_doc.name, is_private=0)
 
-    child = coach_doc.append("recognitions", {})
+    child = profile_doc.append("recognitions", {})
     child.title = title
     child.year = (frappe.form_dict.get("year") or "").strip()
     child.description = (frappe.form_dict.get("description") or "").strip()
@@ -1013,28 +1015,29 @@ def add_coach_recognition(coach=None):
     if image_url:
         child.image = image_url
 
-    coach_doc.save(ignore_permissions=True)
+    profile_doc.save(ignore_permissions=True)
     frappe.db.commit()
 
-    return {"ok": 1, "recognitions": get_coach_recognitions(coach_doc.name)}
+    return {"ok": 1, "recognitions": get_coach_recognitions(profile_doc.name)}
 
 
 @frappe.whitelist()
-def delete_coach_recognition(coach=None, row_name=None):
-    coach_doc = ensure_franchisor_can_access_coach((coach or "").strip())
+def delete_my_recognition(role, row_name=None):
+    ensure_logged_in()
+    profile_doc = get_profile_doc(role)
     row_name = (row_name or "").strip()
 
-    if not coach_doc.meta.has_field("recognitions"):
-        frappe.throw(_("This site isn't set up for coach recognitions yet."))
+    if not profile_doc.meta.has_field("recognitions"):
+        frappe.throw(_("This site isn't set up for recognitions yet."))
 
-    coach_doc.set("recognitions", [
-        row for row in coach_doc.get("recognitions") or [] if row.name != row_name
+    profile_doc.set("recognitions", [
+        row for row in profile_doc.get("recognitions") or [] if row.name != row_name
     ])
 
-    coach_doc.save(ignore_permissions=True)
+    profile_doc.save(ignore_permissions=True)
     frappe.db.commit()
 
-    return {"ok": 1, "recognitions": get_coach_recognitions(coach_doc.name)}
+    return {"ok": 1, "recognitions": get_coach_recognitions(profile_doc.name)}
 
 
 def coach_has_secret_key(coach_name):

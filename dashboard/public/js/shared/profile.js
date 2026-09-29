@@ -616,6 +616,57 @@
     });
   }
 
+    function initRecognitions() {
+      const config = getProfileConfig();
+      const form = el("addMyRecognitionForm");
+      const message = el("myRecognitionMessage");
+      const list = el("myRecognitionsList");
+
+      if (form) {
+        form.addEventListener("submit", async function (event) {
+          event.preventDefault();
+
+          const submitBtn = form.querySelector('button[type="submit"]');
+          if (submitBtn) submitBtn.disabled = true;
+          if (message) message.textContent = "Adding...";
+
+          try {
+            const formData = new FormData(form);
+            formData.append("role", config.role);
+
+            await postForm("dashboard.api.shared.profile.add_my_recognition", formData);
+            window.location.reload();
+          } catch (error) {
+            if (message) message.textContent = error.message || "Could not add recognition.";
+            if (submitBtn) submitBtn.disabled = false;
+          }
+        });
+      }
+
+      if (list) {
+        list.addEventListener("click", async function (event) {
+          const btn = event.target.closest("[data-delete-recognition]");
+          if (!btn) return;
+
+          if (!window.confirm("Delete this recognition?")) return;
+
+          btn.disabled = true;
+
+          try {
+            const formData = new FormData();
+            formData.append("role", config.role);
+            formData.append("row_name", btn.dataset.deleteRecognition);
+
+            await postForm("dashboard.api.shared.profile.delete_my_recognition", formData);
+            window.location.reload();
+          } catch (error) {
+            if (message) message.textContent = error.message || "Could not delete recognition.";
+            btn.disabled = false;
+          }
+        });
+      }
+    }
+
     function initShortBioCounter() {
       const field = el("profile_short_bio");
       const counter = el("shortBioCount");
@@ -646,6 +697,7 @@
     initStripeSettingsForm();
     initLegalForms();
     initLegalToggleButtons();
+    initRecognitions();
   }
 
   if (document.readyState === "loading") {
