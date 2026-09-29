@@ -56,9 +56,64 @@
     });
   }
 
+  function initRecognitions() {
+    const form = document.getElementById("addCoachRecognitionForm");
+    const message = document.getElementById("coachRecognitionMessage");
+    const list = document.getElementById("coachRecognitionsList");
+
+    if (!form) return;
+
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault();
+
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
+      if (message) message.textContent = "Adding...";
+
+      try {
+        await postForm("dashboard.api.shared.profile.add_coach_recognition", new FormData(form));
+        // Simplest reliable way to show the new row in place, same as
+        // client_details.js's own file-upload handler - this page has
+        // no client-side render function for recognitions to update
+        // in place instead.
+        window.location.reload();
+      } catch (error) {
+        if (message) message.textContent = error.message || "Could not add recognition.";
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+
+    if (list) {
+      list.addEventListener("click", async function (event) {
+        const btn = event.target.closest("[data-delete-recognition]");
+        if (!btn) return;
+
+        if (!window.confirm("Delete this recognition?")) return;
+
+        btn.disabled = true;
+
+        try {
+          const formData = new FormData();
+          formData.append("coach", form.querySelector('[name="coach"]').value);
+          formData.append("row_name", btn.dataset.deleteRecognition);
+
+          await postForm("dashboard.api.shared.profile.delete_coach_recognition", formData);
+          window.location.reload();
+        } catch (error) {
+          if (message) message.textContent = error.message || "Could not delete recognition.";
+          btn.disabled = false;
+        }
+      });
+    }
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", function () {
+      init();
+      initRecognitions();
+    });
   } else {
     init();
+    initRecognitions();
   }
 })();

@@ -361,6 +361,38 @@ def _get_lead_notes(doc):
     return notes
 
 
+# attached_to_field value used for every file uploaded through
+# upload_lead_file - distinguishes these from any other File already
+# attached to a Client Lead for an unrelated reason (there isn't one
+# today, but this keeps _get_lead_attachments from ever picking up
+# something it shouldn't if that changes).
+LEAD_ATTACHMENT_FIELD = "lead_attachment"
+
+
+def _get_lead_attachments(doc):
+    rows = frappe.get_all(
+        "File",
+        filters={
+            "attached_to_doctype": LEAD_DOCTYPE,
+            "attached_to_name": doc.name,
+            "attached_to_field": LEAD_ATTACHMENT_FIELD,
+        },
+        fields=["name", "file_name", "file_url", "file_size", "creation"],
+        order_by="creation desc",
+    )
+
+    return [
+        {
+            "name": row.name,
+            "file_name": row.file_name or "",
+            "file_url": row.file_url or "",
+            "file_size": row.file_size or 0,
+            "creation": row.creation,
+        }
+        for row in rows
+    ]
+
+
 @frappe.whitelist()
 def get_lead(name=None):
     name = coalesce_str("name", name)
@@ -372,6 +404,7 @@ def get_lead(name=None):
     row["how_heard"] = doc.get("how_heard") or ""
     row["consent_given"] = int(doc.get("consent_given") or 0)
     row["notes"] = _get_lead_notes(doc)
+    row["attachments"] = _get_lead_attachments(doc)
     row["can_edit"] = 1
     row["intake_sent_on"] = doc.get("intake_sent_on")
     row["intake_completed_on"] = doc.get("intake_completed_on")
@@ -2262,6 +2295,91 @@ def add_lead_note(name=None, note=None, note_date=None):
     return {"ok": True, "notes": _get_lead_notes(doc)}
 
 
+@frappe.whitelist()
+def upload_lead_file(name=None):
+    """Attach a file to a Client Lead - same idea as Notes, for something
+    that needs to be a real document (a school reference, a referral
+    letter, a photo of a form) rather than typed text. Carried across to
+    the Client automatically on conversion - see
+    _copy_lead_attachments_to_client in convert_lead_to_client."""
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    uploaded = frappe.request.files.get("file") if frappe.request else None
+    if not uploaded:
+        frappe.throw(_("No file was uploaded."))
+
+    file_doc = frappe.get_doc({
+        "doctype": "File",
+        "file_name": secure_filename(uploaded.filename or "attachment"),
+        "attached_to_doctype": LEAD_DOCTYPE,
+        "attached_to_name": doc.name,
+        "attached_to_field": LEAD_ATTACHMENT_FIELD,
+        "is_private": 1,
+        "content": uploaded.stream.read(),
+    })
+    file_doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True, "attachments": _get_lead_attachments(doc)}
+
+
+@frappe.whitelist()
+def delete_lead_file(name=None, file_name=None):
+    name = coalesce_str("name", name)
+    file_name = coalesce_str("file_name", file_name)
+
+    doc = ensure_lead_access(name)
+
+    file_row = frappe.db.get_value(
+        "File",
+        {
+            "name": file_name,
+            "attached_to_doctype": LEAD_DOCTYPE,
+            "attached_to_name": doc.name,
+            "attached_to_field": LEAD_ATTACHMENT_FIELD,
+        },
+        "name",
+    )
+
+    if not file_row:
+        frappe.throw(_("Attachment not found."))
+
+    frappe.delete_doc("File", file_row, ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True, "attachments": _get_lead_attachments(doc)}
+
+
+def _copy_lead_attachments_to_client(doc, client_name):
+    """Best-effort - re-parents every File uploaded via upload_lead_file
+    onto the new Client so they show up on the Client's own Files tab,
+    without re-uploading (the storage path doesn't depend on which
+    document it's attached to, so this is just updating the two columns
+    that say who owns it)."""
+    try:
+        file_names = frappe.get_all(
+            "File",
+            filters={
+                "attached_to_doctype": LEAD_DOCTYPE,
+                "attached_to_name": doc.name,
+                "attached_to_field": LEAD_ATTACHMENT_FIELD,
+            },
+            pluck="name",
+        )
+
+        for file_name in file_names:
+            frappe.db.set_value("File", file_name, {
+                "attached_to_doctype": "Client",
+                "attached_to_name": client_name,
+            })
+
+        if file_names:
+            frappe.db.commit()
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Copy Lead Attachments to Client Failed - {doc.name}")
+
+
 def _intake_url(doc):
     # No query param to pre-fill - the submission is matched back to this
     # Client Lead by name afterwards instead (see
@@ -3654,6 +3772,7 @@ def convert_lead_to_client(name=None):
 
     client.insert(ignore_permissions=True)
     _attach_intake_pdf_to_client(doc, client.name)
+    _copy_lead_attachments_to_client(doc, client.name)
 
     contact_first, contact_last = _split_name(doc.contact_name)
     contact = frappe.new_doc("Contact")
@@ -3837,6 +3956,7 @@ def link_lead_to_existing_client(name=None, client=None, contact=None, field_cho
             client_doc.save(ignore_permissions=True)
 
     _attach_intake_pdf_to_client(doc, client)
+    _copy_lead_attachments_to_client(doc, client)
 
     doc.converted_client = client
     doc.converted_contact = contact

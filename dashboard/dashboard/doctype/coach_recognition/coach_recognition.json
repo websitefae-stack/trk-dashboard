@@ -1,0 +1,61 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-29 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "year",
+  "description",
+  "image",
+  "link_url"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "year",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Year",
+   "description": "e.g. 2026 - optional, shown next to the title if set."
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description",
+   "description": "A short line shown under the title on the coach's public profile page - optional."
+  },
+  {
+   "fieldname": "image",
+   "fieldtype": "Attach Image",
+   "label": "Badge / Logo Image",
+   "description": "Optional - shown alongside the title on the coach's public profile page."
+  },
+  {
+   "fieldname": "link_url",
+   "fieldtype": "Data",
+   "label": "Link URL",
+   "description": "Optional - e.g. a link to the award/announcement. Makes the title clickable."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-29 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "Coach Recognition",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

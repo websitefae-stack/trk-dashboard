@@ -959,6 +959,84 @@ def _save_optional_file(fieldname, attached_to_doctype, attached_to_name, is_pri
     return file_doc.file_url
 
 
+def get_coach_recognitions(coach_name):
+    """Read-only helper shared by the franchisor-facing manage list and
+    (via resilient_domains, which reads Coach.recognitions directly off
+    the same field - see that app's coach-profile pages) the public
+    display - a plain list of dicts, newest first."""
+    if not coach_name or not frappe.db.exists("Coach", coach_name):
+        return []
+
+    coach = frappe.get_doc("Coach", coach_name)
+
+    if not coach.meta.has_field("recognitions"):
+        return []
+
+    rows = [
+        {
+            "name": row.name,
+            "title": row.title or "",
+            "year": row.year or "",
+            "description": row.description or "",
+            "image": row.image or "",
+            "link_url": row.link_url or "",
+        }
+        for row in coach.get("recognitions") or []
+    ]
+    rows.reverse()
+    return rows
+
+
+@frappe.whitelist()
+def add_coach_recognition(coach=None):
+    """Franchisor-only (see ensure_franchisor_can_access_coach) - office
+    showcasing a specific coach's own achievement (e.g. an award
+    finalist) on that coach's public profile page, separate from the
+    brand-wide Recognition page. Image is optional - a text-only
+    recognition (just a title) is a valid use of this too."""
+    coach_doc = ensure_franchisor_can_access_coach((coach or "").strip())
+
+    title = (frappe.form_dict.get("title") or "").strip()
+    if not title:
+        frappe.throw(_("Please enter a title."))
+
+    if not coach_doc.meta.has_field("recognitions"):
+        frappe.throw(_("This site isn't set up for coach recognitions yet."))
+
+    image_url = _save_optional_file("image", "Coach", coach_doc.name, is_private=0)
+
+    child = coach_doc.append("recognitions", {})
+    child.title = title
+    child.year = (frappe.form_dict.get("year") or "").strip()
+    child.description = (frappe.form_dict.get("description") or "").strip()
+    child.link_url = (frappe.form_dict.get("link_url") or "").strip()
+    if image_url:
+        child.image = image_url
+
+    coach_doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": 1, "recognitions": get_coach_recognitions(coach_doc.name)}
+
+
+@frappe.whitelist()
+def delete_coach_recognition(coach=None, row_name=None):
+    coach_doc = ensure_franchisor_can_access_coach((coach or "").strip())
+    row_name = (row_name or "").strip()
+
+    if not coach_doc.meta.has_field("recognitions"):
+        frappe.throw(_("This site isn't set up for coach recognitions yet."))
+
+    coach_doc.set("recognitions", [
+        row for row in coach_doc.get("recognitions") or [] if row.name != row_name
+    ])
+
+    coach_doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": 1, "recognitions": get_coach_recognitions(coach_doc.name)}
+
+
 def coach_has_secret_key(coach_name):
     """
     Checks whether a Stripe secret key is already stored for this Coach

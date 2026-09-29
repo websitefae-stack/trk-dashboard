@@ -1024,20 +1024,30 @@ def _unlock_courses_for_purchase(email, item_codes):
 
     unlocked = []
 
-    for item_code in item_codes:
-        course = frappe.db.get_value("Item", item_code, "custom_unlocks_lms_course")
-        if not course:
-            continue
+    # _send_order_confirmation_emails (this function's caller) already
+    # mentions course access and portal login setup in its own order
+    # confirmation email - skip_lms_enrollment_welcome_email tells the
+    # blanket LMS Enrollment.after_insert hook (course_unlock_on_payment.
+    # send_new_enrollment_welcome_email) not to also send its own for
+    # these inserts.
+    frappe.flags.skip_lms_enrollment_welcome_email = True
+    try:
+        for item_code in item_codes:
+            course = frappe.db.get_value("Item", item_code, "custom_unlocks_lms_course")
+            if not course:
+                continue
 
-        already_enrolled = frappe.db.exists("LMS Enrollment", {"course": course, "member": email})
-        if already_enrolled:
-            continue
+            already_enrolled = frappe.db.exists("LMS Enrollment", {"course": course, "member": email})
+            if already_enrolled:
+                continue
 
-        enrollment = frappe.new_doc("LMS Enrollment")
-        enrollment.course = course
-        enrollment.member = email
-        enrollment.insert(ignore_permissions=True)
-        unlocked.append(course)
+            enrollment = frappe.new_doc("LMS Enrollment")
+            enrollment.course = course
+            enrollment.member = email
+            enrollment.insert(ignore_permissions=True)
+            unlocked.append(course)
+    finally:
+        frappe.flags.skip_lms_enrollment_welcome_email = False
 
     return unlocked
 

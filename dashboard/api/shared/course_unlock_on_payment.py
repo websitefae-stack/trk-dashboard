@@ -222,23 +222,33 @@ def _resolve_client_contact(client_name):
 def _enrol_in_courses(email, courses):
     newly_enrolled = []
 
-    for course in courses:
-        if not frappe.db.exists("LMS Course", course):
-            continue
+    # This function's own caller already sends a tailored "you now have
+    # access" email with proper login-details wording right after this
+    # returns - skip_lms_enrollment_welcome_email tells the blanket
+    # LMS Enrollment.after_insert hook (see send_new_enrollment_welcome_
+    # email below) not to also fire its own, more generic one for these
+    # inserts specifically.
+    frappe.flags.skip_lms_enrollment_welcome_email = True
+    try:
+        for course in courses:
+            if not frappe.db.exists("LMS Course", course):
+                continue
 
-        if frappe.db.exists("LMS Enrollment", {"course": course, "member": email}):
-            continue
+            if frappe.db.exists("LMS Enrollment", {"course": course, "member": email}):
+                continue
 
-        enrollment = frappe.new_doc("LMS Enrollment")
-        enrollment.course = course
-        enrollment.member = email
-        enrollment.insert(ignore_permissions=True)
-        newly_enrolled.append(course)
+            enrollment = frappe.new_doc("LMS Enrollment")
+            enrollment.course = course
+            enrollment.member = email
+            enrollment.insert(ignore_permissions=True)
+            newly_enrolled.append(course)
+    finally:
+        frappe.flags.skip_lms_enrollment_welcome_email = False
 
     return newly_enrolled
 
 
-def _send_course_access_email(email, full_name, courses, mention_login_details):
+def _send_course_access_email(email, full_name, courses, mention_login_details, intro_line=None):
     course_titles = [
         frappe.db.get_value("LMS Course", course, "title") or course for course in courses
     ]
@@ -247,9 +257,11 @@ def _send_course_access_email(email, full_name, courses, mention_login_details):
     login_url = frappe.utils.get_url("/login")
     greeting = f"Hi {full_name}," if full_name else "Hi,"
 
+    intro_line = intro_line or f"Thanks for your payment - you now have free access to: <strong>{courses_line}</strong>."
+
     message = f"""
         <p>{greeting}</p>
-        <p>Thanks for your payment - you now have free access to: <strong>{courses_line}</strong>.</p>
+        <p>{intro_line}</p>
     """
 
     if mention_login_details:
@@ -268,4 +280,52 @@ def _send_course_access_email(email, full_name, courses, mention_login_details):
         subject=f"You now have access to {course_titles[0]}" if len(course_titles) == 1 else "You now have access to your new course",
         message=message,
         now=True,
+    )
+
+
+def send_new_enrollment_welcome_email(doc, method=None):
+    """LMS Enrollment.after_insert hook - catches every enrollment that
+    ISN'T already handled by one of this app's own flows (the payment
+    unlock above, webshop_purchase.py's checkout unlock, or
+    resilient_domains' self-service course signup - each of those sets
+    skip_lms_enrollment_welcome_email around its own insert() and sends
+    its own, more specific email straight after). Chiefly this is a
+    coach or office member adding someone to a course by hand - in Desk,
+    or via Frappe LMS's own "Add student"/enrol UI - neither of which
+    ever emails the person anything on their own, which is the actual
+    "no thank-you/login-details email" gap this closes.
+
+    Every failure is caught and logged, never raised - this must never
+    block an enrollment from saving.
+    """
+    if frappe.flags.get("skip_lms_enrollment_welcome_email"):
+        return
+
+    try:
+        _send_new_enrollment_welcome_email(doc)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"LMS Enrollment Welcome Email Failed - {doc.name}")
+
+
+def _send_new_enrollment_welcome_email(doc):
+    email = (doc.member or "").strip()
+    if not email or "@" not in email:
+        return
+
+    if not frappe.db.exists("LMS Course", doc.course):
+        return
+
+    full_name = (
+        frappe.db.get_value("User", email, "full_name")
+        or frappe.db.get_value("Contact", {"email_id": email}, "full_name")
+        or ""
+    )
+
+    from dashboard.api.shared.portal_access import _ensure_user_account
+
+    user_created = _ensure_user_account(email, full_name)
+
+    _send_course_access_email(
+        email, full_name, [doc.course], user_created,
+        intro_line="You've been given access to a new course.",
     )
