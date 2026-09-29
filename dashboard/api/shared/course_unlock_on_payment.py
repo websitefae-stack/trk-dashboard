@@ -263,14 +263,17 @@ EMAIL_BRAND_LOGO_PATHS = [
 
 
 def _email_brand_logo_row():
-    # width/height set as real HTML attributes, not just inline CSS -
-    # Outlook (and several other mail clients) ignore CSS sizing on
-    # <img> entirely and fall back to the image's native pixel size,
-    # which is how these ended up rendering huge - the attributes are
-    # what those clients actually honour.
+    # height set as a real HTML attribute, not just inline CSS - Outlook
+    # (and several other mail clients) ignore CSS sizing on <img>
+    # entirely and fall back to the image's native pixel size, which is
+    # how these ended up rendering huge. width is deliberately left
+    # unset (as both an attribute and in CSS): these logos are wordmarks,
+    # not square icons, so a fixed width squashed/stretched them - with
+    # only height constrained, every mail client (Outlook included)
+    # scales width to match the image's own aspect ratio automatically.
     logos = "".join(
-        f'<img src="{frappe.utils.get_url(path)}" alt="" width="50" height="50" '
-        f'style="width:50px; height:50px; object-fit:contain; margin:0 6px; border:0;">'
+        f'<img src="{frappe.utils.get_url(path)}" alt="" height="80" '
+        f'style="height:80px; margin:0 8px; border:0; vertical-align:middle;">'
         for path in EMAIL_BRAND_LOGO_PATHS
     )
     return f'<div style="margin-top:28px; text-align:center;">{logos}</div>'
