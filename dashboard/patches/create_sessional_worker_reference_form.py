@@ -221,10 +221,8 @@ def _doctype_fields():
         {
             "fieldname": "safeguarding_concerns",
             "fieldtype": "Select",
-            "label": (
-                "Are You Aware of Any Safeguarding Concerns, Disciplinary Matters or "
-                "Allegations Relating to Their Conduct With Children or Vulnerable People?"
-            ),
+            "label": "Are You Aware of Any Safeguarding Concerns or Allegations Relating to Their Conduct With Children or Vulnerable People?",
+            "description": "Including any disciplinary matters.",
             "options": YES_NO_OPTIONS,
             "reqd": 1,
         },
