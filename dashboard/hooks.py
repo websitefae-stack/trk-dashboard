@@ -299,6 +299,17 @@ doc_events = {
     "Payment Entry": {
         "on_submit": "dashboard.api.shared.course_unlock_on_payment.unlock_courses_on_payment",
     },
+    # Catches an enrolment created any other way (a coach/office member
+    # adding someone to a course by hand in Desk, or via Frappe LMS's own
+    # enrol UI) that none of this app's own payment/webshop/signup flows
+    # went through - those all set skip_lms_enrollment_welcome_email
+    # around their own insert() and send their own email already, so this
+    # only ever fires for the gap: an enrolment nobody told this app
+    # about, which previously got no email at all. See
+    # course_unlock_on_payment.py's send_new_enrollment_welcome_email.
+    "LMS Enrollment": {
+        "after_insert": "dashboard.api.shared.course_unlock_on_payment.send_new_enrollment_welcome_email",
+    },
 }
 
 # Two independent LMS Course settings - "Show on Website" (opt-in
