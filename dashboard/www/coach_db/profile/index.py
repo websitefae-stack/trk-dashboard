@@ -7,6 +7,7 @@ from dashboard.api.shared.profile import (
     get_profile_display_name,
     coach_has_secret_key,
     get_coach_login_links,
+    get_coach_recognitions,
 )
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 
@@ -59,6 +60,7 @@ def get_context(context):
         context.dbs_update_service_rows = coach.get("dbs_update_services") or []
         context.insurance_rows = coach.get("insurance") or []
         context.indemnity_rows = coach.get("indemnity") or []
+        context.recognitions = get_coach_recognitions(coach.name)
 
         context.has_secret_key = coach_has_secret_key(coach.name)
         context.login_links = get_coach_login_links(coach)
@@ -83,6 +85,7 @@ def get_context(context):
         context.dbs_update_service_rows = profile_context["dbs_update_service_rows"]
         context.insurance_rows = profile_context["insurance_rows"]
         context.indemnity_rows = profile_context["indemnity_rows"]
+        context.recognitions = profile_context["recognitions"]
 
         context.has_secret_key = coach_has_secret_key(coach.name)
         context.login_links = get_coach_login_links(coach)
