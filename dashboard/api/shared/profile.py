@@ -1022,6 +1022,48 @@ def add_my_recognition(role):
 
 
 @frappe.whitelist()
+def update_my_recognition(role, row_name=None):
+    """Edits an existing recognition in place, rather than deleting and
+    re-adding - image is only replaced if a new file is actually chosen
+    (same "leave blank to keep the current one" convention as the
+    profile photo/legal document uploads), so fixing just the title or
+    year doesn't lose an already-uploaded badge image."""
+    ensure_logged_in()
+    profile_doc = get_profile_doc(role)
+    row_name = (row_name or "").strip()
+
+    if not profile_doc.meta.has_field("recognitions"):
+        frappe.throw(_("This site isn't set up for recognitions yet."))
+
+    child = None
+    for row in profile_doc.get("recognitions") or []:
+        if row.name == row_name:
+            child = row
+            break
+
+    if not child:
+        frappe.throw(_("Recognition not found."))
+
+    title = (frappe.form_dict.get("title") or "").strip()
+    if not title:
+        frappe.throw(_("Please enter a title."))
+
+    image_url = _save_optional_file("image", profile_doc.doctype, profile_doc.name, is_private=0)
+
+    child.title = title
+    child.year = (frappe.form_dict.get("year") or "").strip()
+    child.description = (frappe.form_dict.get("description") or "").strip()[:200]
+    child.link_url = (frappe.form_dict.get("link_url") or "").strip()
+    if image_url:
+        child.image = image_url
+
+    profile_doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": 1, "recognitions": get_coach_recognitions(profile_doc.name)}
+
+
+@frappe.whitelist()
 def delete_my_recognition(role, row_name=None):
     ensure_logged_in()
     profile_doc = get_profile_doc(role)

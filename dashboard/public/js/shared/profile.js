@@ -630,22 +630,45 @@
         });
       }
 
+      const submitBtn = el("myRecognitionSubmitBtn");
+      const cancelBtn = el("cancelMyRecognitionEditBtn");
+      const rowNameField = el("myRecognitionRowName");
+      const imageHint = el("myRecognitionImageHint");
+
+      function resetToAddMode() {
+        if (form) form.reset();
+        if (rowNameField) rowNameField.value = "";
+        if (submitBtn) submitBtn.textContent = "Add Recognition";
+        if (cancelBtn) cancelBtn.style.display = "none";
+        if (imageHint) imageHint.style.display = "none";
+        if (descriptionCount) descriptionCount.textContent = "0";
+      }
+
+      if (cancelBtn) {
+        cancelBtn.addEventListener("click", resetToAddMode);
+      }
+
       if (form) {
         form.addEventListener("submit", async function (event) {
           event.preventDefault();
 
-          const submitBtn = form.querySelector('button[type="submit"]');
+          const isEditing = !!(rowNameField && rowNameField.value);
+
           if (submitBtn) submitBtn.disabled = true;
-          if (message) message.textContent = "Adding...";
+          if (message) message.textContent = isEditing ? "Saving..." : "Adding...";
 
           try {
             const formData = new FormData(form);
             formData.append("role", config.role);
 
-            await postForm("dashboard.api.shared.profile.add_my_recognition", formData);
+            const method = isEditing
+              ? "dashboard.api.shared.profile.update_my_recognition"
+              : "dashboard.api.shared.profile.add_my_recognition";
+
+            await postForm(method, formData);
             window.location.reload();
           } catch (error) {
-            if (message) message.textContent = error.message || "Could not add recognition.";
+            if (message) message.textContent = error.message || "Could not save recognition.";
             if (submitBtn) submitBtn.disabled = false;
           }
         });
@@ -653,23 +676,40 @@
 
       if (list) {
         list.addEventListener("click", async function (event) {
-          const btn = event.target.closest("[data-delete-recognition]");
-          if (!btn) return;
+          const editBtn = event.target.closest("[data-edit-recognition]");
+          if (editBtn) {
+            if (rowNameField) rowNameField.value = editBtn.dataset.editRecognition;
+            if (el("myRecognitionTitle")) el("myRecognitionTitle").value = editBtn.dataset.editTitle || "";
+            if (el("myRecognitionYear")) el("myRecognitionYear").value = editBtn.dataset.editYear || "";
+            if (descriptionField) {
+              descriptionField.value = editBtn.dataset.editDescription || "";
+              if (descriptionCount) descriptionCount.textContent = String(descriptionField.value.length);
+            }
+            if (el("myRecognitionLinkUrl")) el("myRecognitionLinkUrl").value = editBtn.dataset.editLinkUrl || "";
+            if (submitBtn) submitBtn.textContent = "Save Changes";
+            if (cancelBtn) cancelBtn.style.display = "";
+            if (imageHint) imageHint.style.display = "";
+            if (form) form.scrollIntoView({ behavior: "smooth", block: "center" });
+            return;
+          }
+
+          const deleteBtn = event.target.closest("[data-delete-recognition]");
+          if (!deleteBtn) return;
 
           if (!window.confirm("Delete this recognition?")) return;
 
-          btn.disabled = true;
+          deleteBtn.disabled = true;
 
           try {
             const formData = new FormData();
             formData.append("role", config.role);
-            formData.append("row_name", btn.dataset.deleteRecognition);
+            formData.append("row_name", deleteBtn.dataset.deleteRecognition);
 
             await postForm("dashboard.api.shared.profile.delete_my_recognition", formData);
             window.location.reload();
           } catch (error) {
             if (message) message.textContent = error.message || "Could not delete recognition.";
-            btn.disabled = false;
+            deleteBtn.disabled = false;
           }
         });
       }

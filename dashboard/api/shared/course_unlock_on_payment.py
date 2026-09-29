@@ -263,8 +263,14 @@ EMAIL_BRAND_LOGO_PATHS = [
 
 
 def _email_brand_logo_row():
+    # width/height set as real HTML attributes, not just inline CSS -
+    # Outlook (and several other mail clients) ignore CSS sizing on
+    # <img> entirely and fall back to the image's native pixel size,
+    # which is how these ended up rendering huge - the attributes are
+    # what those clients actually honour.
     logos = "".join(
-        f'<img src="{frappe.utils.get_url(path)}" alt="" style="height:36px; margin:0 10px;">'
+        f'<img src="{frappe.utils.get_url(path)}" alt="" width="50" height="50" '
+        f'style="width:50px; height:50px; object-fit:contain; margin:0 6px; border:0;">'
         for path in EMAIL_BRAND_LOGO_PATHS
     )
     return f'<div style="margin-top:28px; text-align:center;">{logos}</div>'
@@ -344,3 +350,51 @@ def _send_new_enrollment_welcome_email(doc):
     user_created = _ensure_user_account(email, full_name)
 
     _send_course_access_email(email, full_name, [doc.course])
+
+
+@frappe.whitelist()
+def send_welcome_emails_to_existing_course_members(dry_run=1):
+    """One-off, office-triggered backfill - everyone already enrolled in
+    an LMS course from before send_new_enrollment_welcome_email existed
+    never got a welcome/login-details email at all. One email per
+    person (not per enrollment) listing every course they already have
+    access to.
+
+    Call with no arguments (or ?dry_run=1) first - it sends nothing,
+    just returns who WOULD be emailed and what courses they'd be told
+    about, so the list can be checked before anything actually goes
+    out. Call again with ?dry_run=0 to actually send.
+    """
+    ensure_office_user()
+
+    dry_run = str(dry_run).strip().lower() not in ("0", "false", "no")
+
+    enrollments = frappe.get_all("LMS Enrollment", fields=["member", "course"])
+
+    courses_by_member = {}
+    for row in enrollments:
+        member = (row.member or "").strip()
+        if not member or "@" not in member:
+            continue
+        courses_by_member.setdefault(member, []).append(row.course)
+
+    people = []
+    for member, courses in courses_by_member.items():
+        full_name = (
+            frappe.db.get_value("User", member, "full_name")
+            or frappe.db.get_value("Contact", {"email_id": member}, "full_name")
+            or ""
+        )
+        course_titles = [frappe.db.get_value("LMS Course", c, "title") or c for c in courses]
+        people.append({"email": member, "full_name": full_name, "courses": course_titles})
+
+        if not dry_run:
+            try:
+                from dashboard.api.shared.portal_access import _ensure_user_account
+
+                _ensure_user_account(member, full_name)
+                _send_course_access_email(member, full_name, courses)
+            except Exception:
+                frappe.log_error(frappe.get_traceback(), f"Backfill Course Welcome Email Failed - {member}")
+
+    return {"dry_run": dry_run, "total_people": len(people), "people": people}
