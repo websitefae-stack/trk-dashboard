@@ -353,7 +353,7 @@ def _send_new_enrollment_welcome_email(doc):
 
 
 @frappe.whitelist()
-def send_welcome_emails_to_existing_course_members(dry_run=1):
+def send_welcome_emails_to_existing_course_members(dry_run=1, only_email=None):
     """One-off, office-triggered backfill - everyone already enrolled in
     an LMS course from before send_new_enrollment_welcome_email existed
     never got a welcome/login-details email at all. One email per
@@ -364,10 +364,16 @@ def send_welcome_emails_to_existing_course_members(dry_run=1):
     just returns who WOULD be emailed and what courses they'd be told
     about, so the list can be checked before anything actually goes
     out. Call again with ?dry_run=0 to actually send.
+
+    only_email restricts an actual send (dry_run=0) to just that one
+    address - e.g. ?dry_run=0&only_email=you@example.com to see the real
+    email land in one inbox first, before running it for everyone.
+    Ignored on a dry run (which already lists everyone regardless).
     """
     ensure_office_user()
 
     dry_run = str(dry_run).strip().lower() not in ("0", "false", "no")
+    only_email = (only_email or "").strip().lower()
 
     enrollments = frappe.get_all("LMS Enrollment", fields=["member", "course"])
 
@@ -379,6 +385,7 @@ def send_welcome_emails_to_existing_course_members(dry_run=1):
         courses_by_member.setdefault(member, []).append(row.course)
 
     people = []
+    emails_sent = 0
     for member, courses in courses_by_member.items():
         full_name = (
             frappe.db.get_value("User", member, "full_name")
@@ -388,13 +395,20 @@ def send_welcome_emails_to_existing_course_members(dry_run=1):
         course_titles = [frappe.db.get_value("LMS Course", c, "title") or c for c in courses]
         people.append({"email": member, "full_name": full_name, "courses": course_titles})
 
-        if not dry_run:
+        if not dry_run and (not only_email or member.strip().lower() == only_email):
             try:
                 from dashboard.api.shared.portal_access import _ensure_user_account
 
                 _ensure_user_account(member, full_name)
                 _send_course_access_email(member, full_name, courses)
+                emails_sent += 1
             except Exception:
                 frappe.log_error(frappe.get_traceback(), f"Backfill Course Welcome Email Failed - {member}")
 
-    return {"dry_run": dry_run, "total_people": len(people), "people": people}
+    return {
+        "dry_run": dry_run,
+        "only_email": only_email or None,
+        "total_people": len(people),
+        "emails_actually_sent": emails_sent,
+        "people": people,
+    }
