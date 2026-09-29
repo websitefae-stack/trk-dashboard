@@ -40,5 +40,9 @@ def execute():
     if not frappe.db.exists("DocType", "Coach Recognition"):
         return
 
-    create_custom_fields({"Coach": COACH_FIELDS}, ignore_validate=True)
-    frappe.db.commit()
+    try:
+        create_custom_fields({"Coach": COACH_FIELDS}, ignore_validate=True)
+        frappe.db.commit()
+    except Exception:
+        frappe.db.rollback()
+        frappe.log_error(frappe.get_traceback(), "add_coach_recognition_field failed")

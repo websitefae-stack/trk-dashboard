@@ -286,8 +286,12 @@ def _doctype_fields():
 
 
 def execute():
-    _create_doctype()
-    _create_web_form()
+    try:
+        _create_doctype()
+        _create_web_form()
+    except Exception:
+        frappe.db.rollback()
+        frappe.log_error(frappe.get_traceback(), "create_sessional_worker_reference_form failed")
 
 
 def _create_doctype():
