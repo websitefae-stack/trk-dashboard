@@ -680,53 +680,9 @@ def sync_practice_document_resource_access(doc, method=None):
         frappe.log_error(frappe.get_traceback(), f"Practice Document Resource Resync Failed - {doc.name}")
 
 
-# =====================================================
-# AUTO-GRANTING A NEW SERVICE TO EVERY COACH
-# =====================================================
-#
-# Previously a brand-new service Item (e.g. "Year 4 - Confidence Club")
-# needed a franchisor to separately visit this Item Access grid and
-# either click "Give access to all coaches" or tick Access AND Show on
-# Site for every coach by hand - easy to forget, and the individual
-# per-cell Access checkbox never set Show on Site at all (only the bulk
-# button did), which is exactly how items ended up with Access ticked
-# for a coach but Show on Site still off, invisibly missing from that
-# coach's public page. See add_item_auto_grant_field.py's patch for the
-# one-off backfill of everything already in this state.
-
-def auto_grant_access_for_new_service_item(doc, method=None):
-    """
-    Item.on_update hook. Fires on every save, but only actually grants
-    anything the first time a non-store item ends up with at least one
-    brand flag ticked (custom_brand_hub/kid/teen/people/school) - that's
-    the moment it's declared relevant to a public coach-profile site, so
-    it should just show up there without anyone having to separately
-    remember to also open Item Access for it. custom_auto_granted_
-    coach_access marks that this has already run, so it can never re-run
-    and silently undo a coach's Access/Show on Site being deliberately
-    revoked by hand later.
-
-    Store products are excluded entirely - they're never shown via Item
-    Access/get_offered_services, only via their own custom_store_enabled/
-    custom_item_visibility mechanism (see store_products.py), so running
-    this for one would just grant a meaningless "coach invoicing access"
-    row nobody asked for.
-    """
-    if not frappe.get_meta("Item").has_field("custom_auto_granted_coach_access"):
-        return
-
-    if doc.get("custom_auto_granted_coach_access"):
-        return
-
-    if doc.get("custom_store_enabled"):
-        return
-
-    if not any(doc.get(fieldname) for fieldname in BRAND_FIELDS):
-        return
-
-    try:
-        _grant_item_access_to_all_coaches_unchecked(doc.name, show_on_site=True)
-        frappe.db.set_value("Item", doc.name, "custom_auto_granted_coach_access", 1, update_modified=False)
-        frappe.db.commit()
-    except Exception:
-        frappe.log_error(frappe.get_traceback(), f"Auto-Grant Coach Access Failed - {doc.name}")
+# Auto-granting a brand-new service to every coach on save (Item.on_update
+# -> auto_grant_access_for_new_service_item) was removed - new items and
+# new coaches must both start with no access, granted deliberately via
+# this page's own "Give access to all coaches" button or per-cell
+# checkboxes, never automatically. See grant_item_access_to_all_coaches
+# below for the same underlying grant, now opt-in only.
