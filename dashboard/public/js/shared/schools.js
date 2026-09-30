@@ -47,12 +47,12 @@
   function renderCard(school) {
     // "2/5 sent" - how many of the sequence's emails have actually gone
     // out so far (active_sequence.current_step) out of the total steps
-    // in that sequence - replaces the old raw contact count, which
-    // wasn't useful at a glance for a school mid-outreach. Omitted
-    // entirely (not "0/0") for a school with no Active enrollment right
-    // now (New/Idle/Responded/Customer/Declined).
+    // in that sequence - replaces both the old raw contact count and
+    // the area, neither of which said anything about where a school
+    // actually is in its outreach. Omitted entirely (not "0/0") for a
+    // school with no Active enrollment right now (New/Idle/Responded/
+    // Customer/Declined).
     const parts = [];
-    if (school.area) parts.push(escapeHtml(school.area));
     if (school.active_sequence) {
       parts.push(`${school.active_sequence.current_step}/${school.active_sequence.total_steps} sent`);
     }
