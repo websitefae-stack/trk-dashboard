@@ -1271,7 +1271,7 @@ def stock_take_update(updates=None):
 # priced higher, each with its own stock count)
 # -------------------------------------------------------------------
 
-def _create_variant_item(template, attribute_values, price, stock_qty, unlimited_stock, company, image=None, sku=None, weight=None):
+def _create_variant_item(template, attribute_values, price, stock_qty, unlimited_stock, company, image=None, sku=None):
     suffix = "-".join(_slugify(v) for v in attribute_values.values()) or "VAR"
     item_code = f"{template.name}-{suffix}"
 
@@ -1290,12 +1290,12 @@ def _create_variant_item(template, attribute_values, price, stock_qty, unlimited
     if sku and _item_meta_has_field("custom_sku"):
         variant.custom_sku = sku.strip()
 
-    # Weight is always entered in grams for a variant (no unit picker in
-    # the compact variant tables - see the simple-product form, which is
-    # the only place a Store Manager can pick kg instead).
-    if weight is not None and _item_meta_has_field("custom_weight"):
-        variant.custom_weight = _to_float(weight)
-        variant.custom_weight_unit = "g"
+    # Weight is deliberately never per-variant - every size/colour of the
+    # same product weighs the same for shipping purposes, set once on the
+    # template (custom_weight/_weight_unit) via the main product form -
+    # see webshop_purchase.py's _get_purchasable_item(), which resolves a
+    # variant's shipping weight from its own template.name rather than
+    # reading anything off the variant Item itself.
 
     if image:
         variant.image = image
@@ -1329,7 +1329,8 @@ def _create_variant_item(template, attribute_values, price, stock_qty, unlimited
 def create_variant_store_product(item_name=None, description=None, short_description=None, item_group=None,
                                   brands=None, image=None, attributes=None, variants=None, sku=None,
                                   gallery_images=None, personalization_enabled=None, personalization_label=None,
-                                  logo_choice_enabled=None, visibility=None, coach_price=None):
+                                  logo_choice_enabled=None, visibility=None, coach_price=None,
+                                  weight=None, weight_unit=None):
     """
     attributes: [{"attribute": "Size", "values": ["Small", "Large"]}, ...]
     variants: [{"attribute_values": {"Size": "Small"}, "price": 10,
@@ -1340,11 +1341,13 @@ def create_variant_store_product(item_name=None, description=None, short_descrip
     Default/Item Price/stock - exactly what webshop_purchase.py's
     get_item_or_variants() already knows how to read for checkout.
 
-    coach_price is a single flat rate stored on the template only, never
-    per-variant - a coach pays the same price no matter which size/colour
-    they buy, unlike the regular price which does vary by variant. See
-    webshop_purchase.py's _get_purchasable_item(), which looks this up via
-    the variant's own variant_of rather than its own item_code.
+    coach_price and weight are both a single value stored on the
+    template only, never per-variant - a coach pays the same price no
+    matter which size/colour they buy, and every size/colour of the
+    same product weighs the same for shipping purposes, unlike the
+    regular price which does vary by variant. See webshop_purchase.py's
+    _get_purchasable_item(), which looks both up via the variant's own
+    variant_of rather than its own item_code.
     """
     _ensure_store_access()
 
@@ -1428,6 +1431,10 @@ def create_variant_store_product(item_name=None, description=None, short_descrip
         if sku and _item_meta_has_field("custom_sku"):
             template.custom_sku = sku.strip()
 
+        if weight is not None and _item_meta_has_field("custom_weight"):
+            template.custom_weight = _to_float(weight)
+            template.custom_weight_unit = (weight_unit or "g").strip() or "g"
+
         _apply_personalization(template, personalization_enabled, personalization_label)
         _apply_logo_choice(template, logo_choice_enabled)
 
@@ -1471,7 +1478,6 @@ def create_variant_store_product(item_name=None, description=None, short_descrip
                 company,
                 image=variant_image,
                 sku=variant_spec.get("sku"),
-                weight=variant_spec.get("weight"),
             )
             created.append(variant_name)
 
@@ -1499,8 +1505,6 @@ def get_product_variants(template_item_code=None):
     variant_fields = ["name", "item_name", "image", "disabled", "custom_stock_qty", "custom_unlimited_stock"]
     if _item_meta_has_field("custom_sku"):
         variant_fields.append("custom_sku")
-    if _item_meta_has_field("custom_weight"):
-        variant_fields.append("custom_weight")
 
     variants = frappe.get_all(
         "Item",
@@ -1531,14 +1535,13 @@ def get_product_variants(template_item_code=None):
             "price": price_row.price_list_rate if price_row else 0,
             "attributes": {row.attribute: row.attribute_value for row in attr_rows},
             "sku": variant.get("custom_sku") or "",
-            "weight": variant.get("custom_weight") or 0,
         })
 
     return result
 
 
 @frappe.whitelist()
-def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=None, disabled=None, image=None, sku=None, weight=None):
+def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=None, disabled=None, image=None, sku=None):
     _ensure_store_access()
 
     item_code = (item_code or "").strip()
@@ -1548,9 +1551,6 @@ def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=N
 
     if sku is not None and _item_meta_has_field("custom_sku"):
         frappe.db.set_value("Item", item_code, "custom_sku", sku.strip())
-
-    if weight is not None and _item_meta_has_field("custom_weight"):
-        frappe.db.set_value("Item", item_code, {"custom_weight": _to_float(weight), "custom_weight_unit": "g"})
 
     if stock_qty is not None:
         frappe.db.set_value("Item", item_code, "custom_stock_qty", _to_int(stock_qty))
@@ -1606,7 +1606,7 @@ def delete_variant(item_code=None):
 
 @frappe.whitelist()
 def add_product_variant(template_item_code=None, attribute_values=None, price=None, stock_qty=None,
-                         unlimited_stock=None, sku=None, image=None, weight=None):
+                         unlimited_stock=None, sku=None, image=None):
     """Adds one new variant (e.g. a size that wasn't offered when the
     product was first set up) onto an existing variant template, without
     touching anything already there - unlike create_variant_store_product,
@@ -1667,7 +1667,6 @@ def add_product_variant(template_item_code=None, attribute_values=None, price=No
             company,
             image=(image or "").strip(),
             sku=sku,
-            weight=weight,
         )
 
     frappe.db.commit()
@@ -1677,7 +1676,7 @@ def add_product_variant(template_item_code=None, attribute_values=None, price=No
 
 @frappe.whitelist()
 def add_product_variants_bulk(template_item_code=None, attribute_value_lists=None, price=None, stock_qty=None,
-                               unlimited_stock=None, weight=None):
+                               unlimited_stock=None):
     """
     Generates every combination across several values per attribute in
     one go (e.g. 20 Colours x 6 Sizes = up to 120 variants) instead of
@@ -1786,7 +1785,6 @@ def add_product_variants_bulk(template_item_code=None, attribute_value_lists=Non
                 stock_qty,
                 unlimited_stock,
                 company,
-                weight=weight,
             )
             created.append(variant_name)
             existing_combos.add(combo_key)
