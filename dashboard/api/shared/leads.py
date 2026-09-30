@@ -3415,6 +3415,16 @@ def _create_supplementary_contact(full_name, email, mobile, primary_contact_name
     if full_name.lower() == (primary_contact_name or "").strip().lower():
         return None
 
+    # Only catches "same name as the lead's own contact" above - a
+    # caregiver/next of kin already on file under a different name (or
+    # from an entirely different lead/flow) with this same email would
+    # otherwise still get a duplicate Contact.
+    email = (email or "").strip()
+    if email:
+        existing = frappe.db.get_value("Contact Email", {"email_id": email}, "parent")
+        if existing:
+            return existing
+
     first, last = _split_name(full_name)
     contact = frappe.new_doc("Contact")
     contact.first_name = first
@@ -3774,16 +3784,29 @@ def convert_lead_to_client(name=None):
     _attach_intake_pdf_to_client(doc, client.name)
     _copy_lead_attachments_to_client(doc, client.name)
 
-    contact_first, contact_last = _split_name(doc.contact_name)
-    contact = frappe.new_doc("Contact")
-    contact.first_name = contact_first
-    if contact_last:
-        contact.last_name = contact_last
-    if doc.contact_email:
-        contact.append("email_ids", {"email_id": doc.contact_email, "is_primary": 1})
-    if doc.contact_mobile:
-        contact.append("phone_nos", {"phone": doc.contact_mobile, "is_primary_mobile_no": 1})
-    contact.insert(ignore_permissions=True)
+    # This lead's own contact email may already have a Contact from
+    # another flow entirely (e.g. they'd already bought something
+    # online, or were a supplementary contact on a different lead) -
+    # reusing it instead of creating another is what keeps "one email =
+    # one Contact" true, rather than just within lead conversions.
+    existing_contact = (
+        frappe.db.get_value("Contact Email", {"email_id": doc.contact_email}, "parent")
+        if doc.contact_email else None
+    )
+
+    if existing_contact:
+        contact = frappe.get_doc("Contact", existing_contact)
+    else:
+        contact_first, contact_last = _split_name(doc.contact_name)
+        contact = frappe.new_doc("Contact")
+        contact.first_name = contact_first
+        if contact_last:
+            contact.last_name = contact_last
+        if doc.contact_email:
+            contact.append("email_ids", {"email_id": doc.contact_email, "is_primary": 1})
+        if doc.contact_mobile:
+            contact.append("phone_nos", {"phone": doc.contact_mobile, "is_primary_mobile_no": 1})
+        contact.insert(ignore_permissions=True)
 
     if client_meta.has_field("client_contacts"):
         client.append("client_contacts", {
