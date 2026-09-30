@@ -32,7 +32,7 @@ from dashboard.dashboard.doctype.webshop_payment_settings.webshop_payment_settin
 from dashboard.api.shared.email_templates import plain_text_to_email_html
 from dashboard.api.shared.item_access import _get_coach_login, COACH_ONLY_PRICE_LIST
 from dashboard.api.shared.invoices import _get_bank_account_gl_account, _get_current_coach, _coach_label
-from dashboard.api.shared.store_products import _get_coach_price
+from dashboard.api.shared.store_products import _get_coach_price, _as_administrator
 from dashboard.api.shared import payment_utils
 from dashboard.api.shared.email_groups import add_to_email_group
 from dashboard.api.shared.store_coupons import calculate_checkout_discount, record_coupon_use
@@ -1162,134 +1162,146 @@ def _fulfil_checkout_session(session):
     coach = checkout.coach or ""
     settings = get_settings()
 
-    online_client_name = _get_or_create_online_client(
-        full_name=checkout.full_name,
-        email=email,
-        phone=checkout.phone,
-        address_line1=checkout.address_line1,
-        address_line2=checkout.address_line2,
-        city=checkout.city,
-        postcode=checkout.postcode,
-        country=checkout.country,
-        coach=coach,
-    )
-    online_client = frappe.get_doc(ONLINE_CLIENT_DOCTYPE, online_client_name)
-
-    add_to_email_group(online_client.email, WEBSHOP_CUSTOMERS_EMAIL_GROUP, full_name=online_client.full_name)
-
-    customer_name = _get_or_create_customer_for_contact(
-        online_client.email, online_client.full_name, online_client.get("phone")
-    )
-
-    contact_name = frappe.db.get_value("Contact Email", {"email_id": email}, "parent")
-
-    client_name, is_new_client = _get_or_create_portal_client(
-        full_name=online_client.full_name, email=email, phone=online_client.get("phone") or "",
-    )
-    granted_new_portal_access = _ensure_portal_access(client_name, contact_name, email)
-
-    if granted_new_portal_access:
-        _ensure_portal_login(email, online_client.full_name)
-
-    invoice = frappe.new_doc("Sales Invoice")
-    invoice.customer = customer_name
-    invoice.company = settings.company
-    invoice.posting_date = nowdate()
-    invoice.due_date = nowdate()
-
-    if invoice.meta.has_field("custom_online_client"):
-        invoice.custom_online_client = online_client_name
-    if invoice.meta.has_field("custom_client"):
-        invoice.custom_client = client_name
-    if invoice.meta.has_field("custom_stripe_session_id"):
-        invoice.custom_stripe_session_id = stripe_session_id
-
-    item_codes = []
-    price_list = None
-
-    for line in checkout.items:
-        item_codes.append(line.item_code)
-
-        if price_list is None:
-            price_list = _default_price_list_for_item(line.item_code, settings.company)
-
-        invoice.append("items", {
-            "item_code": line.item_code,
-            "item_name": line.item_name,
-            "qty": line.qty,
-            "rate": line.rate,
-        })
-
-    if price_list:
-        invoice.selling_price_list = price_list
-
-    if checkout.get("discount_amount"):
-        invoice.apply_discount_on = "Grand Total"
-        invoice.discount_amount = checkout.discount_amount
-
-    if hasattr(invoice, "set_missing_values"):
-        invoice.set_missing_values()
-    if hasattr(invoice, "calculate_taxes_and_totals"):
-        invoice.calculate_taxes_and_totals()
-
-    invoice.insert(ignore_permissions=True)
-    invoice.submit()
-
-    paid_to_account = _get_bank_account_gl_account(settings.bank_account)
-
-    payment_utils.build_and_submit_payment_entry(
-        invoice_name=invoice.name,
-        paid_to_account=paid_to_account,
-        payment_date=nowdate(),
-        remarks=f"Stripe payment for online order {invoice.name} (session {stripe_session_id})",
-        final_amount=invoice.grand_total,
-        reference_no=stripe_session_id,
-    )
-
-    unlocked_courses = _unlock_courses_for_purchase(email, item_codes)
-
-    checkout.status = "Paid"
-    if checkout.meta.has_field("invoice"):
-        checkout.invoice = invoice.name
-    checkout.save(ignore_permissions=True)
-
-    if checkout.get("coupon_code"):
-        try:
-            record_coupon_use(checkout.coupon_code)
-        except Exception:
-            # The discount itself was already honoured via Stripe -
-            # a failure to bump the usage counter shouldn't undo an
-            # already-paid order.
-            frappe.log_error(frappe.get_traceback(), f"Could not record coupon use - {checkout.name}")
-
-    frappe.db.commit()
-
-    invoice.reload()
-
-    digital_files = []
-
-    if frappe.get_meta("Item").has_field("custom_digital_file"):
-        for line in checkout.items:
-            file_url = frappe.db.get_value("Item", line.item_code, "custom_digital_file")
-            if file_url:
-                digital_files.append({"item_name": line.item_name, "url": file_url})
-
-    try:
-        _send_order_confirmation_emails(
-            invoice, online_client, checkout.items, settings, coach,
-            digital_files=digital_files,
-            granted_new_portal_access=granted_new_portal_access,
-            unlocked_courses=unlocked_courses,
-            coupon_code=checkout.get("coupon_code"),
-            discount_amount=checkout.get("discount_amount") or 0,
+    # Stripe's webhook call has no Frappe session at all - it runs as
+    # Guest, which has no role permissions on plenty of what fulfilment
+    # touches along the way (Bank Account, Account/GL lookups inside
+    # payment_utils' Payment Entry, etc.), not just the docs already
+    # covered by an explicit ignore_permissions=True below. A real,
+    # already-paid order hit exactly this: "PermissionError: User don't
+    # have permissions to select/read this account" partway through,
+    # which rolled back everything - no invoice, no course unlock, no
+    # email - despite Stripe having already taken the money. This global
+    # flag (not frappe.set_user, which would also reassign session.sid)
+    # covers every nested read/write for the rest of fulfilment.
+    with _as_administrator():
+        online_client_name = _get_or_create_online_client(
+            full_name=checkout.full_name,
+            email=email,
+            phone=checkout.phone,
+            address_line1=checkout.address_line1,
+            address_line2=checkout.address_line2,
+            city=checkout.city,
+            postcode=checkout.postcode,
+            country=checkout.country,
+            coach=coach,
         )
-    except Exception:
-        # The order itself is already paid and recorded - a failed email
-        # shouldn't look like a failed purchase to Stripe (which would
-        # otherwise keep retrying the whole webhook, re-running everything
-        # above against the now-idempotency-guarded checkout/invoice for
-        # nothing).
-        frappe.log_error(frappe.get_traceback(), f"Order Confirmation Email Failed - {invoice.name}")
+        online_client = frappe.get_doc(ONLINE_CLIENT_DOCTYPE, online_client_name)
+
+        add_to_email_group(online_client.email, WEBSHOP_CUSTOMERS_EMAIL_GROUP, full_name=online_client.full_name)
+
+        customer_name = _get_or_create_customer_for_contact(
+            online_client.email, online_client.full_name, online_client.get("phone")
+        )
+
+        contact_name = frappe.db.get_value("Contact Email", {"email_id": email}, "parent")
+
+        client_name, is_new_client = _get_or_create_portal_client(
+            full_name=online_client.full_name, email=email, phone=online_client.get("phone") or "",
+        )
+        granted_new_portal_access = _ensure_portal_access(client_name, contact_name, email)
+
+        if granted_new_portal_access:
+            _ensure_portal_login(email, online_client.full_name)
+
+        invoice = frappe.new_doc("Sales Invoice")
+        invoice.customer = customer_name
+        invoice.company = settings.company
+        invoice.posting_date = nowdate()
+        invoice.due_date = nowdate()
+
+        if invoice.meta.has_field("custom_online_client"):
+            invoice.custom_online_client = online_client_name
+        if invoice.meta.has_field("custom_client"):
+            invoice.custom_client = client_name
+        if invoice.meta.has_field("custom_stripe_session_id"):
+            invoice.custom_stripe_session_id = stripe_session_id
+
+        item_codes = []
+        price_list = None
+
+        for line in checkout.items:
+            item_codes.append(line.item_code)
+
+            if price_list is None:
+                price_list = _default_price_list_for_item(line.item_code, settings.company)
+
+            invoice.append("items", {
+                "item_code": line.item_code,
+                "item_name": line.item_name,
+                "qty": line.qty,
+                "rate": line.rate,
+            })
+
+        if price_list:
+            invoice.selling_price_list = price_list
+
+        if checkout.get("discount_amount"):
+            invoice.apply_discount_on = "Grand Total"
+            invoice.discount_amount = checkout.discount_amount
+
+        if hasattr(invoice, "set_missing_values"):
+            invoice.set_missing_values()
+        if hasattr(invoice, "calculate_taxes_and_totals"):
+            invoice.calculate_taxes_and_totals()
+
+        invoice.insert(ignore_permissions=True)
+        invoice.submit()
+
+        paid_to_account = _get_bank_account_gl_account(settings.bank_account)
+
+        payment_utils.build_and_submit_payment_entry(
+            invoice_name=invoice.name,
+            paid_to_account=paid_to_account,
+            payment_date=nowdate(),
+            remarks=f"Stripe payment for online order {invoice.name} (session {stripe_session_id})",
+            final_amount=invoice.grand_total,
+            reference_no=stripe_session_id,
+        )
+
+        unlocked_courses = _unlock_courses_for_purchase(email, item_codes)
+
+        checkout.status = "Paid"
+        if checkout.meta.has_field("invoice"):
+            checkout.invoice = invoice.name
+        checkout.save(ignore_permissions=True)
+
+        if checkout.get("coupon_code"):
+            try:
+                record_coupon_use(checkout.coupon_code)
+            except Exception:
+                # The discount itself was already honoured via Stripe -
+                # a failure to bump the usage counter shouldn't undo an
+                # already-paid order.
+                frappe.log_error(frappe.get_traceback(), f"Could not record coupon use - {checkout.name}")
+
+        frappe.db.commit()
+
+        invoice.reload()
+
+        digital_files = []
+
+        if frappe.get_meta("Item").has_field("custom_digital_file"):
+            for line in checkout.items:
+                file_url = frappe.db.get_value("Item", line.item_code, "custom_digital_file")
+                if file_url:
+                    digital_files.append({"item_name": line.item_name, "url": file_url})
+
+        try:
+            _send_order_confirmation_emails(
+                invoice, online_client, checkout.items, settings, coach,
+                digital_files=digital_files,
+                granted_new_portal_access=granted_new_portal_access,
+                unlocked_courses=unlocked_courses,
+                coupon_code=checkout.get("coupon_code"),
+                discount_amount=checkout.get("discount_amount") or 0,
+            )
+        except Exception:
+            # The order itself is already paid and recorded - a failed email
+            # shouldn't look like a failed purchase to Stripe (which would
+            # otherwise keep retrying the whole webhook, re-running everything
+            # above against the now-idempotency-guarded checkout/invoice for
+            # nothing).
+            frappe.log_error(frappe.get_traceback(), f"Order Confirmation Email Failed - {invoice.name}")
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
