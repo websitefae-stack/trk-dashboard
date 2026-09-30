@@ -36,16 +36,60 @@ def _variant_label(item_code):
     return ", ".join(f"{row.attribute}: {row.attribute_value}" for row in attr_rows)
 
 
-def _order_totals(checkout_name):
+def _is_course_only_checkout(checkout_name, item_codes=None):
+    """True if every item in this checkout unlocks a course rather than
+    being something to pack and post - see store_products._ensure_
+    course_item. A pure course purchase never belongs in this list at
+    all, since there's nothing to ship - a cart mixing a course with a
+    real product still does, since there's still something to send."""
+    if item_codes is None:
+        item_codes = frappe.get_all(
+            "Webshop Checkout Item",
+            filters={"parent": checkout_name, "parenttype": ORDER_DOCTYPE},
+            pluck="item_code",
+        )
+
+    unique_codes = {code for code in item_codes if code}
+
+    if not unique_codes or not frappe.get_meta("Item").has_field("custom_unlocks_lms_course"):
+        return False
+
+    course_item_count = frappe.db.count(
+        "Item",
+        {"name": ["in", list(unique_codes)], "custom_unlocks_lms_course": ["not in", ["", None]]},
+    )
+
+    return course_item_count == len(unique_codes)
+
+
+def _order_amount_paid(checkout_name, invoice_name, subtotal):
+    """The actual amount charged via Stripe, not the pre-discount sum of
+    line items - a coupon (or any other discount) applied at checkout
+    means the Webshop Checkout Item rows' own rate*qty overstates what
+    the customer was actually charged. The linked Sales Invoice's own
+    grand_total already has that discount applied - reused here rather
+    than recomputed, so this can never drift from what Stripe actually
+    took."""
+    if invoice_name and frappe.db.exists("Sales Invoice", invoice_name):
+        grand_total = frappe.db.get_value("Sales Invoice", invoice_name, "grand_total")
+        if grand_total is not None:
+            return grand_total
+
+    discount_amount = frappe.db.get_value(ORDER_DOCTYPE, checkout_name, "discount_amount") or 0
+    return max(subtotal - discount_amount, 0)
+
+
+def _order_totals(checkout_name, invoice_name=None):
     rows = frappe.get_all(
         "Webshop Checkout Item",
         filters={"parent": checkout_name, "parenttype": ORDER_DOCTYPE},
-        fields=["qty", "rate", "currency"],
+        fields=["item_code", "qty", "rate", "currency"],
     )
 
-    total = sum((row.qty or 0) * (row.rate or 0) for row in rows)
+    subtotal = sum((row.qty or 0) * (row.rate or 0) for row in rows)
     item_count = sum(row.qty or 0 for row in rows)
     currency = rows[0].currency if rows else "GBP"
+    total = _order_amount_paid(checkout_name, invoice_name, subtotal)
 
     return total, item_count, currency
 
@@ -100,7 +144,10 @@ def get_store_orders(search=None, status=None):
     result = []
 
     for order in orders:
-        total, item_count, currency = _order_totals(order.name)
+        if _is_course_only_checkout(order.name):
+            continue
+
+        total, item_count, currency = _order_totals(order.name, order.invoice)
 
         result.append({
             "name": order.name,
@@ -137,8 +184,11 @@ def get_store_order(name=None):
     if order.status not in ORDER_STATUSES:
         frappe.throw(_("This checkout was never paid, so it isn't an order."))
 
+    if _is_course_only_checkout(name, [row.item_code for row in order.items or []]):
+        frappe.throw(_("This was a course purchase, not something to pack and ship."))
+
     items = []
-    total = 0
+    subtotal = 0
 
     item_meta = frappe.get_meta("Item")
     item_fields = ["image"]
@@ -147,7 +197,7 @@ def get_store_order(name=None):
 
     for row in order.items or []:
         amount = (row.qty or 0) * (row.rate or 0)
-        total += amount
+        subtotal += amount
 
         item_info = frappe.db.get_value("Item", row.item_code, item_fields, as_dict=True) or {}
 
@@ -183,7 +233,7 @@ def get_store_order(name=None):
         "shipped_on": str(order.shipped_on or ""),
         "tracking_number": order.tracking_number or "",
         "items": items,
-        "total": total,
+        "total": _order_amount_paid(name, order.invoice, subtotal),
         "currency": items[0]["currency"] if items else "GBP",
     }
 

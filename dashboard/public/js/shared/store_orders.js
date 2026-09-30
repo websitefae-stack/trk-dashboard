@@ -74,9 +74,9 @@
   }
 
   function statusBadgeClass(status) {
-    if (status === "Shipped") return "dashboard-status-active";
-    if (status === "Packed") return "dashboard-status-archived";
-    return "dashboard-status-onhold"; // Paid - needs packing
+    if (status === "Paid") return "dashboard-status-active"; // green - needs packing/shipping now
+    if (status === "Packed") return "dashboard-status-onhold"; // orange - in progress
+    return "dashboard-status-archived"; // Shipped - grey, done
   }
 
   function renderRow(order) {
