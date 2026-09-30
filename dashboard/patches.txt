@@ -136,3 +136,4 @@ dashboard.patches.create_twilight_meeting_form
 dashboard.patches.create_sessional_worker_reference_form
 dashboard.patches.sync_course_store_items
 dashboard.patches.add_online_contact_to_sales_invoice
+dashboard.patches.add_item_weight_field

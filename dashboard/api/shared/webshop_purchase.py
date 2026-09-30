@@ -36,6 +36,12 @@ from dashboard.api.shared.email_templates import plain_text_to_email_html, wrap_
 from dashboard.api.shared.item_access import _get_coach_login, COACH_ONLY_PRICE_LIST
 from dashboard.api.shared.invoices import _get_bank_account_gl_account, _get_current_coach, _coach_label
 from dashboard.api.shared.store_products import _get_coach_price
+from dashboard.api.shared.store_shipping import (
+    item_weight_grams,
+    is_shippable_item,
+    calculate_shipping_amount,
+    _ensure_shipping_item,
+)
 from dashboard.api.shared import payment_utils
 from dashboard.api.shared.email_groups import add_to_email_group
 from dashboard.api.shared.store_coupons import calculate_checkout_discount, record_coupon_use
@@ -366,6 +372,10 @@ def _get_purchasable_item(item_code, company):
         "personalization_enabled": bool(item_doc.get("custom_personalization_enabled")),
         "personalization_label": item_doc.get("custom_personalization_label") or "",
         "logo_choice_enabled": bool(item_doc.get("custom_logo_choice_enabled")),
+        # Only ever contributes to create_checkout_session's shipping
+        # calculation below - a course or digital download always reads
+        # as 0 here regardless of what's on the Item, see is_shippable_item.
+        "weight_grams": item_weight_grams(item_doc) if is_shippable_item(item_doc) else 0,
     }
 
 
@@ -391,6 +401,47 @@ def get_purchasable_item(item_code=None):
         "personalization_label": item["personalization_label"],
         "logo_choice_enabled": item["logo_choice_enabled"],
     }
+
+
+@frappe.whitelist(allow_guest=True)
+def estimate_cart_shipping(items=None):
+    """Cart page's own shipping preview, shown before Stripe - the same
+    weight/band calculation create_checkout_session applies for real
+    (see that function's own use of calculate_shipping_amount), just
+    without _get_purchasable_item's full purchasability checks (stock,
+    coach-only visibility, etc.) - this is only ever a preview, and
+    checkout re-validates and re-prices everything for real anyway, so a
+    momentarily out-of-stock item shouldn't break the cart page's own
+    running total."""
+    cart_lines = _parse_cart_items(items)
+
+    if not cart_lines:
+        return {"shipping_amount": 0}
+
+    item_meta = frappe.get_meta("Item")
+    if not item_meta.has_field("custom_weight"):
+        return {"shipping_amount": 0}
+
+    fields = ["name", "custom_weight", "custom_weight_unit"]
+    if item_meta.has_field("custom_unlocks_lms_course"):
+        fields.append("custom_unlocks_lms_course")
+    if item_meta.has_field("custom_digital_file"):
+        fields.append("custom_digital_file")
+
+    item_rows = frappe.get_all(
+        "Item",
+        filters={"name": ["in", [line["item_code"] for line in cart_lines]]},
+        fields=fields,
+    )
+    items_by_code = {row.name: row for row in item_rows}
+
+    total_grams = 0
+    for line in cart_lines:
+        item = items_by_code.get(line["item_code"])
+        if item and is_shippable_item(item):
+            total_grams += item_weight_grams(item) * line["qty"]
+
+    return {"shipping_amount": calculate_shipping_amount(total_grams)}
 
 
 @frappe.whitelist(allow_guest=True)
@@ -601,6 +652,8 @@ def create_checkout_session(
 
     line_items = []
     priced_lines = []
+    total_shippable_grams = 0
+    cart_currency = "GBP"
 
     for line in cart_lines:
         item = _get_purchasable_item(line["item_code"], settings.company)
@@ -610,6 +663,8 @@ def create_checkout_session(
             frappe.throw(_("{0} cannot be purchased online right now.").format(item["item_name"]))
 
         priced_lines.append({"item_code": item["item_code"], "qty": line["qty"], "price": item["rate"]})
+        total_shippable_grams += _to_float(item.get("weight_grams")) * line["qty"]
+        cart_currency = item["currency"] or cart_currency
 
         checkout.append("items", {
             "item_code": item["item_code"],
@@ -628,6 +683,35 @@ def create_checkout_session(
                 "unit_amount": unit_amount,
             },
             "quantity": line["qty"],
+        })
+
+    # A flat fee by the cart's combined physical weight (see Webshop
+    # Shipping Settings) - never charged on a course/digital-only cart
+    # (total_shippable_grams stays 0, since _get_purchasable_item's own
+    # weight_grams already reads as 0 for those regardless of what's on
+    # the Item) and never reached at all by create_coach_store_order,
+    # which doesn't call this function.
+    shipping_amount = calculate_shipping_amount(total_shippable_grams)
+
+    if shipping_amount > 0:
+        shipping_item_code = _ensure_shipping_item(settings.company)
+        shipping_unit_amount = int(round(shipping_amount * 100))
+
+        checkout.append("items", {
+            "item_code": shipping_item_code,
+            "item_name": "Shipping",
+            "qty": 1,
+            "rate": shipping_amount,
+            "currency": cart_currency,
+        })
+
+        line_items.append({
+            "price_data": {
+                "currency": cart_currency.lower(),
+                "product_data": {"name": "Shipping"},
+                "unit_amount": shipping_unit_amount,
+            },
+            "quantity": 1,
         })
 
     # Re-validated here rather than trusted from the browser - a coupon
