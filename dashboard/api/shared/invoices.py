@@ -2534,6 +2534,22 @@ def get_client_statement_email_defaults(client_name=None):
 # logo/header rather than looking like a different, unbranded document.
 STATEMENT_LETTERHEAD = "Resilient Kid"
 
+DEFAULT_INVOICE_LETTERHEAD = "Resilient Kid"
+ONLINE_PURCHASE_LETTERHEAD = "Resilient People"
+
+
+def _letterhead_for_invoice(doc):
+    """Any merch/course sale via the online Store checkout is always
+    invoiced under The Resilient People branding (Ashley's own call),
+    regardless of which brand the item itself belongs to - custom_
+    online_client is set on every one of these (see webshop_purchase.py's
+    _fulfil_checkout_session), unlike custom_client which can be blank.
+    Everything else (coaching-session invoices, etc.) keeps the existing
+    Resilient Kid letterhead unchanged."""
+    if doc.get("custom_online_client"):
+        return ONLINE_PURCHASE_LETTERHEAD
+    return DEFAULT_INVOICE_LETTERHEAD
+
 
 def _statement_letterhead_html(context_doc=None):
     """
@@ -2863,7 +2879,7 @@ def send_invoice_email(docname, recipient=None, reply_to=None, subject=None, mes
         frappe.attach_print(
             "Sales Invoice",
             doc.name,
-            letterhead="Resilient Kid",
+            letterhead=_letterhead_for_invoice(doc),
         )
     ]
 
@@ -2920,7 +2936,7 @@ def download_invoice_pdf(docname=None):
     if doc.docstatus != 1:
         frappe.throw(_("Only submitted invoices can be downloaded."))
 
-    printed = frappe.attach_print("Sales Invoice", doc.name, letterhead="Resilient Kid")
+    printed = frappe.attach_print("Sales Invoice", doc.name, letterhead=_letterhead_for_invoice(doc))
 
     frappe.response["type"] = "download"
     frappe.response["filename"] = printed["fname"]

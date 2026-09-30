@@ -833,7 +833,10 @@ def _send_coach_order_confirmation_email(invoice, coach_email, coach_display_nam
         cc=cc,
         subject=f"Coach Store order confirmation - {invoice.name}",
         message=plain_text_to_email_html(message),
-        attachments=[frappe.attach_print("Sales Invoice", invoice.name, letterhead="Resilient Kid")],
+        # Every Coach Store order is a merch sale - always The Resilient
+        # People branding (Ashley's own call), same as an online guest
+        # checkout, regardless of which brand the item itself belongs to.
+        attachments=[frappe.attach_print("Sales Invoice", invoice.name, letterhead="Resilient People")],
         now=True,
         reference_doctype="Sales Invoice",
         reference_name=invoice.name,
