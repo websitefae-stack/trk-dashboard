@@ -45,9 +45,20 @@
   }
 
   function renderCard(school) {
-    const progress = school.active_sequence
-      ? `<div class="dashboard-field-hint">${escapeHtml(school.active_sequence.sequence)} - step ${school.active_sequence.current_step}/${school.active_sequence.total_steps}</div>`
-      : "";
+    // "2/5 sent" - how many of the sequence's emails have actually gone
+    // out so far (active_sequence.current_step) out of the total steps
+    // in that sequence - replaces the old raw contact count, which
+    // wasn't useful at a glance for a school mid-outreach. Omitted
+    // entirely (not "0/0") for a school with no Active enrollment right
+    // now (New/Idle/Responded/Customer/Declined).
+    const parts = [];
+    if (school.area) parts.push(escapeHtml(school.area));
+    if (school.active_sequence) {
+      parts.push(`${school.active_sequence.current_step}/${school.active_sequence.total_steps} sent`);
+    }
+    if (school.linked_client) parts.push("Customer");
+
+    const hint = parts.length ? `<div class="dashboard-field-hint">${parts.join(" · ")}</div>` : "";
 
     return `
       <div class="dashboard-lead-card dashboard-school-card" data-school="${escapeHtml(school.name)}">
@@ -56,8 +67,7 @@
         </label>
         <div class="dashboard-school-card-body">
           <div class="dashboard-lead-card-client">${escapeHtml(school.school_name)}</div>
-          <div class="dashboard-field-hint">${school.area ? escapeHtml(school.area) + " · " : ""}${school.contact_count} contact${school.contact_count === 1 ? "" : "s"}${school.linked_client ? " · Customer" : ""}</div>
-          ${progress}
+          ${hint}
         </div>
       </div>
     `;
@@ -75,7 +85,8 @@
       if (search) {
         const nameMatch = (school.school_name || "").toLowerCase().includes(search);
         const contactMatch = (school.contact_names || []).some((name) => (name || "").toLowerCase().includes(search));
-        if (!nameMatch && !contactMatch) return false;
+        const emailMatch = (school.contact_emails || []).some((email) => (email || "").toLowerCase().includes(search));
+        if (!nameMatch && !contactMatch && !emailMatch) return false;
       }
 
       return true;
