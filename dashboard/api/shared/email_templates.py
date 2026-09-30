@@ -194,14 +194,20 @@ def plain_text_to_email_html(message):
     ) + "</p>"
 
 
-# A logo/table cell per brand wordmark - width is set as both an HTML
+# A logo/table cell per brand wordmark - height is set as both an HTML
 # attribute and inline CSS, since Outlook desktop (the Word rendering
-# engine) only honours the HTML width attribute on <img>, not CSS, and
+# engine) only honours the HTML attribute on <img>, not CSS, and
 # ignoring that is exactly what made the header logo render at its full
-# native size instead of a sensible thumbnail.
+# native size instead of a sensible thumbnail. Width deliberately left
+# unset (as both an attribute and in CSS) - these are wordmarks, not
+# square icons, so a fixed width squashed/stretched them; with only
+# height constrained, every client (Outlook included) scales width to
+# match each logo's own aspect ratio automatically - same fix already
+# applied to the course-access email's own brand logo row (course_
+# unlock_on_payment.py's _email_brand_logo_row).
 _WORDMARK_CELLS_HTML = "".join(
     f'<td align="center" style="padding:4px 8px;">'
-    f'<img src="{url}" alt="{alt}" width="90" style="display:block; width:90px; max-width:90px; height:auto; border:0;">'
+    f'<img src="{url}" alt="{alt}" height="80" style="display:block; height:80px; border:0;">'
     f"</td>"
     for url, alt in BRAND_WORDMARK_URLS
 )

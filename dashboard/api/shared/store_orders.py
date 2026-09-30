@@ -330,3 +330,57 @@ def mark_order_shipped(name=None, tracking_number=None):
             frappe.log_error(title="Could not send order-shipped email", message=frappe.get_traceback())
 
     return {"ok": 1}
+
+
+@frappe.whitelist()
+def debug_course_only_checkout(name=None, email=None):
+    """Temporary diagnostic - a course purchase was still showing up in
+    the Orders list despite _is_course_only_checkout, which looks
+    correct on inspection. Returns exactly what that function sees for
+    every Paid+ checkout matching name/email, rather than guessing
+    further. Call with ?email=... to check every matching order at once
+    if you don't have the exact order ID handy."""
+    _ensure_store_access()
+
+    name = (name or "").strip()
+    email = (email or "").strip()
+
+    if name:
+        checkout_names = [name] if frappe.db.exists(ORDER_DOCTYPE, name) else []
+    elif email:
+        checkout_names = frappe.get_all(
+            ORDER_DOCTYPE,
+            filters={"status": ["in", ORDER_STATUSES], "email": email},
+            pluck="name",
+        )
+    else:
+        frappe.throw(_("Pass either name or email."))
+
+    has_field = frappe.get_meta("Item").has_field("custom_unlocks_lms_course")
+
+    results = []
+    for checkout_name in checkout_names:
+        item_codes = frappe.get_all(
+            "Webshop Checkout Item",
+            filters={"parent": checkout_name, "parenttype": ORDER_DOCTYPE},
+            pluck="item_code",
+        )
+
+        items = frappe.get_all(
+            "Item",
+            filters={"name": ["in", item_codes]},
+            fields=["name", "custom_unlocks_lms_course", "disabled"],
+        ) if item_codes else []
+
+        results.append({
+            "checkout": checkout_name,
+            "status": frappe.db.get_value(ORDER_DOCTYPE, checkout_name, "status"),
+            "item_codes": item_codes,
+            "items": items,
+            "is_course_only_checkout": _is_course_only_checkout(checkout_name, item_codes),
+        })
+
+    return {
+        "item_meta_has_unlocks_field": has_field,
+        "checkouts": results,
+    }
