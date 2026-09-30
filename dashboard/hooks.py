@@ -314,6 +314,15 @@ doc_events = {
     "LMS Enrollment": {
         "after_insert": "dashboard.api.shared.course_unlock_on_payment.send_new_enrollment_welcome_email",
     },
+    # Keeps a backing, purchasable Item in sync with a paid course's own
+    # price (created/priced/disabled automatically) - see
+    # store_products.sync_course_store_item's own docstring on
+    # _ensure_course_item for why: it's what lets a course be added to
+    # the same cart as a store product and paid for in one checkout.
+    "LMS Course": {
+        "after_insert": "dashboard.api.shared.store_products.sync_course_store_item",
+        "on_update": "dashboard.api.shared.store_products.sync_course_store_item",
+    },
 }
 
 # Two independent LMS Course settings - "Show on Website" (opt-in
