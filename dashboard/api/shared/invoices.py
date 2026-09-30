@@ -1082,6 +1082,18 @@ def _get_invoices_for_clients(client_rows, dashboard_type, owner_coach_name=None
         # still need to show up in that coach's own invoice list.
         or_conditions.append(["custom_income_owner_coach", "=", owner_coach_name])
 
+    if dashboard_type == FRANCHISOR_DASHBOARD and frappe.get_meta("Sales Invoice").has_field("custom_online_client"):
+        # An online store/course purchase (webshop_purchase.py's guest
+        # checkout) isn't owned by any coach at all - custom_online_client
+        # is set on every one of these regardless of whether the buyer's
+        # email ever matched an existing Client (custom_client, this
+        # scope's own primary_coach filter above, can easily be blank -
+        # see _resolve_purchase_owner's ambiguous-email branch), so an
+        # invoice like that could never surface here otherwise, even
+        # under "All Coaches". The office should always see every online
+        # sale regardless of which coach is selected in the dropdown.
+        or_conditions.append(["custom_online_client", "is", "set"])
+
     if not or_conditions:
         return {
             "invoices": [],
