@@ -54,12 +54,22 @@ def _is_course_only_checkout(checkout_name, item_codes=None):
     if not unique_codes or not frappe.get_meta("Item").has_field("custom_unlocks_lms_course"):
         return False
 
-    course_item_count = frappe.db.count(
+    # Confirmed live: ["not in", ["", None]] as a frappe.db.count filter
+    # always returns 0, for every row, regardless of the actual value -
+    # SQL's NOT IN evaluates to unknown (never true) the moment NULL is
+    # anywhere in the list, so "col NOT IN ('', NULL)" never matches
+    # anything even when col is clearly set. Checking truthiness in
+    # Python instead of leaning on that filter sidesteps it entirely.
+    items = frappe.get_all(
         "Item",
-        {"name": ["in", list(unique_codes)], "custom_unlocks_lms_course": ["not in", ["", None]]},
+        filters={"name": ["in", list(unique_codes)]},
+        fields=["name", "custom_unlocks_lms_course"],
     )
 
-    return course_item_count == len(unique_codes)
+    if len(items) != len(unique_codes):
+        return False
+
+    return all(item.custom_unlocks_lms_course for item in items)
 
 
 def _order_amount_paid(checkout_name, invoice_name, subtotal):
@@ -330,57 +340,3 @@ def mark_order_shipped(name=None, tracking_number=None):
             frappe.log_error(title="Could not send order-shipped email", message=frappe.get_traceback())
 
     return {"ok": 1}
-
-
-@frappe.whitelist()
-def debug_course_only_checkout(name=None, email=None):
-    """Temporary diagnostic - a course purchase was still showing up in
-    the Orders list despite _is_course_only_checkout, which looks
-    correct on inspection. Returns exactly what that function sees for
-    every Paid+ checkout matching name/email, rather than guessing
-    further. Call with ?email=... to check every matching order at once
-    if you don't have the exact order ID handy."""
-    _ensure_store_access()
-
-    name = (name or "").strip()
-    email = (email or "").strip()
-
-    if name:
-        checkout_names = [name] if frappe.db.exists(ORDER_DOCTYPE, name) else []
-    elif email:
-        checkout_names = frappe.get_all(
-            ORDER_DOCTYPE,
-            filters={"status": ["in", ORDER_STATUSES], "email": email},
-            pluck="name",
-        )
-    else:
-        frappe.throw(_("Pass either name or email."))
-
-    has_field = frappe.get_meta("Item").has_field("custom_unlocks_lms_course")
-
-    results = []
-    for checkout_name in checkout_names:
-        item_codes = frappe.get_all(
-            "Webshop Checkout Item",
-            filters={"parent": checkout_name, "parenttype": ORDER_DOCTYPE},
-            pluck="item_code",
-        )
-
-        items = frappe.get_all(
-            "Item",
-            filters={"name": ["in", item_codes]},
-            fields=["name", "custom_unlocks_lms_course", "disabled"],
-        ) if item_codes else []
-
-        results.append({
-            "checkout": checkout_name,
-            "status": frappe.db.get_value(ORDER_DOCTYPE, checkout_name, "status"),
-            "item_codes": item_codes,
-            "items": items,
-            "is_course_only_checkout": _is_course_only_checkout(checkout_name, item_codes),
-        })
-
-    return {
-        "item_meta_has_unlocks_field": has_field,
-        "checkouts": results,
-    }
