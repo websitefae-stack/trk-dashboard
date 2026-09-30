@@ -1298,6 +1298,10 @@ def stripe_webhook():
     webhook_secret = settings.get_password("stripe_webhook_secret", raise_exception=False)
 
     if not webhook_secret:
+        frappe.log_error(
+            "Stripe webhook called but no stripe_webhook_secret is set on Webshop Payment Settings.",
+            "Stripe Webhook Rejected",
+        )
         frappe.local.response.http_status_code = 400
         return {"ok": False}
 
@@ -1309,6 +1313,12 @@ def stripe_webhook():
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
     except (ValueError, stripe.error.SignatureVerificationError):
+        # Silent before this - a wrong/rotated signing secret (or Stripe
+        # hitting the wrong endpoint) rejected the payment's webhook with
+        # no trace anywhere on this side, only in Stripe's own delivery
+        # log - a real purchase fulfilled nothing, sent no email, and
+        # left no clue here that anything had even been attempted.
+        frappe.log_error(frappe.get_traceback(), "Stripe Webhook Signature Verification Failed")
         frappe.local.response.http_status_code = 400
         return {"ok": False}
 
@@ -1316,3 +1326,41 @@ def stripe_webhook():
         _fulfil_checkout_session(event["data"]["object"])
 
     return {"ok": True}
+
+
+@frappe.whitelist()
+def retry_fulfil_checkout(checkout=None):
+    """
+    Office-triggered manual fulfilment for a Webshop Checkout stuck on
+    "Pending" despite the customer having actually paid - e.g. Stripe's
+    webhook call was rejected (wrong/rotated signing secret) before
+    _fulfil_checkout_session ever ran, so nothing was invoiced, unlocked,
+    or emailed even though the money was taken. Re-runs the exact same
+    fulfilment Stripe's webhook would have, so it's safe to call more
+    than once - _fulfil_checkout_session's own "already Paid" check
+    stops it doing anything a second time once it succeeds.
+
+    Does not touch Stripe or verify payment itself - only ever call this
+    once the payment's actually been confirmed in the Stripe Dashboard.
+    """
+    from dashboard.api.shared.permissions import ensure_office_user
+    ensure_office_user()
+
+    checkout = (checkout or "").strip()
+
+    if not checkout or not frappe.db.exists("Webshop Checkout", checkout):
+        frappe.throw(_("Webshop Checkout not found."))
+
+    checkout_doc = frappe.get_doc("Webshop Checkout", checkout)
+
+    if checkout_doc.status == "Paid":
+        return {"ok": True, "already_fulfilled": True}
+
+    _fulfil_checkout_session({
+        "id": checkout_doc.stripe_session_id,
+        "metadata": {"checkout": checkout_doc.name},
+    })
+
+    checkout_doc.reload()
+
+    return {"ok": True, "status": checkout_doc.status}
