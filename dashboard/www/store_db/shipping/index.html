@@ -1,0 +1,71 @@
+{% include "dashboard/templates/includes/head/store_head.html" %}
+<script src="/assets/dashboard/js/shared/store_shipping.js?v=1"></script>
+
+<div class="dashboard-page" id="storeShippingPage">
+  {% include "dashboard/templates/includes/sidebar/store_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/store_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Shipping</h1>
+          <p class="dashboard-page-subtitle">
+            Shipping is charged by the total weight of physical items in an order - it's never charged for
+            courses, digital downloads, services, or Coach Store orders.
+          </p>
+        </div>
+      </div>
+
+      <div class="dashboard-card" style="max-width:640px;">
+        <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
+          <input type="checkbox" id="shippingEnabled" checked>
+          Charge shipping on physical orders
+        </label>
+
+        <div class="dashboard-help" style="margin:10px 0 18px;">
+          Set a rate for each weight band below - based on the combined weight of every physical item in the
+          cart (see the Weight field on each product). Orders over 5kg use the "Over 5kg" rate, so a large
+          order always has a price.
+        </div>
+
+        <div id="shippingRatesGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:14px 18px;">
+          <div>
+            <label for="rateUnder1kg">Up to 1kg</label>
+            <input type="number" id="rateUnder1kg" class="dashboard-input" min="0" step="0.01" placeholder="£0.00">
+          </div>
+          <div>
+            <label for="rateUnder2kg">Up to 2kg</label>
+            <input type="number" id="rateUnder2kg" class="dashboard-input" min="0" step="0.01" placeholder="£0.00">
+          </div>
+          <div>
+            <label for="rateUnder3kg">Up to 3kg</label>
+            <input type="number" id="rateUnder3kg" class="dashboard-input" min="0" step="0.01" placeholder="£0.00">
+          </div>
+          <div>
+            <label for="rateUnder4kg">Up to 4kg</label>
+            <input type="number" id="rateUnder4kg" class="dashboard-input" min="0" step="0.01" placeholder="£0.00">
+          </div>
+          <div>
+            <label for="rateUnder5kg">Up to 5kg</label>
+            <input type="number" id="rateUnder5kg" class="dashboard-input" min="0" step="0.01" placeholder="£0.00">
+          </div>
+          <div>
+            <label for="rateOver5kg">Over 5kg</label>
+            <input type="number" id="rateOver5kg" class="dashboard-input" min="0" step="0.01" placeholder="£0.00">
+          </div>
+        </div>
+
+        <div style="margin-top:20px;">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveShippingSettingsBtn">
+            Save Shipping Rates
+          </button>
+          <span id="shippingSettingsSavedNote" class="dashboard-help" style="margin-left:10px; display:none;">
+            Saved.
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

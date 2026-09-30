@@ -1,0 +1,94 @@
+{
+ "actions": [],
+ "creation": "2026-09-30 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "shipping_enabled",
+  "shipping_section",
+  "rate_under_1kg",
+  "rate_under_2kg",
+  "rate_under_3kg",
+  "rate_column",
+  "rate_under_4kg",
+  "rate_under_5kg",
+  "rate_over_5kg"
+ ],
+ "fields": [
+  {
+   "default": "1",
+   "description": "Only added to an order from the online Store that contains at least one physical item with a weight set - never charged for a course, a digital download, a service, or an order placed through the Coach Store.",
+   "fieldname": "shipping_enabled",
+   "fieldtype": "Check",
+   "label": "Charge Shipping"
+  },
+  {
+   "fieldname": "shipping_section",
+   "fieldtype": "Section Break",
+   "label": "Rates by Order Weight"
+  },
+  {
+   "description": "Charged when every physical item in the cart together weighs up to 1kg.",
+   "fieldname": "rate_under_1kg",
+   "fieldtype": "Currency",
+   "label": "Up to 1kg"
+  },
+  {
+   "description": "Charged when the cart's total weight is over 1kg and up to 2kg.",
+   "fieldname": "rate_under_2kg",
+   "fieldtype": "Currency",
+   "label": "Up to 2kg"
+  },
+  {
+   "description": "Charged when the cart's total weight is over 2kg and up to 3kg.",
+   "fieldname": "rate_under_3kg",
+   "fieldtype": "Currency",
+   "label": "Up to 3kg"
+  },
+  {
+   "fieldname": "rate_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Charged when the cart's total weight is over 3kg and up to 4kg.",
+   "fieldname": "rate_under_4kg",
+   "fieldtype": "Currency",
+   "label": "Up to 4kg"
+  },
+  {
+   "description": "Charged when the cart's total weight is over 4kg and up to 5kg.",
+   "fieldname": "rate_under_5kg",
+   "fieldtype": "Currency",
+   "label": "Up to 5kg"
+  },
+  {
+   "description": "Charged when the cart's total weight is over 5kg - so a large order never fails at checkout for having no matching band.",
+   "fieldname": "rate_over_5kg",
+   "fieldtype": "Currency",
+   "label": "Over 5kg"
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-09-30 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "Webshop Shipping Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

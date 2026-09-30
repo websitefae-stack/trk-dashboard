@@ -789,7 +789,7 @@ def get_store_products(search=None):
         f for f in [
             "custom_digital_file", "custom_unlocks_lms_course", "custom_short_description", "custom_sku",
             "custom_personalization_enabled", "custom_personalization_label", "custom_logo_choice_enabled",
-            "custom_item_visibility", "custom_coach_price",
+            "custom_item_visibility", "custom_coach_price", "custom_weight", "custom_weight_unit",
         ]
         if item_meta.has_field(f)
     ]
@@ -871,6 +871,8 @@ def get_store_products(search=None):
             "personalization_enabled": bool(item.get("custom_personalization_enabled")),
             "personalization_label": item.get("custom_personalization_label") or "",
             "logo_choice_enabled": bool(item.get("custom_logo_choice_enabled")),
+            "weight": item.get("custom_weight") or 0,
+            "weight_unit": item.get("custom_weight_unit") or "g",
         }
         for item in items
     ]
@@ -881,7 +883,7 @@ def create_store_product(item_name=None, description=None, short_description=Non
                           stock_qty=None, unlimited_stock=None, brands=None, image=None,
                           digital_file=None, unlocks_course=None, sku=None, gallery_images=None,
                           personalization_enabled=None, personalization_label=None, logo_choice_enabled=None,
-                          visibility=None, coach_price=None):
+                          visibility=None, coach_price=None, weight=None, weight_unit=None):
     """
     An Item with this exact name can already exist without being a store
     product yet - e.g. something tracked elsewhere in the system
@@ -929,6 +931,10 @@ def create_store_product(item_name=None, description=None, short_description=Non
 
         if sku is not None and item_meta.has_field("custom_sku"):
             updates["custom_sku"] = sku.strip()
+
+        if weight is not None and item_meta.has_field("custom_weight"):
+            updates["custom_weight"] = _to_float(weight)
+            updates["custom_weight_unit"] = (weight_unit or "g").strip() or "g"
 
         if personalization_enabled is not None and item_meta.has_field("custom_personalization_enabled"):
             updates["custom_personalization_enabled"] = 1 if _to_bool(personalization_enabled) else 0
@@ -983,6 +989,10 @@ def create_store_product(item_name=None, description=None, short_description=Non
     if sku is not None and _item_meta_has_field("custom_sku"):
         item.custom_sku = sku.strip()
 
+    if weight is not None and _item_meta_has_field("custom_weight"):
+        item.custom_weight = _to_float(weight)
+        item.custom_weight_unit = (weight_unit or "g").strip() or "g"
+
     _apply_personalization(item, personalization_enabled, personalization_label)
     _apply_logo_choice(item, logo_choice_enabled)
 
@@ -1030,7 +1040,7 @@ def update_store_product(item_code=None, item_name=None, description=None, short
                           item_group=None, price=None, stock_qty=None, unlimited_stock=None, brands=None,
                           disabled=None, image=None, digital_file=None, unlocks_course=None, sku=None,
                           gallery_images=None, personalization_enabled=None, personalization_label=None,
-                          logo_choice_enabled=None, visibility=None, coach_price=None):
+                          logo_choice_enabled=None, visibility=None, coach_price=None, weight=None, weight_unit=None):
     """
     Writes straight to the database (frappe.db.set_value + direct child-
     row management) rather than loading the Item as a Document and
@@ -1068,6 +1078,10 @@ def update_store_product(item_code=None, item_name=None, description=None, short
 
     if sku is not None and item_meta.has_field("custom_sku"):
         updates["custom_sku"] = sku.strip()
+
+    if weight is not None and item_meta.has_field("custom_weight"):
+        updates["custom_weight"] = _to_float(weight)
+        updates["custom_weight_unit"] = (weight_unit or "g").strip() or "g"
 
     if personalization_enabled is not None and item_meta.has_field("custom_personalization_enabled"):
         updates["custom_personalization_enabled"] = 1 if _to_bool(personalization_enabled) else 0
@@ -1257,7 +1271,7 @@ def stock_take_update(updates=None):
 # priced higher, each with its own stock count)
 # -------------------------------------------------------------------
 
-def _create_variant_item(template, attribute_values, price, stock_qty, unlimited_stock, company, image=None, sku=None):
+def _create_variant_item(template, attribute_values, price, stock_qty, unlimited_stock, company, image=None, sku=None, weight=None):
     suffix = "-".join(_slugify(v) for v in attribute_values.values()) or "VAR"
     item_code = f"{template.name}-{suffix}"
 
@@ -1275,6 +1289,13 @@ def _create_variant_item(template, attribute_values, price, stock_qty, unlimited
 
     if sku and _item_meta_has_field("custom_sku"):
         variant.custom_sku = sku.strip()
+
+    # Weight is always entered in grams for a variant (no unit picker in
+    # the compact variant tables - see the simple-product form, which is
+    # the only place a Store Manager can pick kg instead).
+    if weight is not None and _item_meta_has_field("custom_weight"):
+        variant.custom_weight = _to_float(weight)
+        variant.custom_weight_unit = "g"
 
     if image:
         variant.image = image
@@ -1450,6 +1471,7 @@ def create_variant_store_product(item_name=None, description=None, short_descrip
                 company,
                 image=variant_image,
                 sku=variant_spec.get("sku"),
+                weight=variant_spec.get("weight"),
             )
             created.append(variant_name)
 
@@ -1477,6 +1499,8 @@ def get_product_variants(template_item_code=None):
     variant_fields = ["name", "item_name", "image", "disabled", "custom_stock_qty", "custom_unlimited_stock"]
     if _item_meta_has_field("custom_sku"):
         variant_fields.append("custom_sku")
+    if _item_meta_has_field("custom_weight"):
+        variant_fields.append("custom_weight")
 
     variants = frappe.get_all(
         "Item",
@@ -1507,13 +1531,14 @@ def get_product_variants(template_item_code=None):
             "price": price_row.price_list_rate if price_row else 0,
             "attributes": {row.attribute: row.attribute_value for row in attr_rows},
             "sku": variant.get("custom_sku") or "",
+            "weight": variant.get("custom_weight") or 0,
         })
 
     return result
 
 
 @frappe.whitelist()
-def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=None, disabled=None, image=None, sku=None):
+def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=None, disabled=None, image=None, sku=None, weight=None):
     _ensure_store_access()
 
     item_code = (item_code or "").strip()
@@ -1523,6 +1548,9 @@ def update_variant(item_code=None, price=None, stock_qty=None, unlimited_stock=N
 
     if sku is not None and _item_meta_has_field("custom_sku"):
         frappe.db.set_value("Item", item_code, "custom_sku", sku.strip())
+
+    if weight is not None and _item_meta_has_field("custom_weight"):
+        frappe.db.set_value("Item", item_code, {"custom_weight": _to_float(weight), "custom_weight_unit": "g"})
 
     if stock_qty is not None:
         frappe.db.set_value("Item", item_code, "custom_stock_qty", _to_int(stock_qty))
@@ -1578,7 +1606,7 @@ def delete_variant(item_code=None):
 
 @frappe.whitelist()
 def add_product_variant(template_item_code=None, attribute_values=None, price=None, stock_qty=None,
-                         unlimited_stock=None, sku=None, image=None):
+                         unlimited_stock=None, sku=None, image=None, weight=None):
     """Adds one new variant (e.g. a size that wasn't offered when the
     product was first set up) onto an existing variant template, without
     touching anything already there - unlike create_variant_store_product,
@@ -1639,6 +1667,7 @@ def add_product_variant(template_item_code=None, attribute_values=None, price=No
             company,
             image=(image or "").strip(),
             sku=sku,
+            weight=weight,
         )
 
     frappe.db.commit()
@@ -1648,7 +1677,7 @@ def add_product_variant(template_item_code=None, attribute_values=None, price=No
 
 @frappe.whitelist()
 def add_product_variants_bulk(template_item_code=None, attribute_value_lists=None, price=None, stock_qty=None,
-                               unlimited_stock=None):
+                               unlimited_stock=None, weight=None):
     """
     Generates every combination across several values per attribute in
     one go (e.g. 20 Colours x 6 Sizes = up to 120 variants) instead of
@@ -1757,6 +1786,7 @@ def add_product_variants_bulk(template_item_code=None, attribute_value_lists=Non
                 stock_qty,
                 unlimited_stock,
                 company,
+                weight=weight,
             )
             created.append(variant_name)
             existing_combos.add(combo_key)
