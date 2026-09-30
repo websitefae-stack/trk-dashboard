@@ -134,3 +134,4 @@ dashboard.patches.backfill_store_item_default_rows
 dashboard.patches.add_parents_course_onboarding_step
 dashboard.patches.create_twilight_meeting_form
 dashboard.patches.create_sessional_worker_reference_form
+dashboard.patches.sync_course_store_items

@@ -534,6 +534,104 @@ def get_lms_courses():
     )
 
 
+COURSE_ITEM_GROUP = "Courses"
+
+
+def _course_item_code(course_name):
+    return f"LMS-COURSE-{course_name}"
+
+
+def _ensure_course_item(course_name):
+    """
+    Keeps a backing, purchasable Item in sync with a paid LMS Course, so a
+    course can be added to the exact same cart as physical store products
+    and paid for in one Stripe checkout, instead of the separate free-only
+    sign-up flow resilient_domains' trh-signup/trh-course-signup used to
+    be the only path to (which just fails outright for a paid course -
+    LMS's own validate_course_enrollment_eligibility blocks enrolling
+    without a matching LMS Payment). See _unlock_courses_for_purchase in
+    webshop_purchase.py, which already grants course access for any Item
+    with custom_unlocks_lms_course set once it's paid for - this just
+    keeps that Item, and its price, matching the course automatically
+    instead of requiring Ashley to hand-build a matching product.
+
+    Deliberately custom_store_enabled=0 - stays out of the general store
+    grid (get_store_items in resilient_domains filters on that flag), only
+    ever reachable by adding it to the cart from the course's own page.
+
+    Returns the item_code if the course is (still) paid, None otherwise -
+    an already-existing item for a course that's since been made free (or
+    had its price cleared) is disabled rather than deleted, in case
+    someone already has it in an in-progress cart/checkout.
+    """
+    course = frappe.db.get_value(
+        "LMS Course",
+        course_name,
+        ["title", "paid_course", "course_price", "image"],
+        as_dict=True,
+    )
+
+    if not course:
+        return None
+
+    item_code = _course_item_code(course_name)
+    already_exists = frappe.db.exists("Item", item_code)
+
+    if not course.paid_course or not course.course_price:
+        if already_exists:
+            frappe.db.set_value("Item", item_code, "disabled", 1)
+            frappe.db.commit()
+        return None
+
+    company = _store_company()
+    item_meta = frappe.get_meta("Item")
+
+    if already_exists:
+        updates = {
+            "item_name": course.title or item_code,
+            "disabled": 0,
+            "custom_store_enabled": 0,
+            "custom_unlocks_lms_course": course_name,
+        }
+        if course.image and item_meta.has_field("image"):
+            updates["image"] = course.image
+        frappe.db.set_value("Item", item_code, updates)
+        _sync_item_default_row_raw(item_code, company)
+    else:
+        item = frappe.new_doc("Item")
+        item.item_code = item_code
+        item.item_name = course.title or item_code
+        item.stock_uom = "Nos"
+        item.is_stock_item = 0
+        item.item_group = _ensure_item_group(COURSE_ITEM_GROUP)
+        item.disabled = 0
+        item.custom_store_enabled = 0
+        item.custom_unlocks_lms_course = course_name
+
+        if course.image and item_meta.has_field("image"):
+            item.image = course.image
+
+        _ensure_item_default_row(item, company)
+
+        with _as_administrator():
+            item.insert(ignore_permissions=True)
+
+    _set_item_price(item_code, DEFAULT_PRICE_LIST, _to_float(course.course_price))
+    frappe.db.commit()
+
+    return item_code
+
+
+def sync_course_store_item(doc, method=None):
+    """LMS Course.on_update/after_insert hook - never allowed to block a
+    course save, since this is plumbing for the store cart, not something
+    Ashley is actively editing when she saves a course."""
+    try:
+        _ensure_course_item(doc.name)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Course Store Item Sync Failed - {doc.name}")
+
+
 def _unique_abbr(value, used_abbrs):
     """A naive value[:5] truncation collides constantly for values that
     share a common prefix (e.g. "Size 6-7" / "Size 7-8" both truncate to
