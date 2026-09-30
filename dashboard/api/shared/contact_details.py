@@ -666,7 +666,12 @@ def save_contact_for_scope(scope, docname=None, data=None):
         ensure_contact_access(docname, scope)
         contact = frappe.get_doc("Contact", docname)
     else:
-        existing_contact = frappe.db.get_value("Contact", {"email_id": email}, "name") if email else None
+        # Contact.email_id is just a synced copy of the primary email_ids
+        # child row, not reliable to query directly - other Contact-
+        # creating flows (e.g. course signup) missed an already-existing
+        # Contact this way and created a duplicate for the same email
+        # instead of reusing it. Contact Email is the source of truth.
+        existing_contact = frappe.db.get_value("Contact Email", {"email_id": email}, "parent") if email else None
         contact = frappe.get_doc("Contact", existing_contact) if existing_contact else frappe.new_doc("Contact")
 
     for fieldname in EDITABLE_CONTACT_FIELDS:
