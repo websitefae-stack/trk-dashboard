@@ -32,7 +32,7 @@ from frappe import _
 from frappe.utils import nowdate, fmt_money, get_url
 
 from dashboard.dashboard.doctype.webshop_payment_settings.webshop_payment_settings import get_settings
-from dashboard.api.shared.email_templates import plain_text_to_email_html
+from dashboard.api.shared.email_templates import plain_text_to_email_html, wrap_branded_email_html
 from dashboard.api.shared.item_access import _get_coach_login, COACH_ONLY_PRICE_LIST
 from dashboard.api.shared.invoices import _get_bank_account_gl_account, _get_current_coach, _coach_label
 from dashboard.api.shared.store_products import _get_coach_price
@@ -1090,7 +1090,7 @@ def _unlock_courses_for_purchase(email, item_codes):
 def _send_order_confirmation_emails(
     invoice, online_client, checkout_items, settings, coach,
     digital_files=None, new_login_created=False, unlocked_courses=None,
-    coupon_code=None, discount_amount=0,
+    coupon_code=None, discount_amount=0, portal_link_client=None,
 ):
     amount_display = fmt_money(invoice.grand_total, currency=invoice.currency)
 
@@ -1119,6 +1119,35 @@ def _send_order_confirmation_emails(
         "\n"
         f"Order reference: {invoice.name}\n"
     )
+
+    # Only a physical purchase collects an address at all (see
+    # cart-page.js hiding this whole section for a course-only cart) -
+    # skip the block entirely rather than showing a half-empty "Address:"
+    # with nothing after it. Shown to everyone on this email (customer
+    # and the office/coach cc'd on the same send) rather than split into
+    # a separate internal-only email, since a "ready to pack and ship"
+    # notice needs exactly this same information either way.
+    address_lines = [
+        online_client.get("address_line1"),
+        online_client.get("address_line2"),
+        online_client.get("city"),
+        online_client.get("postcode"),
+        online_client.get("country"),
+    ]
+    address_lines = [line for line in address_lines if line]
+
+    if address_lines:
+        message += (
+            "\nShipping details:\n"
+            f"{online_client.full_name}\n"
+            + "\n".join(address_lines) + "\n"
+        )
+        if online_client.get("phone"):
+            message += f"Phone: {online_client.phone}\n"
+
+    if portal_link_client:
+        portal_url = get_url(f"/client_portal?client={portal_link_client}&section=invoices")
+        message += f"\nView your invoice online: {portal_url}\n"
 
     if digital_files:
         message += "\nDownloads:\n" + "\n".join(
@@ -1168,7 +1197,7 @@ def _send_order_confirmation_emails(
         recipients=[online_client.email],
         cc=list(cc),
         subject=f"Order confirmation - {subject_item}",
-        message=plain_text_to_email_html(message),
+        message=wrap_branded_email_html(plain_text_to_email_html(message)),
         now=True,
         reference_doctype="Sales Invoice",
         reference_name=invoice.name,
@@ -1388,6 +1417,11 @@ def _fulfil_checkout_session(session):
                 unlocked_courses=unlocked_courses,
                 coupon_code=checkout.get("coupon_code"),
                 discount_amount=checkout.get("discount_amount") or 0,
+                # No single Client to link to (the ambiguous-email
+                # fallback - see _resolve_purchase_owner) still has
+                # somewhere to send them: client_portal's own Combined
+                # view surfaces exactly this invoice there instead.
+                portal_link_client=client_name or "__combined__",
             )
         except Exception:
             # The order itself is already paid and recorded - a failed email

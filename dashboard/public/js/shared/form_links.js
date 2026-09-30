@@ -20,21 +20,35 @@
       .replace(/'/g, "&#039;");
   }
 
+  // Some form descriptions run to several sentences of background/
+  // instructions that belong on the form itself, not this card grid -
+  // capped to the first 2 sentences so a long one doesn't blow the card
+  // (and its whole grid row) out to several times its neighbours' height.
+  function truncateDescription(text) {
+    if (!text) return "";
+
+    var trimmed = text.trim();
+    var match = trimmed.match(/^(?:[^.!?]*[.!?]+(?:\s+|$)){1,2}/);
+    var short = match ? match[0].trim() : trimmed;
+
+    return short.length < trimmed.length ? short : trimmed;
+  }
+
   function renderLink(link) {
+    var description = truncateDescription(link.description);
+
     return (
       '<div class="dashboard-card dashboard-link-card">' +
         '<h3 class="dashboard-form-link-title">' + escapeHtml(link.title) + "</h3>" +
-        (link.description
-          ? '<div class="dashboard-doc-list-meta" style="margin-bottom:8px;">' + escapeHtml(link.description) + "</div>"
+        (description
+          ? '<div class="dashboard-doc-list-meta" style="margin-bottom:8px;">' + escapeHtml(description) + "</div>"
           : "") +
         '<div class="dashboard-link-card-body">' +
           '<div class="dashboard-login-qr" data-qr-value="' + escapeHtml(link.url) + '" data-qr-label="' + escapeHtml(link.title) + '"></div>' +
           '<div class="dashboard-link-card-actions">' +
-            '<a href="#" class="dashboard-login-qr-download" download>Download QR code (JPG)</a>' +
-            '<div class="dashboard-link-card-buttons">' +
-              '<button type="button" class="dashboard-btn dashboard-btn-light" data-copy-value="' + escapeHtml(link.url) + '">Copy Link</button>' +
-              '<a class="dashboard-btn dashboard-btn-primary" href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener noreferrer">Open</a>' +
-            "</div>" +
+            '<a href="#" class="dashboard-btn dashboard-btn-pink dashboard-login-qr-download" download>Download QR code (JPG)</a>' +
+            '<button type="button" class="dashboard-btn dashboard-btn-light" data-copy-value="' + escapeHtml(link.url) + '">Copy Link</button>' +
+            '<a class="dashboard-btn dashboard-btn-primary" href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener noreferrer">Open</a>' +
           "</div>" +
         "</div>" +
       "</div>"

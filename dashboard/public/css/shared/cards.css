@@ -229,8 +229,22 @@
   }
 }
 
+/* dashboard-link-card is a CSS grid cell (dashboard-links-grid), which
+   already stretches every card in a row to the tallest one's height - a
+   short description otherwise left the QR/button block sitting right
+   under the title with a big empty gap below it, while a card next to
+   it with a long description filled the same row naturally. Flexing
+   the card itself top-to-bottom and pushing this block down with
+   margin-top:auto keeps it flush with the card's own bottom edge
+   regardless of how much (or little) description sits above it. */
+.dashboard-link-card {
+  display: flex;
+  flex-direction: column;
+}
+
 .dashboard-link-card-body {
-  margin-top: 10px;
+  margin-top: auto;
+  padding-top: 14px;
   display: flex;
   align-items: flex-start;
   gap: 14px;
@@ -244,12 +258,17 @@
   gap: 8px;
 }
 
-.dashboard-link-card-actions .dashboard-login-qr-download {
-  margin-top: 0;
+.dashboard-link-card-actions .dashboard-btn {
+  width: 100%;
 }
 
-.dashboard-link-card-buttons {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+/* .dashboard-login-qr-download is shared with the plain (non-button)
+   link styling on Your Logins - reset here since this one's also a
+   .dashboard-btn now (a class from a different, later-loaded
+   stylesheet), otherwise its margin/display/font-size leak in and
+   override .dashboard-btn's own. */
+.dashboard-link-card-actions .dashboard-login-qr-download {
+  margin-top: 0;
+  display: inline-flex;
+  font-size: 13px;
 }
