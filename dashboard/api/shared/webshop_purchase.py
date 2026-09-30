@@ -927,32 +927,64 @@ def _set_if_field(doc, fieldname, value):
         doc.set(fieldname, value)
 
 
-def _get_or_create_portal_client(full_name, email, phone):
+def _resolve_purchase_owner(full_name, email, phone):
     """
-    Finds the real coaching Client this email already belongs to, if any -
-    an existing client buying something must land on their own existing
-    record, never a second one. Creates a bare new Client only if truly
-    nobody matches yet.
+    Decides who a purchase is actually FOR: the real coaching Client this
+    email already belongs to, if exactly one does - an existing client
+    buying something must land on their own existing record, never a
+    second one. Creates a bare new Client only if truly nobody matches
+    yet.
+
+    Several Clients can legitimately share one email (e.g. two kids with
+    no email of their own, both using a parent's) - there's no way to
+    tell from the email alone which one a purchase was actually for in
+    that case, so rather than guessing (or arbitrarily picking whichever
+    one the database happens to return first), it attaches to the shared
+    Contact instead of any single Client - see client_portal's
+    get_combined_invoices/get_combined_courses_and_products, which
+    surface it across every Client linked to that Contact instead of
+    under just one.
+
+    Returns (client_name_or_None, contact_name_or_None, is_new_client) -
+    exactly one of client_name/contact_name is ever set.
     """
-    existing_name = frappe.db.get_value("Client", {"email": email}, "name")
+    matches = frappe.get_all("Client", filters={"email": email}, pluck="name")
 
-    if existing_name:
-        return existing_name, False
+    if len(matches) == 1:
+        return matches[0], None, False
 
-    first_name, last_name = _split_full_name(full_name)
+    if not matches:
+        first_name, last_name = _split_full_name(full_name)
 
-    client = frappe.new_doc("Client")
-    _set_if_field(client, "name1", first_name)
-    _set_if_field(client, "last_name", last_name)
-    _set_if_field(client, "full_name", full_name or email)
-    _set_if_field(client, "preferred_name", first_name)
-    _set_if_field(client, "email", email)
-    _set_if_field(client, "mobile", phone)
-    _set_if_field(client, "status", "Active")
-    _set_if_field(client, "client_type", "Adult")
-    client.insert(ignore_permissions=True)
+        client = frappe.new_doc("Client")
+        _set_if_field(client, "name1", first_name)
+        _set_if_field(client, "last_name", last_name)
+        _set_if_field(client, "full_name", full_name or email)
+        _set_if_field(client, "preferred_name", first_name)
+        _set_if_field(client, "email", email)
+        _set_if_field(client, "mobile", phone)
+        _set_if_field(client, "status", "Active")
+        _set_if_field(client, "client_type", "Adult")
+        client.insert(ignore_permissions=True)
 
-    return client.name, True
+        return client.name, None, True
+
+    # Ambiguous - 2+ existing Clients already share this email.
+    contact_name = frappe.db.get_value("Contact Email", {"email_id": email}, "parent")
+
+    if not contact_name:
+        first_name, last_name = _split_full_name(full_name)
+        contact = frappe.new_doc("Contact")
+        contact.first_name = first_name or email
+        if last_name:
+            contact.last_name = last_name
+        contact.append("email_ids", {"email_id": email, "is_primary": 1})
+        if phone:
+            contact.append("phone_nos", {"phone": phone, "is_primary_mobile_no": 1})
+        contact.insert(ignore_permissions=True)
+        contact_name = contact.name
+
+    return None, contact_name, False
 
 
 def _ensure_portal_login(email, full_name):
@@ -1233,12 +1265,20 @@ def _fulfil_checkout_session(session):
             online_client.email, online_client.full_name, online_client.get("phone")
         )
 
-        contact_name = frappe.db.get_value("Contact Email", {"email_id": email}, "parent")
-
-        client_name, is_new_client = _get_or_create_portal_client(
+        client_name, ambiguous_contact_name, is_new_client = _resolve_purchase_owner(
             full_name=online_client.full_name, email=email, phone=online_client.get("phone") or "",
         )
-        granted_new_portal_access = _ensure_portal_access(client_name, contact_name, email)
+
+        granted_new_portal_access = False
+
+        if client_name:
+            # Whichever Contact this email already belongs to, if any -
+            # only ever used for display on the new Client Contact Link
+            # row below (_resolve_purchase_owner's own contact_name
+            # return is reserved for the ambiguous, no-single-client
+            # case, which isn't this branch).
+            existing_contact_name = frappe.db.get_value("Contact Email", {"email_id": email}, "parent")
+            granted_new_portal_access = _ensure_portal_access(client_name, existing_contact_name, email)
 
         # Two different things: granted_new_portal_access is about the
         # Client's own contact-link (new access to THIS purchase/client
@@ -1265,6 +1305,8 @@ def _fulfil_checkout_session(session):
             invoice.custom_online_client = online_client_name
         if invoice.meta.has_field("custom_client"):
             invoice.custom_client = client_name
+        if invoice.meta.has_field("custom_online_contact") and ambiguous_contact_name:
+            invoice.custom_online_contact = ambiguous_contact_name
         if invoice.meta.has_field("custom_stripe_session_id"):
             invoice.custom_stripe_session_id = stripe_session_id
 
