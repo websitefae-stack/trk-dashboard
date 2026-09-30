@@ -270,6 +270,24 @@ def _default_price_list_for_item(item_code, company):
     )
 
 
+def _weight_source(item_doc):
+    """Whichever Item's own custom_weight/custom_weight_unit actually
+    applies for a shipping calculation - itself for a simple item, its
+    template for a variant. A Store Manager only ever sets Weight once,
+    on the main product edit form (see store_products.py's create_
+    variant_store_product/update_store_product) - every size/colour of
+    the same product weighs the same, so a variant never carries its
+    own value for this."""
+    if item_doc.get("variant_of"):
+        template = frappe.db.get_value(
+            "Item", item_doc.variant_of, ["custom_weight", "custom_weight_unit"], as_dict=True
+        )
+        if template:
+            return template
+
+    return item_doc
+
+
 def _get_purchasable_item(item_code, company):
     if not item_code or not frappe.db.exists("Item", item_code):
         frappe.throw(_("Item not found."))
@@ -375,7 +393,10 @@ def _get_purchasable_item(item_code, company):
         # Only ever contributes to create_checkout_session's shipping
         # calculation below - a course or digital download always reads
         # as 0 here regardless of what's on the Item, see is_shippable_item.
-        "weight_grams": item_weight_grams(item_doc) if is_shippable_item(item_doc) else 0,
+        # A variant never carries its own weight (every size/colour of
+        # the same product weighs the same - see store_products.py's
+        # _create_variant_item) - resolved from its template instead.
+        "weight_grams": item_weight_grams(_weight_source(item_doc)) if is_shippable_item(item_doc) else 0,
     }
 
 
@@ -422,7 +443,7 @@ def estimate_cart_shipping(items=None):
     if not item_meta.has_field("custom_weight"):
         return {"shipping_amount": 0}
 
-    fields = ["name", "custom_weight", "custom_weight_unit"]
+    fields = ["name", "custom_weight", "custom_weight_unit", "variant_of"]
     if item_meta.has_field("custom_unlocks_lms_course"):
         fields.append("custom_unlocks_lms_course")
     if item_meta.has_field("custom_digital_file"):
@@ -435,11 +456,28 @@ def estimate_cart_shipping(items=None):
     )
     items_by_code = {row.name: row for row in item_rows}
 
+    # A variant never carries its own weight (see store_products.py's
+    # _create_variant_item) - resolved from each one's template in a
+    # single extra query rather than one per cart line.
+    template_codes = {row.variant_of for row in item_rows if row.get("variant_of")}
+    template_weights = {}
+    if template_codes:
+        template_rows = frappe.get_all(
+            "Item",
+            filters={"name": ["in", list(template_codes)]},
+            fields=["name", "custom_weight", "custom_weight_unit"],
+        )
+        template_weights = {row.name: row for row in template_rows}
+
     total_grams = 0
     for line in cart_lines:
         item = items_by_code.get(line["item_code"])
-        if item and is_shippable_item(item):
-            total_grams += item_weight_grams(item) * line["qty"]
+        if not item or not is_shippable_item(item):
+            continue
+
+        weight_source = template_weights.get(item.variant_of) if item.get("variant_of") else item
+        if weight_source:
+            total_grams += item_weight_grams(weight_source) * line["qty"]
 
     return {"shipping_amount": calculate_shipping_amount(total_grams)}
 
