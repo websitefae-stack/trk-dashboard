@@ -25,6 +25,7 @@ nothing currently reads it for portal access.
 """
 
 import contextlib
+import re
 
 import frappe
 from frappe import _
@@ -1111,7 +1112,18 @@ def _send_order_confirmation_emails(
     cc = set()
 
     if settings.office_notification_email:
-        cc.add(settings.office_notification_email)
+        # office_notification_email is a single free-text field, but
+        # someone can (and did) put more than one address in it
+        # comma/semicolon-separated, same as typing into an email
+        # client's To field - smtplib doesn't parse that itself, it
+        # treats the whole string as one malformed address and the send
+        # fails outright ("Bad recipient address syntax") rather than
+        # just dropping the extra name, so every address in there needs
+        # to become its own separate cc entry.
+        for address in re.split(r"[,;]", settings.office_notification_email):
+            address = address.strip()
+            if address:
+                cc.add(address)
 
     if coach:
         coach_login = _get_coach_login(coach)
