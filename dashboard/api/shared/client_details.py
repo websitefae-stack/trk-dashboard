@@ -433,11 +433,42 @@ def get_or_create_contact_for_customer(customer_name):
         as_dict=True,
     ) or {}
 
+    customer_email = (customer.get("email_id") or "").strip()
+
+    # find_contact_for_customer above only matches an already-linked
+    # Contact (by custom_customer or a Dynamic Link) - this is the FIRST
+    # time this Customer's ever needed one, but that doesn't mean nobody
+    # else already has a Contact for the same email address from an
+    # entirely different flow (a lead conversion, a webshop purchase,
+    # school pipeline, ...). Reusing that one instead of creating another
+    # is what keeps "one email = one Contact" true system-wide, not just
+    # within this one Customer's own history.
+    if customer_email:
+        existing_by_email = frappe.db.get_value("Contact Email", {"email_id": customer_email}, "parent")
+        if existing_by_email:
+            contact = frappe.get_doc("Contact", existing_by_email)
+            if contact.meta.has_field("custom_customer") and not contact.get("custom_customer"):
+                contact.custom_customer = customer_name
+            already_linked = any(
+                link.link_doctype == "Customer" and link.link_name == customer_name
+                for link in contact.get("links") or []
+            )
+            if not already_linked:
+                contact.append("links", {"link_doctype": "Customer", "link_name": customer_name})
+            contact.save(ignore_permissions=True)
+
+            return frappe.db.get_value(
+                "Contact",
+                contact.name,
+                ["name", "full_name", "first_name", "last_name", "email_id", "mobile_no", "phone"],
+                as_dict=True,
+            )
+
     contact = frappe.new_doc("Contact")
     contact.first_name = customer.get("customer_name") or customer.get("name")
 
-    if contact.meta.has_field("email_id"):
-        contact.email_id = customer.get("email_id") or ""
+    if customer_email:
+        contact.append("email_ids", {"email_id": customer_email, "is_primary": 1})
 
     if contact.meta.has_field("mobile_no"):
         contact.mobile_no = customer.get("mobile_no") or customer.get("phone") or ""

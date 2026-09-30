@@ -1234,13 +1234,23 @@ def convert_school_to_client(school=None, client=None, client_type="School"):
             if not row.email or row.email.strip().lower() in existing_emails:
                 continue
 
-            first, last = _split_name(row.contact_name)
-            contact = frappe.new_doc("Contact")
-            contact.first_name = first
-            if last:
-                contact.last_name = last
-            contact.append("email_ids", {"email_id": row.email, "is_primary": 1})
-            contact.insert(ignore_permissions=True)
+            # existing_emails above only rules out this email already
+            # being on THIS client's own contact list - a contact with
+            # this email from an entirely different client/flow still
+            # needs reusing here rather than duplicating, same as every
+            # other Contact-creating flow.
+            existing_contact = frappe.db.get_value("Contact Email", {"email_id": row.email}, "parent")
+
+            if existing_contact:
+                contact = frappe.get_doc("Contact", existing_contact)
+            else:
+                first, last = _split_name(row.contact_name)
+                contact = frappe.new_doc("Contact")
+                contact.first_name = first
+                if last:
+                    contact.last_name = last
+                contact.append("email_ids", {"email_id": row.email, "is_primary": 1})
+                contact.insert(ignore_permissions=True)
 
             client_doc.append("client_contacts", {
                 "contact": contact.name,
