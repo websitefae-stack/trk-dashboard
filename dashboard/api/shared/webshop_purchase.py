@@ -24,6 +24,8 @@ purely as the same lightweight admin-facing record it always was -
 nothing currently reads it for portal access.
 """
 
+import contextlib
+
 import frappe
 from frappe import _
 from frappe.utils import nowdate, fmt_money, get_url
@@ -32,7 +34,7 @@ from dashboard.dashboard.doctype.webshop_payment_settings.webshop_payment_settin
 from dashboard.api.shared.email_templates import plain_text_to_email_html
 from dashboard.api.shared.item_access import _get_coach_login, COACH_ONLY_PRICE_LIST
 from dashboard.api.shared.invoices import _get_bank_account_gl_account, _get_current_coach, _coach_label
-from dashboard.api.shared.store_products import _get_coach_price, _as_administrator
+from dashboard.api.shared.store_products import _get_coach_price
 from dashboard.api.shared import payment_utils
 from dashboard.api.shared.email_groups import add_to_email_group
 from dashboard.api.shared.store_coupons import calculate_checkout_discount, record_coupon_use
@@ -1129,6 +1131,26 @@ def _send_order_confirmation_emails(
     )
 
 
+@contextlib.contextmanager
+def _as_system_administrator():
+    """
+    Actually becomes Administrator (not just frappe.flags.ignore_
+    permissions=True) for the duration - see _fulfil_checkout_session's
+    own comment on why: ERPNext's get_payment_entry() mapper makes its
+    own explicit frappe.has_permission() checks several layers down that
+    the flag alone didn't reach. Safe here specifically because the
+    caller (Stripe's webhook) has no real browser session to protect,
+    unlike store_products._as_administrator's own deliberately flag-only
+    approach for an actual logged-in user's request.
+    """
+    previous_user = frappe.session.user
+    frappe.set_user("Administrator")
+    try:
+        yield
+    finally:
+        frappe.set_user(previous_user)
+
+
 def _fulfil_checkout_session(session):
     stripe_session_id = session.get("id")
 
@@ -1163,17 +1185,23 @@ def _fulfil_checkout_session(session):
     settings = get_settings()
 
     # Stripe's webhook call has no Frappe session at all - it runs as
-    # Guest, which has no role permissions on plenty of what fulfilment
-    # touches along the way (Bank Account, Account/GL lookups inside
-    # payment_utils' Payment Entry, etc.), not just the docs already
-    # covered by an explicit ignore_permissions=True below. A real,
-    # already-paid order hit exactly this: "PermissionError: User don't
-    # have permissions to select/read this account" partway through,
-    # which rolled back everything - no invoice, no course unlock, no
-    # email - despite Stripe having already taken the money. This global
-    # flag (not frappe.set_user, which would also reassign session.sid)
-    # covers every nested read/write for the rest of fulfilment.
-    with _as_administrator():
+    # Guest, which has no role/user permissions on plenty of what
+    # fulfilment touches along the way. A real, already-paid order hit
+    # "PermissionError: User don't have permissions to select/read this
+    # account" partway through (deep inside ERPNext's own get_payment_
+    # entry() mapper, building the Payment Entry) - which rolled back
+    # everything: no invoice, no course unlock, no email, despite Stripe
+    # having already taken the money.
+    #
+    # frappe.flags.ignore_permissions alone wasn't enough here - it
+    # doesn't reach every explicit frappe.has_permission() check ERPNext's
+    # own mapper code makes several layers down. Actually becoming
+    # Administrator for the rest of this function bypasses every one of
+    # those unconditionally, which the flag couldn't guarantee. Safe only
+    # because this is a one-off webhook call with no real browser session
+    # to corrupt - restored to whatever frappe.session.user already was
+    # (Guest) before this function returns either way.
+    with _as_system_administrator():
         online_client_name = _get_or_create_online_client(
             full_name=checkout.full_name,
             email=email,
