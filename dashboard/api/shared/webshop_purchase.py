@@ -1057,7 +1057,7 @@ def _unlock_courses_for_purchase(email, item_codes):
 
 def _send_order_confirmation_emails(
     invoice, online_client, checkout_items, settings, coach,
-    digital_files=None, granted_new_portal_access=False, unlocked_courses=None,
+    digital_files=None, new_login_created=False, unlocked_courses=None,
     coupon_code=None, discount_amount=0,
 ):
     amount_display = fmt_money(invoice.grand_total, currency=invoice.currency)
@@ -1096,7 +1096,7 @@ def _send_order_confirmation_emails(
     if unlocked_courses:
         message += "\nYou now have access to: " + ", ".join(unlocked_courses) + "\n"
 
-    if granted_new_portal_access:
+    if new_login_created:
         message += (
             "\nWe've also set up your client portal, where you can see this order and any "
             f"downloads any time - look out for a separate email to set your password, then log in at "
@@ -1240,8 +1240,20 @@ def _fulfil_checkout_session(session):
         )
         granted_new_portal_access = _ensure_portal_access(client_name, contact_name, email)
 
+        # Two different things: granted_new_portal_access is about the
+        # Client's own contact-link (new access to THIS purchase/client
+        # record), not about whether there's already a User/password for
+        # this email - someone who already has an account (e.g. bought
+        # something once before, or already logs in for another reason
+        # entirely, like an LMS course) can get new portal access here
+        # without a new login ever being created, since
+        # _ensure_portal_login only creates a User - and only then does
+        # Frappe's own welcome email set a password - when none already
+        # exists. The confirmation message below must only promise a
+        # "set your password" email when one is actually about to send.
+        new_login_created = False
         if granted_new_portal_access:
-            _ensure_portal_login(email, online_client.full_name)
+            new_login_created = _ensure_portal_login(email, online_client.full_name)
 
         invoice = frappe.new_doc("Sales Invoice")
         invoice.customer = customer_name
@@ -1330,7 +1342,7 @@ def _fulfil_checkout_session(session):
             _send_order_confirmation_emails(
                 invoice, online_client, checkout.items, settings, coach,
                 digital_files=digital_files,
-                granted_new_portal_access=granted_new_portal_access,
+                new_login_created=new_login_created,
                 unlocked_courses=unlocked_courses,
                 coupon_code=checkout.get("coupon_code"),
                 discount_amount=checkout.get("discount_amount") or 0,
