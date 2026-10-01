@@ -21,6 +21,7 @@ from dashboard.api.shared.email_templates import (
     render_email,
     plain_text_to_email_html,
     wrap_branded_email_html,
+    _looks_like_html,
     FRANCHISE_BROCHURE_LINK_TEMPLATE,
 )
 from dashboard.api.shared.profile import PUBLIC_SITE_URL
@@ -71,12 +72,23 @@ def _send_brochure_link(doc):
             "Warm regards,\n"
             "Ashley"
         ),
+        strip_html_message=False,
     )
+
+    # A fully custom HTML template (its own layout/branding/buttons) is
+    # sent exactly as authored - wrap_branded_email_html would add a
+    # SECOND logo header/footer on top of whatever's already built into
+    # it. Only the plain-text fallback above goes through the usual
+    # flatten-and-rebrand pipeline.
+    if _looks_like_html(message):
+        final_message = message
+    else:
+        final_message = wrap_branded_email_html(plain_text_to_email_html(message))
 
     send_email(
         recipients=[email],
         subject=subject,
-        message=wrap_branded_email_html(plain_text_to_email_html(message)),
+        message=final_message,
         reference_doctype=doc.doctype,
         reference_name=doc.name,
     )

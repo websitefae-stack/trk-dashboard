@@ -41,10 +41,25 @@ _HTML_TAG_RE = re.compile(r"<[a-zA-Z/][^>]*>")
 
 
 def _body_fieldname(doc):
-    for fieldname in BODY_FIELD_CANDIDATES:
-        if doc.meta.has_field(fieldname):
+    """
+    Among the candidates that exist on this doctype, prefers whichever
+    one actually HAS content over just the first one that merely exists
+    in the list - this is the fix for a real bug: a site can have more
+    than one of these fields present (an old/unused one alongside
+    the one Desk's form actually edits today), and picking by bare
+    existence alone can silently read a stale/blank field forever while
+    completely ignoring real, current content sitting in a later
+    candidate. Only falls back to "first one that exists" when none of
+    them have content, which preserves the original behaviour for a
+    genuinely blank template.
+    """
+    existing = [f for f in BODY_FIELD_CANDIDATES if doc.meta.has_field(f)]
+
+    for fieldname in existing:
+        if (doc.get(fieldname) or "").strip():
             return fieldname
-    return None
+
+    return existing[0] if existing else None
 
 
 def _looks_like_html(text):
@@ -83,16 +98,29 @@ def _html_to_plain_text(html):
     return "\n".join(cleaned).strip("\n")
 
 
-def render_email(template_name, context, fallback_subject, fallback_message):
+def render_email(template_name, context, fallback_subject, fallback_message, strip_html_message=True):
     """
-    The dashboard's own emails are written and edited as plain text (see
-    plain_text_to_email_html()) - callers that actually send mail should
-    run the result through that before handing it to frappe.sendmail() so
-    line breaks show up correctly. Callers that just need to pre-fill an
-    editable plain-text textarea (e.g. the invoice/client compose modals)
-    should use the raw result as-is; it's already guaranteed plain text
-    even if the underlying Email Template itself is HTML (a Quill/rich
-    editor field on some sites) - see _html_to_plain_text().
+    The dashboard's own emails are mostly written and edited as plain
+    text (see plain_text_to_email_html()) - callers that actually send
+    mail should run the result through that before handing it to
+    frappe.sendmail() so line breaks show up correctly. Callers that
+    just need to pre-fill an editable plain-text textarea (e.g. the
+    invoice/client compose modals) should use the raw result as-is;
+    it's already guaranteed plain text even if the underlying Email
+    Template itself is HTML (a Quill/rich editor field on some sites) -
+    see _html_to_plain_text().
+
+    strip_html_message=False is for the other kind of template this app
+    now also supports: a fully custom-designed HTML email (branded
+    buttons, images, its own layout) someone deliberately wrote, meant
+    to be sent exactly as authored - stripping that down to plain text
+    first (the default behaviour, built for the Quill-artifact case
+    above) would silently throw away every bit of that design. Pass
+    this when the caller is actually sending mail with a template that
+    might be real HTML, never for a caller that's pre-filling a plain
+    editable textarea (stripping is still correct there). The subject
+    is always stripped to plain text regardless - a subject line should
+    never contain markup either way.
     """
     if template_name and frappe.db.exists("Email Template", template_name):
         try:
@@ -107,7 +135,7 @@ def render_email(template_name, context, fallback_subject, fallback_message):
                 if _looks_like_html(subject):
                     subject = _html_to_plain_text(subject)
 
-                if _looks_like_html(message):
+                if strip_html_message and _looks_like_html(message):
                     message = _html_to_plain_text(message)
 
                 return subject, message
@@ -224,12 +252,24 @@ def send_test_email(template_name=None, test_email=None):
         SAMPLE_MERGE_CONTEXT,
         fallback_subject="(This template has no subject/body set yet)",
         fallback_message="(This template has no subject/body set yet)",
+        strip_html_message=False,
     )
+
+    # A fully custom HTML template (its own layout/branding/buttons -
+    # e.g. the franchise brochure link email) is sent exactly as
+    # authored - wrapping it in wrap_branded_email_html would add a
+    # SECOND logo header/footer on top of whatever branding is already
+    # built into it. Only a genuinely plain-text template goes through
+    # the usual flatten-and-rebrand pipeline.
+    if _looks_like_html(message):
+        final_message = message
+    else:
+        final_message = wrap_branded_email_html(plain_text_to_email_html(message))
 
     send_email(
         recipients=[test_email],
         subject=f"[TEST] {subject}",
-        message=wrap_branded_email_html(plain_text_to_email_html(message)),
+        message=final_message,
     )
 
     return {"ok": 1, "sent_to": test_email}
