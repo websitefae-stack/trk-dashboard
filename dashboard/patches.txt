@@ -145,3 +145,4 @@ dashboard.patches.create_franchise_brochure_link_email_template
 dashboard.patches.create_franchise_brochure_nurture_sequence
 dashboard.patches.create_mailerlite_settings
 dashboard.patches.mailerlite_sync_all_email_groups
+dashboard.patches.fix_franchise_brochure_success_message
