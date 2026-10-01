@@ -18,6 +18,7 @@ from dashboard.api.shared.utils import coalesce_str, coalesce_raw
 from dashboard.api.shared.notifications import create_trk_notification, FRANCHISOR_USERS
 from dashboard.api.shared.appointment_types import creates_client_on_conversion
 from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, parse_email_list, INTAKE_INVITE_TEMPLATE, PODCAST_INVITE_TEMPLATE
+from dashboard.api.shared.mail_throttle import send_email
 from dashboard.api.shared.item_access import _get_coach_login
 from dashboard.api.shared.client_transfers import invoice_pending_transfer_fees_for_lead
 
@@ -975,7 +976,6 @@ def send_nda_link(name=None, subject=None, message=None, cc=None, reply_to=None)
         "recipients": [doc.contact_email],
         "subject": subject,
         "message": plain_text_to_email_html(message),
-        "now": True,
         "reply_to": reply_to,
     }
 
@@ -983,7 +983,7 @@ def send_nda_link(name=None, subject=None, message=None, cc=None, reply_to=None)
     if cc_list:
         kwargs["cc"] = cc_list
 
-    frappe.sendmail(**kwargs)
+    send_email(**kwargs)
 
     doc.nda_sent_at = frappe.utils.now_datetime()
     doc.save(ignore_permissions=True)
@@ -1242,7 +1242,6 @@ def send_intent_link(name=None, territory=None, deposit_amount=None, end_date=No
         "recipients": [doc.contact_email],
         "subject": subject,
         "message": plain_text_to_email_html(message),
-        "now": True,
         "reply_to": reply_to,
     }
 
@@ -1250,7 +1249,7 @@ def send_intent_link(name=None, territory=None, deposit_amount=None, end_date=No
     if cc_list:
         kwargs["cc"] = cc_list
 
-    frappe.sendmail(**kwargs)
+    send_email(**kwargs)
 
     doc.intent_sent_at = frappe.utils.now_datetime()
     doc.save(ignore_permissions=True)
@@ -1494,7 +1493,6 @@ def send_franchisee_intake_form(name=None, subject=None, message=None, cc=None, 
         "recipients": [doc.contact_email],
         "subject": subject,
         "message": plain_text_to_email_html(message),
-        "now": True,
         "reply_to": reply_to,
     }
 
@@ -1502,7 +1500,7 @@ def send_franchisee_intake_form(name=None, subject=None, message=None, cc=None, 
     if cc_list:
         kwargs["cc"] = cc_list
 
-    frappe.sendmail(**kwargs)
+    send_email(**kwargs)
 
     doc.franchisee_intake_sent_at = frappe.utils.now_datetime()
     doc.save(ignore_permissions=True)
@@ -2108,7 +2106,6 @@ def send_fees_guide_link(name=None, rate_1to1=None, rate_group=None, rate_worksh
         "recipients": [doc.contact_email],
         "subject": subject,
         "message": plain_text_to_email_html(message),
-        "now": True,
         "reply_to": reply_to,
     }
 
@@ -2116,7 +2113,7 @@ def send_fees_guide_link(name=None, rate_1to1=None, rate_group=None, rate_worksh
     if cc_list:
         kwargs["cc"] = cc_list
 
-    frappe.sendmail(**kwargs)
+    send_email(**kwargs)
 
     doc.fees_guide_sent_at = frappe.utils.now_datetime()
     doc.save(ignore_permissions=True)
@@ -2485,7 +2482,6 @@ def send_intake_form(name=None, subject=None, message=None, cc=None, sender=None
             "recipients": [doc.contact_email],
             "subject": subject,
             "message": plain_text_to_email_html(message),
-            "now": True,
             "reply_to": reply_to,
         }
 
@@ -2499,7 +2495,7 @@ def send_intake_form(name=None, subject=None, message=None, cc=None, sender=None
         # reply_to above is what still routes a client's reply to the
         # coach personally.
 
-        frappe.sendmail(**kwargs)
+        send_email(**kwargs)
         email_sent = True
     except Exception:
         frappe.log_error(frappe.get_traceback(), "Send Intake Form Email Failed")

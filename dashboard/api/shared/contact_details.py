@@ -10,6 +10,7 @@ from dashboard.api.shared.contacts import (
 )
 from dashboard.api.shared.permissions import ensure_logged_in
 from dashboard.api.shared.practice_documents import get_contact_document_shares
+from dashboard.api.shared.mail_throttle import send_email
 
 
 EDITABLE_CONTACT_FIELDS = [
@@ -395,7 +396,6 @@ def send_contact_statement_email(contact_name=None, scope="coach", recipient=Non
         "recipients": [recipient],
         "subject": subject,
         "message": message,
-        "now": True,
         "reply_to": reply_to,
         "attachments": attachments,
     }
@@ -404,7 +404,7 @@ def send_contact_statement_email(contact_name=None, scope="coach", recipient=Non
     if cc_list:
         kwargs["cc"] = cc_list
 
-    frappe.sendmail(**kwargs)
+    send_email(**kwargs)
 
     return {"ok": 1}
 

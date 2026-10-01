@@ -9,6 +9,7 @@ from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 from dashboard.api.shared.utils import get_label as _get_label, get_request_payload as _get_request_payload, coalesce_raw as _coalesce_raw, coalesce_str as _coalesce_str, find_session_worker_for_user as _find_session_worker_for_user
 from dashboard.api.shared.clients import build_display_name as _build_client_display_name
 from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, parse_email_list, BOOKING_CONFIRMATION_TEMPLATE
+from dashboard.api.shared.mail_throttle import send_email
 
 
 DASHBOARD_ADMIN_USERS = [
@@ -2270,7 +2271,6 @@ def send_booking_confirmation_email(event=None, recipient=None, subject=None, me
         "recipients": [recipient],
         "subject": subject,
         "message": message,
-        "now": True,
         "reference_doctype": "Event",
         "reference_name": event,
         "reply_to": reply_to,
@@ -2285,7 +2285,7 @@ def send_booking_confirmation_email(event=None, recipient=None, subject=None, me
     # see email_templates.get_email_sender_options(). reply_to above is
     # what still routes a client's reply to the coach personally.
 
-    frappe.sendmail(**kwargs)
+    send_email(**kwargs)
 
     return {"ok": 1}
 

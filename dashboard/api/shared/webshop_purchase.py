@@ -33,6 +33,7 @@ from frappe.utils import nowdate, fmt_money, get_url
 
 from dashboard.dashboard.doctype.webshop_payment_settings.webshop_payment_settings import get_settings
 from dashboard.api.shared.email_templates import plain_text_to_email_html, wrap_branded_email_html
+from dashboard.api.shared.mail_throttle import send_email
 from dashboard.api.shared.item_access import _get_coach_login, COACH_ONLY_PRICE_LIST
 from dashboard.api.shared.invoices import _get_bank_account_gl_account, _get_current_coach, _coach_label
 from dashboard.api.shared.store_products import _get_coach_price
@@ -828,7 +829,7 @@ def _send_coach_order_confirmation_email(invoice, coach_email, coach_display_nam
 
     cc = [settings.office_notification_email] if settings.office_notification_email else []
 
-    frappe.sendmail(
+    send_email(
         recipients=[coach_email],
         cc=cc,
         subject=f"Coach Store order confirmation - {invoice.name}",
@@ -837,7 +838,6 @@ def _send_coach_order_confirmation_email(invoice, coach_email, coach_display_nam
         # People branding (Ashley's own call), same as an online guest
         # checkout, regardless of which brand the item itself belongs to.
         attachments=[frappe.attach_print("Sales Invoice", invoice.name, letterhead="Resilient People")],
-        now=True,
         reference_doctype="Sales Invoice",
         reference_name=invoice.name,
     )
@@ -1318,12 +1318,11 @@ def _send_order_confirmation_emails(
 
     subject_item = checkout_items[0].item_name if len(checkout_items) == 1 else f"{len(checkout_items)} items"
 
-    frappe.sendmail(
+    send_email(
         recipients=[online_client.email],
         cc=list(cc),
         subject=f"Order confirmation - {subject_item}",
         message=wrap_branded_email_html(plain_text_to_email_html(message)),
-        now=True,
         reference_doctype="Sales Invoice",
         reference_name=invoice.name,
     )

@@ -33,6 +33,7 @@ from frappe.utils import getdate
 from dashboard.api.shared import payment_utils
 from dashboard.api.shared.invoices import _client_display_name
 from dashboard.api.shared.permissions import ensure_office_user
+from dashboard.api.shared.mail_throttle import send_email
 
 # Ashley's explicit cutoff before this feature went live: only invoices
 # dated on or after this should ever grant course access - an older
@@ -302,11 +303,10 @@ def _send_course_access_email(email, full_name, courses):
         {_email_brand_logo_row()}
     """
 
-    frappe.sendmail(
+    send_email(
         recipients=[email],
         subject=f"You now have access to {course_titles[0]}" if len(course_titles) == 1 else "You now have access to your new course",
         message=message,
-        now=True,
     )
 
 

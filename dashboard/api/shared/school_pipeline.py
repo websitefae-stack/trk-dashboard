@@ -36,6 +36,7 @@ from werkzeug.utils import secure_filename
 from dashboard.api.shared.email_templates import _body_fieldname, _html_to_plain_text, plain_text_to_email_html, render_email, wrap_branded_email_html
 from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user
 from dashboard.api.shared.profile import ASHLEY_USER, OFFICE_USER
+from dashboard.api.shared.mail_throttle import send_email
 
 SCHOOL_DOCTYPE = "School"
 CONTACT_DOCTYPE = "School Contact"
@@ -960,7 +961,7 @@ def send_one_off_school_email(school=None, contact_emails=None, subject=None, me
     for email in contact_emails:
         context = {"school_name": doc.school_name, "contact_name": name_by_email.get(email) or ""}
 
-        frappe.sendmail(
+        send_email(
             sender=OFFICE_USER,
             recipients=[email],
             reply_to=OFFICE_USER,
@@ -968,7 +969,6 @@ def send_one_off_school_email(school=None, contact_emails=None, subject=None, me
             message=wrap_branded_email_html(plain_text_to_email_html(frappe.render_template(message, context)), **branding),
             reference_doctype=SCHOOL_DOCTYPE,
             reference_name=school,
-            now=True,
             # Otherwise Frappe appends its own default footer below ours
             # ("The Resilient Kid / Sent via ERPNext") - the whole point
             # of wrap_branded_email_html() is to be the only footer.
@@ -1082,7 +1082,7 @@ def _send_next_school_step(enrollment_name):
         )
 
         if subject or message:
-            frappe.sendmail(
+            send_email(
                 sender=OFFICE_USER,
                 recipients=[primary_contact.email],
                 cc=cc_emails,
@@ -1091,7 +1091,6 @@ def _send_next_school_step(enrollment_name):
                 message=wrap_branded_email_html(plain_text_to_email_html(message), **_branded_email_kwargs()) if message else "",
                 reference_doctype=SCHOOL_DOCTYPE,
                 reference_name=school.name,
-                now=True,
                 add_unsubscribe_link=0,
             )
             enrollment.last_sent_on = frappe.utils.now_datetime()
@@ -1183,7 +1182,7 @@ def _notify_ashley_of_school_reply(school, matched_contact, sender_email, snippe
     who = matched_contact.contact_name if matched_contact else sender_email
     role = f" ({matched_contact.role})" if matched_contact and matched_contact.role else ""
 
-    frappe.sendmail(
+    send_email(
         sender=OFFICE_USER,
         recipients=[ASHLEY_USER],
         subject=f"School replied: {school.school_name}",
@@ -1193,7 +1192,6 @@ def _notify_ashley_of_school_reply(school, matched_contact, sender_email, snippe
             "This has been logged automatically against the school in the pipeline. "
             "Reply via office@theresilienthub.co.uk (not your own inbox) to keep your reply on record too."
         ),
-        now=True,
     )
 
 

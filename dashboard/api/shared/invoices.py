@@ -7,6 +7,7 @@ from frappe.utils import nowdate, flt, now_datetime
 
 from dashboard.api.shared.pagination import get_page_args, make_pagination
 from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, parse_email_list, INVOICE_EMAIL_TEMPLATE
+from dashboard.api.shared.mail_throttle import send_email
 from dashboard.api.shared import payment_utils
 
 
@@ -2378,7 +2379,6 @@ def send_client_email(client_name=None, recipient=None, subject=None, message=No
         "recipients": [recipient],
         "subject": subject,
         "message": message,
-        "now": True,
         "reply_to": reply_to,
     }
 
@@ -2391,7 +2391,7 @@ def send_client_email(client_name=None, recipient=None, subject=None, message=No
     # see email_templates.get_email_sender_options(). reply_to above is
     # what still routes a client's reply to the coach personally.
 
-    frappe.sendmail(**kwargs)
+    send_email(**kwargs)
 
     return {"ok": 1}
 
@@ -2700,7 +2700,6 @@ def send_client_statement_email(client_name=None, recipient=None, subject=None, 
         "recipients": [recipient],
         "subject": subject,
         "message": message,
-        "now": True,
         "reply_to": reply_to,
         "attachments": attachments,
     }
@@ -2714,7 +2713,7 @@ def send_client_statement_email(client_name=None, recipient=None, subject=None, 
     # see email_templates.get_email_sender_options(). reply_to above is
     # what still routes a client's reply to the coach personally.
 
-    frappe.sendmail(**kwargs)
+    send_email(**kwargs)
 
     return {"ok": 1}
 
@@ -2904,7 +2903,7 @@ def send_invoice_email(docname, recipient=None, reply_to=None, subject=None, mes
     # see email_templates.get_email_sender_options(). reply_to above is
     # what still routes a client's reply to the coach personally.
 
-    frappe.sendmail(**kwargs)
+    send_email(**kwargs)
 
     # Overwritten (not appended to) on every send, deliberately - the "Sent"
     # column always reflects the most recent time this invoice actually

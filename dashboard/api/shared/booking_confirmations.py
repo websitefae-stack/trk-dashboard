@@ -21,6 +21,7 @@ from frappe.utils import add_to_date, get_datetime, now_datetime
 
 from dashboard.api.shared.calendar import _event_has_field, _get_client_display_name, _is_online_location
 from dashboard.api.shared.email_templates import plain_text_to_email_html
+from dashboard.api.shared.mail_throttle import send_email
 
 PENDING_TIMEOUT_MINUTES = 10
 FOLLOWUP_GIVE_UP_HOURS = 24
@@ -108,11 +109,10 @@ def _compose_meet_link_followup_message(event_rows, client):
 
 def _send_confirmation_email(recipient, subject, message, reference_event):
     try:
-        frappe.sendmail(
+        send_email(
             recipients=[recipient],
             subject=subject,
             message=plain_text_to_email_html(message),
-            now=True,
             reference_doctype="Event",
             reference_name=reference_event,
         )
