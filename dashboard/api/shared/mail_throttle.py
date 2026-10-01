@@ -46,6 +46,31 @@ def _sent_in_last_hour():
     return frappe.db.count("Email Queue", {"creation": [">=", one_hour_ago]})
 
 
+@frappe.whitelist()
+def get_email_volume():
+    """Office-only. Live counts so Ashley/office can actually see how
+    close the site is to Titan's cap rather than only finding out from
+    Titan's own warning email - last hour (what the throttle itself
+    budgets against), today, and the last 24 hours."""
+    from dashboard.api.shared.permissions import ensure_logged_in
+    from dashboard.api.shared.profile import OFFICE_USER
+
+    ensure_logged_in()
+    if frappe.session.user != OFFICE_USER:
+        frappe.throw(frappe._("You are not allowed to access this page."), frappe.PermissionError)
+
+    one_hour_ago = add_to_date(now_datetime(), hours=-1)
+    one_day_ago = add_to_date(now_datetime(), hours=-24)
+    today_start = frappe.utils.get_datetime(frappe.utils.today())
+
+    return {
+        "sent_last_hour": frappe.db.count("Email Queue", {"creation": [">=", one_hour_ago]}),
+        "hourly_budget": HOURLY_SEND_BUDGET,
+        "sent_today": frappe.db.count("Email Queue", {"creation": [">=", today_start]}),
+        "sent_last_24h": frappe.db.count("Email Queue", {"creation": [">=", one_day_ago]}),
+    }
+
+
 def send_email(**kwargs):
     """Same keyword arguments as frappe.sendmail() - recipients, subject,
     message, reference_doctype, reference_name, cc, reply_to, etc."""

@@ -112,9 +112,28 @@
     }
   }
 
+  async function loadVolumeStats() {
+    const wrap = el("emailVolumeStats");
+    if (!wrap) return;
+
+    try {
+      const stats = await apiPost("dashboard.api.shared.mail_throttle.get_email_volume", {});
+      const nearLimit = stats.sent_last_hour >= stats.hourly_budget;
+      wrap.innerHTML = `
+        <strong${nearLimit ? ' style="color:#C0392B;"' : ""}>${stats.sent_last_hour}</strong> sent in the last hour
+        (safety budget: ${stats.hourly_budget}/hour, Titan's own cap is 50/hour) &middot;
+        <strong>${stats.sent_today}</strong> sent today &middot;
+        <strong>${stats.sent_last_24h}</strong> sent in the last 24 hours
+      `;
+    } catch (error) {
+      wrap.textContent = "Could not load email volume: " + (error.message || "");
+    }
+  }
+
   function init() {
     if (!el("emailTemplateList")) return;
     loadTemplates();
+    loadVolumeStats();
   }
 
   if (document.readyState === "loading") {
