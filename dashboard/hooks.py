@@ -328,7 +328,13 @@ doc_events = {
     # about, which previously got no email at all. See
     # course_unlock_on_payment.py's send_new_enrollment_welcome_email.
     "LMS Enrollment": {
-        "after_insert": "dashboard.api.shared.course_unlock_on_payment.send_new_enrollment_welcome_email",
+        "after_insert": [
+            "dashboard.api.shared.course_unlock_on_payment.send_new_enrollment_welcome_email",
+            # Every enrolment, from any path (paid purchase, free direct
+            # signup, or added by hand) - unlike the welcome email above,
+            # this always runs. See its own docstring for why.
+            "dashboard.api.shared.course_unlock_on_payment.add_paid_enrollment_to_course_email_group",
+        ],
     },
     # Keeps a backing, purchasable Item in sync with a paid course's own
     # price (created/priced/disabled automatically) - see

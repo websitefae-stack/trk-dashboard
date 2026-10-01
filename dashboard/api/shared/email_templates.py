@@ -120,6 +120,71 @@ def render_email(template_name, context, fallback_subject, fallback_message):
     )
 
 
+# Every merge field used by ANY Email Template seeded across this app -
+# see the various render_email(...) call sites (calendar.py, leads.py,
+# invoices.py, public_booking.py, school_pipeline.py, email_sequences.py,
+# franchise_brochure.py). Kept in one place so send_test_email() below
+# can render any template with a believable preview regardless of which
+# merge fields it actually uses - Jinja silently renders an unknown one
+# as blank rather than erroring, so listing fields a given template
+# doesn't use is harmless.
+SAMPLE_MERGE_CONTEXT = {
+    "recipient_name": "Alex Example",
+    "recipient_email": "alex@example.com",
+    "full_name": "Alex Example",
+    "contact_name": "Alex Example",
+    "client_name": "Jamie Example",
+    "school_name": "Example Primary School",
+    "appointment_type": "Franchisee Call",
+    "coach_name": "Ashley",
+    "invoice_number": "SINV-TEST-0001",
+    "company_label": "The Resilient Kid",
+    "brochure_url": PUBLIC_SITE_URL + "/franchise-brochure?token=sample-test-token",
+    "booking_url": PUBLIC_SITE_URL + "/book-franchise-call",
+}
+
+
+@frappe.whitelist()
+def send_test_email(template_name=None, test_email=None):
+    """
+    Franchisor-only - lets Ashley see exactly what an Email Template will
+    actually look like, sent to a real inbox, before it ever goes out for
+    real. Renders with SAMPLE_MERGE_CONTEXT above rather than any real
+    document, so this works for every template the same way regardless
+    of what normally triggers it; any merge field a given template
+    doesn't use just doesn't appear, same as a real send.
+    """
+    from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user
+    from dashboard.api.shared.mail_throttle import send_email
+
+    ensure_logged_in()
+    if not is_franchisor_user():
+        frappe.throw(frappe._("Only the franchisor can send a test email."), frappe.PermissionError)
+
+    template_name = (template_name or "").strip()
+    if not template_name or not frappe.db.exists("Email Template", template_name):
+        frappe.throw(frappe._("Choose a template to test."))
+
+    test_email = (test_email or "").strip() or frappe.session.user
+    if not test_email or test_email == "Guest":
+        frappe.throw(frappe._("Enter an email address to send the test to."))
+
+    subject, message = render_email(
+        template_name,
+        SAMPLE_MERGE_CONTEXT,
+        fallback_subject="(This template has no subject/body set yet)",
+        fallback_message="(This template has no subject/body set yet)",
+    )
+
+    send_email(
+        recipients=[test_email],
+        subject=f"[TEST] {subject}",
+        message=wrap_branded_email_html(plain_text_to_email_html(message)),
+    )
+
+    return {"ok": 1, "sent_to": test_email}
+
+
 @frappe.whitelist()
 def get_email_template_options():
     """
@@ -136,6 +201,44 @@ def get_email_template_options():
 
     rows = frappe.get_all("Email Template", fields=["name"], order_by="name asc", limit_page_length=200)
     return [{"value": row.get("name"), "label": row.get("name")} for row in rows]
+
+
+@frappe.whitelist()
+def list_email_templates():
+    """For the /franchisor_db/email_templates page - every Email Template
+    on the site plus whether it actually has a subject/body set yet, so
+    Ashley can see at a glance which of her 12+ templates still need
+    writing."""
+    from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user
+
+    ensure_logged_in()
+    if not is_franchisor_user():
+        frappe.throw(frappe._("Only the franchisor can view email templates."), frappe.PermissionError)
+
+    if not frappe.db.exists("DocType", "Email Template"):
+        return []
+
+    meta = frappe.get_meta("Email Template")
+    body_fieldname = None
+    for fieldname in BODY_FIELD_CANDIDATES:
+        if meta.has_field(fieldname):
+            body_fieldname = fieldname
+            break
+
+    fields = ["name", "subject"]
+    if body_fieldname and body_fieldname not in fields:
+        fields.append(body_fieldname)
+
+    rows = frappe.get_all("Email Template", fields=fields, order_by="name asc", limit_page_length=200)
+
+    result = []
+    for row in rows:
+        body = row.get(body_fieldname) if body_fieldname else None
+        result.append({
+            "name": row.get("name"),
+            "has_content": bool((row.get("subject") or "").strip() or (body or "").strip()),
+        })
+    return result
 
 
 def _default_outgoing_email():
