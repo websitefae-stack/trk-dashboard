@@ -29,6 +29,7 @@ BOOKING_CONFIRMATION_TEMPLATE = "Booking Confirmation - Resilient Kid"
 INTAKE_INVITE_TEMPLATE = "Client Intake Form Invite - Resilient Kid"
 PODCAST_INVITE_TEMPLATE = "Podcast Guest Form Invite - Resilient Kid"
 INVOICE_EMAIL_TEMPLATE = "Invoice Email - Resilient Kid"
+FRANCHISE_BROCHURE_LINK_TEMPLATE = "Franchise Brochure Link - Resilient Kid"
 
 # Tried in this order - whichever of these is a real field on this site's
 # Email Template doctype holds the body content. Different Frappe versions

@@ -176,7 +176,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Source",
-   "options": "Coach Added\nCalendar Booking\nPublic Booking\nWebsite Enquiry",
+   "options": "Coach Added\nCalendar Booking\nPublic Booking\nWebsite Enquiry\nFranchise Brochure",
    "default": "Coach Added"
   },
   {
@@ -992,7 +992,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-10 00:00:00.000000",
+ "modified": "2026-10-01 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Dashboard",
  "name": "Client Lead",
