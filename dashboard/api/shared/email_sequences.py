@@ -20,7 +20,7 @@ Two entry points:
 
 import frappe
 
-from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, wrap_branded_email_html
+from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, wrap_branded_email_html, _looks_like_html
 from dashboard.api.shared.profile import PUBLIC_SITE_URL
 from dashboard.api.shared.mail_throttle import send_email
 
@@ -177,13 +177,24 @@ def _send_next_step(enrollment_name):
             },
             fallback_subject="",
             fallback_message="",
+            strip_html_message=False,
         )
 
         if subject or message:
+            # A fully custom HTML step template is sent exactly as
+            # authored - wrap_branded_email_html would otherwise add a
+            # second logo header/footer on top of its own.
+            if message and _looks_like_html(message):
+                final_message = message
+            elif message:
+                final_message = wrap_branded_email_html(plain_text_to_email_html(message))
+            else:
+                final_message = ""
+
             send_email(
                 recipients=[enrollment.recipient_email],
                 subject=subject or sequence.sequence_name,
-                message=wrap_branded_email_html(plain_text_to_email_html(message)) if message else "",
+                message=final_message,
             )
             enrollment.last_sent_on = frappe.utils.now_datetime()
         else:
