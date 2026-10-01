@@ -11,7 +11,7 @@ from html import unescape as _html_unescape
 
 import frappe
 
-from dashboard.api.shared.profile import PUBLIC_SITE_URL
+from dashboard.api.shared.profile import PUBLIC_SITE_URL, OFFICE_USER
 
 HUB_LOGO_URL = PUBLIC_SITE_URL + "/files/TRHub_Logo.jpg"
 
@@ -139,7 +139,14 @@ SAMPLE_MERGE_CONTEXT = {
     "coach_name": "Ashley",
     "invoice_number": "SINV-TEST-0001",
     "company_label": "The Resilient Kid",
-    "brochure_url": PUBLIC_SITE_URL + "/franchise-brochure?token=sample-test-token",
+    # A real brochure_url always carries a genuine, single-use token (see
+    # franchise_brochure.py) that /franchise-brochure checks against a
+    # real Franchise Brochure Request record - a made-up sample token
+    # would correctly get bounced to the request form, same as any
+    # other invalid/guessed link, which isn't useful for previewing
+    # what the email itself looks like. Points at the plain /brochure
+    # page instead (no token, nothing to fake) purely for this preview.
+    "brochure_url": PUBLIC_SITE_URL + "/brochure",
     "booking_url": PUBLIC_SITE_URL + "/book-franchise-call",
 }
 
@@ -147,19 +154,23 @@ SAMPLE_MERGE_CONTEXT = {
 @frappe.whitelist()
 def send_test_email(template_name=None, test_email=None):
     """
-    Franchisor-only - lets Ashley see exactly what an Email Template will
+    Office-only (not Ashley's own login - see /franchisor_db/email_
+    templates's own nav link and get_context, which match this same
+    restriction) - lets office see exactly what an Email Template will
     actually look like, sent to a real inbox, before it ever goes out for
     real. Renders with SAMPLE_MERGE_CONTEXT above rather than any real
     document, so this works for every template the same way regardless
     of what normally triggers it; any merge field a given template
     doesn't use just doesn't appear, same as a real send.
     """
-    from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user
+    from dashboard.api.shared.permissions import ensure_logged_in
     from dashboard.api.shared.mail_throttle import send_email
 
     ensure_logged_in()
-    if not is_franchisor_user():
-        frappe.throw(frappe._("Only the franchisor can send a test email."), frappe.PermissionError)
+    # Literal check, not ensure_office_user()/is_franchisor_user() -
+    # those both treat Ashley and office as the same tier.
+    if frappe.session.user != OFFICE_USER:
+        frappe.throw(frappe._("You are not allowed to access this page."), frappe.PermissionError)
 
     template_name = (template_name or "").strip()
     if not template_name or not frappe.db.exists("Email Template", template_name):
@@ -205,15 +216,15 @@ def get_email_template_options():
 
 @frappe.whitelist()
 def list_email_templates():
-    """For the /franchisor_db/email_templates page - every Email Template
-    on the site plus whether it actually has a subject/body set yet, so
-    Ashley can see at a glance which of her 12+ templates still need
-    writing."""
-    from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user
+    """For the /franchisor_db/email_templates page (office-only, not
+    Ashley's own login) - every Email Template on the site plus whether
+    it actually has a subject/body set yet, so office can see at a
+    glance which of the 12+ templates still need writing."""
+    from dashboard.api.shared.permissions import ensure_logged_in
 
     ensure_logged_in()
-    if not is_franchisor_user():
-        frappe.throw(frappe._("Only the franchisor can view email templates."), frappe.PermissionError)
+    if frappe.session.user != OFFICE_USER:
+        frappe.throw(frappe._("You are not allowed to access this page."), frappe.PermissionError)
 
     if not frappe.db.exists("DocType", "Email Template"):
         return []

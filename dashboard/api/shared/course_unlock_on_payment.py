@@ -27,6 +27,8 @@ fires inside Payment Entry.on_submit itself - this must never block a
 real payment from recording.
 """
 
+import contextlib
+
 import frappe
 from frappe.utils import getdate
 
@@ -42,6 +44,41 @@ from dashboard.api.shared.mail_throttle import send_email
 COURSE_UNLOCK_CUTOFF_DATE = "2026-03-01"
 
 
+@contextlib.contextmanager
+def _as_system_administrator():
+    """
+    Elevates to Administrator for the duration - needed because LMS's
+    own LMS Enrollment.before_insert (validate_course_enrollment_
+    eligibility) throws "You need to complete the payment for this
+    course before enrolling" unless either a matching LMS Payment record
+    exists (which a session-pack-unlocked course never has - the member
+    paid via this app's own Sales Invoice, a completely different
+    payment rail LMS itself knows nothing about) or frappe.get_roles(
+    frappe.session.user) already includes one of LMS's own "admin" roles
+    (Moderator/Course Creator/Batch Evaluator). ignore_permissions=True
+    on the insert doesn't touch this at all - it's a plain frappe.throw()
+    in LMS's own application logic, not a permission check.
+
+    This is exactly what broke the 12 Session Coaching Pack's course
+    grant: the Payment Entry was submitted by an office user with none
+    of those roles, so enrollment.insert() threw inside before_insert
+    and the whole unlock silently failed.
+
+    ONLY safe to use here because every caller (process_invoice_course_
+    unlock below) always runs inside a background job, never inline in
+    a real logged-in user's own request - see webshop_purchase.py's own
+    _as_system_administrator for why frappe.set_user() is dangerous
+    there instead (it also reassigns frappe.session.sid, and restoring
+    only session.user afterward once left a real user logged out).
+    """
+    previous_user = frappe.session.user
+    frappe.set_user("Administrator")
+    try:
+        yield
+    finally:
+        frappe.set_user(previous_user)
+
+
 def unlock_courses_on_payment(doc, method=None):
     try:
         _unlock_courses_on_payment(doc)
@@ -55,10 +92,12 @@ def backfill_course_unlocks_for_paid_invoices():
     setting custom_unlocks_lms_course on an item for the first time, to
     retroactively grant access on every already-paid invoice that
     contains it (not just ones paid from now on). Every invoice it
-    touches goes through the exact same _process_invoice() the live
-    Payment Entry hook uses, so anyone already enrolled is simply
-    skipped again - no duplicate enrolment, no repeat "you now have
-    access" email.
+    touches goes through the exact same process_invoice_course_unlock()
+    background job the live Payment Entry hook uses, so anyone already
+    enrolled is simply skipped again - no duplicate enrolment, no repeat
+    "you now have access" email. Queues one job per invoice and returns
+    immediately rather than processing inline - see process_invoice_
+    course_unlock's own docstring for why that matters here.
     """
     ensure_office_user()
     return _backfill_course_unlocks_for_paid_invoices()
@@ -90,13 +129,15 @@ def _backfill_course_unlocks_for_paid_invoices():
 
     for invoice_name in invoice_names:
         try:
-            _process_invoice(invoice_name)
+            frappe.enqueue(
+                "dashboard.api.shared.course_unlock_on_payment.process_invoice_course_unlock",
+                queue="short",
+                invoice_name=invoice_name,
+            )
         except Exception:
-            frappe.log_error(frappe.get_traceback(), f"Backfill Course Unlock Failed - {invoice_name}")
+            frappe.log_error(frappe.get_traceback(), f"Backfill Course Unlock - enqueue - {invoice_name}")
 
-    frappe.db.commit()
-
-    return {"invoices_checked": len(invoice_names)}
+    return {"invoices_queued": len(invoice_names)}
 
 
 def _unlock_courses_on_payment(doc):
@@ -113,7 +154,29 @@ def _unlock_courses_on_payment(doc):
         if reference.reference_doctype != "Sales Invoice" or not reference.reference_name:
             continue
 
-        _process_invoice(reference.reference_name)
+        frappe.enqueue(
+            "dashboard.api.shared.course_unlock_on_payment.process_invoice_course_unlock",
+            queue="short",
+            enqueue_after_commit=True,
+            invoice_name=reference.reference_name,
+        )
+
+
+def process_invoice_course_unlock(invoice_name):
+    """
+    Background job - deferred out of whichever request triggered it
+    (Payment Entry.on_submit above, or the backfill endpoint) specifically
+    so _as_system_administrator() is safe to use: there's no real
+    end-user session left to protect by the time this runs, unlike
+    calling frappe.set_user() inline inside someone's live request.
+    Every failure is caught and logged, never raised - nothing is
+    waiting on this job's result.
+    """
+    try:
+        with _as_system_administrator():
+            _process_invoice(invoice_name)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Course Unlock On Payment Failed - {invoice_name}")
 
 
 def _process_invoice(invoice_name):
@@ -484,96 +547,6 @@ def send_welcome_emails_to_existing_course_members(dry_run=1, only_email=None):
         "total_emails": len(people),
         "emails_actually_sent": emails_sent,
         "people": people,
-    }
-
-
-@frappe.whitelist()
-def debug_course_unlock(invoice_name=None):
-    """TEMPORARY diagnostic - not called from the frontend. Visit
-    /api/method/dashboard.api.shared.course_unlock_on_payment.debug_
-    course_unlock?invoice_name=SINV-XXXX while logged in as office to see
-    exactly which check in _process_invoice/_unlock_courses_for_purchase
-    is blocking course access for a specific paid invoice. Remove once
-    the real bug is found."""
-    ensure_office_user()
-
-    invoice_name = (invoice_name or "").strip()
-    if not invoice_name or not frappe.db.exists("Sales Invoice", invoice_name):
-        frappe.throw(_("Give a real Sales Invoice name, e.g. ?invoice_name=SINV-0001"))
-
-    invoice = frappe.get_doc("Sales Invoice", invoice_name)
-
-    items = []
-    for row in invoice.items or []:
-        course = frappe.db.get_value("Item", row.item_code, "custom_unlocks_lms_course") if row.item_code else None
-        items.append({
-            "item_code": row.item_code,
-            "item_name": row.item_name,
-            "custom_unlocks_lms_course": course,
-            "course_exists": bool(course and frappe.db.exists("LMS Course", course)),
-        })
-
-    outstanding = payment_utils.get_outstanding_amount_for_payment(
-        invoice.outstanding_amount, invoice.grand_total, invoice.name
-    )
-
-    custom_client = invoice.get("custom_client") if invoice.meta.has_field("custom_client") else "(no custom_client field on this site)"
-    custom_online_client = invoice.get("custom_online_client") if invoice.meta.has_field("custom_online_client") else "(no custom_online_client field on this site)"
-
-    client_contact_resolution = None
-    if custom_client and frappe.db.exists("Client", custom_client):
-        email, full_name, contact_name = _resolve_client_contact(custom_client)
-        enrollments = []
-        for item in items:
-            if item["custom_unlocks_lms_course"]:
-                enrollments.append({
-                    "course": item["custom_unlocks_lms_course"],
-                    "email_checked": email,
-                    "already_enrolled": bool(email) and frappe.db.exists(
-                        "LMS Enrollment", {"course": item["custom_unlocks_lms_course"], "member": email}
-                    ),
-                })
-        client_contact_resolution = {
-            "resolved_email": email,
-            "resolved_full_name": full_name,
-            "resolved_contact": contact_name,
-            "enrollments": enrollments,
-        }
-
-    payment_entries_referencing_this_invoice = frappe.get_all(
-        "Payment Entry Reference",
-        filters={"reference_doctype": "Sales Invoice", "reference_name": invoice_name},
-        fields=["parent"],
-    )
-    payment_entries = []
-    for row in payment_entries_referencing_this_invoice:
-        pe = frappe.db.get_value("Payment Entry", row.parent, ["name", "docstatus", "payment_type"], as_dict=True)
-        if pe:
-            payment_entries.append(pe)
-
-    return {
-        "invoice_docstatus": invoice.docstatus,
-        "invoice_docstatus_meaning": {0: "Draft - never processed", 1: "Submitted", 2: "Cancelled"}.get(invoice.docstatus),
-        "posting_date": str(invoice.posting_date) if invoice.posting_date else None,
-        "cutoff_date": COURSE_UNLOCK_CUTOFF_DATE,
-        "posting_date_before_cutoff": bool(
-            invoice.posting_date and getdate(invoice.posting_date) < getdate(COURSE_UNLOCK_CUTOFF_DATE)
-        ),
-        "custom_client": custom_client,
-        "custom_online_client": custom_online_client,
-        "note": (
-            "If custom_online_client is set, _process_invoice() deliberately skips this "
-            "invoice entirely - it assumes webshop_purchase.py's own guest-checkout flow "
-            "already granted access synchronously when the order was placed. If access is "
-            "still missing despite that, the bug is in THAT flow, not this one."
-        ),
-        "grand_total": invoice.grand_total,
-        "outstanding_amount_cached": invoice.outstanding_amount,
-        "outstanding_amount_computed": outstanding,
-        "fully_paid": outstanding <= 0.01,
-        "items": items,
-        "client_contact_resolution": client_contact_resolution,
-        "payment_entries_referencing_this_invoice": payment_entries,
     }
 
 
