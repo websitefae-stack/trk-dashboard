@@ -22,6 +22,7 @@ import frappe
 
 from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, wrap_branded_email_html
 from dashboard.api.shared.profile import PUBLIC_SITE_URL
+from dashboard.api.shared.mail_throttle import send_email
 
 SEQUENCE_DOCTYPE = "Email Sequence"
 STEP_DOCTYPE = "Email Sequence Step"
@@ -179,11 +180,10 @@ def _send_next_step(enrollment_name):
         )
 
         if subject or message:
-            frappe.sendmail(
+            send_email(
                 recipients=[enrollment.recipient_email],
                 subject=subject or sequence.sequence_name,
                 message=wrap_branded_email_html(plain_text_to_email_html(message)) if message else "",
-                now=True,
             )
             enrollment.last_sent_on = frappe.utils.now_datetime()
         else:

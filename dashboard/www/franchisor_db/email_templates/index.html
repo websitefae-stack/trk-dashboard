@@ -1,0 +1,32 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Email Templates</h1>
+          <p class="dashboard-page-subtitle">
+            Every automated email the system sends. Edit the wording for any of these in Desk
+            (the "Open in Desk" link on each row), then send yourself a test to see exactly what
+            it'll look like before it goes out for real.
+          </p>
+        </div>
+      </div>
+
+      <div class="dashboard-card" style="margin-bottom:16px;">
+        <p class="dashboard-field-hint" style="margin:0;">
+          Send a test to: <input type="email" class="dashboard-input" id="emailTemplateTestAddress"
+            style="max-width:320px; display:inline-block;" value="{{ current_user_email }}">
+          <span class="dashboard-field-hint">Every "Send Test" button below sends to this address.</span>
+        </p>
+      </div>
+
+      <div id="emailTemplateList"></div>
+    </div>
+  </div>
+</div>

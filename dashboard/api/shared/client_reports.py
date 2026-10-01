@@ -28,6 +28,7 @@ from dashboard.api.shared.invoices import (
     get_client_email_options,
 )
 from dashboard.api.shared.email_templates import plain_text_to_email_html, parse_email_list
+from dashboard.api.shared.mail_throttle import send_email
 
 CLIENT_REPORT_DOCTYPE = "Client Report"
 
@@ -269,7 +270,6 @@ def send_client_report_email(name=None, recipient=None, subject=None, message=No
         "recipients": [recipient],
         "subject": subject,
         "message": message,
-        "now": True,
         "reply_to": reply_to,
     }
 
@@ -282,7 +282,7 @@ def send_client_report_email(name=None, recipient=None, subject=None, message=No
     # see email_templates.get_email_sender_options(). reply_to above is
     # what still routes a client's reply to the coach personally.
 
-    frappe.sendmail(**kwargs)
+    send_email(**kwargs)
 
     doc.last_emailed_on = now_datetime()
     doc.email_send_count = int(doc.email_send_count or 0) + 1

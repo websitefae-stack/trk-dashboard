@@ -24,6 +24,7 @@ from dashboard.api.shared.email_templates import (
     FRANCHISE_BROCHURE_LINK_TEMPLATE,
 )
 from dashboard.api.shared.profile import PUBLIC_SITE_URL
+from dashboard.api.shared.mail_throttle import send_email
 
 BROCHURE_PAGE_PATH = "/franchise-brochure"
 
@@ -72,11 +73,10 @@ def _send_brochure_link(doc):
         ),
     )
 
-    frappe.sendmail(
+    send_email(
         recipients=[email],
         subject=subject,
         message=wrap_branded_email_html(plain_text_to_email_html(message)),
-        now=True,
         reference_doctype=doc.doctype,
         reference_name=doc.name,
     )

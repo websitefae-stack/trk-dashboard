@@ -19,6 +19,7 @@ import frappe
 from frappe import _
 
 from dashboard.api.shared.permissions import ensure_client_access, get_client_permissions
+from dashboard.api.shared.mail_throttle import send_email
 
 CLIENT_DOCTYPE = "Client"
 LINK_DOCTYPE = "Client Contact Link"
@@ -242,9 +243,8 @@ def _send_portal_notification(email, full_name, user_created):
             <p>Use your existing password, or click "Forgot Password" on the login page if you need to reset it.</p>
         """
 
-    frappe.sendmail(
+    send_email(
         recipients=[email],
         subject="Your client portal access",
         message=message,
-        now=True,
     )

@@ -13,6 +13,7 @@ from frappe.utils import now_datetime, nowdate
 
 from dashboard.api.shared.store_products import _ensure_store_access, _to_int
 from dashboard.api.shared.email_templates import plain_text_to_email_html
+from dashboard.api.shared.mail_throttle import send_email
 from dashboard.dashboard.doctype.webshop_payment_settings.webshop_payment_settings import get_settings
 
 ORDER_DOCTYPE = "Webshop Checkout"
@@ -293,12 +294,11 @@ def _send_shipped_email(order):
 
     cc = [settings.office_notification_email] if settings.office_notification_email else []
 
-    frappe.sendmail(
+    send_email(
         recipients=[order.email],
         cc=cc,
         subject="Your order has been shipped",
         message=plain_text_to_email_html(message),
-        now=True,
         reference_doctype=ORDER_DOCTYPE,
         reference_name=order.name,
     )

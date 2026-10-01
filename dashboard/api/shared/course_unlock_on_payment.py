@@ -33,6 +33,7 @@ from frappe.utils import getdate
 from dashboard.api.shared import payment_utils
 from dashboard.api.shared.invoices import _client_display_name
 from dashboard.api.shared.permissions import ensure_office_user
+from dashboard.api.shared.mail_throttle import send_email
 
 # Ashley's explicit cutoff before this feature went live: only invoices
 # dated on or after this should ever grant course access - an older
@@ -302,11 +303,10 @@ def _send_course_access_email(email, full_name, courses):
         {_email_brand_logo_row()}
     """
 
-    frappe.sendmail(
+    send_email(
         recipients=[email],
         subject=f"You now have access to {course_titles[0]}" if len(course_titles) == 1 else "You now have access to your new course",
         message=message,
-        now=True,
     )
 
 
@@ -353,6 +353,54 @@ def _send_new_enrollment_welcome_email(doc):
     user_created = _ensure_user_account(email, full_name)
 
     _send_course_access_email(email, full_name, [doc.course])
+
+
+def add_paid_enrollment_to_course_email_group(doc, method=None):
+    """
+    LMS Enrollment.after_insert hook, registered alongside send_new_
+    enrollment_welcome_email above - unlike that one, this runs for
+    EVERY enrollment regardless of how it was created (it does NOT check
+    skip_lms_enrollment_welcome_email), since course_signup.py's own
+    direct free-signup path already adds the member to the course's
+    Email Group itself, but neither of this app's own paid-purchase
+    paths (webshop_purchase.py's checkout unlock, course_unlock_on_
+    payment.py's own payment unlock above) ever did - every course
+    bought rather than freely joined was silently missing from its own
+    course's list. One fix here covers both of those paths, and any
+    future one, since they all insert an LMS Enrollment the same way.
+
+    Every failure is caught and logged, never raised - this must never
+    block an enrollment from saving.
+    """
+    try:
+        _add_paid_enrollment_to_course_email_group(doc)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Course Email Group Add Failed - {doc.name}")
+
+
+def _add_paid_enrollment_to_course_email_group(doc):
+    from dashboard.api.shared.email_groups import course_signup_email_group_name, ensure_email_group, add_to_email_group
+
+    email = (doc.member or "").strip()
+    if not email or "@" not in email:
+        return
+
+    course_title = frappe.db.get_value("LMS Course", doc.course, "title")
+    if not course_title:
+        return
+
+    group_name = course_signup_email_group_name(course_title)
+    if not group_name:
+        return
+
+    full_name = (
+        frappe.db.get_value("User", email, "full_name")
+        or frappe.db.get_value("Contact", {"email_id": email}, "full_name")
+        or ""
+    )
+
+    ensure_email_group(group_name)
+    add_to_email_group(email, group_name, full_name=full_name)
 
 
 @frappe.whitelist()
@@ -437,3 +485,50 @@ def send_welcome_emails_to_existing_course_members(dry_run=1, only_email=None):
         "emails_actually_sent": emails_sent,
         "people": people,
     }
+
+
+@frappe.whitelist()
+def backfill_course_email_groups():
+    """
+    One-off, office-triggered backfill for add_paid_enrollment_to_course_
+    email_group's own gap (see its docstring) - every LMS Enrollment that
+    already existed before that hook was added was never added to its
+    course's Email Group. Safe to re-run any time: add_to_email_group is
+    itself idempotent (an existing member is just un-unsubscribed, never
+    duplicated), so running this twice, or after the live hook has
+    already caught new enrolments, changes nothing extra.
+    """
+    ensure_office_user()
+
+    from dashboard.api.shared.email_groups import course_signup_email_group_name, ensure_email_group, add_to_email_group
+
+    enrollments = frappe.get_all("LMS Enrollment", fields=["name", "member", "course"])
+
+    added = []
+    skipped = 0
+
+    for row in enrollments:
+        member = (row.member or "").strip()
+        if not member or "@" not in member:
+            skipped += 1
+            continue
+
+        course_title = frappe.db.get_value("LMS Course", row.course, "title")
+        group_name = course_signup_email_group_name(course_title)
+        if not group_name:
+            skipped += 1
+            continue
+
+        full_name = (
+            frappe.db.get_value("User", member, "full_name")
+            or frappe.db.get_value("Contact", {"email_id": member}, "full_name")
+            or ""
+        )
+
+        ensure_email_group(group_name)
+        add_to_email_group(member, group_name, full_name=full_name)
+        added.append({"email": member, "group": group_name})
+
+    frappe.db.commit()
+
+    return {"total_enrollments": len(enrollments), "added": len(added), "skipped": skipped, "people": added}

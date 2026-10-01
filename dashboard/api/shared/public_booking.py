@@ -29,6 +29,7 @@ from dashboard.api.shared.appointment_types import (
 )
 from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, BOOKING_CONFIRMATION_TEMPLATE
 from dashboard.api.shared.notifications import create_trk_notification
+from dashboard.api.shared.mail_throttle import send_email
 
 SLOT_GRID_MINUTES = 30
 MAX_DAYS_AHEAD = 60
@@ -813,10 +814,9 @@ def _send_booking_confirmation_email(contact_email, contact_name, coach, appoint
         "recipients": [contact_email],
         "subject": subject,
         "message": plain_text_to_email_html(message),
-        "now": True,
     }
 
     if reply_to:
         kwargs["reply_to"] = reply_to
 
-    frappe.sendmail(**kwargs)
+    send_email(**kwargs)
