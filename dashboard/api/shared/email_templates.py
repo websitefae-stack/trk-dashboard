@@ -42,17 +42,30 @@ _HTML_TAG_RE = re.compile(r"<[a-zA-Z/][^>]*>")
 
 def _body_fieldname(doc):
     """
-    Among the candidates that exist on this doctype, prefers whichever
-    one actually HAS content over just the first one that merely exists
-    in the list - this is the fix for a real bug: a site can have more
-    than one of these fields present (an old/unused one alongside
-    the one Desk's form actually edits today), and picking by bare
-    existence alone can silently read a stale/blank field forever while
-    completely ignoring real, current content sitting in a later
-    candidate. Only falls back to "first one that exists" when none of
-    them have content, which preserves the original behaviour for a
-    genuinely blank template.
+    This site's Email Template has a `use_html` Check field that Desk's
+    own form uses to decide which body field to actually show/edit:
+    response_html (a raw HTML editor) when it's on, response (Quill's
+    rich-text editor) when it's off - confirmed via debug_email_
+    template, which is also what exposed the real bug this replaced: a
+    site can have MORE than one of the BODY_FIELD_CANDIDATES fields
+    present with real content in each (e.g. an old Quill draft sitting
+    in `response` alongside a deliberately-authored HTML template in
+    `response_html`), so picking by bare existence - or even by "first
+    one with any content" - can land on the wrong one forever while
+    Desk itself, and whoever's editing there, is clearly using the
+    other. Reading use_html directly is authoritative instead of
+    guessing, since it's the exact same switch Desk uses.
+
+    Falls back to "first existing candidate with content" (then "first
+    that merely exists") for a site that predates this field, or
+    doesn't have it at all.
     """
+    if doc.meta.has_field("use_html"):
+        if doc.get("use_html") and doc.meta.has_field("response_html"):
+            return "response_html"
+        if not doc.get("use_html") and doc.meta.has_field("response"):
+            return "response"
+
     existing = [f for f in BODY_FIELD_CANDIDATES if doc.meta.has_field(f)]
 
     for fieldname in existing:
@@ -211,6 +224,7 @@ def debug_email_template(template_name=None):
         "template_name": template_name,
         "modified": str(doc.modified),
         "subject": doc.get("subject"),
+        "use_html": doc.get("use_html") if doc.meta.has_field("use_html") else "(field does not exist on this doctype)",
         "detected_body_fieldname": detected_fieldname,
         "detected_body_value": (doc.get(detected_fieldname) or "")[:500] if detected_fieldname else None,
         "all_candidate_fields_on_doctype": [f.fieldname for f in doc.meta.fields if "response" in f.fieldname.lower() or "content" in f.fieldname.lower() or "message" in f.fieldname.lower() or "html" in f.fieldname.lower()],
