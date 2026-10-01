@@ -336,6 +336,13 @@ doc_events = {
             "dashboard.api.shared.course_unlock_on_payment.add_paid_enrollment_to_course_email_group",
         ],
     },
+    # Frappe -> MailerLite subscriber sync - see mailerlite_sync.py's own
+    # module docstring for the full picture (additions only ever flow
+    # this direction; unsubscribes flow both ways).
+    "Email Group Member": {
+        "after_insert": "dashboard.api.shared.mailerlite_sync.sync_new_email_group_member",
+        "on_update": "dashboard.api.shared.mailerlite_sync.sync_unsubscribe_to_mailerlite",
+    },
     # Keeps a backing, purchasable Item in sync with a paid course's own
     # price (created/priced/disabled automatically) - see
     # store_products.sync_course_store_item's own docstring on
