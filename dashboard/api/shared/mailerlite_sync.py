@@ -1,12 +1,13 @@
 """
-Two-way subscriber sync between Frappe's own Email Group (see
-MailerLite Settings.synced_email_group, "Website Newsletter
-Subscribers" by default) and MailerLite, Ashley's actual newsletter
-sending tool - this app never sends the newsletter itself (see the
-email strategy discussion this came out of: MailerLite stays the
-system of record for the 900-subscriber weekly send, keeping bulk
-marketing mail off office@ entirely, which also protects office@'s own
-deliverability for invoices/booking confirmations).
+Two-way subscriber sync between Frappe's Email Groups (EVERY one -
+newsletter subscribers, course sign-ups, website customers, etc, all
+merged into the single MailerLite Group ID on MailerLite Settings) and
+MailerLite, Ashley's actual newsletter sending tool - this app never
+sends the newsletter itself (see the email strategy discussion this
+came out of: MailerLite stays the system of record for the
+900-subscriber weekly send, keeping bulk marketing mail off office@
+entirely, which also protects office@'s own deliverability for
+invoices/booking confirmations).
 
 Deliberately ONE-DIRECTIONAL for new subscribers (Frappe -> MailerLite
 only, never the reverse) - someone who signs up directly in MailerLite
@@ -15,8 +16,10 @@ here would create data nobody asked for. Unsubscribes flow BOTH ways
 though, since either side is a genuine "stop emailing me" signal that
 has to be honoured everywhere, immediately - see sync_unsubscribe_to_
 mailerlite (Frappe -> MailerLite) and mailerlite_webhook (MailerLite ->
-Frappe, which only ever marks an EXISTING Frappe member unsubscribed,
-never creates a new one - same one-directional rule for additions).
+Frappe, which only ever marks EXISTING Frappe members unsubscribed -
+in every Email Group they're in, since MailerLite only has one merged
+list to unsubscribe them from - never creates a new one, same
+one-directional rule for additions).
 
 Built from MailerLite's documented API shape (connect.mailerlite.com) -
 this sandbox has no outbound internet access to verify against their
@@ -123,10 +126,7 @@ def sync_new_email_group_member(doc, method=None):
 
 def _sync_new_email_group_member(doc):
     settings = _get_settings()
-    if not settings or not settings.synced_email_group:
-        return
-
-    if doc.email_group != settings.synced_email_group:
+    if not settings:
         return
 
     if doc.get("unsubscribed"):
@@ -147,10 +147,7 @@ def sync_unsubscribe_to_mailerlite(doc, method=None):
 
 def _sync_unsubscribe_to_mailerlite(doc):
     settings = _get_settings()
-    if not settings or not settings.synced_email_group:
-        return
-
-    if doc.email_group != settings.synced_email_group:
+    if not settings:
         return
 
     if not doc.get("unsubscribed"):
@@ -225,21 +222,29 @@ def mailerlite_webhook():
 
 def _mark_unsubscribed_in_frappe(email):
     settings = _get_settings()
-    if not settings or not settings.synced_email_group:
+    if not settings:
         return
 
-    # Only ever updates an EXISTING member - never creates one. Someone
+    # Only ever updates EXISTING members - never creates one. Someone
     # who unsubscribes in MailerLite but was never known to Frappe has
     # nothing here to update, which is correct (see this module's own
     # docstring - additions only ever flow Frappe -> MailerLite).
-    existing = frappe.db.get_value(
+    #
+    # Updates every Email Group this email belongs to, not just one -
+    # MailerLite only has the one merged list to unsubscribe them from,
+    # so there's no way to know which single Frappe group they meant;
+    # treating it as "stop emailing me everywhere" is the safer read of
+    # an unsubscribe than under-honouring it in groups left unmatched.
+    existing_names = frappe.get_all(
         "Email Group Member",
-        {"email_group": settings.synced_email_group, "email": email},
-        "name",
+        filters={"email": email, "unsubscribed": 0},
+        pluck="name",
     )
 
-    if not existing:
+    if not existing_names:
         return
 
-    frappe.db.set_value("Email Group Member", existing, "unsubscribed", 1)
+    for name in existing_names:
+        frappe.db.set_value("Email Group Member", name, "unsubscribed", 1)
+
     frappe.db.commit()
