@@ -193,46 +193,6 @@ SAMPLE_MERGE_CONTEXT = {
 
 
 @frappe.whitelist()
-def debug_email_template(template_name=None):
-    """TEMPORARY diagnostic - not called from the frontend. Visit
-    /api/method/dashboard.api.shared.email_templates.debug_email_
-    template?template_name=<name> while logged in as office to see
-    exactly which field _body_fieldname() picks for a given template,
-    and the raw value sitting in every BODY_FIELD_CANDIDATES field - so
-    editing one field in Desk while this reads a different, stale one
-    is visible directly rather than guessed at. Remove once the real
-    bug is found."""
-    if frappe.session.user != OFFICE_USER:
-        frappe.throw(frappe._("You are not allowed to access this page."), frappe.PermissionError)
-
-    template_name = (template_name or "").strip()
-    if not template_name or not frappe.db.exists("Email Template", template_name):
-        frappe.throw(frappe._("Give a real Email Template name."))
-
-    doc = frappe.get_doc("Email Template", template_name)
-    detected_fieldname = _body_fieldname(doc)
-
-    candidate_values = {}
-    for fieldname in BODY_FIELD_CANDIDATES:
-        if doc.meta.has_field(fieldname):
-            value = doc.get(fieldname)
-            candidate_values[fieldname] = (value or "")[:500]
-        else:
-            candidate_values[fieldname] = "(field does not exist on this doctype)"
-
-    return {
-        "template_name": template_name,
-        "modified": str(doc.modified),
-        "subject": doc.get("subject"),
-        "use_html": doc.get("use_html") if doc.meta.has_field("use_html") else "(field does not exist on this doctype)",
-        "detected_body_fieldname": detected_fieldname,
-        "detected_body_value": (doc.get(detected_fieldname) or "")[:500] if detected_fieldname else None,
-        "all_candidate_fields_on_doctype": [f.fieldname for f in doc.meta.fields if "response" in f.fieldname.lower() or "content" in f.fieldname.lower() or "message" in f.fieldname.lower() or "html" in f.fieldname.lower()],
-        "candidate_values": candidate_values,
-    }
-
-
-@frappe.whitelist()
 def send_test_email(template_name=None, test_email=None):
     """
     Office-only (not Ashley's own login - see /franchisor_db/email_
