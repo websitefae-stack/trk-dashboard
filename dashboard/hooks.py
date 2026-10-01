@@ -136,6 +136,22 @@ doc_events = {
     "Franchise Information Sheet Response": {
         "after_insert": "dashboard.api.shared.franchise_info_sheet.sync_franchise_info_sheet_to_lead",
     },
+    # Issues the brochure's own access token and emails the gated link
+    # the moment someone requests it - the Email Sequence engine's own
+    # wildcard hook (below) separately enrols them in whichever nurture
+    # sequence(s) trigger off this same doctype, so this is only ever
+    # about the immediate "here's your brochure" send.
+    "Franchise Brochure Request": {
+        "after_insert": "dashboard.api.shared.franchise_brochure.send_brochure_link",
+    },
+    # The Email Sequence engine's trigger - fires on every single new
+    # document on the site (see email_sequences.check_sequence_triggers's
+    # own docstring for why this is deliberate), so a new automated
+    # sequence never needs a code change, just an Email Sequence record
+    # in Desk naming whichever doctype should trigger it.
+    "*": {
+        "after_insert": "dashboard.api.shared.email_sequences.check_sequence_triggers",
+    },
     # Bridges the webshop app's "Contact Us" enquiry (a plain core Lead)
     # into this app's own Client Lead board and notifies Ashley/office -
     # see webshop_lead_sync.py's module docstring for why this needs both
@@ -376,6 +392,7 @@ scheduler_events = {
         # instead of at whatever hour it crossed midnight.
         "0 10 * * *": [
             "dashboard.api.shared.school_pipeline.process_due_school_sequences",
+            "dashboard.api.shared.email_sequences.process_due_sequence_steps",
         ],
     },
     # Keeps every client's age-derived client_type (Kid/Teen/Uni Student/

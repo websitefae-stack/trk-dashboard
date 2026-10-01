@@ -116,3 +116,31 @@ def creates_client_on_conversion(label):
         return True
 
     return any(int(row.get("custom_creates_client_on_conversion") if row.get("custom_creates_client_on_conversion") is not None else 1) for row in matches)
+
+
+def get_coach_offering(label):
+    """
+    First Coach with an active appointment_types row matching label (same
+    relaxed "contains" match as the rest of this module) - lets a link
+    elsewhere on the site (e.g. the /book-franchise-call redirect,
+    resilient_domains) find whichever coach currently handles a given
+    appointment type without hardcoding a name, so it keeps working if
+    that changes. Returns None if nobody currently offers it.
+    """
+    if not label or not frappe.db.exists("DocType", "Coach"):
+        return None
+
+    label_lower = label.lower()
+
+    if not frappe.get_meta("Coach").has_field("appointment_types"):
+        return None
+
+    for coach_name in frappe.get_all("Coach", pluck="name"):
+        coach_doc = frappe.get_doc("Coach", coach_name)
+        for row in coach_doc.get("appointment_types") or []:
+            if not row.get("active"):
+                continue
+            if label_lower in (row.get("appointment_name") or "").lower():
+                return coach_name
+
+    return None

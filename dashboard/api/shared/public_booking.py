@@ -603,6 +603,7 @@ def submit_public_booking(
     contact_email=None,
     enquiry_reason=None,
     location_address=None,
+    source=None,
 ):
     coach = coalesce_str("coach", coach)
     date = coalesce_str("date", date)
@@ -614,6 +615,12 @@ def submit_public_booking(
     contact_email = coalesce_str("contact_email", contact_email)
     enquiry_reason = coalesce_str("enquiry_reason", enquiry_reason)
     location_address = coalesce_str("location_address", location_address)
+    # Lets a specific CTA (e.g. the brochure nurture emails' "Book a
+    # call" button) attribute the resulting lead correctly rather than
+    # every public booking landing as the generic "Public Booking" -
+    # only ever trusted against the fixed Select options on Client
+    # Lead.source below, never written through as free text.
+    source = coalesce_str("source", source)
 
     if not coach or not frappe.db.exists("Coach", coach):
         frappe.throw(_("This coach was not found."))
@@ -667,9 +674,14 @@ def submit_public_booking(
     from dashboard.api.shared.leads import LEAD_DOCTYPE
     from dashboard.api.shared.calendar import _set_session_type, _event_has_field
 
+    # Whitelisted rather than trusting the caller's string outright -
+    # anything else (typo, old link, tampered request) silently falls
+    # back to the existing default instead of erroring the booking out.
+    ALLOWED_SOURCES = {"Public Booking", "Franchise Brochure"}
+
     lead = frappe.new_doc(LEAD_DOCTYPE)
     lead.status = "New"
-    lead.source = "Public Booking"
+    lead.source = source if source in ALLOWED_SOURCES else "Public Booking"
     lead.appointment_type = appointment_type
     lead.coach = coach
     lead.contact_name = contact_name

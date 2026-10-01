@@ -10,9 +10,11 @@ a much lighter-touch action than completing the Information Sheet
 (which does create one, see franchise_info_sheet.py), so this stays out
 of Ashley's Leads pipeline until someone actually shows real interest.
 
-Hub-branded, franchisor-only visibility. success_message links straight
-to the (noindex, direct-link-only) brochure page at
-resilient_domains' /franchise-brochure.
+Hub-branded, franchisor-only visibility. success_message tells the
+visitor to check their email rather than linking straight to the
+brochure page - resilient_domains' /franchise-brochure is now token-
+gated (see add_franchise_brochure_request_token.py), only reachable
+via the link franchise_brochure.send_brochure_link emails out.
 
 Runs automatically on the next `bench migrate` - no manual step needed.
 Ashley still needs to update /trh-franchise's "Download Brochure" button

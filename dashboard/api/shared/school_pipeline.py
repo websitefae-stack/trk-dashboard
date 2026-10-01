@@ -221,6 +221,78 @@ def get_school(name=None):
 
 
 @frappe.whitelist()
+def debug_school_pipeline_match(school_name=None):
+    """TEMPORARY diagnostic - not called from the frontend. Visit
+    /api/method/dashboard.api.shared.school_pipeline.debug_school_
+    pipeline_match?school_name=Wincham while logged in as a franchisor
+    to see exactly why get_school_pipeline()'s bulk active-enrollment/
+    contact lookups aren't matching a school that clearly has real data
+    on its own School Details page. Remove once the real bug is found."""
+    _ensure_franchisor()
+
+    school_name = (school_name or "").strip()
+
+    schools = frappe.get_all(
+        SCHOOL_DOCTYPE,
+        filters={"school_name": ["like", f"%{school_name}%"]} if school_name else {},
+        fields=["name", "school_name"],
+    )
+
+    bulk_active_enrollments = frappe.get_all(
+        ENROLLMENT_DOCTYPE,
+        filters={"status": "Active"},
+        fields=["name", "school", "sequence", "current_step"],
+    )
+
+    bulk_contacts = frappe.get_all(
+        CONTACT_DOCTYPE,
+        filters={"parenttype": SCHOOL_DOCTYPE},
+        fields=["parent", "contact_name", "email"],
+    )
+
+    total_school_count = frappe.db.count(SCHOOL_DOCTYPE)
+    total_active_enrollment_count = frappe.db.count(ENROLLMENT_DOCTYPE, {"status": "Active"})
+    total_contact_count = frappe.db.count(CONTACT_DOCTYPE, {"parenttype": SCHOOL_DOCTYPE})
+
+    per_school = []
+    for school in schools:
+        direct_enrollments = frappe.get_all(
+            ENROLLMENT_DOCTYPE,
+            filters={"school": school.name},
+            fields=["name", "school", "status", "sequence", "current_step"],
+        )
+        direct_active = [row for row in direct_enrollments if row.status == "Active"]
+        matched_in_bulk = [row for row in bulk_active_enrollments if row.school == school.name]
+
+        direct_contacts = frappe.get_all(
+            CONTACT_DOCTYPE,
+            filters={"parenttype": SCHOOL_DOCTYPE, "parent": school.name},
+            fields=["parent", "contact_name", "email"],
+        )
+        matched_contacts_in_bulk = [row for row in bulk_contacts if row.parent == school.name]
+
+        per_school.append({
+            "school_docname": school.name,
+            "school_docname_repr": repr(school.name),
+            "school_name": school.school_name,
+            "direct_query_all_enrollments": direct_enrollments,
+            "direct_query_active_enrollments": direct_active,
+            "matched_in_bulk_active_query": matched_in_bulk,
+            "direct_query_contacts": direct_contacts,
+            "matched_contacts_in_bulk_query": matched_contacts_in_bulk,
+        })
+
+    return {
+        "total_school_count": total_school_count,
+        "total_active_enrollment_count_db": total_active_enrollment_count,
+        "bulk_active_enrollments_fetched_count": len(bulk_active_enrollments),
+        "total_contact_count_db": total_contact_count,
+        "bulk_contacts_fetched_count": len(bulk_contacts),
+        "schools": per_school,
+    }
+
+
+@frappe.whitelist()
 def get_school_merge_options(exclude=None):
     """Every other school, for the "merge a duplicate into this one"
     dropdown on School Details."""

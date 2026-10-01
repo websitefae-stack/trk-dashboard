@@ -1082,6 +1082,18 @@ def _get_invoices_for_clients(client_rows, dashboard_type, owner_coach_name=None
         # still need to show up in that coach's own invoice list.
         or_conditions.append(["custom_income_owner_coach", "=", owner_coach_name])
 
+    if dashboard_type == FRANCHISOR_DASHBOARD and frappe.get_meta("Sales Invoice").has_field("custom_online_client"):
+        # An online store/course purchase (webshop_purchase.py's guest
+        # checkout) isn't owned by any coach at all - custom_online_client
+        # is set on every one of these regardless of whether the buyer's
+        # email ever matched an existing Client (custom_client, this
+        # scope's own primary_coach filter above, can easily be blank -
+        # see _resolve_purchase_owner's ambiguous-email branch), so an
+        # invoice like that could never surface here otherwise, even
+        # under "All Coaches". The office should always see every online
+        # sale regardless of which coach is selected in the dropdown.
+        or_conditions.append(["custom_online_client", "is", "set"])
+
     if not or_conditions:
         return {
             "invoices": [],
@@ -2522,6 +2534,22 @@ def get_client_statement_email_defaults(client_name=None):
 # logo/header rather than looking like a different, unbranded document.
 STATEMENT_LETTERHEAD = "Resilient Kid"
 
+DEFAULT_INVOICE_LETTERHEAD = "Resilient Kid"
+ONLINE_PURCHASE_LETTERHEAD = "Resilient People"
+
+
+def _letterhead_for_invoice(doc):
+    """Any merch/course sale via the online Store checkout is always
+    invoiced under The Resilient People branding (Ashley's own call),
+    regardless of which brand the item itself belongs to - custom_
+    online_client is set on every one of these (see webshop_purchase.py's
+    _fulfil_checkout_session), unlike custom_client which can be blank.
+    Everything else (coaching-session invoices, etc.) keeps the existing
+    Resilient Kid letterhead unchanged."""
+    if doc.get("custom_online_client"):
+        return ONLINE_PURCHASE_LETTERHEAD
+    return DEFAULT_INVOICE_LETTERHEAD
+
 
 def _statement_letterhead_html(context_doc=None):
     """
@@ -2851,7 +2879,7 @@ def send_invoice_email(docname, recipient=None, reply_to=None, subject=None, mes
         frappe.attach_print(
             "Sales Invoice",
             doc.name,
-            letterhead="Resilient Kid",
+            letterhead=_letterhead_for_invoice(doc),
         )
     ]
 
@@ -2908,7 +2936,7 @@ def download_invoice_pdf(docname=None):
     if doc.docstatus != 1:
         frappe.throw(_("Only submitted invoices can be downloaded."))
 
-    printed = frappe.attach_print("Sales Invoice", doc.name, letterhead="Resilient Kid")
+    printed = frappe.attach_print("Sales Invoice", doc.name, letterhead=_letterhead_for_invoice(doc))
 
     frappe.response["type"] = "download"
     frappe.response["filename"] = printed["fname"]
