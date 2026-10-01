@@ -89,6 +89,16 @@ def get_school_pipeline():
         ignore_permissions=True,
     )
 
+    # School's docname is an autoincrement integer - frappe.get_all()
+    # below returns school.name as a real Python int, but the "school"/
+    # "parent" Link field values read off Enrollment/Contact come back
+    # as strings (DB column is varchar regardless of naming rule). Every
+    # dict here is keyed by str(...) on both the write and read side so
+    # a lookup never silently misses on an int-vs-string mismatch - that
+    # mismatch was the actual bug behind sequence progress and contact
+    # emails never showing up, despite School Details' own per-school
+    # queries (which pass the docname through str() already, see
+    # get_school() above) returning the data just fine.
     active_by_school = {}
     for row in frappe.get_all(
         ENROLLMENT_DOCTYPE,
@@ -100,7 +110,7 @@ def get_school_pipeline():
         # (enroll_schools won't start a second one while one's still
         # running) - if that's ever violated, the most recent wins here,
         # display only.
-        active_by_school[row.school] = row
+        active_by_school[str(row.school)] = row
 
     contact_names_by_school = {}
     contact_emails_by_school = {}
@@ -110,15 +120,15 @@ def get_school_pipeline():
         fields=["parent", "contact_name", "email"],
         ignore_permissions=True,
     ):
-        contact_names_by_school.setdefault(row.parent, []).append(row.contact_name)
+        contact_names_by_school.setdefault(str(row.parent), []).append(row.contact_name)
         if row.email:
-            contact_emails_by_school.setdefault(row.parent, []).append(row.email)
+            contact_emails_by_school.setdefault(str(row.parent), []).append(row.email)
 
     step_totals_by_sequence = {}
 
     result = []
     for school in schools:
-        active = active_by_school.get(school.name)
+        active = active_by_school.get(str(school.name))
         active_summary = None
 
         if active:
@@ -133,7 +143,7 @@ def get_school_pipeline():
                 "next_send_date": active.next_send_date,
             }
 
-        contact_names = contact_names_by_school.get(school.name, [])
+        contact_names = contact_names_by_school.get(str(school.name), [])
 
         result.append({
             "name": school.name,
@@ -144,7 +154,7 @@ def get_school_pipeline():
             "linked_client": school.linked_client,
             "contact_count": len(contact_names),
             "contact_names": contact_names,
-            "contact_emails": contact_emails_by_school.get(school.name, []),
+            "contact_emails": contact_emails_by_school.get(str(school.name), []),
             "active_sequence": active_summary,
         })
 
@@ -217,78 +227,6 @@ def get_school(name=None):
         ],
         "enrollments": enrollments,
         "timeline": timeline,
-    }
-
-
-@frappe.whitelist()
-def debug_school_pipeline_match(school_name=None):
-    """TEMPORARY diagnostic - not called from the frontend. Visit
-    /api/method/dashboard.api.shared.school_pipeline.debug_school_
-    pipeline_match?school_name=Wincham while logged in as a franchisor
-    to see exactly why get_school_pipeline()'s bulk active-enrollment/
-    contact lookups aren't matching a school that clearly has real data
-    on its own School Details page. Remove once the real bug is found."""
-    _ensure_franchisor()
-
-    school_name = (school_name or "").strip()
-
-    schools = frappe.get_all(
-        SCHOOL_DOCTYPE,
-        filters={"school_name": ["like", f"%{school_name}%"]} if school_name else {},
-        fields=["name", "school_name"],
-    )
-
-    bulk_active_enrollments = frappe.get_all(
-        ENROLLMENT_DOCTYPE,
-        filters={"status": "Active"},
-        fields=["name", "school", "sequence", "current_step"],
-    )
-
-    bulk_contacts = frappe.get_all(
-        CONTACT_DOCTYPE,
-        filters={"parenttype": SCHOOL_DOCTYPE},
-        fields=["parent", "contact_name", "email"],
-    )
-
-    total_school_count = frappe.db.count(SCHOOL_DOCTYPE)
-    total_active_enrollment_count = frappe.db.count(ENROLLMENT_DOCTYPE, {"status": "Active"})
-    total_contact_count = frappe.db.count(CONTACT_DOCTYPE, {"parenttype": SCHOOL_DOCTYPE})
-
-    per_school = []
-    for school in schools:
-        direct_enrollments = frappe.get_all(
-            ENROLLMENT_DOCTYPE,
-            filters={"school": school.name},
-            fields=["name", "school", "status", "sequence", "current_step"],
-        )
-        direct_active = [row for row in direct_enrollments if row.status == "Active"]
-        matched_in_bulk = [row for row in bulk_active_enrollments if row.school == school.name]
-
-        direct_contacts = frappe.get_all(
-            CONTACT_DOCTYPE,
-            filters={"parenttype": SCHOOL_DOCTYPE, "parent": school.name},
-            fields=["parent", "contact_name", "email"],
-        )
-        matched_contacts_in_bulk = [row for row in bulk_contacts if row.parent == school.name]
-
-        per_school.append({
-            "school_docname": school.name,
-            "school_docname_repr": repr(school.name),
-            "school_name": school.school_name,
-            "direct_query_all_enrollments": direct_enrollments,
-            "direct_query_active_enrollments": direct_active,
-            "matched_in_bulk_active_query": matched_in_bulk,
-            "direct_query_contacts": direct_contacts,
-            "matched_contacts_in_bulk_query": matched_contacts_in_bulk,
-        })
-
-    return {
-        "total_school_count": total_school_count,
-        "total_active_enrollment_count_db": total_active_enrollment_count,
-        "bulk_active_enrollments_fetched_count": len(bulk_active_enrollments),
-        "total_contact_count_db": total_contact_count,
-        "bulk_contacts_fetched_count": len(bulk_contacts),
-        "schools": per_school,
     }
 
 
