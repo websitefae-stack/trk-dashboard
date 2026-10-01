@@ -1,8 +1,11 @@
 """
 Creates "MailerLite Settings" as a Single doctype - where the API key,
-target MailerLite Group ID, which Frappe Email Group to watch, and the
-webhook signing secret all live. See dashboard/api/shared/mailerlite_
-sync.py for what actually uses these.
+target MailerLite Group ID, and the webhook signing secret all live.
+Every Frappe Email Group is synced into that one MailerLite Group ID -
+see dashboard/api/shared/mailerlite_sync.py for what actually uses
+these (and mailerlite_sync_all_email_groups.py, which drops the
+earlier single-group-only field on sites where this patch already
+ran).
 
 Runs automatically on the next `bench migrate` - no manual step needed,
 but the fields themselves are blank until office fills them in via
@@ -36,18 +39,6 @@ def execute():
                 "fieldtype": "Data",
                 "label": "MailerLite Group ID",
                 "description": "The MailerLite group new subscribers from Frappe are added to.",
-            },
-            {
-                "fieldname": "sync_section",
-                "fieldtype": "Section Break",
-                "label": "Sync Settings",
-            },
-            {
-                "fieldname": "synced_email_group",
-                "fieldtype": "Data",
-                "label": "Frappe Email Group to Sync",
-                "default": "Website Newsletter Subscribers",
-                "description": "Only members of this one Frappe Email Group are pushed to/from MailerLite.",
             },
             {
                 "fieldname": "webhook_section",

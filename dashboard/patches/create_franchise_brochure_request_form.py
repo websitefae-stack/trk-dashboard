@@ -158,8 +158,14 @@ def _create_web_form():
         "introduction_text": "<p>Pop your details below and we'll send you straight to the brochure.</p>",
         "button_label": "Get the Brochure",
         "success_title": "Here you go!",
+        # Plain text, no markup/link - Frappe's web form renderer shows
+        # success_message as-is rather than as HTML (confirmed live:
+        # an earlier HTML version rendered as raw visible tags, not a
+        # link), and /franchise-brochure always bounces a visitor back
+        # here without a real token anyway. See fix_franchise_brochure_
+        # success_message.py for the matching live-site patch.
         "success_message": (
-            '<p>Thanks! <a href="/franchise-brochure">Click here to view the brochure</a>.</p>'
+            "Thanks! Check your email - we've just sent your personal link to the brochure."
         ),
         "web_form_fields": _doctype_fields(),
         "hide_navbar": 1,
