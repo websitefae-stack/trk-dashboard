@@ -488,6 +488,96 @@ def send_welcome_emails_to_existing_course_members(dry_run=1, only_email=None):
 
 
 @frappe.whitelist()
+def debug_course_unlock(invoice_name=None):
+    """TEMPORARY diagnostic - not called from the frontend. Visit
+    /api/method/dashboard.api.shared.course_unlock_on_payment.debug_
+    course_unlock?invoice_name=SINV-XXXX while logged in as office to see
+    exactly which check in _process_invoice/_unlock_courses_for_purchase
+    is blocking course access for a specific paid invoice. Remove once
+    the real bug is found."""
+    ensure_office_user()
+
+    invoice_name = (invoice_name or "").strip()
+    if not invoice_name or not frappe.db.exists("Sales Invoice", invoice_name):
+        frappe.throw(_("Give a real Sales Invoice name, e.g. ?invoice_name=SINV-0001"))
+
+    invoice = frappe.get_doc("Sales Invoice", invoice_name)
+
+    items = []
+    for row in invoice.items or []:
+        course = frappe.db.get_value("Item", row.item_code, "custom_unlocks_lms_course") if row.item_code else None
+        items.append({
+            "item_code": row.item_code,
+            "item_name": row.item_name,
+            "custom_unlocks_lms_course": course,
+            "course_exists": bool(course and frappe.db.exists("LMS Course", course)),
+        })
+
+    outstanding = payment_utils.get_outstanding_amount_for_payment(
+        invoice.outstanding_amount, invoice.grand_total, invoice.name
+    )
+
+    custom_client = invoice.get("custom_client") if invoice.meta.has_field("custom_client") else "(no custom_client field on this site)"
+    custom_online_client = invoice.get("custom_online_client") if invoice.meta.has_field("custom_online_client") else "(no custom_online_client field on this site)"
+
+    client_contact_resolution = None
+    if custom_client and frappe.db.exists("Client", custom_client):
+        email, full_name, contact_name = _resolve_client_contact(custom_client)
+        enrollments = []
+        for item in items:
+            if item["custom_unlocks_lms_course"]:
+                enrollments.append({
+                    "course": item["custom_unlocks_lms_course"],
+                    "email_checked": email,
+                    "already_enrolled": bool(email) and frappe.db.exists(
+                        "LMS Enrollment", {"course": item["custom_unlocks_lms_course"], "member": email}
+                    ),
+                })
+        client_contact_resolution = {
+            "resolved_email": email,
+            "resolved_full_name": full_name,
+            "resolved_contact": contact_name,
+            "enrollments": enrollments,
+        }
+
+    payment_entries_referencing_this_invoice = frappe.get_all(
+        "Payment Entry Reference",
+        filters={"reference_doctype": "Sales Invoice", "reference_name": invoice_name},
+        fields=["parent"],
+    )
+    payment_entries = []
+    for row in payment_entries_referencing_this_invoice:
+        pe = frappe.db.get_value("Payment Entry", row.parent, ["name", "docstatus", "payment_type"], as_dict=True)
+        if pe:
+            payment_entries.append(pe)
+
+    return {
+        "invoice_docstatus": invoice.docstatus,
+        "invoice_docstatus_meaning": {0: "Draft - never processed", 1: "Submitted", 2: "Cancelled"}.get(invoice.docstatus),
+        "posting_date": str(invoice.posting_date) if invoice.posting_date else None,
+        "cutoff_date": COURSE_UNLOCK_CUTOFF_DATE,
+        "posting_date_before_cutoff": bool(
+            invoice.posting_date and getdate(invoice.posting_date) < getdate(COURSE_UNLOCK_CUTOFF_DATE)
+        ),
+        "custom_client": custom_client,
+        "custom_online_client": custom_online_client,
+        "note": (
+            "If custom_online_client is set, _process_invoice() deliberately skips this "
+            "invoice entirely - it assumes webshop_purchase.py's own guest-checkout flow "
+            "already granted access synchronously when the order was placed. If access is "
+            "still missing despite that, the bug is in THAT flow, not this one."
+        ),
+        "grand_total": invoice.grand_total,
+        "outstanding_amount_cached": invoice.outstanding_amount,
+        "outstanding_amount_computed": outstanding,
+        "fully_paid": outstanding <= 0.01,
+        "items": items,
+        "client_contact_resolution": client_contact_resolution,
+        "payment_entries_referencing_this_invoice": payment_entries,
+    }
+
+
+@frappe.whitelist()
 def backfill_course_email_groups():
     """
     One-off, office-triggered backfill for add_paid_enrollment_to_course_

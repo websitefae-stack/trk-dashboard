@@ -134,8 +134,14 @@
 
   function selectDate(year, month, day) {
     const iso = `${year}-${pad2(month + 1)}-${pad2(day)}`;
-    const { nativeInput, descriptor } = popupState;
-    descriptor.set.call(nativeInput, iso);
+    const { nativeInput } = popupState;
+    // Through the property (not descriptor.set.call directly) so the
+    // instance-level override added in convertDateInput also runs -
+    // that's what keeps the visible dd/mm/yyyy text in sync with the
+    // date just picked. Calling the raw descriptor setter here was the
+    // bug: it silently changed the real value while leaving the text
+    // box showing whatever it showed before (e.g. stuck on today).
+    nativeInput.value = iso;
     nativeInput.dispatchEvent(new Event("change", { bubbles: true }));
     nativeInput.dispatchEvent(new Event("input", { bubbles: true }));
     // Closing here - not just after some later event - is the fix for the
@@ -281,8 +287,8 @@
     clearBtn.className = "dd-date-popup-footer-btn";
     clearBtn.textContent = "Clear";
     clearBtn.addEventListener("click", function () {
-      const { nativeInput, descriptor } = popupState;
-      descriptor.set.call(nativeInput, "");
+      const { nativeInput } = popupState;
+      nativeInput.value = "";
       nativeInput.dispatchEvent(new Event("change", { bubbles: true }));
       nativeInput.dispatchEvent(new Event("input", { bubbles: true }));
       closePopup();
