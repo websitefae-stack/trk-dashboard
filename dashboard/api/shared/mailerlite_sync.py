@@ -33,6 +33,7 @@ Error Log, not a mystery.
 import hashlib
 import hmac
 import json
+import time
 
 import frappe
 import requests
@@ -41,6 +42,16 @@ from dashboard.api.shared.permissions import ensure_office_user
 
 MAILERLITE_API_BASE = "https://connect.mailerlite.com/api"
 SETTINGS_DOCTYPE = "MailerLite Settings"
+
+# Confirmed live (backfill run, 2026-10): MailerLite 429s well before
+# 921 people x 2 requests each (upsert + group-assign) finishes back to
+# back with no gap - their own error message points at batch requests,
+# but without verified docs for that endpoint's exact shape, retrying
+# with backoff plus a small proactive gap between people (see
+# BACKFILL_PACE_SECONDS below) is the safe fix.
+RATE_LIMIT_MAX_RETRIES = 3
+RATE_LIMIT_DEFAULT_WAIT_SECONDS = 5
+BACKFILL_PACE_SECONDS = 0.5
 
 
 def _get_settings():
@@ -65,11 +76,26 @@ def _mailerlite_request(method, path, payload=None):
         "Accept": "application/json",
     }
 
-    try:
-        response = requests.request(method, url, headers=headers, json=payload, timeout=15)
-    except requests.RequestException:
-        frappe.log_error(frappe.get_traceback(), f"MailerLite API {method} {path} - request failed")
-        return None
+    attempt = 0
+
+    while True:
+        try:
+            response = requests.request(method, url, headers=headers, json=payload, timeout=15)
+        except requests.RequestException:
+            frappe.log_error(frappe.get_traceback(), f"MailerLite API {method} {path} - request failed")
+            return None
+
+        if response.status_code == 429 and attempt < RATE_LIMIT_MAX_RETRIES:
+            attempt += 1
+            wait_seconds = RATE_LIMIT_DEFAULT_WAIT_SECONDS
+            try:
+                wait_seconds = max(wait_seconds, int(response.headers.get("Retry-After", wait_seconds)))
+            except (TypeError, ValueError):
+                pass
+            time.sleep(wait_seconds)
+            continue
+
+        break
 
     if response.status_code >= 400:
         frappe.log_error(
@@ -134,6 +160,12 @@ def _backfill_mailerlite_subscribers():
         seen.add(email)
         push_subscriber_to_mailerlite(email, member.get("full_name"))
         pushed += 1
+        # Proactive pacing, not just reacting to a 429 after the fact -
+        # confirmed live that MailerLite rate-limits well before ~900
+        # people x 2 requests each (upsert + group-assign) finishes back
+        # to back. This runs as a background job, so taking several
+        # extra minutes here costs nothing.
+        time.sleep(BACKFILL_PACE_SECONDS)
 
     frappe.log_error(
         f"Backfilled {pushed} subscriber(s) to MailerLite out of {len(members)} Email Group Member row(s) checked.",
