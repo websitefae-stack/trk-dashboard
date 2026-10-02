@@ -118,36 +118,28 @@ def creates_client_on_conversion(label):
     return any(int(row.get("custom_creates_client_on_conversion") if row.get("custom_creates_client_on_conversion") is not None else 1) for row in matches)
 
 
-def get_coach_public_booking_link(coach_name, source="Coach Share"):
+def _coach_public_booking_base(coach_name):
     """
-    A coach's own shareable "book with me" link, for their Your Logins
-    tab's QR code (see profile.get_coach_login_links) - same deep-link
-    pattern resilient_domains' /book-franchise-call already uses
-    (?book=<type>&source=<source>#appointments, picked up by
-    coach-booking.js's openFromQueryString), just resolved for THIS
-    specific coach instead of "whoever currently offers X".
-
-    Only ever considers appointment types is_publicly_bookable() allows
-    (never Parent Check-In, Supervision, etc - see its own docstring) -
-    this is a link shared with the public, not an internal scheduling
-    tool, so a staff-only session type must never be reachable through
-    it even if the coach offers one. Deep-links straight into the one
-    public type if they only offer one (the common case - an intro/
-    consultation call); with several, links to their profile's own
-    appointments section instead and lets the visitor pick, since
-    there's no single right one to guess.
-
-    Always points at the Hub-branded /trh-coaches profile (same
+    Shared by get_coach_public_booking_link and get_coach_public_
+    booking_cards: this coach's /trh-coaches slug (None if they have no
+    public profile at all) and the list of appointment types they offer
+    that is_publicly_bookable() actually allows - never Parent Check-In,
+    Supervision, etc, regardless of what the coach has ticked active,
+    since a link shared with the public can't surface a staff-only
+    session type. Always the Hub-branded /trh-coaches profile (same
     precedent as /book-franchise-call's own fallback) regardless of
     which brand(s) the coach actually works under.
+
+    Returns (base_url, public_types) or (None, []) if this coach has no
+    public profile to link to at all.
     """
     if not coach_name or not frappe.db.exists("Coach", coach_name):
-        return None
+        return None, []
 
     coach = frappe.get_doc("Coach", coach_name)
 
     if not coach.get("profile_page_enabled"):
-        return None
+        return None, []
 
     access_rows = frappe.get_all(
         "Coach Brand Access",
@@ -158,7 +150,7 @@ def get_coach_public_booking_link(coach_name, source="Coach Share"):
     )
 
     if not access_rows:
-        return None
+        return None, []
 
     slug = access_rows[0].public_profile_slug
 
@@ -180,12 +172,58 @@ def get_coach_public_booking_link(coach_name, source="Coach Share"):
         seen.add(name)
         public_types.append(name)
 
-    base_url = f"/trh-coaches/{slug}"
+    return f"/trh-coaches/{slug}", public_types
+
+
+def get_coach_public_booking_link(coach_name, source="Coach Share"):
+    """
+    A coach's own shareable "book with me" link, for their Your Logins
+    tab's QR code (see profile.get_coach_login_links) - same deep-link
+    pattern resilient_domains' /book-franchise-call already uses
+    (?book=<type>&source=<source>#appointments, picked up by
+    coach-booking.js's openFromQueryString), just resolved for THIS
+    specific coach instead of "whoever currently offers X".
+
+    One combined link: deep-links straight into the one public type if
+    they only offer one (the common case - an intro/consultation call);
+    with several, links to their profile's own appointments section
+    instead and lets the visitor pick, since there's no single right one
+    to guess. See get_coach_public_booking_cards for a card PER type
+    instead (what the Links page actually uses).
+    """
+    base_url, public_types = _coach_public_booking_base(coach_name)
+
+    if not base_url:
+        return None
 
     if len(public_types) == 1:
         return f"{base_url}?book={frappe.utils.quote(public_types[0])}&source={frappe.utils.quote(source)}#appointments"
 
     return f"{base_url}#appointments"
+
+
+def get_coach_public_booking_cards(coach_name, source="Coach Links Page"):
+    """
+    One entry per publicly bookable appointment type this coach offers -
+    each its own deep link straight into that type's booking modal (same
+    ?book=<type>&source=<source>#appointments pattern as /book-franchise-
+    call), for the Links page's "card per booking option" (see
+    form_reports.get_form_links). Never includes anything is_publicly_
+    bookable() excludes (Parent Check-In, Supervision, etc). Returns []
+    if this coach has no public profile or no publicly bookable type.
+    """
+    base_url, public_types = _coach_public_booking_base(coach_name)
+
+    if not base_url:
+        return []
+
+    return [
+        {
+            "appointment_name": appointment_name,
+            "url": f"{base_url}?book={frappe.utils.quote(appointment_name)}&source={frappe.utils.quote(source)}#appointments",
+        }
+        for appointment_name in public_types
+    ]
 
 
 def get_coach_offering(label):

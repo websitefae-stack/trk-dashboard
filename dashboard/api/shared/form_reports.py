@@ -28,6 +28,7 @@ from dashboard.api.shared.leads import (
     get_intake_field_value,
 )
 from dashboard.api.shared.clients import get_coach_label
+from dashboard.api.shared.appointment_types import get_coach_public_booking_cards
 
 FORMS_MODULE = "Forms"
 
@@ -842,7 +843,27 @@ def get_form_links():
             if not _get_web_form_brand_values(wf) or (_get_web_form_brand_values(wf) & coach_brand_values)
         ]
 
-    return STATIC_PUBLIC_LINKS + [
+    # One card per publicly bookable appointment type the CURRENT user's
+    # own Coach record offers - whichever logged-in user this is, coach
+    # or franchisor (both are backed by the same Coach doctype, see
+    # profile.ROLE_PROFILE_CONFIG), so this needs no role branching of
+    # its own. Never includes a type is_publicly_bookable() excludes
+    # (Parent Check-In, Supervision, etc) - see get_coach_public_
+    # booking_cards's own docstring.
+    booking_cards = []
+    own_coach_name = get_current_coach_name(optional=True)
+
+    if own_coach_name:
+        booking_cards = [
+            {
+                "title": f"Book: {card['appointment_name']}",
+                "description": "Share this link or QR code so someone can book this appointment type directly.",
+                "url": PUBLIC_SITE_URL + card["url"],
+            }
+            for card in get_coach_public_booking_cards(own_coach_name)
+        ]
+
+    return STATIC_PUBLIC_LINKS + booking_cards + [
         {
             "title": wf.title or wf.name,
             "description": _strip_html_to_text(wf.introduction_text),
