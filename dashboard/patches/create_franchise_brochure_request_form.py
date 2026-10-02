@@ -73,20 +73,15 @@ CUSTOM_CSS = """
     max-width: 1000px;
     margin: 0 auto;
     padding: 0 24px 24px !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    border: none !important;
 }
 
-.web-form-container .form-section,
-.web-form-container .section-body,
-.web-form-container .frappe-card,
-.web-form-container .form-column {
-    background: transparent !important;
+/* Catch-all: whatever Frappe's own inner field-wrapper class is, this
+   removes its background regardless, so it can never show as a white
+   strip behind a field. */
+.web-form-container,
+.web-form-container * {
+    background-color: transparent !important;
     box-shadow: none !important;
-    border: none !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
 }
 
 .web-form-container .frappe-control {
@@ -98,6 +93,8 @@ CUSTOM_CSS = """
     font-weight: 700 !important;
 }
 
+/* Restored AFTER the catch-all above so it wins - the one background
+   inside the form that should stay. */
 .btn-primary {
     background: #582581 !important;
     border-color: #582581 !important;

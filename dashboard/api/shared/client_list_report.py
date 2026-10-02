@@ -1,9 +1,11 @@
 """
 Franchisor-only report: a flat list of clients (optionally scoped to
 one coach, same or_filters={"primary_coach": ..., "attending_coach": ...}
-pattern as client_locations.py) with exactly the fields Ashley asked
-for - client name, billing contact name, age, billing contact email,
-billing contact phone number, sex and gender identity.
+pattern as client_locations.py) with the fields Ashley asked for -
+client name, billing contact name, age, client type, billing contact
+email, billing contact phone number, sex and gender identity. Which
+columns actually show/export is the frontend's choice (client_list_
+report.js) - this always returns every field, every row.
 
 Client's own field names aren't fixed by this repo's schema (Client
 isn't a doctype this app ships), so name/sex/gender are resolved
@@ -20,7 +22,7 @@ import frappe
 from frappe import _
 
 from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user
-from dashboard.api.shared.client_details import field_meta_lookup, find_field, calculate_age_from_dob, find_contact_for_customer
+from dashboard.api.shared.client_details import field_meta_lookup, find_field, calculate_age_from_dob, find_contact_for_customer, get_client_type_from_age
 from dashboard.api.shared.clients import get_coach_label, build_display_name
 
 _SEX_FIELD_CFG = {"label": "Sex", "candidates": ["sex"]}
@@ -60,6 +62,8 @@ def get_client_list_report(coach=None):
         fields.append("date_of_birth")
     if client_meta.has_field("billing_contact"):
         fields.append("billing_contact")
+    if client_meta.has_field("client_type"):
+        fields.append("client_type")
     if sex_fieldname:
         fields.append(sex_fieldname)
     if gender_fieldname:
@@ -114,12 +118,15 @@ def get_client_list_report(coach=None):
         if not age and row.get("date_of_birth"):
             age = calculate_age_from_dob(row.get("date_of_birth"))
 
+        client_type = row.get("client_type") or get_client_type_from_age(age)
+
         out.append({
             "client": row.name,
             "client_label": build_display_name(row),
             "coach_label": get_coach_label(coach_name),
             "billing_contact_label": billing_contact_name,
             "age": age or "",
+            "client_type": client_type or "",
             "billing_contact_email": billing_contact_email,
             "billing_contact_phone": billing_contact_phone,
             "sex": (row.get(sex_fieldname) or "") if sex_fieldname else "",

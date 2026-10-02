@@ -49,11 +49,11 @@ CONTENT = """<div class="trh-page trh-services-page">
           </p>
 
           <div class="trh-buttons">
-            <a href="#investment" class="trh-btn trh-btn-primary">
+            <a href="https://theresilienthub.co.uk/trh-franchise#investment" class="trh-btn trh-btn-primary">
               View Investment
             </a>
 
-            <a href="#what-is-included" class="trh-btn trh-btn-secondary">
+            <a href="https://theresilienthub.co.uk/trh-franchise#what-is-included" class="trh-btn trh-btn-secondary">
               See What&rsquo;s Included
             </a>
           </div>
@@ -1341,7 +1341,7 @@ CONTENT = """<div class="trh-page trh-services-page">
       </p>
 
       <div class="trh-buttons trh-buttons-centred">
-        <a href="#investment" class="trh-btn trh-btn-secondary">
+        <a href="https://theresilienthub.co.uk/trh-franchise#investment" class="trh-btn trh-btn-secondary">
           View Investment
         </a>
       </div>
