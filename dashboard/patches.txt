@@ -147,3 +147,4 @@ dashboard.patches.create_mailerlite_settings
 dashboard.patches.mailerlite_sync_all_email_groups
 dashboard.patches.fix_franchise_brochure_success_message
 dashboard.patches.seed_franchise_brochure_content
+dashboard.patches.restyle_franchise_brochure_request_form

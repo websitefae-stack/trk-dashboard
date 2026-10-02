@@ -28,13 +28,17 @@ DOCTYPE_NAME = "Franchise Brochure Request"
 WEB_FORM_ROUTE = "franchise-brochure-request"
 
 CUSTOM_CSS = """
-/* Hub logo at top */
+/* Hub logo at top - transparent PNG, not the flattened JPG, since the
+   JPG can never have a transparent background (shows as an opaque
+   white rectangle). See restyle_franchise_brochure_request_form.py if
+   this needs updating on an already-live site. */
 
 .web-form-container::before {
     content: "";
     display: block;
     height: 140px;
-    background-image: url("/files/TRHub_Logo.jpg");
+    margin-top: 28px;
+    background-image: url("/files/TRHub_Logo.png");
     background-repeat: no-repeat;
     background-position: center;
     background-size: contain;
@@ -67,16 +71,19 @@ CUSTOM_CSS = """
 .web-form-container {
     max-width: 1000px;
     margin: 0 auto;
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
 }
 
 .section-head {
-    color: #e84862 !important;
+    color: #582581 !important;
     font-weight: 700 !important;
 }
 
 .btn-primary {
-    background: #e84862 !important;
-    border-color: #e84862 !important;
+    background: #582581 !important;
+    border-color: #582581 !important;
     border-radius: 8px !important;
     padding: 14px 32px !important;
     font-weight: 600 !important;
