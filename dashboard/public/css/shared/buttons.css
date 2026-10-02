@@ -44,6 +44,18 @@
   color: #FFFFFF;
 }
 
+/* Brand grey - used where a pink/red accent button felt too harsh
+   (e.g. the Links page's "Download QR code" button). */
+.dashboard-btn-grey {
+  background: #434B49;
+  color: #FFFFFF;
+}
+
+.dashboard-btn-grey:hover {
+  background: #2E3331;
+  color: #FFFFFF;
+}
+
 .dashboard-btn-light,
 .dashboard-link-btn {
   background: #FFFFFF;

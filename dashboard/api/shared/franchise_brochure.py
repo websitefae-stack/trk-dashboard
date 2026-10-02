@@ -26,8 +26,10 @@ from dashboard.api.shared.email_templates import (
 )
 from dashboard.api.shared.profile import PUBLIC_SITE_URL
 from dashboard.api.shared.mail_throttle import send_email
+from dashboard.api.shared.email_groups import ensure_email_group, add_to_email_group
 
 BROCHURE_PAGE_PATH = "/franchise-brochure"
+NEWSLETTER_EMAIL_GROUP = "Website Newsletter Subscribers"
 
 
 def send_brochure_link(doc, method=None):
@@ -50,6 +52,13 @@ def _send_brochure_link(doc):
     token = frappe.generate_hash(length=32)
     frappe.db.set_value(doc.doctype, doc.name, "token", token)
     frappe.db.commit()
+
+    # Someone interested enough to request the franchise brochure is a
+    # genuine lead worth having in the newsletter too - this is what
+    # actually gets them pushed to MailerLite (see mailerlite_sync.py's
+    # Email Group Member hook), not anything brochure-specific.
+    ensure_email_group(NEWSLETTER_EMAIL_GROUP)
+    add_to_email_group(email, NEWSLETTER_EMAIL_GROUP, doc.get("full_name"))
 
     brochure_url = f"{PUBLIC_SITE_URL}{BROCHURE_PAGE_PATH}?token={token}"
 

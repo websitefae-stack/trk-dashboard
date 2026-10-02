@@ -49,4 +49,4 @@ def get_context(context):
 
     context.has_secret_key = coach_has_secret_key(coach.name)
     context.expired_legal_items = []
-    context.login_links = get_coach_login_links(coach)
+    context.login_links = get_coach_login_links(coach, role="franchisor")
