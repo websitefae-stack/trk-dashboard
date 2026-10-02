@@ -155,7 +155,25 @@ def push_subscriber_to_mailerlite(email, full_name=None):
     if full_name:
         payload["fields"] = {"name": full_name}
 
-    _mailerlite_request("POST", "/subscribers", payload)
+    result = _mailerlite_request("POST", "/subscribers", payload)
+
+    # Belt-and-braces: the upsert above already sends `groups`, but
+    # Ashley needs certainty that every Frappe-origin person - including
+    # someone who was ALREADY a MailerLite subscriber before ever being
+    # touched by this sync (e.g. an existing subscriber the one-off
+    # backfill picks up) - actually ends up in this group, visible in
+    # MailerLite as "yes, this one's confirmed pulled in from Frappe".
+    # A dedicated group-assignment call is unambiguous about that even
+    # if the main upsert's own `groups` handling turns out to behave
+    # differently than documented for an already-existing subscriber.
+    subscriber_id = (result or {}).get("data", {}).get("id")
+
+    if subscriber_id:
+        _mailerlite_request(
+            "POST",
+            f"/subscribers/{subscriber_id}/groups/{settings.group_id}",
+            {},
+        )
 
 
 def unsubscribe_in_mailerlite(email):
