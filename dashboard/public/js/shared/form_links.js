@@ -46,7 +46,7 @@
         '<div class="dashboard-link-card-body">' +
           '<div class="dashboard-login-qr" data-qr-value="' + escapeHtml(link.url) + '" data-qr-label="' + escapeHtml(link.title) + '"></div>' +
           '<div class="dashboard-link-card-actions">' +
-            '<a href="#" class="dashboard-btn dashboard-btn-pink dashboard-login-qr-download" download>Download QR code (JPG)</a>' +
+            '<a href="#" class="dashboard-btn dashboard-btn-grey dashboard-login-qr-download" download>Download QR code (JPG)</a>' +
             '<button type="button" class="dashboard-btn dashboard-btn-light" data-copy-value="' + escapeHtml(link.url) + '">Copy Link</button>' +
             '<a class="dashboard-btn dashboard-btn-primary" href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener noreferrer">Open</a>' +
           "</div>" +
