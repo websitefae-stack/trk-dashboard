@@ -4,6 +4,7 @@ from werkzeug.utils import secure_filename
 
 from dashboard.api.shared.notifications import send_dashboard_notification
 from dashboard.api.shared.permissions import ensure_franchisor_can_access_coach
+from dashboard.api.shared.appointment_types import get_coach_public_booking_link
 
 
 CHANGE_REQUEST_DOCTYPE = "Change Request"
@@ -250,7 +251,7 @@ def get_franchisor_name():
 PUBLIC_SITE_URL = "https://theresilienthub.co.uk"
 
 
-def get_coach_login_links(coach):
+def get_coach_login_links(coach, role="coach"):
     """
     "Your Logins" tab content on the coach profile page - every login/
     link a coach needs day to day, each with a short how-to-access line
@@ -259,6 +260,15 @@ def get_coach_login_links(coach):
     HQ has actually set one for this coach; Email/Training/Client Portal
     always show since every coach has all three, just personalised where
     it matters (their own email address, their own enrolled LMS course).
+
+    role distinguishes Ashley's own franchisor profile from a real
+    coach's - both are backed by the same "Coach" doctype (see
+    ROLE_PROFILE_CONFIG), so this can't be told apart from coach.doctype
+    alone. A real coach gets their own personal "book with me" link
+    (get_coach_public_booking_link); the franchisor profile instead gets
+    the system-wide Franchise Call booking link, same idea as
+    /book-franchise-call itself - sharing "my own booking link" makes no
+    sense for Ashley, who isn't the one running client sessions.
 
     link_url is always a full absolute URL rather than the relative path
     used elsewhere in the app - a QR code encoding a relative path is
@@ -325,6 +335,28 @@ def get_coach_login_links(coach):
         "how_to": "Log in with your @resilientkid.co.uk email address and the password HQ gave you.",
         "link_url": PUBLIC_SITE_URL + "/client_portal",
     })
+
+    if role == "franchisor":
+        links.append({
+            "key": "franchise_call_booking",
+            "label": "Franchise Call Booking Link",
+            "detail": "Share this so someone can book a Franchisee Call",
+            "how_to": "Share this link or QR code anywhere - it always finds whoever currently handles "
+                       "Franchisee Calls, so it never needs updating even if that changes.",
+            "link_url": PUBLIC_SITE_URL + "/book-franchise-call",
+        })
+    else:
+        booking_link = get_coach_public_booking_link(coach.name)
+        if booking_link:
+            links.append({
+                "key": "booking_link",
+                "label": "My Booking Link",
+                "detail": "Share this so people can book with you directly",
+                "how_to": "Share this link or QR code anywhere (your email signature, social media, "
+                           "printed materials) - whoever scans or clicks it goes straight to your own "
+                           "booking page.",
+                "link_url": PUBLIC_SITE_URL + booking_link,
+            })
 
     # Digital business card - not a login at all (guest-accessible on
     # purpose, see get_coach_vcard), just reusing the same "here's a QR

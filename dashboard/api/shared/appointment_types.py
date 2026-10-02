@@ -118,6 +118,76 @@ def creates_client_on_conversion(label):
     return any(int(row.get("custom_creates_client_on_conversion") if row.get("custom_creates_client_on_conversion") is not None else 1) for row in matches)
 
 
+def get_coach_public_booking_link(coach_name, source="Coach Share"):
+    """
+    A coach's own shareable "book with me" link, for their Your Logins
+    tab's QR code (see profile.get_coach_login_links) - same deep-link
+    pattern resilient_domains' /book-franchise-call already uses
+    (?book=<type>&source=<source>#appointments, picked up by
+    coach-booking.js's openFromQueryString), just resolved for THIS
+    specific coach instead of "whoever currently offers X".
+
+    Only ever considers appointment types is_publicly_bookable() allows
+    (never Parent Check-In, Supervision, etc - see its own docstring) -
+    this is a link shared with the public, not an internal scheduling
+    tool, so a staff-only session type must never be reachable through
+    it even if the coach offers one. Deep-links straight into the one
+    public type if they only offer one (the common case - an intro/
+    consultation call); with several, links to their profile's own
+    appointments section instead and lets the visitor pick, since
+    there's no single right one to guess.
+
+    Always points at the Hub-branded /trh-coaches profile (same
+    precedent as /book-franchise-call's own fallback) regardless of
+    which brand(s) the coach actually works under.
+    """
+    if not coach_name or not frappe.db.exists("Coach", coach_name):
+        return None
+
+    coach = frappe.get_doc("Coach", coach_name)
+
+    if not coach.get("profile_page_enabled"):
+        return None
+
+    access_rows = frappe.get_all(
+        "Coach Brand Access",
+        filters={"parent": coach_name, "parenttype": "Coach", "display_on_website": 1},
+        fields=["public_profile_slug"],
+        order_by="idx asc",
+        limit_page_length=1,
+    )
+
+    if not access_rows:
+        return None
+
+    slug = access_rows[0].public_profile_slug
+
+    if not slug:
+        display_name = coach.get("coach_name") or coach_name
+        slug = frappe.scrub(display_name).replace("_", "-")
+
+    public_types = []
+    seen = set()
+
+    for row in coach.get("appointment_types") or []:
+        if not row.get("active"):
+            continue
+        name = row.get("appointment_name")
+        if not name or name in seen:
+            continue
+        if not is_publicly_bookable(name):
+            continue
+        seen.add(name)
+        public_types.append(name)
+
+    base_url = f"/trh-coaches/{slug}"
+
+    if len(public_types) == 1:
+        return f"{base_url}?book={frappe.utils.quote(public_types[0])}&source={frappe.utils.quote(source)}#appointments"
+
+    return f"{base_url}#appointments"
+
+
 def get_coach_offering(label):
     """
     First Coach with an active appointment_types row matching label (same
