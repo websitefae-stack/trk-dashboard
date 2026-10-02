@@ -28,17 +28,18 @@ DOCTYPE_NAME = "Franchise Brochure Request"
 WEB_FORM_ROUTE = "franchise-brochure-request"
 
 CUSTOM_CSS = """
-/* Hub logo at top - transparent PNG, not the flattened JPG, since the
-   JPG can never have a transparent background (shows as an opaque
-   white rectangle). See restyle_franchise_brochure_request_form.py if
-   this needs updating on an already-live site. */
+/* Hub logo at top - Ashley's actual transparent PNG, not the
+   flattened JPG (which can never have a transparent background -
+   showed as an opaque white rectangle). See restyle_franchise_
+   brochure_request_form.py if this needs updating on an already-live
+   site. */
 
 .web-form-container::before {
     content: "";
     display: block;
     height: 140px;
     margin-top: 28px;
-    background-image: url("/files/TRHub_Logo.png");
+    background-image: url("/files/TRH-Transparent.png");
     background-repeat: no-repeat;
     background-position: center;
     background-size: contain;
@@ -71,9 +72,25 @@ CUSTOM_CSS = """
 .web-form-container {
     max-width: 1000px;
     margin: 0 auto;
+    padding: 0 24px 24px !important;
     background: transparent !important;
     box-shadow: none !important;
     border: none !important;
+}
+
+.web-form-container .form-section,
+.web-form-container .section-body,
+.web-form-container .frappe-card,
+.web-form-container .form-column {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+.web-form-container .frappe-control {
+    margin-bottom: 18px !important;
 }
 
 .section-head {
