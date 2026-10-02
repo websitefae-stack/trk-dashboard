@@ -37,6 +37,8 @@ import json
 import frappe
 import requests
 
+from dashboard.api.shared.permissions import ensure_office_user
+
 MAILERLITE_API_BASE = "https://connect.mailerlite.com/api"
 SETTINGS_DOCTYPE = "MailerLite Settings"
 
@@ -83,6 +85,60 @@ def _mailerlite_request(method, path, payload=None):
         return response.json()
     except ValueError:
         return {}
+
+
+@frappe.whitelist()
+def backfill_mailerlite_subscribers():
+    """
+    One-off, office-triggered sync of everyone ALREADY in a Frappe Email
+    Group before MailerLite Settings was ever configured - sync_new_
+    email_group_member only ever fires on a brand new Email Group Member
+    row (Frappe's after_insert hook), so nobody who joined before this
+    integration existed has ever been pushed. Visit this URL directly
+    while logged in as office to run it:
+    /api/method/dashboard.api.shared.mailerlite_sync.backfill_mailerlite_
+    subscribers
+
+    Runs in the background (several hundred people means several hundred
+    API calls, too slow for one HTTP request) - check Error Log for
+    "MailerLite Backfill Complete" once it's done. Safe to re-run any
+    time: push_subscriber_to_mailerlite is an upsert on MailerLite's own
+    side, so someone already there just gets updated, never duplicated.
+    """
+    ensure_office_user()
+    frappe.enqueue(
+        "dashboard.api.shared.mailerlite_sync._backfill_mailerlite_subscribers",
+        queue="long",
+    )
+    return {"ok": 1, "message": "Backfill started in the background - check Error Log for a summary once it finishes."}
+
+
+def _backfill_mailerlite_subscribers():
+    settings = _get_settings()
+    if not settings or not settings.group_id:
+        return
+
+    fields = ["email"]
+    if frappe.get_meta("Email Group Member").has_field("full_name"):
+        fields.append("full_name")
+
+    members = frappe.get_all("Email Group Member", filters={"unsubscribed": 0}, fields=fields)
+
+    seen = set()
+    pushed = 0
+
+    for member in members:
+        email = (member.email or "").strip().lower()
+        if not email or email in seen:
+            continue
+        seen.add(email)
+        push_subscriber_to_mailerlite(email, member.get("full_name"))
+        pushed += 1
+
+    frappe.log_error(
+        f"Backfilled {pushed} subscriber(s) to MailerLite out of {len(members)} Email Group Member row(s) checked.",
+        "MailerLite Backfill Complete",
+    )
 
 
 def push_subscriber_to_mailerlite(email, full_name=None):
