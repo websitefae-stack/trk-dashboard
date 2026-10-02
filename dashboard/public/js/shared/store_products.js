@@ -1203,6 +1203,8 @@
     el("bulkAddVariantsStock").value = "";
     el("bulkAddVariantsUnlimited").checked = false;
     el("bulkAddVariantsStatus").textContent = "";
+    el("bulkSetAllPricesInput").value = "";
+    el("bulkSetAllPricesStatus").textContent = "";
     el("storeVariantsModal").classList.add("is-open");
 
     try {
@@ -1303,6 +1305,29 @@
       alert(error.message || "Could not delete this variant.");
       button.disabled = false;
       button.textContent = "Delete";
+    }
+  }
+
+  // Fills every variant row's price input with one value (client-side
+  // only, same pattern as applyManageVariantsImageCombo above) - doesn't
+  // save anything itself, so a flat price across every colour/size can
+  // be set in one go instead of typing it into each row, while still
+  // leaving each row free to be nudged individually before Save All.
+  function bulkSetAllPrices() {
+    const input = el("bulkSetAllPricesInput");
+    const statusEl = el("bulkSetAllPricesStatus");
+    const value = input ? input.value : "";
+
+    if (value === "" || Number(value) < 0) {
+      alert("Enter a price first.");
+      return;
+    }
+
+    const priceInputs = document.querySelectorAll("[data-existing-variant-price]");
+    priceInputs.forEach((priceInput) => { priceInput.value = value; });
+
+    if (statusEl) {
+      statusEl.textContent = `Set ${priceInputs.length} variant${priceInputs.length === 1 ? "" : "s"} to £${Number(value).toFixed(2)} - click Save All to keep it.`;
     }
   }
 
@@ -1420,6 +1445,7 @@
     el("closeStoreVariantsModal").addEventListener("click", closeVariantsModal);
     el("closeStoreVariantsModalBtn").addEventListener("click", closeVariantsModal);
     el("saveAllVariantsBtn").addEventListener("click", saveAllVariants);
+    el("bulkSetAllPricesBtn").addEventListener("click", bulkSetAllPrices);
 
     el("manageVariantsImagesToggle").addEventListener("click", function () {
       const content = el("manageVariantsImagesContent");

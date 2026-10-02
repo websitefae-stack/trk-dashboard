@@ -62,7 +62,7 @@
 
           <select id="storeProductsStatusFilter" class="dashboard-select" style="width:auto;">
             <option value="">Active + Archived</option>
-            <option value="active">Active only</option>
+            <option value="active" selected>Active only</option>
             <option value="archived">Archived only</option>
           </select>
         </div>
@@ -316,6 +316,13 @@
           <div id="manageVariantsImageAttributesList" style="display:flex; flex-wrap:wrap; gap:14px; margin:8px 0 14px;"></div>
           <div id="manageVariantsImagesBody"></div>
         </div>
+      </div>
+
+      <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:12px;">
+        <label for="bulkSetAllPricesInput" style="font-weight:600;">Set all variant prices to:</label>
+        <input type="number" id="bulkSetAllPricesInput" class="dashboard-input" style="width:100px;" min="0" step="0.01" placeholder="£">
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="bulkSetAllPricesBtn">Apply to all variants</button>
+        <span class="dashboard-help" id="bulkSetAllPricesStatus"></span>
       </div>
 
       <div class="dashboard-table-wrap">
