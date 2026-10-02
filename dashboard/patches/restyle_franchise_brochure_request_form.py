@@ -4,17 +4,16 @@ brochure_request_form.py only runs once, so an already-live site needs
 a separate patch to update its custom_css):
 
 - Padding above the logo banner (previously sat flush against the top
-  of the popup/page).
-- Swaps the Hub logo to a transparent PNG - TRHub_Logo.jpg is a JPG,
-  which can never have a transparent background (it was showing as an
-  opaque white rectangle sitting on top of the page's own mint
-  background). Points at /files/TRHub_Logo.png - if that isn't the
-  actual filename of the transparent logo once uploaded, update this
-  patch's TRANSPARENT_LOGO constant and re-run, or simply upload the
-  transparent file under that exact name in Desk's File Manager.
+  of the popup/page) - and now generous padding around the Full Name/
+  Email Address fields too, which sat flush against the card edges.
+- Swaps the Hub logo to Ashley's actual transparent PNG
+  (/files/TRH-Transparent.png) - TRHub_Logo.jpg is a JPG, which can
+  never have a transparent background (it was showing as an opaque
+  white rectangle sitting on top of the page's own mint background).
 - Strips Frappe's own default white card background/border/shadow off
-  the form wrapper, so the whole popup reads as one consistent
-  background instead of a white block sitting apart from it.
+  the form wrapper AND its known inner field-section wrapper classes,
+  so the whole popup reads as one consistent background instead of a
+  white block sitting apart from it.
 - Submit button changed from pink (#e84862) to brand purple
   (#582581, matching trh-franchise-brochure.css's --trh-purple-
   primary) - hover was already purple (#9A4795), so the base colour
@@ -24,7 +23,7 @@ a separate patch to update its custom_css):
 import frappe
 
 WEB_FORM_ROUTE = "franchise-brochure-request"
-TRANSPARENT_LOGO = "/files/TRHub_Logo.png"
+TRANSPARENT_LOGO = "/files/TRH-Transparent.png"
 
 CUSTOM_CSS = f"""
 /* Hub logo at top */
@@ -67,9 +66,29 @@ CUSTOM_CSS = f"""
 .web-form-container {{
     max-width: 1000px;
     margin: 0 auto;
+    padding: 0 24px 24px !important;
     background: transparent !important;
     box-shadow: none !important;
     border: none !important;
+}}
+
+/* Frappe's own web form wraps each section/field group in its own
+   white "card" background by default - stripping the container above
+   alone doesn't reach these nested wrappers, which is what was still
+   showing as a white strip behind Full Name/Email Address. */
+.web-form-container .form-section,
+.web-form-container .section-body,
+.web-form-container .frappe-card,
+.web-form-container .form-column {{
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}}
+
+.web-form-container .frappe-control {{
+    margin-bottom: 18px !important;
 }}
 
 .section-head {{
