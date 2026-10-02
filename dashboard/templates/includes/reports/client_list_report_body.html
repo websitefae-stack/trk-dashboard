@@ -1,0 +1,43 @@
+<div class="dashboard-card">
+  <div class="dashboard-detail-section-head">
+    <h2 class="dashboard-detail-section-title">Client List</h2>
+  </div>
+
+  <p class="dashboard-help" style="margin-bottom:16px;">
+    Every client for a coach (or everyone) with their billing contact's details.
+  </p>
+
+  <div class="trk-calendar-form-row">
+    <div class="trk-calendar-field">
+      <label for="clientListCoachSelect">Coach</label>
+      <select id="clientListCoachSelect" class="dashboard-select">
+        <option value="">All Coaches</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="dashboard-detail-actions" style="margin: 14px 0 18px;">
+    <button type="button" class="dashboard-btn dashboard-btn-primary" id="runClientListReportBtn">Run Report</button>
+    <button type="button" class="dashboard-btn dashboard-btn-light" id="exportClientListReportBtn" style="display:none;">Export to Excel</button>
+  </div>
+
+  <div id="clientListEmpty" class="dashboard-empty">Run the report to see results.</div>
+
+  <div class="dashboard-table-wrap" id="clientListResults" style="display:none;">
+    <table class="dashboard-table dashboard-table-compact">
+      <thead>
+        <tr>
+          <th>Client</th>
+          <th>Coach</th>
+          <th>Billing Contact</th>
+          <th>Age</th>
+          <th>Billing Contact Email</th>
+          <th>Billing Contact Phone</th>
+          <th>Sex</th>
+          <th>Gender</th>
+        </tr>
+      </thead>
+      <tbody id="clientListTableBody"></tbody>
+    </table>
+  </div>
+</div>
