@@ -37,7 +37,13 @@ def _client_field(field_cfg):
 
 
 @frappe.whitelist()
-def get_client_list_report(coach=None):
+def get_client_list_report(coach=None, status=None):
+    """
+    status: "" (default) hides Archived clients, "All" shows every
+    status, "Archived" shows only Archived ones - same convention
+    clients.py's own list already uses (_apply_client_filter_args), so
+    "no status picked" behaves identically between the two.
+    """
     ensure_logged_in()
 
     if not is_franchisor_user():
@@ -70,22 +76,25 @@ def get_client_list_report(coach=None):
         fields.append(gender_fieldname)
 
     coach = (coach or "").strip()
+    status = (status or "").strip()
 
-    if coach:
-        rows = frappe.get_all(
-            "Client",
-            fields=fields,
-            or_filters={"primary_coach": coach, "attending_coach": coach},
-            limit_page_length=5000,
-            ignore_permissions=True,
-        )
-    else:
-        rows = frappe.get_all(
-            "Client",
-            fields=fields,
-            limit_page_length=5000,
-            ignore_permissions=True,
-        )
+    filters = []
+    if client_meta.has_field("status"):
+        if not status:
+            filters.append(["status", "!=", "Archived"])
+        elif status != "All":
+            filters.append(["status", "=", status])
+
+    or_filters = {"primary_coach": coach, "attending_coach": coach} if coach else None
+
+    rows = frappe.get_all(
+        "Client",
+        fields=fields,
+        filters=filters,
+        or_filters=or_filters,
+        limit_page_length=5000,
+        ignore_permissions=True,
+    )
 
     # Cache per Customer (billing_contact) so two clients billed to the
     # same contact don't look it up twice.

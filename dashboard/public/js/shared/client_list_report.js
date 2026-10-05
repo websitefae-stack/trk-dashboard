@@ -160,6 +160,7 @@
   async function runReport() {
     var btn = el("runClientListReportBtn");
     var select = el("clientListCoachSelect");
+    var statusSelect = el("clientListStatusSelect");
     var empty = el("clientListEmpty");
     var results = el("clientListResults");
     var exportBtn = el("exportClientListReportBtn");
@@ -168,7 +169,8 @@
 
     try {
       var payload = await callApi("dashboard.api.shared.client_list_report.get_client_list_report", {
-        coach: select ? select.value : ""
+        coach: select ? select.value : "",
+        status: statusSelect ? statusSelect.value : ""
       });
 
       var rows = (payload && payload.rows) || [];

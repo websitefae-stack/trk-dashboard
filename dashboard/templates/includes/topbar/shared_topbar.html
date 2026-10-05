@@ -25,8 +25,16 @@
             {% if is_franchisor_user() %}
             <a href="/store_db"
                class="dashboard-btn dashboard-btn-light dashboard-topbar-portal-link"
-               title="Open the Store dashboard">
-                Store
+               title="Manage products, stock and variants">
+                Manage Store
+            </a>
+
+            <a href="/coach-store"
+               target="_blank"
+               rel="noopener noreferrer"
+               class="dashboard-btn dashboard-btn-light dashboard-topbar-portal-link"
+               title="Check the Coach Store - what coaches see and buy at their own price">
+                Coach Store
             </a>
             {% elif is_current_user_coach() %}
             <a href="/coach-store"
