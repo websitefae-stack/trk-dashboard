@@ -88,6 +88,30 @@ CUSTOM_CSS = """
     margin-bottom: 18px !important;
 }
 
+/* Restored AFTER the catch-all above, same as the submit button below -
+   an actual text field has to look like one (visible fill + border),
+   or there's nothing on screen to show a visitor where to click. */
+.web-form-container input[type="text"],
+.web-form-container input[type="email"],
+.web-form-container input[type="password"],
+.web-form-container input[type="number"],
+.web-form-container input[type="date"],
+.web-form-container input[type="tel"],
+.web-form-container textarea,
+.web-form-container select {
+    background: #FFFFFF !important;
+    border: 1px solid #D9E6E6 !important;
+    border-radius: 6px !important;
+    padding: 8px 12px !important;
+}
+
+.web-form-container input[type="text"]:focus,
+.web-form-container input[type="email"]:focus,
+.web-form-container textarea:focus {
+    border-color: #582581 !important;
+    outline: none !important;
+}
+
 .section-head {
     color: #582581 !important;
     font-weight: 700 !important;
