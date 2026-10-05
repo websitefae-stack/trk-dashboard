@@ -728,8 +728,9 @@ def create_checkout_session(
     # Shipping Settings) - never charged on a course/digital-only cart
     # (total_shippable_grams stays 0, since _get_purchasable_item's own
     # weight_grams already reads as 0 for those regardless of what's on
-    # the Item) and never reached at all by create_coach_store_order,
-    # which doesn't call this function.
+    # the Item). create_coach_store_order below applies this same
+    # calculation itself, but only when the coach has chosen "Shipping"
+    # over "Collection".
     shipping_amount = calculate_shipping_amount(total_shippable_grams)
 
     if shipping_amount > 0:
@@ -803,13 +804,19 @@ def create_checkout_session(
     return {"checkout_url": checkout_session.url}
 
 
-def _send_coach_order_confirmation_email(invoice, coach_email, coach_display_name, order_lines, settings):
+def _send_coach_order_confirmation_email(invoice, coach_email, coach_display_name, order_lines, settings, delivery_method):
     amount_display = fmt_money(invoice.grand_total, currency=invoice.currency)
 
     order_lines_text = "\n".join(
         f"{line['item_name']} x{line['qty']} - "
         f"{fmt_money((line['rate'] or 0) * (line['qty'] or 1), currency=line['currency'] or invoice.currency)}"
         for line in order_lines
+    )
+
+    delivery_line = (
+        "You've asked to collect this order in person - no shipping fee has been charged."
+        if delivery_method != "Shipping"
+        else "You've asked to have this order shipped to you - the shipping fee is included above."
     )
 
     message = (
@@ -820,6 +827,8 @@ def _send_coach_order_confirmation_email(invoice, coach_email, coach_display_nam
         f"{order_lines_text}\n"
         "\n"
         f"Total: {amount_display}\n"
+        "\n"
+        f"{delivery_line}\n"
         "\n"
         f"Order reference: {invoice.name}\n"
         "\n"
@@ -844,7 +853,7 @@ def _send_coach_order_confirmation_email(invoice, coach_email, coach_display_nam
 
 
 @frappe.whitelist()
-def create_coach_store_order(items=None):
+def create_coach_store_order(items=None, delivery_method=None):
     """
     The Coach Store's own "Place Order" - deliberately not the guest
     checkout above (no Stripe, no contact-detail form, no Online Client/
@@ -855,6 +864,14 @@ def create_coach_store_order(items=None):
     way), raises a Sales Invoice under the same Company as every other
     online order, and emails it to the coach and to the office - nothing
     else, no payment step.
+
+    delivery_method is "Collection" (the default - no shipping charge,
+    coach picks the order up in person) or "Shipping" (posted to the
+    coach, same flat weight-band fee calculate_shipping_amount() charges
+    on the public store checkout - see create_checkout_session's own use
+    of it). Never trusted blindly from the browser beyond picking one of
+    these two values; anything else quietly falls back to "Collection"
+    rather than erroring.
 
     Deliberately NOT allow_guest - a Guest is already rejected by the
     framework before this even runs, and _get_current_coach() below
@@ -877,6 +894,10 @@ def create_coach_store_order(items=None):
     if not cart_lines:
         frappe.throw(_("Your order is empty."))
 
+    delivery_method = (delivery_method or "Collection").strip()
+    if delivery_method not in ("Collection", "Shipping"):
+        delivery_method = "Collection"
+
     coach_email = frappe.session.user
     coach_display_name = _coach_label(coach) or coach_email
 
@@ -890,15 +911,22 @@ def create_coach_store_order(items=None):
 
     if invoice.meta.has_field("custom_coach"):
         invoice.custom_coach = coach.get("name")
+    if invoice.meta.has_field("custom_delivery_method"):
+        invoice.custom_delivery_method = delivery_method
 
     price_list = None
     order_lines = []
+    total_shippable_grams = 0
+    cart_currency = "GBP"
 
     for line in cart_lines:
         item = _get_purchasable_item(line["item_code"], settings.company)
 
         if price_list is None:
             price_list = item.get("price_list")
+
+        total_shippable_grams += _to_float(item.get("weight_grams")) * line["qty"]
+        cart_currency = item["currency"] or cart_currency
 
         invoice.append("items", {
             "item_code": item["item_code"],
@@ -914,6 +942,30 @@ def create_coach_store_order(items=None):
             "currency": item["currency"],
         })
 
+    # Same flat weight-band fee as the public store checkout (see
+    # create_checkout_session's identical use of calculate_shipping_
+    # amount) - only ever charged when the coach has actually chosen
+    # "Shipping"; "Collection" never adds this line regardless of weight.
+    if delivery_method == "Shipping":
+        shipping_amount = calculate_shipping_amount(total_shippable_grams)
+
+        if shipping_amount > 0:
+            shipping_item_code = _ensure_shipping_item(settings.company)
+
+            invoice.append("items", {
+                "item_code": shipping_item_code,
+                "item_name": "Shipping",
+                "qty": 1,
+                "rate": shipping_amount,
+            })
+
+            order_lines.append({
+                "item_name": "Shipping",
+                "qty": 1,
+                "rate": shipping_amount,
+                "currency": cart_currency,
+            })
+
     if price_list:
         invoice.selling_price_list = price_list
 
@@ -927,25 +979,26 @@ def create_coach_store_order(items=None):
     frappe.db.commit()
 
     try:
-        _send_coach_order_confirmation_email(invoice, coach_email, coach_display_name, order_lines, settings)
+        _send_coach_order_confirmation_email(invoice, coach_email, coach_display_name, order_lines, settings, delivery_method)
     except Exception:
         # The order/invoice is already raised - a failed email shouldn't
         # look like a failed order to the coach placing it.
         frappe.log_error(frappe.get_traceback(), f"Coach Store Order Confirmation Email Failed - {invoice.name}")
 
-    _notify_coach_store_order(invoice, coach, coach_email, coach_display_name)
+    _notify_coach_store_order(invoice, coach, coach_email, coach_display_name, delivery_method)
 
     return {"ok": 1, "invoice": invoice.name}
 
 
-def _notify_coach_store_order(invoice, coach, coach_email, coach_display_name):
+def _notify_coach_store_order(invoice, coach, coach_email, coach_display_name, delivery_method):
     """
     In-app notifications alongside the email above - the coach sees their
     own order confirmed in their notifications, and every franchisor
-    admin (FRANCHISOR_USERS) sees it too, with a nudge to actually ship
-    it (this is the only place that happens - nothing here talks to a
-    courier/fulfilment system). Best-effort, same reasoning as the email
-    just above: a broken notification must never look like a failed order.
+    admin (FRANCHISOR_USERS) sees it too, with a nudge that matches
+    whichever delivery_method the coach actually chose (this is the only
+    place that happens - nothing here talks to a courier/fulfilment
+    system). Best-effort, same reasoning as the email just above: a
+    broken notification must never look like a failed order.
     """
     try:
         create_trk_notification(
@@ -959,6 +1012,10 @@ def _notify_coach_store_order(invoice, coach, coach_email, coach_display_name):
     except Exception:
         frappe.log_error(frappe.get_traceback(), f"Coach Store Order Notification (Coach) Failed - {invoice.name}")
 
+    action_note = (
+        "Please ship the order." if delivery_method == "Shipping" else "Coach will collect this in person."
+    )
+
     for admin_user in FRANCHISOR_USERS:
         if not frappe.db.exists("User", admin_user):
             continue
@@ -969,7 +1026,7 @@ def _notify_coach_store_order(invoice, coach, coach_email, coach_display_name):
                 notification_type="Task",
                 message=(
                     f"{coach_display_name} placed a Coach Store order - invoice {invoice.name} "
-                    "created. Please ship the order."
+                    f"created. {action_note}"
                 ),
                 priority="High",
                 reference_doctype="Sales Invoice",
