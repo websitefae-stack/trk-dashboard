@@ -1,7 +1,10 @@
 """
 Shared low-level helpers used across multiple API modules.
 """
+import datetime
+
 import frappe
+from frappe import _
 from frappe.utils import get_fullname
 
 
@@ -46,6 +49,36 @@ def coalesce_raw(fieldname, explicit_value=None):
 def coalesce_str(fieldname, explicit_value=None):
     value = coalesce_raw(fieldname, explicit_value)
     return (value or "").strip() if isinstance(value, str) else (str(value).strip() if value not in (None, "") else "")
+
+
+def parse_date_input(value):
+    """
+    A date typed/picked in the browser arrives here as whatever that
+    particular input actually submitted - normally ISO (a native
+    <input type="date"> field always produces yyyy-mm-dd), but a value
+    ever round-tripped through a non-native date field, or re-saved from
+    a prefilled value already stored/displayed in this site's UK
+    dd/mm/yyyy format, comes back in that format instead - and MySQL's
+    DATE column rejects anything that isn't yyyy-mm-dd outright,
+    crashing the whole save with a raw SQL error (1292) instead of a
+    normal validation message. Tries ISO first, then UK dd/mm/yyyy, and
+    only throws a clear, catchable error if neither parses -
+    deliberately not using a generic/dateutil-style parser here, since
+    "11/08/2026" is genuinely ambiguous (11th Aug vs Nov 8th) and a
+    silent wrong-format guess would corrupt the date rather than fail
+    loudly. Returns None for a blank value - "no date set" is valid.
+    """
+    value = (value or "").strip()
+    if not value:
+        return None
+
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.datetime.strptime(value, fmt).date()
+        except ValueError:
+            continue
+
+    frappe.throw(_("'{0}' isn't a valid date - use dd/mm/yyyy.").format(value))
 
 
 _SW_LABEL_FIELDS = ["sw_name", "session_worker_name", "full_name", "employee_name", "user_full_name", "title"]

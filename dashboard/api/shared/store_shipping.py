@@ -2,10 +2,13 @@
 Weight-based shipping for the online Store - a real product (not a
 course, a digital download, or a service) has a weight; the Store
 dashboard's own Shipping settings page turns a cart's total weight into
-a flat fee, charged only on a Store checkout (never a course-only cart,
-a digital-only cart, or a Coach Store order - see webshop_purchase.py's
-create_checkout_session, the only place this module's calculate_
-shipping_amount() is actually called from).
+a flat fee, charged on a Store checkout and on a Coach Store order where
+the coach has chosen "Shipping" over "Collection" - never on a course-
+only or digital-only cart. See webshop_purchase.py's create_checkout_
+session (public checkout, always charges it when the cart is physical)
+and create_coach_store_order (Coach Store, only when delivery_method is
+"Shipping") - the only two places this module's calculate_shipping_
+amount() is actually called from.
 """
 
 import frappe
