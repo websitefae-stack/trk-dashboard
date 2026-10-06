@@ -14,7 +14,7 @@ from dashboard.api.shared.permissions import (
     get_current_user_dashboard_type,
 )
 from dashboard.api.shared.clients import get_coach_label
-from dashboard.api.shared.utils import coalesce_str, coalesce_raw
+from dashboard.api.shared.utils import coalesce_str, coalesce_raw, parse_date_input
 from dashboard.api.shared.notifications import create_trk_notification, FRANCHISOR_USERS
 from dashboard.api.shared.appointment_types import creates_client_on_conversion
 from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, parse_email_list, INTAKE_INVITE_TEMPLATE, PODCAST_INVITE_TEMPLATE
@@ -825,8 +825,15 @@ def update_franchise_pipeline(name=None, milestone=None, done=None, milestone_da
 
     date_field = dict(STAGE1_MILESTONES + SESSION_WORKER_STAGE_MILESTONES)[milestone]
 
+    # milestone_date normally arrives as ISO from a native <input
+    # type="date">, but a browser/device that doesn't render that input
+    # natively can submit this site's UK dd/mm/yyyy display format
+    # instead - MySQL's DATE column rejects anything else outright,
+    # crashing the whole save (both the tick and the date) with a raw
+    # SQL error instead of just the date itself failing. See
+    # parse_date_input's own docstring for why both formats are tried.
     doc.set(milestone, 1 if is_done else 0)
-    doc.set(date_field, milestone_date if is_done else None)
+    doc.set(date_field, parse_date_input(milestone_date) if is_done else None)
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 

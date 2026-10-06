@@ -269,6 +269,14 @@ def _sync_unsubscribe_to_mailerlite(doc):
 
 
 def _verify_webhook_signature(payload_bytes, signature_header, signing_secret):
+    # Confirmed live (2026-10): every single delivery was being rejected
+    # here - stripping both sides guards against the single most likely
+    # cause (trailing/leading whitespace picked up copying the secret
+    # out of MailerLite's dashboard into the Password field, or off the
+    # incoming header), without weakening the actual comparison.
+    signing_secret = (signing_secret or "").strip()
+    signature_header = (signature_header or "").strip()
+
     if not signing_secret or not signature_header:
         return False
 
@@ -317,8 +325,14 @@ def mailerlite_webhook():
     frappe.log_error(json.dumps(body)[:2000], "MailerLite Webhook Received")
 
     event_type = body.get("event") or body.get("type") or ""
+
+    # Confirmed live (2026-10) - MailerLite posts the subscriber's email
+    # as a flat top-level field (along with event, status, fields, etc),
+    # not nested under "data"/"subscriber" as originally guessed before
+    # a real delivery had ever been seen. Both still checked, in that
+    # order, in case a future event type nests it after all.
     subscriber = body.get("data") or body.get("subscriber") or {}
-    email = (subscriber.get("email") or "").strip().lower()
+    email = (subscriber.get("email") or body.get("email") or "").strip().lower()
 
     if "unsubscrib" in str(event_type).lower() and email:
         _mark_unsubscribed_in_frappe(email)

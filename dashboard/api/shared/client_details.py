@@ -18,6 +18,8 @@ from dashboard.api.shared.directory import (
     get_user_display_name,
 )
 
+from dashboard.api.shared.utils import parse_date_input
+
 from dashboard.api.shared.supervision_booking import get_coach_supervision_target
 
 from dashboard.api.shared.profile import LEGAL_RECORD_CONFIG, ROLE_PROFILE_CONFIG
@@ -1696,32 +1698,12 @@ def save_client(docname=None, data=None):
 
 def _parse_note_session_date(value):
     """
-    session_date arrives here as whatever a caller's date input actually
-    submitted - normally ISO (native <input type="date"> fields already
-    produce yyyy-mm-dd), but a note whose session_date was ever saved in
-    the UK dd/mm/yyyy format this site displays everywhere else (e.g. an
-    older client, or a value round-tripped through a non-native date
-    field) makes that same string come back as the edit form's prefilled
-    value - and MySQL's DATE column rejects anything that isn't
-    yyyy-mm-dd outright, crashing the whole save with a raw SQL error
-    instead of a normal validation message. Tries ISO first, then UK
-    dd/mm/yyyy, and only throws a clear, catchable error if neither
-    parses - deliberately not using a generic/dateutil-style parser here,
-    since "11/08/2026" is genuinely ambiguous (11th Aug vs Nov 8th) and a
-    silent wrong-format guess would corrupt the date rather than fail
-    loudly.
+    Thin alias kept for every existing call site in this module - see
+    dashboard.api.shared.utils.parse_date_input for what this actually
+    does and why (the same ISO-or-UK-dd/mm/yyyy parsing is also needed
+    outside this module, e.g. leads.py's Stage 1 milestone dates).
     """
-    value = (value or "").strip()
-    if not value:
-        return None
-
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
-        try:
-            return datetime.datetime.strptime(value, fmt).date()
-        except ValueError:
-            continue
-
-    frappe.throw(_("'{0}' isn't a valid date - use dd/mm/yyyy.").format(value))
+    return parse_date_input(value)
 
 
 @frappe.whitelist()
