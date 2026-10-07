@@ -563,14 +563,17 @@
     }
   }
 
+  // Trade Name and the registered Trade Mark number aren't asked for -
+  // they're fixed constants for this brand in the real agreement text
+  // (see add_franchise_agreement_practice_document.py), not deal-
+  // specific. Expiry Date isn't asked for either - the server always
+  // computes it as exactly 3 years after Commencement Date (leads.
+  // get_contract_sign_url's CONTRACT_TERM_YEARS), matching the Term
+  // defined in the agreement's own clause 1.1.
   const CONTRACT_TERM_FIELDS = [
-    ["contractTradeNameInput", "trade_name", "text", "Trade Name (e.g. The Resilient Kid)"],
-    ["contractTradeMarkInput", "trade_mark_number", "text", "Trade Mark Number (optional)"],
-    ["contractInitialFeeInput", "initial_fee", "number", "Initial Fee (£)"],
     ["contractCommencementDateInput", "commencement_date", "date", "Commencement Date"],
-    ["contractExpiryDateInput", "expiry_date", "date", "Expiry Date"],
-    ["contractPermittedNameInput", "permitted_name", "text", "Permitted Business Name"],
-    ["contractPermittedAreaInput", "permitted_area", "text", "Permitted Area"],
+    ["contractTerritoryInput", "territory_description", "text", "Territory (postcode areas)"],
+    ["contractPermittedAreaInput", "permitted_area", "text", "Permitted Area (e.g. Hartford)"],
   ];
 
   function renderContractBlock(lead) {

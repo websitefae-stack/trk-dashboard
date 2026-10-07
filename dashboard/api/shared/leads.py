@@ -1417,13 +1417,14 @@ def _get_lead_by_contract_token(token):
     return frappe.get_doc(LEAD_DOCTYPE, lead_name)
 
 
+CONTRACT_TERM_YEARS = 3
+
+
 def _contract_render_context(doc, franchisee_name, franchisee_address, franchisee_signature, franchisee_date):
     return {
         "agreement_date": frappe.utils.formatdate(doc.get("contract_agreement_date"), "dd-MM-yyyy"),
         "franchisee_name": franchisee_name,
         "franchisee_address": franchisee_address,
-        "trade_name": doc.get("contract_trade_name") or "",
-        "trade_mark_number": doc.get("contract_trade_mark_number") or NDA_BLANK_PLACEHOLDER,
         "commencement_date": (
             frappe.utils.formatdate(doc.get("contract_commencement_date"), "dd-MM-yyyy")
             if doc.get("contract_commencement_date") else ""
@@ -1432,9 +1433,7 @@ def _contract_render_context(doc, franchisee_name, franchisee_address, franchise
             frappe.utils.formatdate(doc.get("contract_expiry_date"), "dd-MM-yyyy")
             if doc.get("contract_expiry_date") else ""
         ),
-        "initial_fee": fmt_money(doc.get("contract_initial_fee") or 0, currency="GBP"),
         "territory_description": doc.get("contract_territory_description") or "",
-        "permitted_name": doc.get("contract_permitted_name") or "",
         "permitted_area": doc.get("contract_permitted_area") or "",
         "franchisee_signature": franchisee_signature,
         "franchisee_date": franchisee_date,
@@ -1442,17 +1441,7 @@ def _contract_render_context(doc, franchisee_name, franchisee_address, franchise
 
 
 @frappe.whitelist()
-def get_contract_sign_url(
-    name=None,
-    trade_name=None,
-    trade_mark_number=None,
-    initial_fee=None,
-    commencement_date=None,
-    expiry_date=None,
-    territory_description=None,
-    permitted_name=None,
-    permitted_area=None,
-):
+def get_contract_sign_url(name=None, commencement_date=None, territory_description=None, permitted_area=None):
     """
     Franchisor-only: generates (the first time) or reuses this lead's
     Franchise Agreement sign link. The commercial terms below are only
@@ -1460,9 +1449,14 @@ def get_contract_sign_url(
     fixed from then on exactly like intent_territory/deposit_amount/
     end_date are for Intent to Proceed, so an already-generated link
     never changes underneath someone who's already been sent it.
-    trade_mark_number is the one optional term - not every brand/deal
-    has one confirmed yet (see add_franchise_agreement_practice_
-    document.py's own note on Schedule 3), renders as a blank if left out.
+
+    expiry_date is never typed in - it's always exactly CONTRACT_TERM_
+    YEARS (3) after commencement_date, matching the Term defined in
+    clause 1.1 of the agreement itself ("three (3) years from the
+    Commencement Date"). Trade Name and the registered Trade Mark number
+    aren't asked for either - they're fixed constants for this brand in
+    the real agreement text, not deal-specific (see add_franchise_
+    agreement_practice_document.py).
     """
     if not is_franchisor_user():
         frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
@@ -1477,38 +1471,24 @@ def get_contract_sign_url(
         frappe.throw(_("This lead's Franchise Agreement has already been signed."))
 
     if not doc.get("contract_token"):
-        trade_name = coalesce_str("trade_name", trade_name)
-        trade_mark_number = coalesce_str("trade_mark_number", trade_mark_number)
         commencement_date = coalesce_raw("commencement_date", commencement_date)
-        expiry_date = coalesce_raw("expiry_date", expiry_date)
         territory_description = coalesce_str("territory_description", territory_description)
-        permitted_name = coalesce_str("permitted_name", permitted_name)
         permitted_area = coalesce_str("permitted_area", permitted_area)
 
-        if not trade_name:
-            frappe.throw(_("Enter the Trade Name before generating the sign link."))
-        if not initial_fee:
-            frappe.throw(_("Enter the Initial Fee before generating the sign link."))
         if not commencement_date:
             frappe.throw(_("Enter the Commencement Date before generating the sign link."))
-        if not expiry_date:
-            frappe.throw(_("Enter the Expiry Date before generating the sign link."))
         if not territory_description:
-            frappe.throw(_("Enter the Territory before generating the sign link."))
-        if not permitted_name:
-            frappe.throw(_("Enter the Permitted Business Name before generating the sign link."))
+            frappe.throw(_("Enter the Territory (postcode areas) before generating the sign link."))
         if not permitted_area:
             frappe.throw(_("Enter the Permitted Area before generating the sign link."))
 
+        commencement_date = frappe.utils.getdate(commencement_date)
+
         doc.contract_token = frappe.generate_hash(length=40)
         doc.contract_agreement_date = frappe.utils.today()
-        doc.contract_trade_name = trade_name
-        doc.contract_trade_mark_number = trade_mark_number
-        doc.contract_initial_fee = coalesce_raw("initial_fee", initial_fee)
         doc.contract_commencement_date = commencement_date
-        doc.contract_expiry_date = expiry_date
+        doc.contract_expiry_date = frappe.utils.add_years(commencement_date, CONTRACT_TERM_YEARS)
         doc.contract_territory_description = territory_description
-        doc.contract_permitted_name = permitted_name
         doc.contract_permitted_area = permitted_area
         doc.save(ignore_permissions=True)
         frappe.db.commit()
@@ -1528,17 +1508,7 @@ def _contract_email_text(doc, contract_url):
 
 
 @frappe.whitelist()
-def get_contract_email_defaults(
-    name=None,
-    trade_name=None,
-    trade_mark_number=None,
-    initial_fee=None,
-    commencement_date=None,
-    expiry_date=None,
-    territory_description=None,
-    permitted_name=None,
-    permitted_area=None,
-):
+def get_contract_email_defaults(name=None, commencement_date=None, territory_description=None, permitted_area=None):
     """
     Subject/message the compose modal pre-fills before send_contract_link
     actually sends it. The commercial terms are only used the first time
@@ -1552,13 +1522,8 @@ def get_contract_email_defaults(
 
     contract_url = get_contract_sign_url(
         name=name,
-        trade_name=trade_name,
-        trade_mark_number=trade_mark_number,
-        initial_fee=initial_fee,
         commencement_date=commencement_date,
-        expiry_date=expiry_date,
         territory_description=territory_description,
-        permitted_name=permitted_name,
         permitted_area=permitted_area,
     )["url"]
     subject, message = _contract_email_text(doc, contract_url)
@@ -1569,13 +1534,8 @@ def get_contract_email_defaults(
 @frappe.whitelist()
 def send_contract_link(
     name=None,
-    trade_name=None,
-    trade_mark_number=None,
-    initial_fee=None,
     commencement_date=None,
-    expiry_date=None,
     territory_description=None,
-    permitted_name=None,
     permitted_area=None,
     subject=None,
     message=None,
@@ -1597,13 +1557,8 @@ def send_contract_link(
 
     contract_url = get_contract_sign_url(
         name=name,
-        trade_name=trade_name,
-        trade_mark_number=trade_mark_number,
-        initial_fee=initial_fee,
         commencement_date=commencement_date,
-        expiry_date=expiry_date,
         territory_description=territory_description,
-        permitted_name=permitted_name,
         permitted_area=permitted_area,
     )["url"]
 

@@ -6,16 +6,18 @@ form. Same shape as the franchisee NDA/Intent to Proceed flows
 a public, token-linked page where the franchisee reads the agreement
 and signs it by typing their name.
 
-contract_trade_name/initial_fee/commencement_date/expiry_date/
-territory_description/permitted_name/permitted_area are the commercial
-terms Ashley fills in the FIRST time she generates the sign link for a
-lead (see leads.get_contract_sign_url) - per-deal, decided by her, not
-something the franchisee ever types in. Fixed at that point same as
-contract_agreement_date, so re-opening an already-generated link always
-shows exactly what was originally sent. contract_trade_mark_number is
-the one optional term of the set - not every brand/deal has one
-confirmed yet (see add_franchise_agreement_practice_document.py's own
-note on Schedule 3).
+contract_commencement_date/territory_description/permitted_area are the
+only commercial terms Ashley fills in the FIRST time she generates the
+sign link for a lead (see leads.get_contract_sign_url) - per-deal,
+decided by her, not something the franchisee ever types in. Fixed at
+that point same as contract_agreement_date, so re-opening an
+already-generated link always shows exactly what was originally sent.
+contract_expiry_date is never typed in at all - it's computed as
+exactly 3 years after contract_commencement_date (CONTRACT_TERM_YEARS
+in leads.py), matching the Term defined in the agreement's own clause
+1.1. Trade Name and the registered Trade Mark number aren't fields here
+- they're fixed constants for this brand in the real agreement text
+(see add_franchise_agreement_practice_document.py), not deal-specific.
 
 contract_signed_snapshot is a frozen copy of the merged agreement text
 at the moment of signing, not a live re-render - editing the master
@@ -45,36 +47,12 @@ CLIENT_LEAD_FIELDS = [
         "module": "Dashboard",
     },
     {
-        "fieldname": "contract_trade_name",
-        "fieldtype": "Data",
-        "label": "Trade Name",
-        "read_only": 1,
-        "description": "Set by the franchisor when generating the sign link - fixed from then on for this lead.",
-        "insert_after": "contract_agreement_date",
-        "module": "Dashboard",
-    },
-    {
-        "fieldname": "contract_trade_mark_number",
-        "fieldtype": "Data",
-        "label": "Trade Mark Number",
-        "read_only": 1,
-        "insert_after": "contract_trade_name",
-        "module": "Dashboard",
-    },
-    {
-        "fieldname": "contract_initial_fee",
-        "fieldtype": "Currency",
-        "label": "Initial Fee",
-        "read_only": 1,
-        "insert_after": "contract_trade_mark_number",
-        "module": "Dashboard",
-    },
-    {
         "fieldname": "contract_commencement_date",
         "fieldtype": "Date",
         "label": "Commencement Date",
         "read_only": 1,
-        "insert_after": "contract_initial_fee",
+        "description": "Set by the franchisor when generating the sign link - fixed from then on for this lead.",
+        "insert_after": "contract_agreement_date",
         "module": "Dashboard",
     },
     {
@@ -82,6 +60,7 @@ CLIENT_LEAD_FIELDS = [
         "fieldtype": "Date",
         "label": "Expiry Date",
         "read_only": 1,
+        "description": "Always exactly 3 years after the Commencement Date - computed, never typed in.",
         "insert_after": "contract_commencement_date",
         "module": "Dashboard",
     },
@@ -94,19 +73,11 @@ CLIENT_LEAD_FIELDS = [
         "module": "Dashboard",
     },
     {
-        "fieldname": "contract_permitted_name",
-        "fieldtype": "Data",
-        "label": "Permitted Business Name",
-        "read_only": 1,
-        "insert_after": "contract_territory_description",
-        "module": "Dashboard",
-    },
-    {
         "fieldname": "contract_permitted_area",
         "fieldtype": "Data",
         "label": "Permitted Area",
         "read_only": 1,
-        "insert_after": "contract_permitted_name",
+        "insert_after": "contract_territory_description",
         "module": "Dashboard",
     },
     {
