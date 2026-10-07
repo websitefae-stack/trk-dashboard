@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Recruitment Intake Form</title>
+  <link rel="icon" href="/files/TRH - Favicon.png">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #F2F8F8;
+      color: #434B49;
+      padding: 24px 16px 60px;
+    }
+    .fi-page { max-width: 640px; margin: 0 auto; }
+    .fi-card {
+      background: #fff;
+      border-radius: 14px;
+      padding: 28px 32px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+      margin-bottom: 20px;
+    }
+    .fi-card h3 { margin-top: 0; }
+    .fi-status, .fi-error {
+      text-align: center;
+      font-weight: 600;
+      padding: 40px 0;
+    }
+    .fi-status { color: #007274; }
+    .fi-error { color: #C01C3E; }
+    .fi-field { margin-bottom: 16px; }
+    .fi-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .fi-field label {
+      display: block;
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+    .fi-field input, .fi-field select, .fi-field textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #D9E6E6;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      background: #fff;
+    }
+    .fi-field textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+    .fi-help { font-size: 12px; color: #839898; margin-top: 4px; }
+    .fi-section-title { font-weight: 700; margin: 24px 0 4px; }
+    .fi-submit-btn {
+      margin-top: 12px;
+      width: 100%;
+      padding: 13px;
+      border: none;
+      border-radius: 8px;
+      background: #007274;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .fi-submit-btn:disabled { opacity: 0.6; cursor: default; }
+    .fi-form-message {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      display: none;
+    }
+    .fi-form-message.is-error { display: block; background: rgba(233,71,99,0.12); color: #C01C3E; }
+    .fi-submitted-banner {
+      background: rgba(37,141,59,0.12);
+      color: #258D3B;
+      font-weight: 600;
+      border-radius: 10px;
+      padding: 14px 18px;
+      text-align: center;
+    }
+  </style>
+  <script src="/assets/dashboard/js/shared/dd_date_input.js?v=3"></script>
+</head>
+<body>
+  <div class="fi-page" id="fiPage">
+    <div class="fi-status" id="fiLoading">Loading...</div>
+  </div>
+
+  <script>
+    (function () {
+      var token = "{{ token }}";
+      var page = document.getElementById("fiPage");
+      var pendingUploads = {};
+
+      function apiPost(method, args) {
+        return fetch("/api/method/" + method, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(args || {})
+        }).then(function (response) {
+          return response.json().then(function (data) {
+            if (!response.ok || data.exc) {
+              throw new Error((data.message && data.message.message) || data.message || "Something went wrong.");
+            }
+            return data.message || {};
+          });
+        });
+      }
+
+      function uploadFile(field, file) {
+        var formData = new FormData();
+        formData.append("file", file);
+        formData.append("token", token);
+        formData.append("field", field);
+
+        return fetch("/api/method/dashboard.api.shared.recruitment_leads.upload_franchisee_intake_file?token=" + encodeURIComponent(token) + "&field=" + encodeURIComponent(field), {
+          method: "POST",
+          body: formData
+        }).then(function (response) {
+          return response.json().then(function (data) {
+            if (!response.ok || data.exc) {
+              throw new Error((data.message && data.message.message) || data.message || "Could not upload this file.");
+            }
+            return data.message || {};
+          });
+        });
+      }
+
+      function renderError(message) {
+        page.innerHTML = '<div class="fi-error">' + message + "</div>";
+      }
+
+      function renderSubmitted() {
+        page.innerHTML = '<div class="fi-card"><div class="fi-submitted-banner">Thank you - this form has already been submitted.</div></div>';
+      }
+
+      function renderForm(contactName, isSessionWorker, answers) {
+        answers = answers || {};
+        // Safer Recruitment Checklist self-report fields - shown on this
+        // form for BOTH a potential franchisee and a session worker,
+        // since both need the same safeguarding checks before delivering
+        // sessions. The franchisor separately verifies every item on
+        // this checklist (including what's given here) once submitted.
+        var saferRecruitmentFieldsHtml =
+              '<div class="fi-section-title">Identity &amp; Right to Work</div>' +
+              '<div class="fi-field-row">' +
+                '<div class="fi-field"><label for="fiIdDocumentType">ID Document You Can Provide (e.g. passport, driving licence)</label><input type="text" id="fiIdDocumentType" name="id_document_type"></div>' +
+                '<div class="fi-field">' +
+                  '<label for="fiRightToWorkStatus">Right to Work Status</label>' +
+                  '<select id="fiRightToWorkStatus" name="right_to_work_status">' +
+                    '<option value="">Select...</option>' +
+                    '<option value="British/Irish Citizen">British/Irish Citizen</option>' +
+                    '<option value="Settled/Pre-Settled Status">Settled/Pre-Settled Status</option>' +
+                    '<option value="Visa - Right to Work">Visa - Right to Work</option>' +
+                    '<option value="To Be Confirmed">To Be Confirmed</option>' +
+                  "</select>" +
+                "</div>" +
+              "</div>" +
+              '<div class="fi-field">' +
+                '<label for="fiRightToWorkExpiry">Visa Expiry Date (if applicable)</label>' +
+                '<input type="date" id="fiRightToWorkExpiry" name="right_to_work_expiry">' +
+              "</div>" +
+              '<div class="fi-field">' +
+                '<label for="fiAddressHistory">Address History (Last 5 Years)</label>' +
+                '<textarea id="fiAddressHistory" name="address_history" rows="3" placeholder="List each address and the dates you lived there"></textarea>' +
+              "</div>" +
+              '<div class="fi-field">' +
+                '<label for="fiOverseasChecks">Overseas Police Clearance / Working With Children Check (if you have lived/worked overseas)</label>' +
+                '<textarea id="fiOverseasChecks" name="overseas_checks" rows="2"></textarea>' +
+              "</div>" +
+
+              '<div class="fi-section-title">Work History, Qualifications &amp; References</div>' +
+              '<div class="fi-field">' +
+                '<label for="fiWorkHistory">Relevant Work History / Experience</label>' +
+                '<textarea id="fiWorkHistory" name="work_history" rows="4"></textarea>' +
+              "</div>" +
+              '<div class="fi-field">' +
+                '<label for="fiWorkLocations">Main Work Locations / Areas</label>' +
+                '<textarea id="fiWorkLocations" name="work_locations" rows="2"></textarea>' +
+              "</div>" +
+              '<div class="fi-field">' +
+                '<label for="fiQualifications">Relevant Qualifications / Training (e.g. counselling, coaching, education, first aid, safeguarding)</label>' +
+                '<textarea id="fiQualifications" name="qualifications" rows="3"></textarea>' +
+              "</div>" +
+              '<div class="fi-field-row">' +
+                '<div class="fi-field"><label for="fiReference1Details">Reference 1 - Name, Relationship &amp; Contact Details</label><textarea id="fiReference1Details" name="reference1_details" rows="2"></textarea></div>' +
+                '<div class="fi-field"><label for="fiReference2Details">Reference 2 - Name, Relationship &amp; Contact Details</label><textarea id="fiReference2Details" name="reference2_details" rows="2"></textarea></div>' +
+              "</div>" +
+
+              '<div class="fi-section-title">Insurance</div>' +
+              '<div class="fi-field-row">' +
+                '<div class="fi-field"><label for="fiPublicLiabilityInsurer">Public Liability Insurer &amp; Policy Number</label><input type="text" id="fiPublicLiabilityInsurer" name="public_liability_insurer"></div>' +
+                '<div class="fi-field"><label for="fiIndemnityInsurer">Professional Indemnity Insurer &amp; Policy Number</label><input type="text" id="fiIndemnityInsurer" name="indemnity_insurer"></div>' +
+              "</div>" +
+              '<div class="fi-field">' +
+                '<label for="fiInsuranceRenewalDate">Insurance Policy Renewal Date</label>' +
+                '<input type="date" id="fiInsuranceRenewalDate" name="insurance_renewal_date">' +
+              "</div>";
+
+        page.innerHTML =
+          '<div class="fi-card">' +
+            "<h3>" + (isSessionWorker ? "Session Worker Intake Form" : "Franchisee Intake Form") + "</h3>" +
+            '<p class="fi-help">Please fill in your details below and upload your DBS certificate. This information is kept private and only used by The Resilient People for your onboarding.</p>' +
+            '<form id="fiForm">' +
+              '<div class="fi-field-row">' +
+                '<div class="fi-field"><label for="fiFirstName">First Name</label><input type="text" id="fiFirstName" name="first_name" required></div>' +
+                '<div class="fi-field"><label for="fiLastName">Last Name</label><input type="text" id="fiLastName" name="last_name" required></div>' +
+              "</div>" +
+              '<div class="fi-field-row">' +
+                '<div class="fi-field"><label for="fiPhone">Phone</label><input type="text" id="fiPhone" name="phone" required></div>' +
+                '<div class="fi-field"><label for="fiDob">Date of Birth</label><input type="date" id="fiDob" name="dob"></div>' +
+              "</div>" +
+              '<div class="fi-field">' +
+                '<label for="fiGender">Gender</label>' +
+                '<select id="fiGender" name="gender">' +
+                  '<option value="">Select...</option>' +
+                  '<option value="Female">Female</option>' +
+                  '<option value="Male">Male</option>' +
+                  '<option value="Non-binary">Non-binary</option>' +
+                  '<option value="Prefer not to say">Prefer not to say</option>' +
+                  '<option value="Other">Other</option>' +
+                "</select>" +
+              "</div>" +
+
+              '<div class="fi-section-title">DBS Check</div>' +
+              '<div class="fi-field-row">' +
+                '<div class="fi-field"><label for="fiDbsNumber">DBS Certificate Number</label><input type="text" id="fiDbsNumber" name="dbs_number"></div>' +
+                '<div class="fi-field"></div>' +
+              "</div>" +
+              '<div class="fi-field-row">' +
+                '<div class="fi-field"><label for="fiDbsDateReceived">Date Received</label><input type="date" id="fiDbsDateReceived" name="dbs_date_received"></div>' +
+                '<div class="fi-field"><label for="fiDbsExpiryDate">Expiry Date</label><input type="date" id="fiDbsExpiryDate" name="dbs_expiry_date"></div>' +
+              "</div>" +
+              '<div class="fi-field">' +
+                '<label for="fiDbsCertificate">Upload DBS Certificate' + (answers.dbs_certificate ? " (already on file - choose a new one only to replace it)" : "") + '</label>' +
+                '<input type="file" id="fiDbsCertificate" accept="image/*,.pdf"' + (answers.dbs_certificate ? "" : " required") + '>' +
+              "</div>" +
+              '<div class="fi-field">' +
+                '<label for="fiAdditionalDocument">Additional Document (e.g. Proof of Insurance) - optional</label>' +
+                '<input type="file" id="fiAdditionalDocument" accept="image/*,.pdf">' +
+              "</div>" +
+
+              saferRecruitmentFieldsHtml +
+
+              '<button type="submit" class="fi-submit-btn" id="fiSubmitBtn">Submit</button>' +
+              '<div class="fi-form-message" id="fiFormMessage"></div>' +
+            "</form>" +
+          "</div>";
+
+        var nameField = document.getElementById("fiFirstName");
+        if (nameField && contactName) nameField.value = contactName.split(" ")[0] || "";
+
+        // Pre-fill from whatever's already saved - blank on a genuinely
+        // fresh form, but populated if this was reopened after being
+        // submitted too early/incomplete, so nothing already given has
+        // to be retyped.
+        var form = document.getElementById("fiForm");
+        Object.keys(answers).forEach(function (key) {
+          var field = form.elements[key];
+          if (field && answers[key]) field.value = answers[key];
+        });
+
+        form.addEventListener("submit", function (event) {
+          event.preventDefault();
+
+          var btn = document.getElementById("fiSubmitBtn");
+          var messageEl = document.getElementById("fiFormMessage");
+          messageEl.style.display = "none";
+
+          var dbsFile = document.getElementById("fiDbsCertificate").files[0];
+          var additionalFile = document.getElementById("fiAdditionalDocument").files[0];
+
+          if (!dbsFile && !answers.dbs_certificate) {
+            messageEl.textContent = "Please upload your DBS certificate.";
+            messageEl.className = "fi-form-message is-error";
+            messageEl.style.display = "block";
+            return;
+          }
+
+          btn.disabled = true;
+          btn.textContent = "Uploading...";
+
+          // Only re-uploads if a new file was actually chosen - the
+          // certificate already on file (from before this form was
+          // reopened) stays exactly as it was otherwise.
+          var uploads = [];
+          if (dbsFile) uploads.push(uploadFile("dbs_certificate", dbsFile));
+          if (additionalFile) uploads.push(uploadFile("additional_document", additionalFile));
+
+          Promise.all(uploads).then(function () {
+            btn.textContent = "Submitting...";
+            return apiPost("dashboard.api.shared.recruitment_leads.submit_franchisee_intake", {
+              token: token,
+              first_name: form.first_name.value,
+              last_name: form.last_name.value,
+              phone: form.phone.value,
+              gender: form.gender.value,
+              dob: form.dob.value,
+              dbs_number: form.dbs_number.value,
+              dbs_date_received: form.dbs_date_received.value,
+              dbs_expiry_date: form.dbs_expiry_date.value,
+              qualifications: form.qualifications ? form.qualifications.value : "",
+              work_locations: form.work_locations ? form.work_locations.value : "",
+              public_liability_insurer: form.public_liability_insurer ? form.public_liability_insurer.value : "",
+              indemnity_insurer: form.indemnity_insurer ? form.indemnity_insurer.value : "",
+              insurance_renewal_date: form.insurance_renewal_date ? form.insurance_renewal_date.value : "",
+              id_document_type: form.id_document_type ? form.id_document_type.value : "",
+              right_to_work_status: form.right_to_work_status ? form.right_to_work_status.value : "",
+              right_to_work_expiry: form.right_to_work_expiry ? form.right_to_work_expiry.value : "",
+              address_history: form.address_history ? form.address_history.value : "",
+              overseas_checks: form.overseas_checks ? form.overseas_checks.value : "",
+              work_history: form.work_history ? form.work_history.value : "",
+              reference1_details: form.reference1_details ? form.reference1_details.value : "",
+              reference2_details: form.reference2_details ? form.reference2_details.value : ""
+            });
+          }).then(function () {
+            renderSubmitted();
+          }).catch(function (error) {
+            btn.disabled = false;
+            btn.textContent = "Submit";
+            messageEl.textContent = error.message || "Could not submit this. Please try again.";
+            messageEl.className = "fi-form-message is-error";
+            messageEl.style.display = "block";
+          });
+        });
+      }
+
+      if (!token) {
+        renderError("This link is invalid.");
+        return;
+      }
+
+      apiPost("dashboard.api.shared.recruitment_leads.get_franchisee_intake_status", { token: token })
+        .then(function (data) {
+          if (data.submitted) {
+            renderSubmitted();
+          } else {
+            renderForm(data.contact_name, !!data.is_session_worker, data.answers);
+          }
+        })
+        .catch(function (error) {
+          renderError(error.message || "This link is invalid.");
+        });
+    })();
+  </script>
+</body>
+</html>

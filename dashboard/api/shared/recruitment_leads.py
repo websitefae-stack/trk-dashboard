@@ -17,6 +17,8 @@ leads.py are completely untouched by this module.
 
 from urllib.parse import quote
 
+from werkzeug.utils import secure_filename
+
 import frappe
 from frappe import _
 from frappe.utils import get_url, fmt_money
@@ -1506,3 +1508,484 @@ def set_session_worker_link(name=None, session_worker=None):
     frappe.db.commit()
 
     return {"ok": True, "converted_session_worker": doc.converted_session_worker}
+
+
+# -------------------------------------------------------------------
+# Intake + DBS/Insurance form - shared by both lead types, the step
+# after NDA, before conversion. Not a signature flow - personal
+# details plus two file uploads (required DBS certificate, optional
+# additional document e.g. insurance).
+# -------------------------------------------------------------------
+
+FRANCHISEE_INTAKE_FILE_FIELDS = {
+    "dbs_certificate": "franchisee_intake_dbs_certificate",
+    "additional_document": "franchisee_intake_additional_document",
+}
+
+
+def _get_lead_by_franchisee_intake_token(token):
+    token = (token or "").strip()
+    if not token:
+        frappe.throw(_("This link is invalid."))
+    lead_name = frappe.db.get_value(RECRUITMENT_LEAD_DOCTYPE, {"franchisee_intake_token": token}, "name")
+    if not lead_name:
+        frappe.throw(_("This link is invalid."))
+    return frappe.get_doc(RECRUITMENT_LEAD_DOCTYPE, lead_name)
+
+
+@frappe.whitelist()
+def get_franchisee_intake_url(name=None):
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.get("franchisee_intake_token"):
+        doc.franchisee_intake_token = frappe.generate_hash(length=40)
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+
+    return {"url": get_url(f"/recruitment-intake?token={doc.franchisee_intake_token}")}
+
+
+def _franchisee_intake_email_text(doc, intake_url):
+    contact_name = doc.contact_name or "there"
+
+    if doc.lead_type == "Session Worker":
+        subject = "Your Resilient Kid session worker intake form"
+        message = (
+            f"Hi {contact_name},\n\n"
+            "Thanks for your interest in joining The Resilient Kid as a session worker. Please "
+            "complete the short form below with your details and DBS certificate so we can "
+            "keep things moving:\n\n"
+            f"{intake_url}"
+        )
+        return subject, message
+
+    subject = "Your Resilient franchisee intake form"
+    message = (
+        f"Hi {contact_name},\n\n"
+        "Thanks for your continued interest in becoming a Resilient franchisee. Please "
+        "complete the short form below with your details and DBS certificate so we can "
+        "keep things moving:\n\n"
+        f"{intake_url}"
+    )
+    return subject, message
+
+
+@frappe.whitelist()
+def get_franchisee_intake_email_defaults(name=None):
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.contact_email:
+        frappe.throw(_("This lead has no contact email address to send the form to."))
+
+    intake_url = get_franchisee_intake_url(name=name)["url"]
+    subject, message = _franchisee_intake_email_text(doc, intake_url)
+
+    return {"subject": subject, "message": message, "recipient": doc.contact_email, "url": intake_url}
+
+
+@frappe.whitelist()
+def send_franchisee_intake_form(name=None, subject=None, message=None, cc=None, reply_to=None):
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.contact_email:
+        frappe.throw(_("This lead has no contact email address to send the form to."))
+
+    if not doc.get("franchisee_intake_token"):
+        doc.franchisee_intake_token = frappe.generate_hash(length=40)
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+
+    intake_url = get_url(f"/recruitment-intake?token={doc.franchisee_intake_token}")
+
+    subject = (subject or "").strip()
+    message = (message or "").strip()
+    if not subject or not message:
+        default_subject, default_message = _franchisee_intake_email_text(doc, intake_url)
+        subject = subject or default_subject
+        message = message or default_message
+
+    reply_to = (reply_to or "").strip() or frappe.session.user
+
+    kwargs = {
+        "recipients": [doc.contact_email],
+        "subject": subject,
+        "message": plain_text_to_email_html(message),
+        "reply_to": reply_to,
+    }
+
+    cc_list = parse_email_list(cc)
+    if cc_list:
+        kwargs["cc"] = cc_list
+
+    send_email(**kwargs)
+
+    doc.franchisee_intake_sent_at = frappe.utils.now_datetime()
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "ok": 1,
+        "url": intake_url,
+        "sent_at": frappe.utils.format_datetime(doc.franchisee_intake_sent_at, "dd-MM-yyyy HH:mm"),
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def get_franchisee_intake_status(token=None):
+    token = coalesce_str("token", token)
+    doc = _get_lead_by_franchisee_intake_token(token)
+
+    return {
+        "submitted": bool(doc.get("franchisee_intake_submitted")),
+        "contact_name": doc.get("contact_name") or "",
+        "is_session_worker": doc.lead_type == "Session Worker",
+        "answers": {
+            "first_name": doc.get("franchisee_intake_first_name") or "",
+            "last_name": doc.get("franchisee_intake_last_name") or "",
+            "phone": doc.get("franchisee_intake_phone") or "",
+            "gender": doc.get("franchisee_intake_gender") or "",
+            "dob": doc.get("franchisee_intake_dob") or "",
+            "dbs_number": doc.get("franchisee_intake_dbs_number") or "",
+            "dbs_date_received": doc.get("franchisee_intake_dbs_date_received") or "",
+            "dbs_expiry_date": doc.get("franchisee_intake_dbs_expiry_date") or "",
+            "dbs_certificate": doc.get("franchisee_intake_dbs_certificate") or "",
+            "additional_document": doc.get("franchisee_intake_additional_document") or "",
+            "qualifications": doc.get("franchisee_intake_qualifications") or "",
+            "work_locations": doc.get("franchisee_intake_work_locations") or "",
+            "public_liability_insurer": doc.get("franchisee_intake_public_liability_insurer") or "",
+            "indemnity_insurer": doc.get("franchisee_intake_indemnity_insurer") or "",
+            "insurance_renewal_date": doc.get("franchisee_intake_insurance_renewal_date") or "",
+            "id_document_type": doc.get("franchisee_intake_id_document_type") or "",
+            "right_to_work_status": doc.get("franchisee_intake_right_to_work_status") or "",
+            "right_to_work_expiry": doc.get("franchisee_intake_right_to_work_expiry") or "",
+            "address_history": doc.get("franchisee_intake_address_history") or "",
+            "overseas_checks": doc.get("franchisee_intake_overseas_checks") or "",
+            "work_history": doc.get("franchisee_intake_work_history") or "",
+            "reference1_details": doc.get("franchisee_intake_reference1_details") or "",
+            "reference2_details": doc.get("franchisee_intake_reference2_details") or "",
+        },
+    }
+
+
+@frappe.whitelist()
+def reopen_franchisee_intake(name=None):
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.get("franchisee_intake_submitted"):
+        frappe.throw(_("This intake form hasn't been submitted yet."))
+
+    if doc.status == "Converted" and doc.get("converted_client"):
+        frappe.throw(_("This lead has already been converted to a Client - reopening the intake form now wouldn't reach them anymore."))
+
+    if doc.get("converted_session_worker"):
+        frappe.throw(_("This lead has already been set up as a Session Worker - reopening the intake form now wouldn't reach them anymore."))
+
+    doc.franchisee_intake_submitted = 0
+    doc.franchisee_intake_submitted_at = None
+    doc.stage1_agreement_invoice_done = 0
+    doc.stage1_agreement_invoice_date = None
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True}
+
+
+@frappe.whitelist(allow_guest=True)
+def upload_franchisee_intake_file(token=None, field=None):
+    token = coalesce_str("token", token)
+    field = coalesce_str("field", field)
+
+    doc = _get_lead_by_franchisee_intake_token(token)
+
+    if doc.get("franchisee_intake_submitted"):
+        frappe.throw(_("This intake form has already been submitted."))
+
+    fieldname = FRANCHISEE_INTAKE_FILE_FIELDS.get(field)
+    if not fieldname:
+        frappe.throw(_("Invalid file field."))
+
+    uploaded_file = frappe.request.files.get("file") if getattr(frappe, "request", None) else None
+    if not uploaded_file:
+        frappe.throw(_("No file was uploaded."))
+
+    file_doc = frappe.get_doc({
+        "doctype": "File",
+        "file_name": secure_filename(uploaded_file.filename or field),
+        "attached_to_doctype": RECRUITMENT_LEAD_DOCTYPE,
+        "attached_to_name": doc.name,
+        "attached_to_field": fieldname,
+        "is_private": 1,
+        "content": uploaded_file.stream.read(),
+    })
+    file_doc.insert(ignore_permissions=True)
+
+    frappe.db.set_value(RECRUITMENT_LEAD_DOCTYPE, doc.name, fieldname, file_doc.file_url)
+    frappe.db.commit()
+
+    return {"url": file_doc.file_url}
+
+
+@frappe.whitelist(allow_guest=True)
+def submit_franchisee_intake(token=None, first_name=None, last_name=None, phone=None, gender=None,
+                              dob=None, dbs_number=None, dbs_date_received=None, dbs_expiry_date=None,
+                              qualifications=None, work_locations=None, public_liability_insurer=None,
+                              indemnity_insurer=None, insurance_renewal_date=None, id_document_type=None,
+                              right_to_work_status=None, right_to_work_expiry=None, address_history=None,
+                              overseas_checks=None, work_history=None, reference1_details=None,
+                              reference2_details=None):
+    token = coalesce_str("token", token)
+    doc = _get_lead_by_franchisee_intake_token(token)
+
+    if doc.get("franchisee_intake_submitted"):
+        frappe.throw(_("This intake form has already been submitted."))
+
+    first_name = coalesce_str("first_name", first_name)
+    last_name = coalesce_str("last_name", last_name)
+    phone = coalesce_str("phone", phone)
+    gender = coalesce_str("gender", gender)
+    dbs_number = coalesce_str("dbs_number", dbs_number)
+
+    if not first_name or not last_name:
+        frappe.throw(_("Please enter your first and last name."))
+    if not phone:
+        frappe.throw(_("Please enter a phone number."))
+    if not doc.get("franchisee_intake_dbs_certificate"):
+        frappe.throw(_("Please upload your DBS certificate before submitting."))
+
+    doc.franchisee_intake_first_name = first_name
+    doc.franchisee_intake_last_name = last_name
+    doc.franchisee_intake_phone = phone
+    doc.franchisee_intake_gender = gender
+    doc.franchisee_intake_dob = coalesce_raw("dob", dob) or None
+    doc.franchisee_intake_dbs_number = dbs_number
+    doc.franchisee_intake_dbs_date_received = coalesce_raw("dbs_date_received", dbs_date_received) or None
+    doc.franchisee_intake_dbs_expiry_date = coalesce_raw("dbs_expiry_date", dbs_expiry_date) or None
+
+    doc.franchisee_intake_qualifications = coalesce_str("qualifications", qualifications)
+    doc.franchisee_intake_work_locations = coalesce_str("work_locations", work_locations)
+    doc.franchisee_intake_public_liability_insurer = coalesce_str("public_liability_insurer", public_liability_insurer)
+    doc.franchisee_intake_indemnity_insurer = coalesce_str("indemnity_insurer", indemnity_insurer)
+    doc.franchisee_intake_insurance_renewal_date = coalesce_raw("insurance_renewal_date", insurance_renewal_date) or None
+    doc.franchisee_intake_id_document_type = coalesce_str("id_document_type", id_document_type)
+    doc.franchisee_intake_right_to_work_status = coalesce_str("right_to_work_status", right_to_work_status)
+    doc.franchisee_intake_right_to_work_expiry = coalesce_raw("right_to_work_expiry", right_to_work_expiry) or None
+    doc.franchisee_intake_address_history = coalesce_str("address_history", address_history)
+    doc.franchisee_intake_overseas_checks = coalesce_str("overseas_checks", overseas_checks)
+    doc.franchisee_intake_work_history = coalesce_str("work_history", work_history)
+    doc.franchisee_intake_reference1_details = coalesce_str("reference1_details", reference1_details)
+    doc.franchisee_intake_reference2_details = coalesce_str("reference2_details", reference2_details)
+
+    doc.franchisee_intake_submitted = 1
+    doc.franchisee_intake_submitted_at = frappe.utils.now_datetime()
+    doc.stage1_agreement_invoice_done = 1
+    doc.stage1_agreement_invoice_date = frappe.utils.today()
+
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    _notify_coach_of_lead_step(doc, "submitted their Intake/DBS form")
+
+    return {"ok": True}
+
+
+# -------------------------------------------------------------------
+# Convert to Client - Franchisee leads only (a Session Worker lead is
+# set up via set_session_worker_link instead, never becomes a Client).
+# Deliberately simpler than leads.py's own convert_lead_to_client:
+# Recruitment Lead carries none of the generic client-intake fields
+# (client_type, young person/adult/school/company answers) that
+# function maps across, since this doctype only ever represents a
+# franchisee or session worker application, never an ordinary client
+# enquiry.
+# -------------------------------------------------------------------
+
+FRANCHISEE_CLIENT_ASHLEY_LOGIN = "ashley@theresilientkid.co.uk"
+FRANCHISEE_CLIENT_BANK_ACCOUNT = "HQ Bank Account - Starling"
+FRANCHISEE_CLIENT_PRICE_LIST = "Ashley Pricelist"
+FRANCHISEE_CLIENT_COMPANY = "The Resilient Kid"
+
+
+def _split_name(full_name):
+    parts = (full_name or "").strip().split(" ", 1)
+    first = parts[0] if parts else ""
+    last = parts[1] if len(parts) > 1 else ""
+    return first, last
+
+
+def _format_franchisee_intake_notes(doc):
+    """Everything the Intake/DBS form collects that has no matching field
+    on Client - see leads.py's own _format_franchisee_intake_notes for the
+    original, identical reasoning."""
+    lines = []
+
+    if doc.get("franchisee_intake_id_document_type"):
+        lines.append(f"ID document type: {doc.franchisee_intake_id_document_type}")
+    if doc.get("franchisee_intake_right_to_work_status"):
+        lines.append(f"Right to work status: {doc.franchisee_intake_right_to_work_status}")
+    if doc.get("franchisee_intake_right_to_work_expiry"):
+        lines.append(f"Right to work expiry: {frappe.utils.formatdate(doc.franchisee_intake_right_to_work_expiry)}")
+    if doc.get("franchisee_intake_address_history"):
+        lines.append(f"Address history: {doc.franchisee_intake_address_history}")
+    if doc.get("franchisee_intake_overseas_checks"):
+        lines.append(f"Overseas police clearance / checks: {doc.franchisee_intake_overseas_checks}")
+    if doc.get("franchisee_intake_work_history"):
+        lines.append(f"Work history: {doc.franchisee_intake_work_history}")
+    if doc.get("franchisee_intake_qualifications"):
+        lines.append(f"Qualifications: {doc.franchisee_intake_qualifications}")
+    if doc.get("franchisee_intake_work_locations"):
+        lines.append(f"Work locations: {doc.franchisee_intake_work_locations}")
+    if doc.get("franchisee_intake_dbs_number"):
+        lines.append(f"DBS number: {doc.franchisee_intake_dbs_number}")
+    if doc.get("franchisee_intake_dbs_date_received"):
+        lines.append(f"DBS date received: {frappe.utils.formatdate(doc.franchisee_intake_dbs_date_received)}")
+    if doc.get("franchisee_intake_dbs_expiry_date"):
+        lines.append(f"DBS expiry date: {frappe.utils.formatdate(doc.franchisee_intake_dbs_expiry_date)}")
+    if doc.get("franchisee_intake_public_liability_insurer"):
+        lines.append(f"Public liability insurer: {doc.franchisee_intake_public_liability_insurer}")
+    if doc.get("franchisee_intake_indemnity_insurer"):
+        lines.append(f"Indemnity insurer: {doc.franchisee_intake_indemnity_insurer}")
+    if doc.get("franchisee_intake_insurance_renewal_date"):
+        lines.append(f"Insurance renewal date: {frappe.utils.formatdate(doc.franchisee_intake_insurance_renewal_date)}")
+    if doc.get("franchisee_intake_reference1_details"):
+        lines.append(f"Reference 1: {doc.franchisee_intake_reference1_details}")
+    if doc.get("franchisee_intake_reference2_details"):
+        lines.append(f"Reference 2: {doc.franchisee_intake_reference2_details}")
+    if doc.get("franchisee_intake_dbs_certificate"):
+        lines.append("DBS certificate: uploaded - see the original lead record's Files for the document itself.")
+    if doc.get("franchisee_intake_additional_document"):
+        lines.append("Additional document: uploaded - see the original lead record's Files for the document itself.")
+
+    if not lines:
+        return ""
+
+    return "<p><strong>From Intake/DBS form:</strong></p><p>" + "</p><p>".join(lines) + "</p>"
+
+
+def _apply_franchisee_client_defaults(client, client_meta):
+    """Every Franchisee lead becomes a Client tracked centrally under
+    Ashley - see leads.py's own _apply_franchisee_client_defaults for the
+    original, identical reasoning."""
+    if client_meta.has_field("status"):
+        client.status = "Active"
+
+    if client_meta.has_field("session_worker"):
+        client.session_worker = None
+
+    ashley_coach = (
+        frappe.db.get_value("Coach", {"user": FRANCHISEE_CLIENT_ASHLEY_LOGIN}, "name")
+        or frappe.db.get_value("Coach", {"coach_email": FRANCHISEE_CLIENT_ASHLEY_LOGIN}, "name")
+    )
+
+    if ashley_coach:
+        if client_meta.has_field("primary_coach"):
+            client.primary_coach = ashley_coach
+        if client_meta.has_field("attending_coach"):
+            client.attending_coach = ashley_coach
+
+    for fieldname, record_doctype, record_name in [
+        ("coach_banking_details", "Bank Account", FRANCHISEE_CLIENT_BANK_ACCOUNT),
+        ("banking", "Bank Account", FRANCHISEE_CLIENT_BANK_ACCOUNT),
+        ("pricelist", "Price List", FRANCHISEE_CLIENT_PRICE_LIST),
+        ("price_list", "Price List", FRANCHISEE_CLIENT_PRICE_LIST),
+        ("company", "Company", FRANCHISEE_CLIENT_COMPANY),
+    ]:
+        if client_meta.has_field(fieldname) and frappe.db.exists(record_doctype, record_name):
+            client.set(fieldname, record_name)
+
+
+@frappe.whitelist()
+def convert_recruitment_lead_to_client(name=None):
+    doc = ensure_lead_access(coalesce_str("name", name))
+
+    if doc.lead_type != "Franchisee":
+        frappe.throw(_("A Session Worker lead doesn't convert to a Client - set them up as a Session Worker instead."))
+
+    if doc.status == "Converted" and doc.converted_client:
+        return {"ok": True, "client": doc.converted_client, "contact": doc.converted_contact}
+
+    if not doc.contact_name or not doc.client_name:
+        frappe.throw(_("This lead is missing contact or client details."))
+
+    from dashboard.api.shared.client_details import set_full_name_from_parts, sanitize_name_part
+
+    client_meta = frappe.get_meta("Client")
+    client_first, client_last = _split_name(doc.client_name)
+
+    client = frappe.new_doc("Client")
+
+    set_full_name_from_parts(client, {"name1": client_first, "last_name": client_last})
+
+    if client_meta.has_field("date_added"):
+        client.date_added = frappe.utils.today()
+
+    if client_meta.has_field("mobile") and doc.contact_mobile:
+        client.mobile = doc.contact_mobile
+    if client_meta.has_field("email") and doc.contact_email:
+        client.email = doc.contact_email
+    if client_meta.has_field("address") and doc.location_address:
+        client.address = doc.location_address
+    if client_meta.has_field("zip_code") and doc.postal_code:
+        client.zip_code = doc.postal_code
+
+    if client_meta.has_field("client_type"):
+        client.client_type = "Franchise"
+
+    intake_notes = _format_franchisee_intake_notes(doc)
+    if intake_notes and client_meta.has_field("additional_comments"):
+        client.additional_comments = intake_notes
+
+    _apply_franchisee_client_defaults(client, client_meta)
+
+    client.insert(ignore_permissions=True)
+
+    existing_contact = (
+        frappe.db.get_value("Contact Email", {"email_id": doc.contact_email}, "parent")
+        if doc.contact_email else None
+    )
+
+    if existing_contact:
+        contact = frappe.get_doc("Contact", existing_contact)
+    else:
+        contact_first, contact_last = _split_name(doc.contact_name)
+        contact = frappe.new_doc("Contact")
+        contact.first_name = contact_first
+        if contact_last:
+            contact.last_name = contact_last
+        if doc.contact_email:
+            contact.append("email_ids", {"email_id": doc.contact_email, "is_primary": 1})
+        if doc.contact_mobile:
+            contact.append("phone_nos", {"phone": doc.contact_mobile, "is_primary_mobile_no": 1})
+        contact.insert(ignore_permissions=True)
+
+    if client_meta.has_field("client_contacts"):
+        client.append("client_contacts", {
+            "contact": contact.name,
+            "contact_name": sanitize_name_part(doc.contact_name),
+            "phone": doc.contact_mobile or "",
+            "email_id": doc.contact_email or "",
+        })
+        client.save(ignore_permissions=True)
+
+    doc.converted_client = client.name
+    doc.converted_contact = contact.name
+    doc.status = "Converted"
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True, "client": client.name, "contact": contact.name}
