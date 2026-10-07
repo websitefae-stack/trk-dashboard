@@ -469,6 +469,11 @@ def get_lead(name=None):
         row["intent_sent_at"] = (
             frappe.utils.format_datetime(doc.get("intent_sent_at"), "dd-MM-yyyy HH:mm") if doc.get("intent_sent_at") else ""
         )
+        row["contract_signed"] = 1 if doc.get("contract_signed_snapshot") else 0
+        row["contract_link_generated"] = 1 if doc.get("contract_token") else 0
+        row["contract_sent_at"] = (
+            frappe.utils.format_datetime(doc.get("contract_sent_at"), "dd-MM-yyyy HH:mm") if doc.get("contract_sent_at") else ""
+        )
 
     if row["is_session_worker_lead"]:
         row["session_worker_stage"] = {
@@ -1370,6 +1375,361 @@ def sign_intent(token=None, recipient_name=None, recipient_address=None, signatu
     frappe.db.commit()
 
     _notify_coach_of_lead_step(doc, "signed the Intent to Proceed agreement")
+
+    return {"ok": True}
+
+
+# -------------------------------------------------------------------
+# Franchise Agreement e-signing - the final Stage 1 contract, after
+# Intent to Proceed and the Intake/DBS form. Same shape as NDA/Intent
+# to Proceed above: a public, token-linked page where the franchisee
+# reads the agreement and signs it by typing their name. The commercial
+# terms (trade name, fees, dates, territory, permitted name/area) are
+# Ashley's own inputs, fixed the first time she generates the sign link
+# for a lead - same rule as intent_territory/deposit_amount/end_date.
+# Signing auto-ticks Stage 1's "Full Contract Signed" milestone
+# (stage1_contract_sent_done), same as sign_nda/sign_intent already do
+# for their own milestones.
+# -------------------------------------------------------------------
+
+CONTRACT_PRACTICE_DOCUMENT_TITLE = "Franchise Agreement"
+
+
+def _contract_template_text():
+    name = frappe.db.get_value(
+        "Practice Document", {"document_title": CONTRACT_PRACTICE_DOCUMENT_TITLE}, "name"
+    )
+    if not name:
+        frappe.throw(_("The Franchise Agreement template hasn't been set up yet."))
+
+    return frappe.db.get_value("Practice Document", name, "document_text") or ""
+
+
+def _get_lead_by_contract_token(token):
+    token = (token or "").strip()
+    if not token:
+        frappe.throw(_("This link is invalid."))
+
+    lead_name = frappe.db.get_value("Client Lead", {"contract_token": token}, "name")
+    if not lead_name:
+        frappe.throw(_("This link is invalid."))
+
+    return frappe.get_doc(LEAD_DOCTYPE, lead_name)
+
+
+def _contract_render_context(doc, franchisee_name, franchisee_address, franchisee_signature, franchisee_date):
+    return {
+        "agreement_date": frappe.utils.formatdate(doc.get("contract_agreement_date"), "dd-MM-yyyy"),
+        "franchisee_name": franchisee_name,
+        "franchisee_address": franchisee_address,
+        "trade_name": doc.get("contract_trade_name") or "",
+        "trade_mark_number": doc.get("contract_trade_mark_number") or NDA_BLANK_PLACEHOLDER,
+        "commencement_date": (
+            frappe.utils.formatdate(doc.get("contract_commencement_date"), "dd-MM-yyyy")
+            if doc.get("contract_commencement_date") else ""
+        ),
+        "expiry_date": (
+            frappe.utils.formatdate(doc.get("contract_expiry_date"), "dd-MM-yyyy")
+            if doc.get("contract_expiry_date") else ""
+        ),
+        "initial_fee": fmt_money(doc.get("contract_initial_fee") or 0, currency="GBP"),
+        "territory_description": doc.get("contract_territory_description") or "",
+        "permitted_name": doc.get("contract_permitted_name") or "",
+        "permitted_area": doc.get("contract_permitted_area") or "",
+        "franchisee_signature": franchisee_signature,
+        "franchisee_date": franchisee_date,
+    }
+
+
+@frappe.whitelist()
+def get_contract_sign_url(
+    name=None,
+    trade_name=None,
+    trade_mark_number=None,
+    initial_fee=None,
+    commencement_date=None,
+    expiry_date=None,
+    territory_description=None,
+    permitted_name=None,
+    permitted_area=None,
+):
+    """
+    Franchisor-only: generates (the first time) or reuses this lead's
+    Franchise Agreement sign link. The commercial terms below are only
+    used the first time - Ashley's own business terms for this deal,
+    fixed from then on exactly like intent_territory/deposit_amount/
+    end_date are for Intent to Proceed, so an already-generated link
+    never changes underneath someone who's already been sent it.
+    trade_mark_number is the one optional term - not every brand/deal
+    has one confirmed yet (see add_franchise_agreement_practice_
+    document.py's own note on Schedule 3), renders as a blank if left out.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not is_franchise_lead(doc.get("appointment_type")):
+        frappe.throw(_("This lead isn't a Franchisee Call - the Franchise Agreement flow doesn't apply to it."))
+
+    if doc.get("contract_signed_snapshot"):
+        frappe.throw(_("This lead's Franchise Agreement has already been signed."))
+
+    if not doc.get("contract_token"):
+        trade_name = coalesce_str("trade_name", trade_name)
+        trade_mark_number = coalesce_str("trade_mark_number", trade_mark_number)
+        commencement_date = coalesce_raw("commencement_date", commencement_date)
+        expiry_date = coalesce_raw("expiry_date", expiry_date)
+        territory_description = coalesce_str("territory_description", territory_description)
+        permitted_name = coalesce_str("permitted_name", permitted_name)
+        permitted_area = coalesce_str("permitted_area", permitted_area)
+
+        if not trade_name:
+            frappe.throw(_("Enter the Trade Name before generating the sign link."))
+        if not initial_fee:
+            frappe.throw(_("Enter the Initial Fee before generating the sign link."))
+        if not commencement_date:
+            frappe.throw(_("Enter the Commencement Date before generating the sign link."))
+        if not expiry_date:
+            frappe.throw(_("Enter the Expiry Date before generating the sign link."))
+        if not territory_description:
+            frappe.throw(_("Enter the Territory before generating the sign link."))
+        if not permitted_name:
+            frappe.throw(_("Enter the Permitted Business Name before generating the sign link."))
+        if not permitted_area:
+            frappe.throw(_("Enter the Permitted Area before generating the sign link."))
+
+        doc.contract_token = frappe.generate_hash(length=40)
+        doc.contract_agreement_date = frappe.utils.today()
+        doc.contract_trade_name = trade_name
+        doc.contract_trade_mark_number = trade_mark_number
+        doc.contract_initial_fee = coalesce_raw("initial_fee", initial_fee)
+        doc.contract_commencement_date = commencement_date
+        doc.contract_expiry_date = expiry_date
+        doc.contract_territory_description = territory_description
+        doc.contract_permitted_name = permitted_name
+        doc.contract_permitted_area = permitted_area
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+
+    return {"url": get_url(f"/franchisee-contract?token={doc.contract_token}")}
+
+
+def _contract_email_text(doc, contract_url):
+    contact_name = doc.contact_name or "there"
+    subject = "Please sign: Franchise Agreement"
+    message = (
+        f"Hi {contact_name},\n\n"
+        f"Please read and sign the Franchise Agreement below:\n\n"
+        f"{contract_url}"
+    )
+    return subject, message
+
+
+@frappe.whitelist()
+def get_contract_email_defaults(
+    name=None,
+    trade_name=None,
+    trade_mark_number=None,
+    initial_fee=None,
+    commencement_date=None,
+    expiry_date=None,
+    territory_description=None,
+    permitted_name=None,
+    permitted_area=None,
+):
+    """
+    Subject/message the compose modal pre-fills before send_contract_link
+    actually sends it. The commercial terms are only used the first time
+    (when the link doesn't exist yet) - same rule as get_contract_sign_url.
+    """
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.contact_email:
+        frappe.throw(_("This lead has no contact email address to send the agreement to."))
+
+    contract_url = get_contract_sign_url(
+        name=name,
+        trade_name=trade_name,
+        trade_mark_number=trade_mark_number,
+        initial_fee=initial_fee,
+        commencement_date=commencement_date,
+        expiry_date=expiry_date,
+        territory_description=territory_description,
+        permitted_name=permitted_name,
+        permitted_area=permitted_area,
+    )["url"]
+    subject, message = _contract_email_text(doc, contract_url)
+
+    return {"subject": subject, "message": message, "recipient": doc.contact_email, "url": contract_url}
+
+
+@frappe.whitelist()
+def send_contract_link(
+    name=None,
+    trade_name=None,
+    trade_mark_number=None,
+    initial_fee=None,
+    commencement_date=None,
+    expiry_date=None,
+    territory_description=None,
+    permitted_name=None,
+    permitted_area=None,
+    subject=None,
+    message=None,
+    cc=None,
+    reply_to=None,
+):
+    """
+    Franchisor-only: emails the Franchise Agreement sign link straight to
+    this lead's own contact email, reusing get_contract_sign_url's
+    generate-or-reuse logic (the commercial terms are only used the
+    first time, same as there). subject/message default to the standard
+    wording when left blank.
+    """
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.contact_email:
+        frappe.throw(_("This lead has no contact email address to send the agreement to."))
+
+    contract_url = get_contract_sign_url(
+        name=name,
+        trade_name=trade_name,
+        trade_mark_number=trade_mark_number,
+        initial_fee=initial_fee,
+        commencement_date=commencement_date,
+        expiry_date=expiry_date,
+        territory_description=territory_description,
+        permitted_name=permitted_name,
+        permitted_area=permitted_area,
+    )["url"]
+
+    subject = (subject or "").strip()
+    message = (message or "").strip()
+    if not subject or not message:
+        default_subject, default_message = _contract_email_text(doc, contract_url)
+        subject = subject or default_subject
+        message = message or default_message
+
+    reply_to = (reply_to or "").strip() or frappe.session.user
+
+    kwargs = {
+        "recipients": [doc.contact_email],
+        "subject": subject,
+        "message": plain_text_to_email_html(message),
+        "reply_to": reply_to,
+    }
+
+    cc_list = parse_email_list(cc)
+    if cc_list:
+        kwargs["cc"] = cc_list
+
+    send_email(**kwargs)
+
+    doc.contract_sent_at = frappe.utils.now_datetime()
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "ok": 1,
+        "url": contract_url,
+        "sent_at": frappe.utils.format_datetime(doc.contract_sent_at, "dd-MM-yyyy HH:mm"),
+    }
+
+
+@frappe.whitelist()
+def get_signed_contract(name=None):
+    """Franchisor-only: the frozen signed snapshot plus its audit trail, for the Lead Details page."""
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.get("contract_signed_snapshot"):
+        frappe.throw(_("This Franchise Agreement hasn't been signed yet."))
+
+    return {
+        "signed_html": doc.get("contract_signed_snapshot"),
+        "signed_at": frappe.utils.format_datetime(doc.get("contract_signed_at"), "dd-MM-yyyy HH:mm") if doc.get("contract_signed_at") else "",
+        "signer_ip": doc.get("contract_signer_ip") or "",
+        "signer_user_agent": doc.get("contract_signer_user_agent") or "",
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def get_contract_preview(token=None):
+    """
+    Guest-accessible - what the public /franchisee-contract page shows.
+    Blanks not yet known (franchisee name/address/signature/date) render
+    as underscores, matching the NDA/Intent preview pages.
+    """
+    token = coalesce_str("token", token)
+    doc = _get_lead_by_contract_token(token)
+
+    if doc.get("contract_signed_snapshot"):
+        return {"already_signed": True, "signed_html": doc.get("contract_signed_snapshot")}
+
+    context = _contract_render_context(
+        doc,
+        franchisee_name=doc.get("contact_name") or NDA_BLANK_PLACEHOLDER,
+        franchisee_address=NDA_BLANK_PLACEHOLDER,
+        franchisee_signature=NDA_BLANK_PLACEHOLDER,
+        franchisee_date=NDA_BLANK_PLACEHOLDER,
+    )
+
+    return {
+        "already_signed": False,
+        "preview_html": _render_nda_text(_contract_template_text(), context),
+        "recipient_name": doc.get("contact_name") or "",
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def sign_contract(token=None, recipient_name=None, recipient_address=None, signature_name=None):
+    token = coalesce_str("token", token)
+    recipient_name = coalesce_str("recipient_name", recipient_name)
+    recipient_address = coalesce_str("recipient_address", recipient_address)
+    signature_name = coalesce_str("signature_name", signature_name)
+
+    doc = _get_lead_by_contract_token(token)
+
+    if doc.get("contract_signed_snapshot"):
+        frappe.throw(_("This Franchise Agreement has already been signed."))
+
+    if not recipient_name:
+        frappe.throw(_("Please enter your full name."))
+    if not recipient_address:
+        frappe.throw(_("Please enter your address."))
+    if not signature_name:
+        frappe.throw(_("Please type your name to sign."))
+
+    today = frappe.utils.getdate(frappe.utils.today())
+
+    context = _contract_render_context(
+        doc,
+        franchisee_name=recipient_name,
+        franchisee_address=recipient_address,
+        franchisee_signature=signature_name,
+        franchisee_date=frappe.utils.formatdate(today, "dd-MM-yyyy"),
+    )
+
+    doc.contract_recipient_name = recipient_name
+    doc.contract_recipient_address = recipient_address
+    doc.contract_signature_name = signature_name
+    doc.contract_signed_snapshot = _render_nda_text(_contract_template_text(), context)
+    doc.contract_signed_at = frappe.utils.now_datetime()
+    doc.contract_signer_ip = frappe.local.request_ip
+    doc.contract_signer_user_agent = frappe.get_request_header("User-Agent") or ""
+    # Stage1's "Full Contract Signed" milestone - auto-ticked the same
+    # way sign_nda()/sign_intent() auto-tick their own milestones.
+    doc.stage1_contract_sent_done = 1
+    doc.stage1_contract_sent_date = today
+
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    _notify_coach_of_lead_step(doc, "signed the Franchise Agreement")
 
     return {"ok": True}
 

@@ -23,7 +23,7 @@
     // SESSION_WORKER_STAGE_MILESTONES below. Plain manual ticks, same as
     // every other row here - doesn't gate Convert to Client.
     ["stage1_recruitment_questions_done", "Recruitment Questions Reviewed"],
-    ["stage1_contract_sent_done", "Full Contract Sent"],
+    ["stage1_contract_sent_done", "Full Contract Signed"],
     ["stage1_final_invoice_done", "Final Invoice Raised"],
   ];
 
@@ -48,6 +48,7 @@
     "stage1_nda_done",
     "stage1_intent_deposit_dbs_done",
     "stage1_agreement_invoice_done",
+    "stage1_contract_sent_done",
     "fees_guide_done",
     "sw_setup_done",
   ]);
@@ -71,6 +72,11 @@
       title: "Send Deposit and Intent to Proceed Agreement",
       defaultsMethod: `${SHARED_API}.get_intent_email_defaults`,
       sendMethod: `${SHARED_API}.send_intent_link`,
+    },
+    contract: {
+      title: "Send Franchise Agreement",
+      defaultsMethod: `${SHARED_API}.get_contract_email_defaults`,
+      sendMethod: `${SHARED_API}.send_contract_link`,
     },
     intake: {
       title: "Send Franchisee Intake + DBS Form",
@@ -288,6 +294,7 @@
       renderSessionWorkerSetupBlock(lead);
     } else {
       renderIntentBlock(lead);
+      renderContractBlock(lead);
     }
   }
 
@@ -550,6 +557,145 @@
         content.innerHTML = (result.signed_html || "") + auditBlock;
       }
       const modal = el("intentViewModal");
+      if (modal) modal.classList.add("show");
+    } catch (error) {
+      window.alert(error.message || "Could not load the signed agreement.");
+    }
+  }
+
+  const CONTRACT_TERM_FIELDS = [
+    ["contractTradeNameInput", "trade_name", "text", "Trade Name (e.g. The Resilient Kid)"],
+    ["contractTradeMarkInput", "trade_mark_number", "text", "Trade Mark Number (optional)"],
+    ["contractInitialFeeInput", "initial_fee", "number", "Initial Fee (£)"],
+    ["contractCommencementDateInput", "commencement_date", "date", "Commencement Date"],
+    ["contractExpiryDateInput", "expiry_date", "date", "Expiry Date"],
+    ["contractPermittedNameInput", "permitted_name", "text", "Permitted Business Name"],
+    ["contractPermittedAreaInput", "permitted_area", "text", "Permitted Area"],
+  ];
+
+  function renderContractBlock(lead) {
+    const block = el(stage1ActionsId("stage1_contract_sent_done"));
+    if (!block) return;
+
+    if (lead.contract_signed) {
+      block.innerHTML = `
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="viewSignedContractBtn">View Signed Agreement</button>
+      `;
+      const viewBtn = el("viewSignedContractBtn");
+      if (viewBtn) viewBtn.addEventListener("click", viewSignedContract);
+      return;
+    }
+
+    const linkRowHtml = `
+      <div id="contractLinkResult" style="flex-basis:100%; margin-top:8px; display:none;">
+        <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">
+          Copy this link and send it to the franchisee to sign:
+        </label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="contractLinkInput" class="dashboard-input" readonly style="flex:1;">
+          <button type="button" class="dashboard-btn dashboard-btn-secondary" id="copyContractLinkBtn">Copy</button>
+        </div>
+      </div>
+    `;
+
+    const sendBtnLabel = lead.contract_sent_at ? "Resend Franchise Agreement" : "Send Franchise Agreement";
+    const sentStatusHtml = lead.contract_sent_at
+      ? `<div id="contractSendStatus" class="dashboard-help" style="flex-basis:100%;">Sent ${escapeHtml(lead.contract_sent_at)}</div>`
+      : `<div id="contractSendStatus" class="dashboard-help" style="flex-basis:100%;"></div>`;
+
+    if (lead.contract_link_generated) {
+      block.innerHTML = `
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendContractBtn">${sendBtnLabel}</button>
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="getContractLinkBtn">Get Sign Link Again</button>
+        ${sentStatusHtml}
+        ${linkRowHtml}
+      `;
+    } else {
+      const termInputsHtml = CONTRACT_TERM_FIELDS.map(([id, , type, placeholder]) =>
+        `<input type="${type}" id="${id}" class="dashboard-input" placeholder="${escapeHtml(placeholder)}" style="flex:1; min-width:200px;" title="${escapeHtml(placeholder)}">`
+      ).join("");
+
+      block.innerHTML = `
+        <div style="display:flex; gap:10px; flex-wrap:wrap; flex-basis:100%;">
+          ${termInputsHtml}
+        </div>
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendContractBtn">${sendBtnLabel}</button>
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="getContractLinkBtn">Generate Sign Link</button>
+        ${sentStatusHtml}
+        ${linkRowHtml}
+      `;
+    }
+
+    const sendBtn = el("sendContractBtn");
+    if (sendBtn) sendBtn.addEventListener("click", () => prepareFranchiseeEmail("contract", contractTermsPayload()));
+
+    const getLinkBtn = el("getContractLinkBtn");
+    if (getLinkBtn) getLinkBtn.addEventListener("click", getContractSignLink);
+
+    const copyBtn = el("copyContractLinkBtn");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", () => {
+        const input = el("contractLinkInput");
+        if (!input) return;
+        input.select();
+        navigator.clipboard?.writeText(input.value).catch(() => {});
+      });
+    }
+  }
+
+  function contractTermsPayload() {
+    const payload = {};
+    CONTRACT_TERM_FIELDS.forEach(([id, fieldname]) => {
+      const inputEl = el(id);
+      payload[fieldname] = inputEl ? inputEl.value : "";
+    });
+    return payload;
+  }
+
+  async function getContractSignLink() {
+    const name = getValue("leadDocname");
+    const btn = el("getContractLinkBtn");
+    if (!name) return;
+
+    if (btn) { btn.disabled = true; btn.textContent = "Generating..."; }
+
+    try {
+      const result = await apiPost(`${SHARED_API}.get_contract_sign_url`, { name, ...contractTermsPayload() });
+      const resultBlock = el("contractLinkResult");
+      const input = el("contractLinkInput");
+      if (input) input.value = result.url || "";
+      if (resultBlock) resultBlock.style.display = "";
+    } catch (error) {
+      window.alert(error.message || "Could not generate the sign link.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Get Sign Link Again"; }
+    }
+  }
+
+  async function viewSignedContract() {
+    const name = getValue("leadDocname");
+    if (!name) return;
+
+    try {
+      const result = await apiPost(`${SHARED_API}.get_signed_contract`, { name });
+      const content = el("contractViewModalContent");
+      if (content) {
+        const auditRows = [
+          result.signed_at ? `Signed: ${escapeHtml(result.signed_at)}` : "",
+          result.signer_ip ? `IP address: ${escapeHtml(result.signer_ip)}` : "",
+          result.signer_user_agent ? `Browser/device: ${escapeHtml(result.signer_user_agent)}` : "",
+        ].filter(Boolean);
+
+        const auditBlock = auditRows.length
+          ? `<div style="margin-top:16px; padding:12px 14px; background:#F2F8F8; border-radius:10px; font-size:12px; color:#839898;">
+              <strong style="display:block; margin-bottom:4px; color:#434B49;">Signing Record</strong>
+              ${auditRows.join("<br>")}
+            </div>`
+          : "";
+
+        content.innerHTML = (result.signed_html || "") + auditBlock;
+      }
+      const modal = el("contractViewModal");
       if (modal) modal.classList.add("show");
     } catch (error) {
       window.alert(error.message || "Could not load the signed agreement.");
@@ -2126,6 +2272,14 @@
     if (intentViewModalClose) {
       intentViewModalClose.addEventListener("click", () => {
         const modal = el("intentViewModal");
+        if (modal) modal.classList.remove("show");
+      });
+    }
+
+    const contractViewModalClose = el("contractViewModalClose");
+    if (contractViewModalClose) {
+      contractViewModalClose.addEventListener("click", () => {
+        const modal = el("contractViewModal");
         if (modal) modal.classList.remove("show");
       });
     }

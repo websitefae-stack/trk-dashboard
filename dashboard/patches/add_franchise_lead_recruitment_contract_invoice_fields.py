@@ -53,7 +53,8 @@ CLIENT_LEAD_FIELDS = [
     {
         "fieldname": "stage1_contract_sent_done",
         "fieldtype": "Check",
-        "label": "Full Contract Sent",
+        "label": "Full Contract Signed",
+        "description": "Auto-ticked once the franchisee signs the Franchise Agreement (see leads.sign_contract) - same as Sign NDA/Intent to Proceed above.",
         "insert_after": "stage1_col_5",
         "depends_on": FRANCHISEE_DEPENDS_ON,
         "module": "Dashboard",
