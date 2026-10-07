@@ -486,6 +486,82 @@
     }
   }
 
+  // ---------------------------------------------------------------
+  // Add New Service modal - lets the franchisor create a plain Item
+  // herself (see create_service_item) instead of asking office/IT to
+  // do it in the Desk. Access/Show on Site/Brand are left for the
+  // existing grid below, not duplicated into this modal.
+  // ---------------------------------------------------------------
+
+  function openAddServiceModal() {
+    const modal = el("addServiceModal");
+    if (!modal) return;
+
+    el("addServiceName").value = "";
+    el("addServiceDescription").value = "";
+    el("addServicePrice").value = "";
+    const message = el("addServiceModalMessage");
+    if (message) message.textContent = "";
+
+    modal.classList.add("is-open");
+  }
+
+  function closeAddServiceModal() {
+    const modal = el("addServiceModal");
+    if (modal) modal.classList.remove("is-open");
+  }
+
+  async function saveNewService() {
+    const nameField = el("addServiceName");
+    const descriptionField = el("addServiceDescription");
+    const priceField = el("addServicePrice");
+    const message = el("addServiceModalMessage");
+    const saveBtn = el("saveAddServiceBtn");
+
+    const itemName = nameField ? nameField.value.trim() : "";
+    if (!itemName) {
+      if (message) message.textContent = "Service name is required.";
+      return;
+    }
+
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
+    if (message) message.textContent = "";
+
+    try {
+      await apiPost(`${SHARED_API}.create_service_item`, {
+        item_name: itemName,
+        description: descriptionField ? descriptionField.value.trim() : "",
+        price: priceField ? priceField.value : "",
+      });
+
+      closeAddServiceModal();
+      showMessage(`"${itemName}" added - tick its access/visibility below.`, false);
+
+      const search = el("itemAccessSearch");
+      if (search) search.value = itemName;
+
+      await loadGrid();
+    } catch (error) {
+      if (message) message.textContent = error.message || "Could not save this service.";
+    } finally {
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save Service"; }
+    }
+  }
+
+  function initAddServiceModal() {
+    const addBtn = el("addServiceBtn");
+    if (addBtn) addBtn.addEventListener("click", openAddServiceModal);
+
+    const closeBtn = el("closeAddServiceModal");
+    if (closeBtn) closeBtn.addEventListener("click", closeAddServiceModal);
+
+    const cancelBtn = el("cancelAddServiceModal");
+    if (cancelBtn) cancelBtn.addEventListener("click", closeAddServiceModal);
+
+    const saveBtn = el("saveAddServiceBtn");
+    if (saveBtn) saveBtn.addEventListener("click", saveNewService);
+  }
+
   function initTabs() {
     const tabsWrap = el("itemAccessTabs");
     if (!tabsWrap) return;
@@ -513,6 +589,7 @@
     if (!el("itemAccessTableBody")) return;
 
     initTabs();
+    initAddServiceModal();
     loadGrid();
 
     const search = el("itemAccessSearch");
