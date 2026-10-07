@@ -29,7 +29,7 @@ Runs automatically on the next `bench migrate` - no manual step needed.
 import frappe
 
 DOCTYPE_NAME = "Sessional Worker Reference Response"
-WEB_FORM_ROUTE = "sessional-worker-reference-form"
+WEB_FORM_ROUTE = "reference-form"
 
 YES_NO_OPTIONS = "Yes\nNo"
 
