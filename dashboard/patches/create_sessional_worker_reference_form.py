@@ -1,10 +1,15 @@
 """
-Creates "Sessional Worker - Reference Questionnaire" as a real DocType +
-Web Form, same pattern as the other School-branded forms (see
+Creates "Reference Questionnaire" as a real DocType + Web Form, same
+pattern as the other School-branded forms (see
 create_school_cpd_staff_feedback_form.py). A referee-facing safeguarding
-reference for a Sessional Worker applicant - not tied to any one
-applicant/school by name, so the same link is reusable for every
-reference request.
+reference, reused as-is for BOTH a Sessional Worker applicant and a
+prospective Franchisee (Ashley's own call - one generic reference link
+covers both pipelines rather than maintaining near-duplicate forms) -
+not tied to any one applicant/pipeline by name, so the same link is
+reusable for every reference request regardless of which role the
+applicant is being considered for. Written in the second person
+throughout ("Your Name", "Your Job Title") since the person filling
+this in IS the referee, not a third party describing one.
 
 Question 3 ("Professional qualities") is a rating-grid in the source
 Google Form (10 rows x Excellent/Good/Satisfactory/Unable to Comment) -
@@ -56,12 +61,11 @@ DECLARATION_OPTIONS = (
 )
 
 INTRODUCTION_TEXT = (
-    "<p>Thank you for agreeing to provide a reference for the above applicant, who has "
-    "applied to work with The Resilient Kid as a Sessional Worker supporting children and "
-    "young people.</p>"
-    "<p>As this role involves direct contact with children and young people, we would be "
-    "grateful if you could answer the following questions as fully and honestly as "
-    "possible.</p>"
+    "<p>Thank you for agreeing to provide a reference for the above applicant, who is being "
+    "considered for a role with The Resilient Kid - either as a Sessional Worker or as a "
+    "Franchisee - that involves direct contact with children and young people.</p>"
+    "<p>We would be grateful if you could answer the following questions as fully and "
+    "honestly as possible.</p>"
 )
 
 CUSTOM_CSS = """
@@ -142,8 +146,8 @@ def _doctype_fields():
         {"fieldname": "form_top_section", "fieldtype": "Section Break"},
         {"fieldname": "email_address", "fieldtype": "Data", "options": "Email", "label": "Email", "reqd": 1},
         {"fieldname": "applicant_name", "fieldtype": "Data", "label": "Applicant's Name", "reqd": 1},
-        {"fieldname": "referee_name", "fieldtype": "Data", "label": "Referee's Name", "reqd": 1},
-        {"fieldname": "referee_job_title", "fieldtype": "Data", "label": "Referee's Job Title", "reqd": 1},
+        {"fieldname": "referee_name", "fieldtype": "Data", "label": "Your Name", "reqd": 1},
+        {"fieldname": "referee_job_title", "fieldtype": "Data", "label": "Your Job Title", "reqd": 1},
         {"fieldname": "organisation", "fieldtype": "Data", "label": "Organisation", "reqd": 1},
         {"fieldname": "telephone", "fieldtype": "Data", "label": "Telephone", "reqd": 1},
 
@@ -252,7 +256,7 @@ def _doctype_fields():
         {
             "fieldname": "recommend_suitable",
             "fieldtype": "Select",
-            "label": "Would You Recommend This Person as Suitable to Undertake Sessional Work Supporting Children and Young People?",
+            "label": "Would You Recommend This Person as Suitable to Work With Children and Young People Within The Resilient Kid?",
             "options": RECOMMEND_OPTIONS,
             "reqd": 1,
         },
@@ -326,7 +330,7 @@ def _create_web_form():
 
     doc = frappe.get_doc({
         "doctype": "Web Form",
-        "title": "Sessional Worker - Reference Questionnaire",
+        "title": "Reference Questionnaire",
         "route": WEB_FORM_ROUTE,
         "doc_type": DOCTYPE_NAME,
         "module": "Dashboard",
