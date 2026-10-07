@@ -122,6 +122,14 @@ STAGE1_MILESTONES = [
     ("stage1_discovery_day_done", "stage1_discovery_day_date"),
     ("stage1_intent_deposit_dbs_done", "stage1_intent_deposit_dbs_date"),
     ("stage1_agreement_invoice_done", "stage1_agreement_invoice_date"),
+    # Added after the above 5 - Ashley's own recruitment review, sending
+    # the full contract, and raising the final invoice. Franchisee-only,
+    # deliberately not added to SESSION_WORKER_STAGE_MILESTONES below.
+    # Tracking only - not a gate on Convert to Client (some leads reach
+    # this point already converted).
+    ("stage1_recruitment_questions_done", "stage1_recruitment_questions_date"),
+    ("stage1_contract_sent_done", "stage1_contract_sent_date"),
+    ("stage1_final_invoice_done", "stage1_final_invoice_date"),
 ]
 
 # A Session Worker lead's own onboarding checklist - shorter than a
