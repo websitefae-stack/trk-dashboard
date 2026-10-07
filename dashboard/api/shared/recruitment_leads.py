@@ -189,7 +189,7 @@ def get_recruitment_leads(scope=None, lead_type=None):
     if lead_type:
         filters["lead_type"] = lead_type
 
-    return frappe.get_all(
+    rows = frappe.get_all(
         RECRUITMENT_LEAD_DOCTYPE,
         fields=LEAD_LIST_FIELDS,
         filters=filters,
@@ -197,6 +197,11 @@ def get_recruitment_leads(scope=None, lead_type=None):
         limit_page_length=2000,
         ignore_permissions=True,
     )
+
+    for row in rows:
+        row["coach_label"] = get_coach_label(row.get("coach")) if row.get("coach") else ""
+
+    return rows
 
 
 @frappe.whitelist()
@@ -1989,3 +1994,41 @@ def convert_recruitment_lead_to_client(name=None):
     frappe.db.commit()
 
     return {"ok": True, "client": client.name, "contact": contact.name}
+
+
+@frappe.whitelist()
+def get_franchisee_intake(name=None):
+    """Franchisor-only: the submitted intake details + file links, for the
+    Recruitment Lead detail page."""
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.get("franchisee_intake_submitted"):
+        frappe.throw(_("This intake form hasn't been submitted yet."))
+
+    return {
+        "first_name": doc.get("franchisee_intake_first_name") or "",
+        "last_name": doc.get("franchisee_intake_last_name") or "",
+        "phone": doc.get("franchisee_intake_phone") or "",
+        "gender": doc.get("franchisee_intake_gender") or "",
+        "dob": doc.get("franchisee_intake_dob") or "",
+        "dbs_number": doc.get("franchisee_intake_dbs_number") or "",
+        "dbs_date_received": doc.get("franchisee_intake_dbs_date_received") or "",
+        "dbs_expiry_date": doc.get("franchisee_intake_dbs_expiry_date") or "",
+        "dbs_certificate": doc.get("franchisee_intake_dbs_certificate") or "",
+        "additional_document": doc.get("franchisee_intake_additional_document") or "",
+        "qualifications": doc.get("franchisee_intake_qualifications") or "",
+        "work_locations": doc.get("franchisee_intake_work_locations") or "",
+        "public_liability_insurer": doc.get("franchisee_intake_public_liability_insurer") or "",
+        "indemnity_insurer": doc.get("franchisee_intake_indemnity_insurer") or "",
+        "insurance_renewal_date": doc.get("franchisee_intake_insurance_renewal_date") or "",
+        "id_document_type": doc.get("franchisee_intake_id_document_type") or "",
+        "right_to_work_status": doc.get("franchisee_intake_right_to_work_status") or "",
+        "right_to_work_expiry": doc.get("franchisee_intake_right_to_work_expiry") or "",
+        "address_history": doc.get("franchisee_intake_address_history") or "",
+        "overseas_checks": doc.get("franchisee_intake_overseas_checks") or "",
+        "work_history": doc.get("franchisee_intake_work_history") or "",
+        "reference1_details": doc.get("franchisee_intake_reference1_details") or "",
+        "reference2_details": doc.get("franchisee_intake_reference2_details") or "",
+        "submitted_at": frappe.utils.format_datetime(doc.get("franchisee_intake_submitted_at"), "dd-MM-yyyy HH:mm") if doc.get("franchisee_intake_submitted_at") else "",
+    }

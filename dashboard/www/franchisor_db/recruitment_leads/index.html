@@ -1,0 +1,50 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Recruitment</h1>
+          <p class="dashboard-page-subtitle">Franchisee and session worker applicants</p>
+        </div>
+
+        <div class="dashboard-page-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-secondary" id="refreshRecruitmentLeads">
+            Refresh
+          </button>
+          <a class="dashboard-btn dashboard-btn-primary" href="/franchisor_db/recruitment_lead_details?new=1">
+            Add Recruitment Lead
+          </a>
+        </div>
+      </div>
+
+      <div class="dashboard-card dashboard-leads-card">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Recruitment Pipeline</div>
+
+          <div class="dashboard-tabs" id="recruitmentLeadsTypeToggle">
+            <button type="button" class="dashboard-tab-btn is-active" data-lead-type="">All</button>
+            <button type="button" class="dashboard-tab-btn" data-lead-type="Franchisee">Franchisee</button>
+            <button type="button" class="dashboard-tab-btn" data-lead-type="Session Worker">Session Worker</button>
+          </div>
+
+          <div class="dashboard-tabs" id="recruitmentLeadsScopeToggle">
+            <button type="button" class="dashboard-tab-btn is-active" data-scope="mine">My Leads</button>
+            <button type="button" class="dashboard-tab-btn" data-scope="all">All Leads</button>
+          </div>
+
+          <div class="dashboard-table-count" id="recruitmentLeadsCount">Loading…</div>
+        </div>
+
+        <div id="recruitmentLeadsKanbanBoard" class="dashboard-leads-board" data-base-url="/franchisor_db" data-show-coach="1" data-scope="mine" data-lead-type="">
+          <div class="dashboard-empty">Loading leads…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

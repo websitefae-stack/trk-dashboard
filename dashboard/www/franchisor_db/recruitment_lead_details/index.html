@@ -1,0 +1,206 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title" id="rlPageTitle">
+            {% if is_new %}New Recruitment Lead{% else %}Recruitment Lead{% endif %}
+          </h1>
+          <p class="dashboard-page-subtitle">
+            Franchisee / session worker applicant
+            <span id="rlTypeBadge" class="dashboard-badge dashboard-status-active" style="display:none;"></span>
+          </p>
+        </div>
+
+        <div class="dashboard-detail-actions dashboard-detail-actions-compact">
+          <a
+            href="/franchisor_db/recruitment_leads"
+            class="dashboard-btn dashboard-btn-secondary"
+            onclick="if (document.referrer && document.referrer.indexOf(window.location.origin) === 0) { event.preventDefault(); window.history.back(); }"
+          >
+            Back
+          </a>
+          {% if not is_new %}
+            <button type="button" class="dashboard-btn dashboard-btn-danger" id="rlDeleteBtn">Delete Lead</button>
+          {% endif %}
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="rlSaveBtn">
+            {% if is_new %}Save Lead{% else %}Save Changes{% endif %}
+          </button>
+        </div>
+      </div>
+
+      <div class="dashboard-card" id="rlDetailsCard">
+        <form id="rlDetailsForm" onsubmit="return false;">
+          <div id="rlFormMessage" class="dashboard-form-message" style="display:none;"></div>
+          <input type="hidden" id="rlDocname" value="{{ lead_name }}">
+          <input type="hidden" id="rlIsNew" value="{{ 1 if is_new else 0 }}">
+          <input type="hidden" id="rlBaseUrl" value="{{ dashboard_base_url }}">
+
+          <section class="dashboard-detail-section">
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">{% if is_new %}New Lead{% else %}Status{% endif %}</h2>
+            </div>
+
+            <div class="dashboard-detail-grid dashboard-detail-grid-2">
+              {% if is_new %}
+              <div class="dashboard-detail-field">
+                <label for="rl_lead_type">Lead Type</label>
+                <select id="rl_lead_type" class="dashboard-input">
+                  <option value="Franchisee">Franchisee</option>
+                  <option value="Session Worker">Session Worker</option>
+                </select>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label for="rl_coach">Coach (Introduced By)</label>
+                <select id="rl_coach" class="dashboard-input">
+                  <option value="">— Unassigned —</option>
+                  {% for c in coaches %}
+                    <option value="{{ c.name }}">{{ c.coach_name or c.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              {% else %}
+              <div class="dashboard-detail-field">
+                <label for="rl_status">Status</label>
+                <select id="rl_status" class="dashboard-input">
+                  <option value="New">New</option>
+                  <option value="Converted">Converted</option>
+                  <option value="Declined">Declined</option>
+                </select>
+              </div>
+
+              <div class="dashboard-detail-field">
+                <label for="rl_coach">Coach (Introduced By)</label>
+                <select id="rl_coach" class="dashboard-input">
+                  <option value="">— Unassigned —</option>
+                  {% for c in coaches %}
+                    <option value="{{ c.name }}">{{ c.coach_name or c.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="dashboard-detail-field" id="rlDeclineReasonField" style="display:none;">
+                <label for="rl_decline_reason">Reason</label>
+                <input id="rl_decline_reason" type="text" class="dashboard-input" placeholder="Why we declined this lead">
+              </div>
+              {% endif %}
+            </div>
+          </section>
+
+          <section class="dashboard-detail-section">
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">Contact Details</h2>
+            </div>
+
+            <div class="dashboard-detail-grid dashboard-detail-grid-2">
+              <div class="dashboard-detail-field">
+                <label for="rl_contact_name">Contact Name</label>
+                <input id="rl_contact_name" type="text" class="dashboard-input">
+              </div>
+              <div class="dashboard-detail-field">
+                <label for="rl_contact_email">Email</label>
+                <input id="rl_contact_email" type="email" class="dashboard-input">
+              </div>
+              <div class="dashboard-detail-field">
+                <label for="rl_contact_mobile">Mobile</label>
+                <input id="rl_contact_mobile" type="text" class="dashboard-input">
+              </div>
+              <div class="dashboard-detail-field">
+                <label for="rl_postal_code">Postal Code</label>
+                <input id="rl_postal_code" type="text" class="dashboard-input">
+              </div>
+              <div class="dashboard-detail-field">
+                <label for="rl_location_address">Address</label>
+                <input id="rl_location_address" type="text" class="dashboard-input">
+              </div>
+              <div class="dashboard-detail-field">
+                <label for="rl_how_heard">How They Heard About Us</label>
+                <input id="rl_how_heard" type="text" class="dashboard-input">
+              </div>
+              <div class="dashboard-detail-field">
+                <label for="rl_consent_given" style="display:flex; align-items:center; gap:8px;">
+                  <input id="rl_consent_given" type="checkbox"> Consent to be contacted
+                </label>
+              </div>
+            </div>
+          </section>
+
+          {% if not is_new %}
+          <section class="dashboard-detail-section" id="rlStage1Section" style="display:none;">
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title" id="rlStage1Title">Stage 1 - Decide &amp; Commit</h2>
+            </div>
+            <p class="dashboard-field-hint" id="rlStage1Hint"></p>
+            <div id="rlStage1List" class="dashboard-lead-stage1-list"></div>
+          </section>
+
+          <section class="dashboard-detail-section">
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">Notes</h2>
+            </div>
+            <div id="rlNotesList" class="dashboard-lead-notes-list"></div>
+            <div style="display:flex; gap:8px; margin-top:10px; align-items:flex-start;">
+              <textarea id="rlNewNoteText" class="dashboard-textarea" rows="2" placeholder="Add a note..." style="flex:1;"></textarea>
+              <input type="date" id="rlNewNoteDate" class="dashboard-input" style="width:160px;">
+              <button type="button" class="dashboard-btn dashboard-btn-secondary" id="rlAddNoteBtn">Add</button>
+            </div>
+          </section>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="trk-calendar-modal-backdrop" id="rlEmailModal">
+  <div class="trk-calendar-modal">
+    <div class="trk-calendar-modal-head">
+      <h3 id="rlEmailTitle">Send Email</h3>
+      <button type="button" class="trk-calendar-icon-btn" id="rlEmailModalClose">✕</button>
+    </div>
+
+    <div class="trk-calendar-modal-body">
+      <div class="trk-calendar-field">
+        <label for="rlEmailRecipient">To</label>
+        <input type="text" id="rlEmailRecipient" class="dashboard-input" readonly>
+      </div>
+      <div class="trk-calendar-field">
+        <label for="rlEmailCc">Cc</label>
+        <input type="text" id="rlEmailCc" class="dashboard-input" placeholder="Optional, comma separated">
+      </div>
+      <div class="trk-calendar-field">
+        <label for="rlEmailSubject">Subject</label>
+        <input type="text" id="rlEmailSubject" class="dashboard-input">
+      </div>
+      <div class="trk-calendar-field">
+        <label for="rlEmailMessage">Message</label>
+        <textarea id="rlEmailMessage" class="dashboard-textarea" rows="10"></textarea>
+      </div>
+      <div class="dashboard-help" id="rlEmailStatus"></div>
+    </div>
+
+    <div class="trk-calendar-modal-foot">
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="rlEmailCancel">Cancel</button>
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="rlEmailSubmit">Send</button>
+    </div>
+  </div>
+</div>
+
+<div class="trk-calendar-modal-backdrop" id="rlSignedViewModal">
+  <div class="trk-calendar-modal">
+    <div class="trk-calendar-modal-head">
+      <h3 id="rlSignedViewTitle">Signed Document</h3>
+      <button type="button" class="trk-calendar-icon-btn" id="rlSignedViewModalClose">✕</button>
+    </div>
+    <div class="trk-calendar-modal-body">
+      <div id="rlSignedViewModalContent"></div>
+    </div>
+  </div>
+</div>
