@@ -50,6 +50,7 @@ COACH_FIELDS = [
     "insurance_received_date",
     "insurance_expiry_date",
     "insurance_number",
+    "custom_franchise_agreement_expiry_date",
 ]
 
 

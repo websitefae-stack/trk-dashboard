@@ -332,6 +332,62 @@ def set_item_brand(item_code=None, brand_field=None, enabled=None):
     return {"ok": 1}
 
 
+SERVICE_ITEM_GROUP = "Services"
+
+
+@frappe.whitelist()
+def create_service_item(item_name=None, description=None, price=None):
+    """
+    Lets Ashley add a new billable service herself, without asking
+    office/IT to do it in the Desk - a plain Item, the exact same kind
+    of record the Service Access grid above already manages, just not
+    yet created. Lands with zero coach access and not shown on any
+    brand's site (same "new items always start with no access" rule
+    grant_item_access_to_all_coaches's own docstring describes) - she
+    ticks Access/Show on Site/brand for it on this same page right after
+    creating it, using the grid that already exists for every other item.
+
+    Deliberately not a Store product (custom_store_enabled stays 0/unset
+    where that field exists) - this is for something a coach invoices a
+    client for individually, not something sold through the online Store
+    (see get_item_access_grid's own filtering-out of store items).
+    """
+    ensure_office_user()
+
+    item_name = (item_name or "").strip()
+    if not item_name:
+        frappe.throw(_("Service name is required."))
+
+    if frappe.db.exists("Item", {"item_name": item_name}) or frappe.db.exists("Item", item_name):
+        frappe.throw(_("A service named {0} already exists.").format(item_name))
+
+    # Local import - store_products.py imports from this module at load
+    # time, so importing it back at module level here would be circular;
+    # by the time this function actually runs, both are fully loaded.
+    from dashboard.api.shared.store_products import _ensure_item_group, _set_item_price, _to_float
+
+    item = frappe.new_doc("Item")
+    item.item_code = item_name
+    item.item_name = item_name
+    item.description = (description or "").strip()
+    item.item_group = _ensure_item_group(SERVICE_ITEM_GROUP)
+    item.stock_uom = "Nos"
+    item.is_stock_item = 0
+
+    if frappe.get_meta("Item").has_field("custom_store_enabled"):
+        item.custom_store_enabled = 0
+
+    item.insert(ignore_permissions=True)
+
+    price = _to_float(price)
+    if price:
+        _set_item_price(item.name, DEFAULT_PRICE_LIST, price)
+
+    frappe.db.commit()
+
+    return {"ok": 1, "item_code": item.name}
+
+
 def _grant_item_access_to_all_coaches_unchecked(item_code, show_on_site=True):
     """Core of grant_item_access_to_all_coaches(), without the
     ensure_office_user() gate - see _set_item_access_unchecked's own

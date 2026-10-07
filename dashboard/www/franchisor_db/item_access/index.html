@@ -44,6 +44,10 @@
           <h1 class="dashboard-page-title">Service Access</h1>
           <p class="dashboard-page-subtitle">Tick a box to let a coach add that service to an invoice. Unticking removes their access immediately.</p>
         </div>
+
+        <div class="dashboard-page-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="addServiceBtn">+ Add New Service</button>
+        </div>
       </div>
 
       <div class="dashboard-tabs" id="itemAccessTabs" role="tablist">
@@ -145,6 +149,38 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-modal-backdrop" id="addServiceModal">
+  <div class="dashboard-modal">
+    <div class="dashboard-modal-head">
+      <h3>Add New Service</h3>
+      <button type="button" class="dashboard-modal-close" id="closeAddServiceModal">×</button>
+    </div>
+
+    <div class="dashboard-modal-body">
+      <label for="addServiceName">Service Name</label>
+      <input type="text" id="addServiceName" class="dashboard-input" placeholder="e.g. Family Workshop">
+
+      <label for="addServiceDescription">Description (optional)</label>
+      <textarea id="addServiceDescription" class="dashboard-input" rows="2"></textarea>
+
+      <label for="addServicePrice">Price (£, optional - can be set later)</label>
+      <input type="number" id="addServicePrice" class="dashboard-input" min="0" step="0.01">
+
+      <p class="dashboard-help">
+        After saving, find it in the table below to tick which coaches can access it, whether it shows on their
+        public profile, and which brand's site(s) it's relevant to.
+      </p>
+
+      <div class="dashboard-help" id="addServiceModalMessage" style="color:#C01C3E;"></div>
+    </div>
+
+    <div class="dashboard-modal-foot">
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelAddServiceModal">Cancel</button>
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveAddServiceBtn">Save Service</button>
     </div>
   </div>
 </div>

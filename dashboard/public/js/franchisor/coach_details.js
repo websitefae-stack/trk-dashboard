@@ -23,9 +23,41 @@
     return data.message || data;
   }
 
+  function initFranchiseExpiry() {
+    const btn = document.getElementById("saveCoachFranchiseExpiryBtn");
+    const input = document.getElementById("coachFranchiseExpiryInput");
+    const status = document.getElementById("coachFranchiseExpiryStatus");
+    const form = document.getElementById("franchisorCoachForm");
+    if (!btn || !input || !form) return;
+
+    btn.addEventListener("click", async function () {
+      const coachName = form.querySelector('input[name="coach_name"]').value;
+      if (status) status.textContent = "Saving...";
+      btn.disabled = true;
+
+      try {
+        const formData = new FormData();
+        formData.append("custom_franchise_agreement_expiry_date", input.value || "");
+
+        await postForm(
+          "dashboard.api.franchisor.accounts.update_coach?coach_name=" + encodeURIComponent(coachName),
+          formData
+        );
+
+        if (status) status.textContent = "Saved - reload the page to see the reminder banner.";
+      } catch (error) {
+        if (status) status.textContent = error.message || "Could not save.";
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
+
   function init() {
     const form = document.getElementById("franchisorCoachForm");
     const message = document.getElementById("franchisorCoachMessage");
+
+    initFranchiseExpiry();
 
     if (!form) return;
 
