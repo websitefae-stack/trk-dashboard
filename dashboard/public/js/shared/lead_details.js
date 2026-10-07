@@ -972,15 +972,27 @@
     }
   }
 
-  function renderSaferRecruitmentChecklist(rows, outstandingActions) {
-    const container = el("saferRecruitmentChecklistContainer");
-    if (!container) return;
+  function saferRecruitmentChecklistRowHtml(row) {
+    return `
+      <tr data-checklist-row="${escapeHtml(row.item_key)}">
+        <td>${escapeHtml(row.item_label)}</td>
+        <td>
+          <select class="dashboard-input" data-checklist-field="status" style="min-width:110px;">
+            ${SAFER_RECRUITMENT_STATUS_OPTIONS.map((opt) => `<option value="${opt}" ${row.status === opt ? "selected" : ""}>${opt}</option>`).join("")}
+          </select>
+        </td>
+        <td><input type="date" class="dashboard-input" data-checklist-field="checked_date" value="${escapeHtml(row.checked_date || "")}" style="min-width:140px;"></td>
+        <td><input type="text" class="dashboard-input" data-checklist-field="notes" value="${escapeHtml(row.notes || "")}" placeholder="Notes / expiry">
+          ${row.checked_by ? `<div class="dashboard-help" style="margin-top:2px;">Checked by ${escapeHtml(row.checked_by)}</div>` : ""}
+        </td>
+      </tr>
+    `;
+  }
 
-    const completeCount = rows.filter((r) => r.status && r.status !== "Pending").length;
-
+  function saferRecruitmentChecklistTableHtml(rowList) {
     const sections = [];
     const sectionIndex = {};
-    rows.forEach((row) => {
+    rowList.forEach((row) => {
       if (!(row.section in sectionIndex)) {
         sectionIndex[row.section] = sections.length;
         sections.push({ section: row.section, rows: [] });
@@ -990,21 +1002,54 @@
 
     const rowsHtml = sections.map((group) => `
       <tr><td colspan="4" style="font-weight:700; padding-top:12px; border:none;">${escapeHtml(group.section)}</td></tr>
-      ${group.rows.map((row) => `
-        <tr data-checklist-row="${escapeHtml(row.item_key)}">
-          <td>${escapeHtml(row.item_label)}</td>
-          <td>
-            <select class="dashboard-input" data-checklist-field="status" style="min-width:110px;">
-              ${SAFER_RECRUITMENT_STATUS_OPTIONS.map((opt) => `<option value="${opt}" ${row.status === opt ? "selected" : ""}>${opt}</option>`).join("")}
-            </select>
-          </td>
-          <td><input type="date" class="dashboard-input" data-checklist-field="checked_date" value="${escapeHtml(row.checked_date || "")}" style="min-width:140px;"></td>
-          <td><input type="text" class="dashboard-input" data-checklist-field="notes" value="${escapeHtml(row.notes || "")}" placeholder="Notes / expiry">
-            ${row.checked_by ? `<div class="dashboard-help" style="margin-top:2px;">Checked by ${escapeHtml(row.checked_by)}</div>` : ""}
-          </td>
-        </tr>
-      `).join("")}
+      ${group.rows.map(saferRecruitmentChecklistRowHtml).join("")}
     `).join("");
+
+    return `
+      <div class="dashboard-table-wrap">
+        <table class="dashboard-table">
+          <thead><tr><th>Requirement</th><th>Status</th><th>Date</th><th>Notes</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function renderSaferRecruitmentChecklist(rows, outstandingActions) {
+    const container = el("saferRecruitmentChecklistContainer");
+    if (!container) return;
+
+    const isReviewed = (row) => row.status && row.status !== "Pending";
+    const completeCount = rows.filter(isReviewed).length;
+
+    // Still-pending items stay up top, grouped/ordered by section same as
+    // always - that's the part that still needs a decision. Reviewed
+    // items (Complete or N/A) move below, oldest-checked-first, tucked
+    // into their own collapsed-by-default section so a mostly-done
+    // checklist (e.g. 12 of 18) doesn't bury the handful still needing
+    // attention under a wall of already-settled rows.
+    const pendingRows = rows.filter((row) => !isReviewed(row));
+    const reviewedRows = rows.filter(isReviewed).slice().sort((a, b) => {
+      const dateA = a.checked_date || "";
+      const dateB = b.checked_date || "";
+      if (dateA === dateB) return 0;
+      if (!dateA) return 1;
+      if (!dateB) return -1;
+      return dateA < dateB ? -1 : 1;
+    });
+
+    const pendingHtml = pendingRows.length
+      ? saferRecruitmentChecklistTableHtml(pendingRows)
+      : `<p class="dashboard-help">Everything's been reviewed - see completed/not applicable items below.</p>`;
+
+    const reviewedHtml = reviewedRows.length
+      ? `
+        <details style="margin-top:14px;">
+          <summary style="cursor:pointer; font-weight:600;">✓ ${reviewedRows.length} completed / not applicable</summary>
+          ${saferRecruitmentChecklistTableHtml(reviewedRows)}
+        </details>
+      `
+      : "";
 
     container.innerHTML = `
       <details ${completeCount < rows.length ? "open" : ""} style="width:100%;">
@@ -1012,12 +1057,8 @@
           Safer Recruitment Checklist - ${completeCount} of ${rows.length} reviewed
         </summary>
         <p class="dashboard-help">Go through every item below and mark it off before converting this lead - what the franchisee/worker gave on their intake form is above.</p>
-        <div class="dashboard-table-wrap">
-          <table class="dashboard-table">
-            <thead><tr><th>Requirement</th><th>Status</th><th>Date</th><th>Notes</th></tr></thead>
-            <tbody>${rowsHtml}</tbody>
-          </table>
-        </div>
+        ${pendingHtml}
+        ${reviewedHtml}
         <div style="margin-top:10px;">
           <label style="display:block; font-weight:600; font-size:13px; margin-bottom:4px;">Outstanding Actions &amp; Conditions</label>
           <textarea id="saferRecruitmentOutstandingActions" class="dashboard-textarea" rows="3" placeholder="Any follow-up actions or conditions before this can proceed">${escapeHtml(outstandingActions)}</textarea>
