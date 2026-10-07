@@ -187,6 +187,12 @@ def _fields():
         {"fieldname": "contract_signed_at", "fieldtype": "Datetime", "label": "Franchise Agreement Signed At", "read_only": 1},
         {"fieldname": "contract_signer_ip", "fieldtype": "Small Text", "label": "Franchise Agreement Signer IP Address", "read_only": 1},
         {"fieldname": "contract_signer_user_agent", "fieldtype": "Small Text", "label": "Franchise Agreement Signer Browser/Device", "read_only": 1},
+        {"fieldname": "contract_franchisor_signature_name", "fieldtype": "Small Text", "label": "Franchisor Signature", "read_only": 1},
+        {"fieldname": "contract_franchisor_signed_at", "fieldtype": "Datetime", "label": "Franchisor Signed At", "read_only": 1},
+        {"fieldname": "contract_franchisor_signer_ip", "fieldtype": "Small Text", "label": "Franchisor Signer IP", "read_only": 1},
+        {"fieldname": "contract_franchisor_signer_user_agent", "fieldtype": "Small Text", "label": "Franchisor Signer Browser/Device", "read_only": 1},
+        {"fieldname": "contract_territory_map", "fieldtype": "Attach Image", "label": "Territory Map Image",
+         "description": "Shown in Schedule 2 - upload the area map for this franchisee's postcode territory before generating the sign link."},
 
         # -----------------------------------------------------------
         # Intake + DBS/Insurance

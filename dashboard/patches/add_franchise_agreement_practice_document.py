@@ -8,22 +8,30 @@ years after commencement_date - see leads.get_contract_sign_url, which
 computes it rather than asking Ashley to type it in), territory_description
 (the postcode list), permitted_area, franchisee_signature, franchisee_date.
 
-Trade Name ("The Resilient Kid") and the registered Trade Mark number
-(UK00004020678) are NOT merge fields - they're fixed, already-registered
-constants for this brand in Ashley's real document, not something that
-varies per deal.
+Trade Name ("The Resilient Kid"), the registered Trade Mark number
+(UK00004020678) and the Trade Mark image itself (the TRK logo, same for
+every franchisee - not deal-specific) are NOT merge fields - they're
+fixed constants for this brand in Ashley's real document.
 
-Schedule 2 (Territory) still needs a bespoke postcode map image per
-franchisee - needs a design decision before that part can be automated,
-same as before; the postcode list itself is now a real merge field.
+Schedule 2's territory_map_html IS still per-deal, rendered server-side
+from the Client Lead's own contract_territory_map Attach Image field
+(see add_franchise_agreement_signing_and_uploads.py) - an <img> tag if
+the franchisor has uploaded one, otherwise a plain reminder note.
 Schedule 4 (Materials) is a static list matching the Franchise Brochure
 page's own product list (hoodie/polo, books, journal, etc) - keep the
 two in sync by hand if either one changes, there is no shared single
 source of truth linking them yet.
 
+franchisor_signature is Ashley's own typed signature, captured the same
+way franchisee_signature is captured by sign_contract() - see
+get_contract_sign_url, which now requires it before a sign link can even
+be generated. No longer a hardcoded "AJC" pre-filled into the template -
+see add_franchise_agreement_signing_and_uploads.py.
+
 Idempotent/safe to leave in place if re-run - see
-update_franchise_agreement_practice_document_v2.py for the patch that
-updates an already-existing copy of this Practice Document (this one
+update_franchise_agreement_practice_document_v2.py and
+update_franchise_agreement_practice_document_v3.py for the patches that
+update an already-existing copy of this Practice Document (this one
 only ever creates it, never updates it once it exists).
 """
 
@@ -33,6 +41,9 @@ PRACTICE_DOCUMENT_DOCTYPE = "Practice Document"
 FRANCHISE_AGREEMENT_TITLE = "Franchise Agreement"
 
 FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
+<div style="text-align:center; margin-bottom:24px;">
+<img src="https://theresilienthub.co.uk/files/TRK%20Full%20Logo.png" style="height:56px;">
+</div>
 <p style="text-align:center;"><strong>DATED</strong></p>
 <p style="text-align:center;"><strong>{{ agreement_date }}</strong></p>
 <p style="text-align:center;"><strong>THE RESILIENT PEOPLE LIMITED</strong></p>
@@ -372,7 +383,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>The Franchisee shall pay to the Franchisor an additional initial fee of £4000</p>
 <p>The Franchisee shall complete any additional training as reasonably required by the Franchisor.</p>
 <p>All other terms of the Franchise Agreement remain in full force and effect.</p>
-<p>Signed: <span style="font-style:italic;">AJC</span> (Franchisor)</p>
+<p>Signed: <span style="font-style:italic;">{{ franchisor_signature }}</span> (Franchisor)</p>
 <p>Signed: <span style="font-style:italic;">{{ franchisee_signature }}</span> (Franchisee)</p>
 <h3>SCHEDULE 1</h3>
 <h3>FEES:</h3>
@@ -408,7 +419,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p><strong>All of the area within the postcode areas:</strong></p>
 <p>{{ territory_description }}</p>
 <p>as shaded grey on the map below:</p>
-<p class="dashboard-help">The postcode map graphic for this franchisee's Territory is bespoke per deal - attach/insert it here directly in Desk before sending, it isn't generated automatically yet.</p>
+{{ territory_map_html }}
 <p><strong>Commencement Date:</strong> {{ commencement_date }} &nbsp;&nbsp; <strong>Expiry Date:</strong> {{ expiry_date }}</p>
 <h3>SCHEDULE 3</h3>
 <h3>THE TRADE MARKS</h3>
@@ -419,6 +430,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>Registered to:</p>
 <p>The Resilient People Limited</p>
 <p>Fox Corner, Chester Road, Hartford, CW8 1LL</p>
+<p><img src="https://theresilienthub.co.uk/files/TRK%20Full%20Logo.png" style="max-width:280px;"></p>
 <h3>SCHEDULE 4</h3>
 <h3>MATERIALS</h3>
 <ul>
@@ -444,7 +456,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <table style="width:100%;">
 <tr><td style="width:50%;vertical-align:top;padding-right:20px;">
 <p>SIGNED by <strong>ASHLEY COSTELLO</strong><br>for and on behalf of<br><strong>THE RESILIENT PEOPLE LIMITED</strong></p>
-<p style="font-style:italic;font-size:22px;">AJC</p>
+<p style="font-style:italic;font-size:22px;">{{ franchisor_signature }}</p>
 </td><td style="width:50%;vertical-align:top;">
 <p>SIGNED by<br><strong>{{ franchisee_name }}</strong></p>
 <p style="font-style:italic;font-size:22px;">{{ franchisee_signature }}</p>

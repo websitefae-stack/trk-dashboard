@@ -453,6 +453,7 @@
       commencement_date: getValue("rlContractCommencementDateInput"),
       territory_description: getValue("rlContractTerritoryInput"),
       permitted_area: getValue("rlContractPermittedAreaInput"),
+      franchisor_signature_name: getValue("rlContractFranchisorSignatureInput"),
     };
   }
 
@@ -472,21 +473,33 @@
     const linkRow = linkRowHtml("rlContractLinkInput", "rlCopyContractLinkBtn", "Copy this link and send it to the franchisee to sign:");
 
     if (lead.contract_link_generated) {
+      const franchisorSignedHtml = lead.contract_franchisor_signature_name
+        ? `<div class="dashboard-help" style="flex-basis:100%;">You signed this agreement as "${escapeHtml(lead.contract_franchisor_signature_name)}" on ${escapeHtml(lead.contract_franchisor_signed_at)}.</div>`
+        : "";
       block.innerHTML = `
+        ${franchisorSignedHtml}
         <button type="button" class="dashboard-btn dashboard-btn-primary" id="rlSendContractBtn">${sendBtnLabel}</button>
         <button type="button" class="dashboard-btn dashboard-btn-light" id="rlGetContractLinkBtn">Get Sign Link Again</button>
         ${sentStatusHtml}
         ${linkRow}
       `;
     } else {
+      const uploadsWarningHtml = !lead.contract_territory_map
+        ? `<div class="dashboard-help" style="flex-basis:100%; color:#C97A00;">
+            Before signing: open this lead's record in Desk and upload the Territory Map Image - it appears in the agreement itself.
+          </div>`
+        : "";
       block.innerHTML = `
+        ${uploadsWarningHtml}
         <div style="display:flex; gap:10px; flex-wrap:wrap; flex-basis:100%;">
           <input type="date" id="rlContractCommencementDateInput" class="dashboard-input" style="width:170px;" title="Commencement Date">
           <input type="text" id="rlContractTerritoryInput" class="dashboard-input" placeholder="Territory (postcode areas)" style="flex:1; min-width:200px;">
           <input type="text" id="rlContractPermittedAreaInput" class="dashboard-input" placeholder="Permitted Area (e.g. Hartford)" style="width:200px;">
+          <input type="text" id="rlContractFranchisorSignatureInput" class="dashboard-input" placeholder="Type Your Name To Sign" style="width:200px;">
         </div>
+        <div class="dashboard-help" style="flex-basis:100%;">Typing your name above signs this agreement as the Franchisor - only once you've signed can it be generated or sent to the franchisee.</div>
         <button type="button" class="dashboard-btn dashboard-btn-primary" id="rlSendContractBtn">${sendBtnLabel}</button>
-        <button type="button" class="dashboard-btn dashboard-btn-light" id="rlGetContractLinkBtn">Generate Sign Link</button>
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="rlGetContractLinkBtn">Sign &amp; Generate Link</button>
         ${sentStatusHtml}
         ${linkRow}
       `;
@@ -495,6 +508,7 @@
     el("rlSendContractBtn")?.addEventListener("click", () => prepareEmail("contract", contractTermsPayload()));
     el("rlGetContractLinkBtn")?.addEventListener("click", async () => {
       const btn = el("rlGetContractLinkBtn");
+      const originalLabel = btn ? btn.textContent : "";
       if (btn) { btn.disabled = true; btn.textContent = "Generating..."; }
       try {
         const name = getValue("rlDocname");
@@ -502,10 +516,11 @@
         setValue("rlContractLinkInput", result.url || "");
         const resultBlock = el("rlContractLinkInputResult");
         if (resultBlock) resultBlock.style.display = "";
+        await loadLead();
       } catch (error) {
         window.alert(error.message || "Could not generate the sign link.");
       } finally {
-        if (btn) { btn.disabled = false; btn.textContent = "Get Sign Link Again"; }
+        if (btn) { btn.disabled = false; btn.textContent = originalLabel || "Get Sign Link Again"; }
       }
     });
     wireCopyButton("rlCopyContractLinkBtn", "rlContractLinkInput");
