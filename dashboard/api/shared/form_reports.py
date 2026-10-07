@@ -959,7 +959,7 @@ def retry_create_sessional_worker_reference_form():
     return {
         "ok": True,
         "doctype_exists": bool(frappe.db.exists("DocType", "Sessional Worker Reference Response")),
-        "web_form_exists": bool(frappe.db.exists("Web Form", {"route": "sessional-worker-reference-form"})),
+        "web_form_exists": bool(frappe.db.exists("Web Form", {"route": "reference-form"})),
     }
 
 
