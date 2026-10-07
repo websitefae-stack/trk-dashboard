@@ -15,8 +15,26 @@
       padding: 24px 16px 60px;
     }
     .contract-page {
-      max-width: 720px;
+      max-width: 980px;
       margin: 0 auto;
+    }
+    .contract-brand-header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .contract-brand-header img {
+      height: 48px;
+    }
+    .contract-download-btn {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 10px 18px;
+      border-radius: 8px;
+      background: #007274;
+      color: #fff;
+      font-weight: 700;
+      font-size: 14px;
+      text-decoration: none;
     }
     .contract-card {
       background: #fff;
@@ -97,6 +115,9 @@
 </head>
 <body>
   <div class="contract-page" id="contractPage">
+    <div class="contract-brand-header">
+      <img src="https://theresilienthub.co.uk/files/TRPeople_Wordmark_Logo.png" alt="The Resilient People">
+    </div>
     <div class="contract-status" id="contractLoading">Loading...</div>
   </div>
 
@@ -104,6 +125,7 @@
     (function () {
       var token = "{{ token }}";
       var page = document.getElementById("contractPage");
+      var brandHeaderHtml = '<div class="contract-brand-header"><img src="https://theresilienthub.co.uk/files/TRPeople_Wordmark_Logo.png" alt="The Resilient People"></div>';
 
       function apiPost(method, args) {
         return fetch("/api/method/" + method, {
@@ -121,17 +143,22 @@
       }
 
       function renderError(message) {
-        page.innerHTML = '<div class="contract-error">' + message + "</div>";
+        page.innerHTML = brandHeaderHtml + '<div class="contract-error">' + message + "</div>";
       }
 
       function renderSigned(html) {
         page.innerHTML =
-          '<div class="contract-signed-banner">This agreement has already been signed.</div>' +
+          brandHeaderHtml +
+          '<div class="contract-signed-banner">' +
+            "This agreement has already been signed.<br>" +
+            '<a class="contract-download-btn" href="/api/method/dashboard.api.shared.recruitment_leads.download_contract_pdf?token=' + encodeURIComponent(token) + '" target="_blank" rel="noopener">Download PDF</a>' +
+          "</div>" +
           '<div class="contract-card">' + html + "</div>";
       }
 
-      function renderForm(previewHtml, recipientName) {
+      function renderForm(previewHtml, recipientName, recipientAddress) {
         page.innerHTML =
+          brandHeaderHtml +
           '<div class="contract-card">' + previewHtml + "</div>" +
           '<div class="contract-card">' +
             "<h3>Sign This Agreement</h3>" +
@@ -144,7 +171,7 @@
 
               '<label for="contractSignatureName">Type Your Name To Sign</label>' +
               '<input type="text" name="signature_name" required>' +
-              '<div class="contract-help">By typing your name and submitting, you confirm you have read and agree to this Franchise Agreement.</div>' +
+              '<div class="contract-help">By typing your name and submitting, you confirm you have read and agree to this Franchise Agreement. We record the date, time, IP address and browser/device used to sign, alongside your typed name, as your audit trail for this signature.</div>' +
 
               '<button type="submit" class="contract-submit-btn" id="contractSubmitBtn">Sign &amp; Submit</button>' +
               '<div class="contract-form-message" id="contractFormMessage"></div>' +
@@ -153,6 +180,9 @@
 
         var nameField = document.getElementById("contractRecipientName");
         if (nameField && recipientName) nameField.value = recipientName;
+
+        var addressField = document.getElementById("contractRecipientAddress");
+        if (addressField && recipientAddress) addressField.value = recipientAddress;
 
         var form = document.getElementById("contractSignForm");
         form.addEventListener("submit", function (event) {
@@ -197,7 +227,7 @@
           if (data.already_signed) {
             renderSigned(data.signed_html);
           } else {
-            renderForm(data.preview_html, data.recipient_name);
+            renderForm(data.preview_html, data.recipient_name, data.recipient_address);
           }
         })
         .catch(function (error) {

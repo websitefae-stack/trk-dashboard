@@ -237,6 +237,13 @@ def get_recruitment_lead(name=None):
         row["contract_signed"] = 1 if doc.get("contract_signed_snapshot") else 0
         row["contract_link_generated"] = 1 if doc.get("contract_token") else 0
         row["contract_sent_at"] = frappe.utils.format_datetime(doc.get("contract_sent_at"), "dd-MM-yyyy HH:mm") if doc.get("contract_sent_at") else ""
+        row["contract_franchisor_signature_name"] = doc.get("contract_franchisor_signature_name") or ""
+        row["contract_franchisor_signed_at"] = (
+            frappe.utils.format_datetime(doc.get("contract_franchisor_signed_at"), "dd-MM-yyyy HH:mm")
+            if doc.get("contract_franchisor_signed_at") else ""
+        )
+        row["contract_territory_map"] = doc.get("contract_territory_map") or ""
+        row["contract_trademark_certificate"] = doc.get("contract_trademark_certificate") or ""
 
     if doc.lead_type == "Session Worker":
         row["fees_guide_signed"] = 1 if doc.get("fees_guide_signed_snapshot") else 0
@@ -453,7 +460,14 @@ def _nda_template_text():
 def _render_nda_text(template_text, context):
     text = template_text
     for key, value in context.items():
-        text = text.replace("{{ " + key + " }}", frappe.utils.escape_html(value or ""))
+        # A key ending "_html" (e.g. territory_map_html) is already a
+        # safe, pre-built HTML fragment (see _contract_image_html) -
+        # escaping it again here would show the raw tags as text instead
+        # of rendering the image.
+        if key.endswith("_html"):
+            text = text.replace("{{ " + key + " }}", value or "")
+        else:
+            text = text.replace("{{ " + key + " }}", frappe.utils.escape_html(value or ""))
     return text
 
 
@@ -884,6 +898,12 @@ def _get_lead_by_contract_token(token):
     return frappe.get_doc(RECRUITMENT_LEAD_DOCTYPE, lead_name)
 
 
+def _contract_image_html(file_url, missing_note):
+    if not file_url:
+        return f'<p class="dashboard-help">{missing_note}</p>'
+    return f'<p><img src="{frappe.utils.escape_html(file_url)}" style="max-width:100%; border:1px solid #D9E6E6; border-radius:8px;"></p>'
+
+
 def _contract_render_context(doc, franchisee_name, franchisee_address, franchisee_signature, franchisee_date):
     return {
         "agreement_date": frappe.utils.formatdate(doc.get("contract_agreement_date"), "dd-MM-yyyy"),
@@ -899,13 +919,22 @@ def _contract_render_context(doc, franchisee_name, franchisee_address, franchise
         ),
         "territory_description": doc.get("contract_territory_description") or "",
         "permitted_area": doc.get("contract_permitted_area") or "",
+        "territory_map_html": _contract_image_html(
+            doc.get("contract_territory_map"),
+            "The postcode map for this franchisee's Territory hasn't been uploaded yet - add it to this lead's Territory Map Image field.",
+        ),
+        "trademark_certificate_html": _contract_image_html(
+            doc.get("contract_trademark_certificate"),
+            "Trade Mark certificate image not yet uploaded.",
+        ),
+        "franchisor_signature": doc.get("contract_franchisor_signature_name") or NDA_BLANK_PLACEHOLDER,
         "franchisee_signature": franchisee_signature,
         "franchisee_date": franchisee_date,
     }
 
 
 @frappe.whitelist()
-def get_contract_sign_url(name=None, commencement_date=None, territory_description=None, permitted_area=None):
+def get_contract_sign_url(name=None, commencement_date=None, territory_description=None, permitted_area=None, franchisor_signature_name=None):
     if not is_franchisor_user():
         frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
 
@@ -922,6 +951,7 @@ def get_contract_sign_url(name=None, commencement_date=None, territory_descripti
         commencement_date = coalesce_raw("commencement_date", commencement_date)
         territory_description = coalesce_str("territory_description", territory_description)
         permitted_area = coalesce_str("permitted_area", permitted_area)
+        franchisor_signature_name = coalesce_str("franchisor_signature_name", franchisor_signature_name)
 
         if not commencement_date:
             frappe.throw(_("Enter the Commencement Date before generating the sign link."))
@@ -929,6 +959,8 @@ def get_contract_sign_url(name=None, commencement_date=None, territory_descripti
             frappe.throw(_("Enter the Territory (postcode areas) before generating the sign link."))
         if not permitted_area:
             frappe.throw(_("Enter the Permitted Area before generating the sign link."))
+        if not franchisor_signature_name:
+            frappe.throw(_("Type your name to sign this agreement before it can be sent to the franchisee."))
 
         commencement_date = frappe.utils.getdate(commencement_date)
 
@@ -938,6 +970,10 @@ def get_contract_sign_url(name=None, commencement_date=None, territory_descripti
         doc.contract_expiry_date = frappe.utils.add_years(commencement_date, CONTRACT_TERM_YEARS)
         doc.contract_territory_description = territory_description
         doc.contract_permitted_area = permitted_area
+        doc.contract_franchisor_signature_name = franchisor_signature_name
+        doc.contract_franchisor_signed_at = frappe.utils.now_datetime()
+        doc.contract_franchisor_signer_ip = frappe.local.request_ip
+        doc.contract_franchisor_signer_user_agent = frappe.get_request_header("User-Agent") or ""
         doc.save(ignore_permissions=True)
         frappe.db.commit()
 
@@ -952,7 +988,7 @@ def _contract_email_text(doc, contract_url):
 
 
 @frappe.whitelist()
-def get_contract_email_defaults(name=None, commencement_date=None, territory_description=None, permitted_area=None):
+def get_contract_email_defaults(name=None, commencement_date=None, territory_description=None, permitted_area=None, franchisor_signature_name=None):
     name = coalesce_str("name", name)
     doc = ensure_lead_access(name)
 
@@ -962,6 +998,7 @@ def get_contract_email_defaults(name=None, commencement_date=None, territory_des
     contract_url = get_contract_sign_url(
         name=name, commencement_date=commencement_date,
         territory_description=territory_description, permitted_area=permitted_area,
+        franchisor_signature_name=franchisor_signature_name,
     )["url"]
     subject, message = _contract_email_text(doc, contract_url)
 
@@ -969,7 +1006,7 @@ def get_contract_email_defaults(name=None, commencement_date=None, territory_des
 
 
 @frappe.whitelist()
-def send_contract_link(name=None, commencement_date=None, territory_description=None, permitted_area=None, subject=None, message=None, cc=None, reply_to=None):
+def send_contract_link(name=None, commencement_date=None, territory_description=None, permitted_area=None, franchisor_signature_name=None, subject=None, message=None, cc=None, reply_to=None):
     name = coalesce_str("name", name)
     doc = ensure_lead_access(name)
 
@@ -979,6 +1016,7 @@ def send_contract_link(name=None, commencement_date=None, territory_description=
     contract_url = get_contract_sign_url(
         name=name, commencement_date=commencement_date,
         territory_description=territory_description, permitted_area=permitted_area,
+        franchisor_signature_name=franchisor_signature_name,
     )["url"]
 
     subject = (subject or "").strip()
@@ -1046,7 +1084,25 @@ def get_contract_preview(token=None):
         "already_signed": False,
         "preview_html": _render_nda_text(_contract_template_text(), context),
         "recipient_name": doc.get("contact_name") or "",
+        "recipient_address": doc.get("location_address") or "",
     }
+
+
+@frappe.whitelist(allow_guest=True)
+def download_contract_pdf(token=None):
+    token = coalesce_str("token", token)
+    doc = _get_lead_by_contract_token(token)
+
+    if not doc.get("contract_signed_snapshot"):
+        frappe.throw(_("This Franchise Agreement hasn't been signed yet."))
+
+    from frappe.utils.pdf import get_pdf
+
+    pdf_content = get_pdf(doc.get("contract_signed_snapshot"))
+
+    frappe.local.response.filename = f"Franchise Agreement - {doc.contact_name or doc.name}.pdf"
+    frappe.local.response.filecontent = pdf_content
+    frappe.local.response.type = "download"
 
 
 @frappe.whitelist(allow_guest=True)
