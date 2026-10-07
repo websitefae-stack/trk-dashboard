@@ -193,8 +193,6 @@ def _fields():
         {"fieldname": "contract_franchisor_signer_user_agent", "fieldtype": "Small Text", "label": "Franchisor Signer Browser/Device", "read_only": 1},
         {"fieldname": "contract_territory_map", "fieldtype": "Attach Image", "label": "Territory Map Image",
          "description": "Shown in Schedule 2 - upload the area map for this franchisee's postcode territory before generating the sign link."},
-        {"fieldname": "contract_trademark_certificate", "fieldtype": "Attach Image", "label": "Trade Mark Certificate Image",
-         "description": "Shown in Schedule 3 - upload a scan/screenshot of the UK00004020678 registration certificate."},
 
         # -----------------------------------------------------------
         # Intake + DBS/Insurance

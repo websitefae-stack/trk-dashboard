@@ -243,7 +243,6 @@ def get_recruitment_lead(name=None):
             if doc.get("contract_franchisor_signed_at") else ""
         )
         row["contract_territory_map"] = doc.get("contract_territory_map") or ""
-        row["contract_trademark_certificate"] = doc.get("contract_trademark_certificate") or ""
 
     if doc.lead_type == "Session Worker":
         row["fees_guide_signed"] = 1 if doc.get("fees_guide_signed_snapshot") else 0
@@ -922,10 +921,6 @@ def _contract_render_context(doc, franchisee_name, franchisee_address, franchise
         "territory_map_html": _contract_image_html(
             doc.get("contract_territory_map"),
             "The postcode map for this franchisee's Territory hasn't been uploaded yet - add it to this lead's Territory Map Image field.",
-        ),
-        "trademark_certificate_html": _contract_image_html(
-            doc.get("contract_trademark_certificate"),
-            "Trade Mark certificate image not yet uploaded.",
         ),
         "franchisor_signature": doc.get("contract_franchisor_signature_name") or NDA_BLANK_PLACEHOLDER,
         "franchisee_signature": franchisee_signature,

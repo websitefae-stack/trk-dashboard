@@ -624,10 +624,9 @@
         `<input type="${type}" id="${id}" class="dashboard-input" placeholder="${escapeHtml(placeholder)}" style="flex:1; min-width:200px;" title="${escapeHtml(placeholder)}">`
       ).join("");
 
-      const uploadsWarningHtml = (!lead.contract_territory_map || !lead.contract_trademark_certificate)
+      const uploadsWarningHtml = !lead.contract_territory_map
         ? `<div class="dashboard-help" style="flex-basis:100%; color:#C97A00;">
-            Before signing: open this lead's record in Desk and upload the Territory Map Image${!lead.contract_territory_map ? "" : " (done)"}
-            and Trade Mark Certificate Image${!lead.contract_trademark_certificate ? "" : " (done)"} - both appear in the agreement itself.
+            Before signing: open this lead's record in Desk and upload the Territory Map Image - it appears in the agreement itself.
           </div>`
         : "";
 

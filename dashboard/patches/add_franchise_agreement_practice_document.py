@@ -8,25 +8,25 @@ years after commencement_date - see leads.get_contract_sign_url, which
 computes it rather than asking Ashley to type it in), territory_description
 (the postcode list), permitted_area, franchisee_signature, franchisee_date.
 
-Trade Name ("The Resilient Kid") and the registered Trade Mark number
-(UK00004020678) are NOT merge fields - they're fixed, already-registered
-constants for this brand in Ashley's real document, not something that
-varies per deal.
+Trade Name ("The Resilient Kid"), the registered Trade Mark number
+(UK00004020678) and the Trade Mark image itself (the TRK logo, same for
+every franchisee - not deal-specific) are NOT merge fields - they're
+fixed constants for this brand in Ashley's real document.
 
-Schedule 2's territory_map_html and Schedule 3's trademark_certificate_html
-are rendered server-side from the Client Lead's own contract_territory_map /
-contract_trademark_certificate Attach Image fields (see
-add_franchise_agreement_signing_and_uploads.py) - an <img> tag if the
-franchisor has uploaded one, otherwise a plain reminder note. Schedule 4
-(Materials) is a static list matching the Franchise Brochure page's own
-product list (hoodie/polo, books, journal, etc) - keep the two in sync by
-hand if either one changes, there is no shared single source of truth
-linking them yet.
+Schedule 2's territory_map_html IS still per-deal, rendered server-side
+from the Client Lead's own contract_territory_map Attach Image field
+(see add_franchise_agreement_signing_and_uploads.py) - an <img> tag if
+the franchisor has uploaded one, otherwise a plain reminder note.
+Schedule 4 (Materials) is a static list matching the Franchise Brochure
+page's own product list (hoodie/polo, books, journal, etc) - keep the
+two in sync by hand if either one changes, there is no shared single
+source of truth linking them yet.
 
-franchisor_signature is Ashley's own typed signature, captured by
-sign_contract_as_franchisor() the same way franchisee_signature is
-captured by sign_contract() - no longer a hardcoded "AJC" pre-filled into
-the template, see add_franchise_agreement_signing_and_uploads.py.
+franchisor_signature is Ashley's own typed signature, captured the same
+way franchisee_signature is captured by sign_contract() - see
+get_contract_sign_url, which now requires it before a sign link can even
+be generated. No longer a hardcoded "AJC" pre-filled into the template -
+see add_franchise_agreement_signing_and_uploads.py.
 
 Idempotent/safe to leave in place if re-run - see
 update_franchise_agreement_practice_document_v2.py and
@@ -42,7 +42,7 @@ FRANCHISE_AGREEMENT_TITLE = "Franchise Agreement"
 
 FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <div style="text-align:center; margin-bottom:24px;">
-<img src="https://theresilienthub.co.uk/files/TRPeople_Wordmark_Logo.png" style="height:56px;">
+<img src="https://theresilienthub.co.uk/files/TRK%20Full%20Logo.png" style="height:56px;">
 </div>
 <p style="text-align:center;"><strong>DATED</strong></p>
 <p style="text-align:center;"><strong>{{ agreement_date }}</strong></p>
@@ -430,7 +430,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>Registered to:</p>
 <p>The Resilient People Limited</p>
 <p>Fox Corner, Chester Road, Hartford, CW8 1LL</p>
-{{ trademark_certificate_html }}
+<p><img src="https://theresilienthub.co.uk/files/TRK%20Full%20Logo.png" style="max-width:280px;"></p>
 <h3>SCHEDULE 4</h3>
 <h3>MATERIALS</h3>
 <ul>

@@ -1,5 +1,5 @@
 """
-Follow-up to add_franchise_lead_contract_fields, fixing three gaps Ashley
+Follow-up to add_franchise_lead_contract_fields, fixing two gaps Ashley
 flagged once she could actually review the live Franchise Agreement flow:
 
 1. The document hardcoded Ashley's own signature ("AJC") directly in the
@@ -8,14 +8,16 @@ flagged once she could actually review the live Franchise Agreement flow:
    she actually do it before a franchisee ever saw it. These new
    contract_franchisor_* fields capture a real signing step (typed name +
    IP + user agent + timestamp, same as the franchisee's own) - see
-   sign_contract_as_franchisor() in leads.py, which get_contract_sign_url
-   now requires before a sign link can even be generated.
+   get_contract_sign_url in leads.py, which now requires it before a
+   sign link can even be generated.
 
-2. Schedule 2's Territory map and Schedule 3's Trade Mark certificate
-   were both left as "attach this manually in Desk" placeholder notes -
-   not a real feature. These two Attach Image fields let the franchisor
-   upload the actual per-deal map / certificate image, rendered directly
-   into the document.
+2. Schedule 2's Territory map was left as an "attach this manually in
+   Desk" placeholder note - not a real feature. This Attach Image field
+   lets the franchisor upload the actual per-deal map image, rendered
+   directly into the document. (Schedule 3's Trade Mark image is NOT
+   per-deal - same registered mark for every franchisee - so that one is
+   just the TRK logo hardcoded directly into the template text instead,
+   same as the Trade Mark number itself.)
 
 Only Small Text/Attach Image/Datetime fields here (no Data/varchar) -
 Client Lead already hit MySQL's row-size limit once (see
@@ -41,9 +43,6 @@ FIELDS = [
     {"fieldname": "contract_territory_map", "fieldtype": "Attach Image",
      "label": "Territory Map Image",
      "description": "Shown in Schedule 2 of the Franchise Agreement - upload the area map for this franchisee's postcode territory before generating the sign link."},
-    {"fieldname": "contract_trademark_certificate", "fieldtype": "Attach Image",
-     "label": "Trade Mark Certificate Image",
-     "description": "Shown in Schedule 3 of the Franchise Agreement - upload a scan/screenshot of the UK00004020678 registration certificate."},
 ]
 
 
