@@ -15,6 +15,8 @@ doctype.py's own docstring) - purely additive, Client Lead and its own
 leads.py are completely untouched by this module.
 """
 
+from urllib.parse import quote
+
 import frappe
 from frappe import _
 from frappe.utils import get_url, fmt_money
@@ -25,6 +27,7 @@ from dashboard.api.shared.notifications import create_trk_notification, FRANCHIS
 from dashboard.api.shared.email_templates import plain_text_to_email_html, parse_email_list
 from dashboard.api.shared.mail_throttle import send_email
 from dashboard.api.shared.item_access import _get_coach_login
+from dashboard.api.shared.clients import get_coach_label
 
 RECRUITMENT_LEAD_DOCTYPE = "Recruitment Lead"
 
@@ -1084,3 +1087,422 @@ def sign_contract(token=None, recipient_name=None, recipient_address=None, signa
     _notify_coach_of_lead_step(doc, "signed the Franchise Agreement")
 
     return {"ok": True}
+
+
+# -------------------------------------------------------------------
+# Safer Recruitment Checklist - shared by both lead types
+# -------------------------------------------------------------------
+
+SAFER_RECRUITMENT_CHECKLIST_ITEMS = [
+    # (section, item_key, item_label, scope) - scope "both" applies to a
+    # Franchisee and a Session Worker lead alike; "session_worker" only
+    # ever applies to a Session Worker lead. Mirrors leads.py's own list
+    # exactly - see that module for why some items were deliberately
+    # left off (safeguarding induction, duplicate signature ticks, etc).
+    ("Identity, right to work and overseas checks", "identity_verified", "Identity verified", "both"),
+    ("Identity, right to work and overseas checks", "right_to_work_verified", "UK right to work verified", "both"),
+    ("Identity, right to work and overseas checks", "address_history_confirmed", "Address history confirmed", "both"),
+    ("Identity, right to work and overseas checks", "overseas_police_clearance_reviewed", "Overseas police clearance reviewed (if applicable)", "both"),
+    ("Identity, right to work and overseas checks", "working_with_children_check_reviewed", "Working With Children Check reviewed (if applicable)", "both"),
+    ("UK DBS and barred-list checks", "role_eligibility_assessed", "Role eligibility assessed", "both"),
+    ("UK DBS and barred-list checks", "enhanced_dbs_application_submitted", "Enhanced DBS application submitted", "both"),
+    ("UK DBS and barred-list checks", "barred_list_eligibility_confirmed", "Children's Barred List eligibility confirmed", "both"),
+    ("UK DBS and barred-list checks", "original_dbs_certificate_reviewed", "Original DBS certificate reviewed", "both"),
+    ("UK DBS and barred-list checks", "dbs_risk_assessment_completed", "DBS risk assessment completed", "both"),
+    ("UK DBS and barred-list checks", "dbs_update_service_discussed", "DBS Update Service discussed", "both"),
+    ("Qualifications, work history and references", "work_history_reviewed", "Application / work history reviewed", "both"),
+    ("Qualifications, work history and references", "qualifications_verified", "Qualifications and training verified", "both"),
+    ("Qualifications, work history and references", "reference1_obtained", "Reference 1 obtained and verified", "both"),
+    ("Qualifications, work history and references", "reference2_obtained", "Reference 2 obtained and verified", "both"),
+    ("Qualifications, work history and references", "safer_recruitment_interview_completed", "Safer-recruitment interview completed", "both"),
+    ("Contracting, insurance and readiness", "employment_status_confirmed", "Employment-status / tax position confirmed", "both"),
+    ("Contracting, insurance and readiness", "insurance_confirmed", "Insurance confirmed", "both"),
+    ("Contracting, insurance and readiness", "supervision_arrangements_agreed", "Supervision arrangements agreed", "session_worker"),
+    ("Contracting, insurance and readiness", "role_boundaries_and_escalation_agreed", "Role boundaries and escalation agreed", "session_worker"),
+]
+
+
+def _applicable_safer_recruitment_items(doc):
+    is_sw = doc.lead_type == "Session Worker"
+    return [
+        (section, item_key, item_label)
+        for section, item_key, item_label, scope in SAFER_RECRUITMENT_CHECKLIST_ITEMS
+        if scope == "both" or (scope == "session_worker" and is_sw)
+    ]
+
+
+def _ensure_safer_recruitment_checklist_seeded(doc):
+    existing_keys = {row.item_key for row in (doc.get("safer_recruitment_checklist") or [])}
+    changed = False
+
+    for section, item_key, item_label in _applicable_safer_recruitment_items(doc):
+        if item_key in existing_keys:
+            continue
+
+        doc.append("safer_recruitment_checklist", {
+            "section": section,
+            "item_key": item_key,
+            "item_label": item_label,
+            "status": "Pending",
+        })
+        changed = True
+
+    if changed:
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+
+
+@frappe.whitelist()
+def get_safer_recruitment_checklist(name=None):
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    _ensure_safer_recruitment_checklist_seeded(doc)
+    doc.reload()
+
+    applicable_keys = {item_key for _section, item_key, _label in _applicable_safer_recruitment_items(doc)}
+
+    rows = [
+        {
+            "item_key": row.item_key,
+            "section": row.section,
+            "item_label": row.item_label,
+            "status": row.status or "Pending",
+            "checked_date": row.checked_date or "",
+            "checked_by": row.checked_by or "",
+            "notes": row.notes or "",
+        }
+        for row in (doc.get("safer_recruitment_checklist") or [])
+        if row.item_key in applicable_keys
+    ]
+
+    return {"rows": rows, "outstanding_actions": doc.get("safer_recruitment_outstanding_actions") or ""}
+
+
+@frappe.whitelist()
+def update_safer_recruitment_checklist_item(name=None, item_key=None, status=None, checked_date=None, notes=None):
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    item_key = coalesce_str("item_key", item_key)
+    doc = ensure_lead_access(name)
+
+    _ensure_safer_recruitment_checklist_seeded(doc)
+    doc.reload()
+
+    row = next((r for r in (doc.get("safer_recruitment_checklist") or []) if r.item_key == item_key), None)
+    if not row:
+        frappe.throw(_("Unknown checklist item."))
+
+    status = coalesce_str("status", status)
+    if status:
+        row.status = status
+    if checked_date is not None:
+        row.checked_date = coalesce_raw("checked_date", checked_date) or None
+    if notes is not None:
+        row.notes = coalesce_str("notes", notes)
+
+    if status and status != "Pending" and not row.checked_by:
+        row.checked_by = frappe.utils.get_fullname(frappe.session.user)
+    if not row.checked_date and status and status != "Pending":
+        row.checked_date = frappe.utils.today()
+
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True}
+
+
+@frappe.whitelist()
+def update_safer_recruitment_outstanding_actions(name=None, outstanding_actions=None):
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    doc.safer_recruitment_outstanding_actions = coalesce_str("outstanding_actions", outstanding_actions)
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True}
+
+
+# -------------------------------------------------------------------
+# Sessional Worker Fees and Expectations Guide - Session Worker only.
+# Second party is the lead's own sponsoring Coach, not Ashley - same
+# shape as leads.py's own version.
+# -------------------------------------------------------------------
+
+FEES_GUIDE_PRACTICE_DOCUMENT_TITLE = "Sessional Worker Fees and Expectations Guide"
+
+
+def _fees_guide_template_text():
+    name = frappe.db.get_value("Practice Document", {"document_title": FEES_GUIDE_PRACTICE_DOCUMENT_TITLE}, "name")
+    if not name:
+        frappe.throw(_("The Fees and Expectations Guide template hasn't been set up yet."))
+    return frappe.db.get_value("Practice Document", name, "document_text") or ""
+
+
+def _get_lead_by_fees_guide_token(token):
+    token = (token or "").strip()
+    if not token:
+        frappe.throw(_("This link is invalid."))
+    lead_name = frappe.db.get_value(RECRUITMENT_LEAD_DOCTYPE, {"fees_guide_token": token}, "name")
+    if not lead_name:
+        frappe.throw(_("This link is invalid."))
+    return frappe.get_doc(RECRUITMENT_LEAD_DOCTYPE, lead_name)
+
+
+def _fees_guide_context(doc, worker_name="", worker_address="", worker_signature=""):
+    today = frappe.utils.getdate(frappe.utils.today())
+    return {
+        "franchisee_name": get_coach_label(doc.get("coach")) or NDA_BLANK_PLACEHOLDER,
+        "effective_date": frappe.utils.formatdate(doc.get("fees_guide_agreement_date"), "dd-MM-yyyy"),
+        "rate_1to1": fmt_money(doc.get("fees_guide_rate_1to1") or 0, currency="GBP"),
+        "rate_group": fmt_money(doc.get("fees_guide_rate_group") or 0, currency="GBP"),
+        "rate_workshop": fmt_money(doc.get("fees_guide_rate_workshop") or 0, currency="GBP"),
+        "invoicing_frequency": doc.get("fees_guide_invoicing_frequency") or NDA_BLANK_PLACEHOLDER,
+        "dbs_number": doc.get("franchisee_intake_dbs_number") or NDA_BLANK_PLACEHOLDER,
+        "dbs_date_received": frappe.utils.formatdate(doc.get("franchisee_intake_dbs_date_received"), "dd-MM-yyyy") if doc.get("franchisee_intake_dbs_date_received") else NDA_BLANK_PLACEHOLDER,
+        "public_liability_insurer": doc.get("franchisee_intake_public_liability_insurer") or NDA_BLANK_PLACEHOLDER,
+        "indemnity_insurer": doc.get("franchisee_intake_indemnity_insurer") or NDA_BLANK_PLACEHOLDER,
+        "worker_name": worker_name or doc.get("contact_name") or NDA_BLANK_PLACEHOLDER,
+        "worker_signature": worker_signature or NDA_BLANK_PLACEHOLDER,
+        "worker_date": frappe.utils.formatdate(today, "dd-MM-yyyy") if worker_signature else NDA_BLANK_PLACEHOLDER,
+        "coach_date": frappe.utils.formatdate(doc.get("fees_guide_agreement_date"), "dd-MM-yyyy"),
+    }
+
+
+@frappe.whitelist()
+def get_fees_guide_sign_url(name=None, rate_1to1=None, rate_group=None, rate_workshop=None, invoicing_frequency=None, effective_date=None):
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if doc.lead_type != "Session Worker":
+        frappe.throw(_("This lead isn't a Session Worker - the Fees and Expectations Guide doesn't apply to it."))
+
+    if doc.get("fees_guide_signed_snapshot"):
+        frappe.throw(_("This lead's Fees and Expectations Guide has already been signed."))
+
+    if not doc.get("fees_guide_token"):
+        effective_date = coalesce_raw("effective_date", effective_date)
+        invoicing_frequency = coalesce_str("invoicing_frequency", invoicing_frequency)
+
+        if not rate_1to1 or not rate_group or not rate_workshop:
+            frappe.throw(_("Enter the session fee rates before generating the sign link."))
+        if not invoicing_frequency:
+            frappe.throw(_("Choose an invoicing frequency before generating the sign link."))
+        if not effective_date:
+            frappe.throw(_("Enter the Effective From date before generating the sign link."))
+        if not doc.get("coach"):
+            frappe.throw(_("This lead has no coach assigned to sponsor this worker."))
+
+        doc.fees_guide_token = frappe.generate_hash(length=40)
+        doc.fees_guide_agreement_date = effective_date
+        doc.fees_guide_rate_1to1 = coalesce_raw("rate_1to1", rate_1to1)
+        doc.fees_guide_rate_group = coalesce_raw("rate_group", rate_group)
+        doc.fees_guide_rate_workshop = coalesce_raw("rate_workshop", rate_workshop)
+        doc.fees_guide_invoicing_frequency = invoicing_frequency
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+
+    return {"url": get_url(f"/recruitment-fees-guide?token={doc.fees_guide_token}")}
+
+
+def _fees_guide_email_text(doc, fees_guide_url):
+    contact_name = doc.contact_name or "there"
+    coach_display = get_coach_label(doc.get("coach")) or "your Franchisee"
+    subject = "Please sign: Fees and Expectations Guide"
+    message = (
+        f"Hi {contact_name},\n\n"
+        f"Please read and sign the Fees and Expectations Guide below, agreed with {coach_display}, "
+        "to finish setting you up as a session worker:\n\n"
+        f"{fees_guide_url}"
+    )
+    return subject, message
+
+
+@frappe.whitelist()
+def get_fees_guide_email_defaults(name=None, rate_1to1=None, rate_group=None, rate_workshop=None, invoicing_frequency=None, effective_date=None):
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.contact_email:
+        frappe.throw(_("This lead has no contact email address to send the guide to."))
+
+    fees_guide_url = get_fees_guide_sign_url(
+        name=name, rate_1to1=rate_1to1, rate_group=rate_group, rate_workshop=rate_workshop,
+        invoicing_frequency=invoicing_frequency, effective_date=effective_date,
+    )["url"]
+    subject, message = _fees_guide_email_text(doc, fees_guide_url)
+
+    return {"subject": subject, "message": message, "recipient": doc.contact_email, "url": fees_guide_url}
+
+
+@frappe.whitelist()
+def send_fees_guide_link(name=None, rate_1to1=None, rate_group=None, rate_workshop=None, invoicing_frequency=None,
+                          effective_date=None, subject=None, message=None, cc=None, reply_to=None):
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.contact_email:
+        frappe.throw(_("This lead has no contact email address to send the guide to."))
+
+    fees_guide_url = get_fees_guide_sign_url(
+        name=name, rate_1to1=rate_1to1, rate_group=rate_group, rate_workshop=rate_workshop,
+        invoicing_frequency=invoicing_frequency, effective_date=effective_date,
+    )["url"]
+
+    subject = (subject or "").strip()
+    message = (message or "").strip()
+    if not subject or not message:
+        default_subject, default_message = _fees_guide_email_text(doc, fees_guide_url)
+        subject = subject or default_subject
+        message = message or default_message
+
+    reply_to = (reply_to or "").strip() or frappe.session.user
+
+    kwargs = {
+        "recipients": [doc.contact_email],
+        "subject": subject,
+        "message": plain_text_to_email_html(message),
+        "reply_to": reply_to,
+    }
+
+    cc_list = parse_email_list(cc)
+    if cc_list:
+        kwargs["cc"] = cc_list
+
+    send_email(**kwargs)
+
+    doc.fees_guide_sent_at = frappe.utils.now_datetime()
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": 1, "url": fees_guide_url, "sent_at": frappe.utils.format_datetime(doc.fees_guide_sent_at, "dd-MM-yyyy HH:mm")}
+
+
+@frappe.whitelist()
+def get_signed_fees_guide(name=None):
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.get("fees_guide_signed_snapshot"):
+        frappe.throw(_("This Fees and Expectations Guide hasn't been signed yet."))
+
+    return {
+        "signed_html": doc.get("fees_guide_signed_snapshot"),
+        "signed_at": frappe.utils.format_datetime(doc.get("fees_guide_signed_at"), "dd-MM-yyyy HH:mm") if doc.get("fees_guide_signed_at") else "",
+        "signer_ip": doc.get("fees_guide_signer_ip") or "",
+        "signer_user_agent": doc.get("fees_guide_signer_user_agent") or "",
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def get_fees_guide_preview(token=None):
+    token = coalesce_str("token", token)
+    doc = _get_lead_by_fees_guide_token(token)
+
+    if doc.get("fees_guide_signed_snapshot"):
+        return {"already_signed": True, "signed_html": doc.get("fees_guide_signed_snapshot")}
+
+    return {
+        "already_signed": False,
+        "preview_html": _render_nda_text(_fees_guide_template_text(), _fees_guide_context(doc)),
+        "recipient_name": doc.get("contact_name") or "",
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def sign_fees_guide(token=None, recipient_name=None, signature_name=None):
+    token = coalesce_str("token", token)
+    recipient_name = coalesce_str("recipient_name", recipient_name)
+    signature_name = coalesce_str("signature_name", signature_name)
+
+    doc = _get_lead_by_fees_guide_token(token)
+
+    if doc.get("fees_guide_signed_snapshot"):
+        frappe.throw(_("This Fees and Expectations Guide has already been signed."))
+
+    if not recipient_name:
+        frappe.throw(_("Please enter your full name."))
+    if not signature_name:
+        frappe.throw(_("Please type your name to sign."))
+
+    context = _fees_guide_context(doc, worker_name=recipient_name, worker_signature=signature_name)
+
+    doc.fees_guide_recipient_name = recipient_name
+    doc.fees_guide_signature_name = signature_name
+    doc.fees_guide_signed_snapshot = _render_nda_text(_fees_guide_template_text(), context)
+    doc.fees_guide_signed_at = frappe.utils.now_datetime()
+    doc.fees_guide_signer_ip = frappe.local.request_ip
+    doc.fees_guide_signer_user_agent = frappe.get_request_header("User-Agent") or ""
+    doc.fees_guide_done = 1
+    doc.fees_guide_date = frappe.utils.getdate(frappe.utils.today())
+
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    _notify_coach_of_lead_step(doc, "signed the Fees and Expectations Guide")
+
+    return {"ok": True}
+
+
+@frappe.whitelist()
+def get_session_worker_setup_url(name=None):
+    """Franchisor-only: a deep link to a pre-filled New Session Worker
+    form in Desk - mirrors leads.py's own get_session_worker_setup_url."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if doc.lead_type != "Session Worker":
+        frappe.throw(_("This lead isn't a Session Worker."))
+
+    full_name = (
+        f"{doc.get('franchisee_intake_first_name') or ''} {doc.get('franchisee_intake_last_name') or ''}".strip()
+        or doc.contact_name or ""
+    )
+
+    params = {
+        "sw_name": full_name,
+        "sw_email": doc.contact_email or "",
+        "phone": doc.get("franchisee_intake_phone") or doc.contact_mobile or "",
+    }
+    query = "&".join(f"{key}={quote(str(value))}" for key, value in params.items() if value)
+
+    return {"url": get_url(f"/app/session-worker/new?{query}" if query else "/app/session-worker/new")}
+
+
+@frappe.whitelist()
+def set_session_worker_link(name=None, session_worker=None):
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    session_worker = coalesce_str("session_worker", session_worker)
+    doc = ensure_lead_access(name)
+
+    if doc.lead_type != "Session Worker":
+        frappe.throw(_("This lead isn't a Session Worker."))
+
+    if session_worker and not frappe.db.exists("Session Worker", session_worker):
+        frappe.throw(_("That Session Worker record doesn't exist."))
+
+    doc.converted_session_worker = session_worker or None
+    doc.sw_setup_done = 1 if session_worker else 0
+    doc.sw_setup_date = frappe.utils.today() if session_worker else None
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True, "converted_session_worker": doc.converted_session_worker}
