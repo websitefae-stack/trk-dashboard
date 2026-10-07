@@ -22,6 +22,19 @@ in leads.py), matching the Term defined in the agreement's own clause
 contract_signed_snapshot is a frozen copy of the merged agreement text
 at the moment of signing, not a live re-render - editing the master
 template later never changes what someone already signed.
+
+Everything except contract_token is Small Text/Date/Datetime/Text
+Editor, never plain Data (varchar) - confirmed live that Client Lead
+had accumulated so many fields across this session's other patches
+(NDA, Intent to Proceed, Franchisee Intake, Safer Recruitment
+Checklist, Stage 1...) that this patch's original handful of varchar(140)
+columns pushed it over InnoDB's 65,535-byte row-size limit (MySQL
+error 1118) - a limit that, confirmed from the error's own wording,
+genuinely excludes Text/Blob columns regardless of row format, so
+ROW_FORMAT=DYNAMIC (fix_client_lead_row_too_large.py) didn't help on
+its own. contract_token is the one field that has to stay Data, for
+its UNIQUE constraint - matches nda_token/intent_token, already
+proven to fit.
 """
 
 import frappe
@@ -74,7 +87,7 @@ CLIENT_LEAD_FIELDS = [
     },
     {
         "fieldname": "contract_permitted_area",
-        "fieldtype": "Data",
+        "fieldtype": "Small Text",
         "label": "Permitted Area",
         "read_only": 1,
         "insert_after": "contract_territory_description",
@@ -90,7 +103,7 @@ CLIENT_LEAD_FIELDS = [
     },
     {
         "fieldname": "contract_recipient_name",
-        "fieldtype": "Data",
+        "fieldtype": "Small Text",
         "label": "Franchise Agreement Recipient Name",
         "read_only": 1,
         "insert_after": "contract_sent_at",
@@ -106,7 +119,7 @@ CLIENT_LEAD_FIELDS = [
     },
     {
         "fieldname": "contract_signature_name",
-        "fieldtype": "Data",
+        "fieldtype": "Small Text",
         "label": "Franchise Agreement Signature",
         "read_only": 1,
         "insert_after": "contract_recipient_address",
@@ -131,7 +144,7 @@ CLIENT_LEAD_FIELDS = [
     },
     {
         "fieldname": "contract_signer_ip",
-        "fieldtype": "Data",
+        "fieldtype": "Small Text",
         "label": "Franchise Agreement Signer IP Address",
         "read_only": 1,
         "insert_after": "contract_signed_at",
