@@ -687,6 +687,40 @@
     }
   }
 
+  // Lands here from a notification's own link (e.g. "a reference just
+  // came in" - see notifications._get_reference_link's REFERENCE_
+  // RESPONSE_DOCTYPE case) with ?form=<doctype>&submission=<name> in
+  // the URL - switches to the Form Results tab, picks that form, runs
+  // the summary report, then opens that one submission's modal
+  // automatically, so clicking the notification actually lands on the
+  // answer itself rather than just the general Reports page.
+  async function applyFormModuleDeepLink() {
+    var params = new URLSearchParams(window.location.search);
+    var formParam = params.get("form");
+    var submissionParam = params.get("submission");
+    if (!formParam) return;
+
+    var select = el("formModuleSelect");
+    if (!select) return;
+
+    var hasOption = Array.prototype.some.call(select.options, function (opt) { return opt.value === formParam; });
+    if (!hasOption) return;
+
+    var formsTabBtn = document.querySelector('[data-forms-report-tab="forms"]');
+    if (formsTabBtn) formsTabBtn.click();
+
+    select.value = formParam;
+
+    var viewModeSelect = el("formModuleViewMode");
+    if (viewModeSelect) viewModeSelect.value = "summary";
+
+    await runFormModuleReport();
+
+    if (submissionParam) {
+      showFormSubmission(submissionParam);
+    }
+  }
+
   function resetFormModuleReport() {
     formModuleState.rows = [];
     formModuleState.questionRows = [];
@@ -979,6 +1013,11 @@
 
         formModuleState.rows = data.rows || [];
         var empty = el("formModuleEmpty");
+
+        var personHeader = el("formModuleSummaryPersonHeader");
+        if (personHeader) personHeader.textContent = data.person_column_label || "Person";
+        var coachHeader = el("formModuleSummaryCoachHeader");
+        if (coachHeader) coachHeader.textContent = data.secondary_column_label || "Coach";
 
         if (!formModuleState.rows.length) {
           if (empty) { empty.textContent = "No submissions found."; empty.style.display = ""; }
@@ -1608,7 +1647,7 @@
 
     var formModuleSelect = el("formModuleSelect");
     if (formModuleSelect) {
-      loadFormModuleDoctypes();
+      loadFormModuleDoctypes().then(applyFormModuleDeepLink);
       formModuleSelect.addEventListener("change", function () {
         resetFormModuleReport();
         loadFormModuleQuestionsIfNeeded();

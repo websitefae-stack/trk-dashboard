@@ -29,6 +29,9 @@ from dashboard.api.shared.leads import (
 )
 from dashboard.api.shared.clients import get_coach_label
 from dashboard.api.shared.appointment_types import get_coach_public_booking_cards
+from dashboard.api.shared.notifications import create_trk_notification, ASHLEY_USER
+
+REFERENCE_RESPONSE_DOCTYPE = "Sessional Worker Reference Response"
 
 FORMS_MODULE = "Forms"
 
@@ -281,6 +284,18 @@ def _form_link_field(meta):
         if df.fieldtype == "Link" and df.options in (CLIENT_DOCTYPE, LEAD_DOCTYPE):
             return df
     return None
+
+
+# Forms with no Client/Client Lead Link field for _form_link_field()
+# above to identify submissions by (every row would otherwise just show
+# "Anonymous"/"—" in the summary table and submission modal) but that
+# still carry their own plain Data fields naming who the submission is
+# about/from - e.g. the Reference Questionnaire's "Applicant's Name"
+# and "Your Name" (the referee). {doctype: (person_fieldname,
+# person_column_label, secondary_fieldname, secondary_column_label)}.
+FORM_PERSON_COLUMN_OVERRIDES = {
+    REFERENCE_RESPONSE_DOCTYPE: ("applicant_name", "Applicant", "referee_name", "Referee"),
+}
 
 
 def _form_field_value(row, df):
@@ -593,6 +608,7 @@ def get_form_report(doctype=None, from_date=None, to_date=None):
 
     meta = _form_doctype_meta(doctype)
     link_field = _form_link_field(meta)
+    override = FORM_PERSON_COLUMN_OVERRIDES.get(doctype)
 
     filters = _form_date_range_filters(from_date, to_date)
 
@@ -603,6 +619,9 @@ def get_form_report(doctype=None, from_date=None, to_date=None):
     fields = ["name", "creation"]
     if link_field:
         fields.append(link_field.fieldname)
+    if override:
+        fields.append(override[0])
+        fields.append(override[2])
 
     rows = frappe.get_all(
         doctype,
@@ -616,11 +635,20 @@ def get_form_report(doctype=None, from_date=None, to_date=None):
     link_doctype = link_field.options if link_field else None
 
     for row in rows:
-        linked_name = row.get(link_field.fieldname) if link_field else None
-        row["person_label"] = _form_person_label(link_doctype, linked_name)
-        row["coach_label"] = _form_coach_label(link_doctype, linked_name)
+        if override:
+            row["person_label"] = row.get(override[0]) or "—"
+            row["coach_label"] = row.get(override[2]) or "—"
+        else:
+            linked_name = row.get(link_field.fieldname) if link_field else None
+            row["person_label"] = _form_person_label(link_doctype, linked_name)
+            row["coach_label"] = _form_coach_label(link_doctype, linked_name)
 
-    return {"rows": rows, "has_person_link": bool(link_field)}
+    return {
+        "rows": rows,
+        "has_person_link": bool(link_field) or bool(override),
+        "person_column_label": override[1] if override else "Person",
+        "secondary_column_label": override[3] if override else "Coach",
+    }
 
 
 @frappe.whitelist()
@@ -683,6 +711,7 @@ def get_form_submission(doctype=None, name=None):
 
     meta = _form_doctype_meta(doctype)
     link_field = _form_link_field(meta)
+    override = FORM_PERSON_COLUMN_OVERRIDES.get(doctype)
 
     name = (name or "").strip()
     if not name or not frappe.db.exists(doctype, name):
@@ -703,10 +732,18 @@ def get_form_submission(doctype=None, name=None):
         if not link_field or df.fieldname != link_field.fieldname
     ]
 
+    if override:
+        person = doc.get(override[0]) or ""
+        secondary = doc.get(override[2]) or ""
+        if secondary:
+            person = f"{person} ({override[3]}: {secondary})" if person else f"{override[3]}: {secondary}"
+    else:
+        person = _form_person_label(link_field.options, linked_name) if link_field else ""
+
     return {
         "name": doc.name,
         "submitted_on": doc.creation,
-        "person": _form_person_label(link_field.options, linked_name) if link_field else "",
+        "person": person,
         "answers": [a for a in answers if a["value"] is not None],
     }
 
@@ -923,6 +960,31 @@ def sync_web_form_report_visibility(doc, method=None):
         visibility = "Franchisors Only"
 
     _upsert_form_visibility_rule(target, visibility)
+
+
+def notify_reference_response_submitted(doc, method=None):
+    """
+    Sessional Worker Reference Response's own after_insert hook (see
+    hooks.py) - lets Ashley know the moment a reference comes back,
+    rather than her having to remember to go check the Reports section
+    herself. The notification's own link takes her straight to this
+    specific response (see notifications._get_reference_link's own
+    REFERENCE_RESPONSE_DOCTYPE case and reports.js's
+    applyFormModuleDeepLink()), not just the general Reports page.
+    """
+    try:
+        create_trk_notification(
+            recipient_user=ASHLEY_USER,
+            notification_type="Task",
+            message="New reference received for {0}, from {1}.".format(
+                doc.get("applicant_name") or "an applicant",
+                doc.get("referee_name") or "their referee",
+            ),
+            reference_doctype=REFERENCE_RESPONSE_DOCTYPE,
+            reference_name=doc.name,
+        )
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Reference Response Notification Failed")
 
 
 @frappe.whitelist()

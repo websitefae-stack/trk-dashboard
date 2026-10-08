@@ -534,10 +534,17 @@
       try {
         const name = getValue("rlDocname");
         const result = await apiPost(`${SHARED_API}.get_contract_sign_url`, { name, ...contractTermsPayload() });
+
+        // loadLead() re-renders this whole block from scratch - that
+        // wipes out the link box this same click just populated, so it
+        // has to be shown again AFTER the reload, against the fresh DOM
+        // nodes the re-render just created. Without this the link
+        // flashed up for an instant and then vanished.
+        await loadLead();
+
         setValue("rlContractLinkInput", result.url || "");
         const resultBlock = el("rlContractLinkInputResult");
         if (resultBlock) resultBlock.style.display = "";
-        await loadLead();
       } catch (error) {
         window.alert(error.message || "Could not generate the sign link.");
       } finally {
