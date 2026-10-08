@@ -144,6 +144,12 @@ doc_events = {
     "Franchise Brochure Request": {
         "after_insert": "dashboard.api.shared.franchise_brochure.send_brochure_link",
     },
+    # Notifies Ashley the moment a reference comes back, with a direct
+    # link to this specific response in the Reports section - see
+    # form_reports.notify_reference_response_submitted.
+    "Sessional Worker Reference Response": {
+        "after_insert": "dashboard.api.shared.form_reports.notify_reference_response_submitted",
+    },
     # The Email Sequence engine's trigger - fires on every single new
     # document on the site (see email_sequences.check_sequence_triggers's
     # own docstring for why this is deliberate), so a new automated

@@ -1,3 +1,5 @@
+from urllib.parse import quote
+
 import frappe
 from frappe import _
 from frappe.utils import add_to_date, now_datetime, getdate, nowdate
@@ -622,6 +624,15 @@ def _get_reference_link(reference_doctype, reference_name, dashboard_base_url=""
         # signing page serves whichever coach/franchisor's turn it is,
         # regardless of which dashboard they're logged into.
         return f"/transfer_sign?name={reference_name}"
+
+    if reference_doctype == "Sessional Worker Reference Response":
+        # Straight to the Reports section's Form Results tab, with the
+        # specific submission's modal opened automatically - see
+        # reports.js's own applyFormModuleDeepLink(), which reads these
+        # same "form"/"submission" query params on page load.
+        if not dashboard_base_url:
+            return ""
+        return f"{dashboard_base_url}/reports?form={quote(reference_doctype)}&submission={quote(reference_name)}"
 
     return ""
 
