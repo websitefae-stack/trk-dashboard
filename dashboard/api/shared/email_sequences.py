@@ -19,6 +19,7 @@ Two entry points:
 """
 
 import frappe
+from frappe import _
 
 from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, wrap_branded_email_html, _looks_like_html
 from dashboard.api.shared.profile import PUBLIC_SITE_URL
@@ -119,6 +120,56 @@ def _enrol_matching_sequences(doc):
 
     if enrolled_any:
         frappe.db.commit()
+
+
+@frappe.whitelist()
+def backfill_sequence_enrollments(sequence_name=None):
+    """
+    One-off, franchisor-triggered: enrols everyone who already has a real
+    record of a sequence's trigger_doctype (e.g. every existing Franchise
+    Brochure Request) but was never enrolled, because they signed up
+    before the sequence was switched Active - check_sequence_triggers
+    only ever fires once, at the moment a NEW document is created, so
+    nobody who already existed beforehand is ever picked up
+    automatically just by flipping Active on afterwards.
+
+    Safe to re-run any time: _enrol_matching_sequences already skips
+    anyone who already has an enrollment for this sequence, so running
+    this twice (or running it after the sequence has already caught up
+    naturally) never double-enrols anyone.
+
+    Visit this URL directly while logged in as Ashley/office:
+    /api/method/dashboard.api.shared.email_sequences.backfill_sequence_
+    enrollments?sequence_name=Franchise Brochure Nurture
+    """
+    from dashboard.api.shared.permissions import is_franchisor_user
+
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    sequence_name = (sequence_name or "").strip()
+    if not sequence_name or not frappe.db.exists(SEQUENCE_DOCTYPE, sequence_name):
+        frappe.throw(_("Sequence not found."))
+
+    sequence = frappe.get_doc(SEQUENCE_DOCTYPE, sequence_name)
+
+    if not sequence.is_active:
+        frappe.throw(_("Switch this sequence's Active box on first, then run this again."))
+
+    existing_names = frappe.get_all(sequence.trigger_doctype, pluck="name", limit_page_length=5000)
+    before_count = frappe.db.count(ENROLLMENT_DOCTYPE, filters={"sequence": sequence.name})
+
+    for name in existing_names:
+        doc = frappe.get_doc(sequence.trigger_doctype, name)
+        _enrol_matching_sequences(doc)
+
+    after_count = frappe.db.count(ENROLLMENT_DOCTYPE, filters={"sequence": sequence.name})
+
+    return {
+        "ok": True,
+        "candidates_checked": len(existing_names),
+        "newly_enrolled": after_count - before_count,
+    }
 
 
 def process_due_sequence_steps():
