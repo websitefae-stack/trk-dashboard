@@ -330,7 +330,7 @@ SERVICE_ITEM_GROUP = "Services"
 
 
 @frappe.whitelist()
-def create_service_item(item_name=None, description=None, price=None):
+def create_service_item(item_name=None, description=None, price=None, coach_price=None):
     """
     Lets Ashley add a new billable service herself, without asking
     office/IT to do it in the Desk - a plain Item, the exact same kind
@@ -340,6 +340,15 @@ def create_service_item(item_name=None, description=None, price=None):
     grant_item_access_to_all_coaches's own docstring describes) - she
     ticks Access/Show on Site/brand for it on this same page right after
     creating it, using the grid that already exists for every other item.
+
+    Two separate, both-optional prices, same distinction store products
+    already make (see store_products.py's _set_coach_price): `price` is
+    the franchisor price (DEFAULT_PRICE_LIST = "Coach Pricelist" - what a
+    coach bills a client, the normal rate everyone pays), `coach_price`
+    is the separate "Coach Only" rate (COACH_ONLY_PRICE_LIST) some
+    services need - a discounted or internal rate just for a coach
+    themselves rather than what they charge a client. Either can be left
+    blank and set later.
 
     Deliberately not a Store product (custom_store_enabled stays 0/unset
     where that field exists) - this is for something a coach invoices a
@@ -358,7 +367,7 @@ def create_service_item(item_name=None, description=None, price=None):
     # Local import - store_products.py imports from this module at load
     # time, so importing it back at module level here would be circular;
     # by the time this function actually runs, both are fully loaded.
-    from dashboard.api.shared.store_products import _ensure_item_group, _set_item_price, _to_float
+    from dashboard.api.shared.store_products import _ensure_item_group, _set_item_price, _set_coach_price, _to_float
 
     item = frappe.new_doc("Item")
     item.item_code = item_name
@@ -376,6 +385,8 @@ def create_service_item(item_name=None, description=None, price=None):
     price = _to_float(price)
     if price:
         _set_item_price(item.name, DEFAULT_PRICE_LIST, price)
+
+    _set_coach_price(item.name, coach_price)
 
     frappe.db.commit()
 

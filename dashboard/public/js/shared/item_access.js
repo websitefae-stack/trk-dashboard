@@ -504,6 +504,7 @@
     el("addServiceName").value = "";
     el("addServiceDescription").value = "";
     el("addServicePrice").value = "";
+    el("addServiceCoachPrice").value = "";
     const message = el("addServiceModalMessage");
     if (message) message.textContent = "";
 
@@ -519,6 +520,7 @@
     const nameField = el("addServiceName");
     const descriptionField = el("addServiceDescription");
     const priceField = el("addServicePrice");
+    const coachPriceField = el("addServiceCoachPrice");
     const message = el("addServiceModalMessage");
     const saveBtn = el("saveAddServiceBtn");
 
@@ -536,6 +538,7 @@
         item_name: itemName,
         description: descriptionField ? descriptionField.value.trim() : "",
         price: priceField ? priceField.value : "",
+        coach_price: coachPriceField ? coachPriceField.value : "",
       });
 
       closeAddServiceModal();
