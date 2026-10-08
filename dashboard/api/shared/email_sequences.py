@@ -138,6 +138,20 @@ def backfill_sequence_enrollments(sequence_name=None):
     this twice (or running it after the sequence has already caught up
     naturally) never double-enrols anyone.
 
+    _enrol_matching_sequences sets next_send_date to today + step 1's
+    own delay (e.g. +1 day for the brochure nurture's 24-hour cadence) -
+    correct for a genuinely brand new signup, but wrong here: someone
+    being backfilled already signed up days ago and has been waiting
+    this whole time, so their first email should go out on the very next
+    scheduled run, not wait out ANOTHER full delay on top of however
+    long they've already waited.
+
+    Pulls forward EVERY enrollment of this sequence still on step 0
+    (first email not sent yet) with a future next_send_date, not just
+    ones this specific call creates - so running this again after an
+    earlier buggy run (one that left people stuck on tomorrow) also
+    fixes those, not only brand new backfills from here on.
+
     Visit this URL directly while logged in as Ashley/office:
     /api/method/dashboard.api.shared.email_sequences.backfill_sequence_
     enrollments?sequence_name=Franchise Brochure Nurture
@@ -165,10 +179,20 @@ def backfill_sequence_enrollments(sequence_name=None):
 
     after_count = frappe.db.count(ENROLLMENT_DOCTYPE, filters={"sequence": sequence.name})
 
+    today = frappe.utils.today()
+    stuck_names = frappe.get_all(
+        ENROLLMENT_DOCTYPE,
+        filters={"sequence": sequence.name, "status": "Active", "current_step": 0, "next_send_date": [">", today]},
+        pluck="name",
+    )
+    for enrollment_name in stuck_names:
+        frappe.db.set_value(ENROLLMENT_DOCTYPE, enrollment_name, "next_send_date", today)
+
     return {
         "ok": True,
         "candidates_checked": len(existing_names),
         "newly_enrolled": after_count - before_count,
+        "pulled_forward_to_today": len(stuck_names),
     }
 
 
