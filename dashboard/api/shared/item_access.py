@@ -92,36 +92,29 @@ def get_item_access_grid():
     item_meta = frappe.get_meta("Item")
     brand_fieldnames = [fieldname for fieldname in BRAND_FIELDS if item_meta.has_field(fieldname)]
 
-    # Item Access is for services a coach invoices individually - a
-    # store product (and its variants) is always sold by office/HQ
-    # through the Store dashboard instead, never per-coach, so it never
-    # belonged in this grid. See get_store_items_for_franchisor() below
-    # for where store products actually show on this page.
-    filters = {"disabled": 0}
-    if item_meta.has_field("custom_store_enabled"):
-        filters["custom_store_enabled"] = 0
+    # Covers both services (a coach invoices a client individually) and
+    # store products (sold through the Coach Store) - the same Access/
+    # Show on Site grant (Item Default row, keyed by the coach's own
+    # company) gates both now, so Ashley has one single place to decide
+    # who sees what, for anything newly added. Variants of a store
+    # product are excluded - access is granted at the template level and
+    # a coach's own store already only ever lists templates, never each
+    # size/colour variant separately (see resilient_domains'
+    # get_coach_store_items).
+    filters = {"disabled": 0, "variant_of": ["is", "not set"]}
+
+    item_fields = ["name", "item_name", "variant_of", *brand_fieldnames]
+    has_store_field = item_meta.has_field("custom_store_enabled")
+    if has_store_field:
+        item_fields.append("custom_store_enabled")
 
     items = frappe.get_all(
         "Item",
         filters=filters,
-        fields=["name", "item_name", "variant_of", *brand_fieldnames],
+        fields=item_fields,
         order_by="item_name asc, name asc",
         limit_page_length=5000,
     )
-
-    # Belt-and-braces on top of the custom_store_enabled=0 filter above -
-    # confirmed live that a variant created before _create_variant_item()
-    # started setting custom_store_enabled on the variant itself (not just
-    # its template) never got the flag, so it slipped through that filter
-    # and kept showing up here as if it were a real coach-invoiceable
-    # service. Excludes anything whose own template is store-enabled too,
-    # regardless of what the variant's own flag says.
-    if item_meta.has_field("custom_store_enabled"):
-        store_template_codes = set(frappe.get_all(
-            "Item", filters={"custom_store_enabled": 1}, pluck="name", limit_page_length=0,
-        ))
-        if store_template_codes:
-            items = [item for item in items if item.get("variant_of") not in store_template_codes]
 
     coaches = frappe.get_all(
         "Coach",
@@ -162,6 +155,7 @@ def get_item_access_grid():
             {
                 "name": item.get("name"),
                 "label": item.get("item_name") or item.get("name"),
+                "is_store_item": bool(item.get("custom_store_enabled")) if has_store_field else False,
                 "brands": {
                     fieldname: int(item.get(fieldname) or 0)
                     for fieldname in brand_fieldnames
