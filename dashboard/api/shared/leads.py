@@ -121,6 +121,11 @@ STAGE1_MILESTONES = [
     ("stage1_nda_done", "stage1_nda_date"),
     ("stage1_discovery_day_done", "stage1_discovery_day_date"),
     ("stage1_intent_deposit_dbs_done", "stage1_intent_deposit_dbs_date"),
+    # Added after Intent to Proceed, franchisee-only (same as the Stage1
+    # additions below it) - a distinct tick for the deposit invoice
+    # itself, separate from the combined "Intent/Deposit/DBS" field
+    # above whose own label only ever showed "Intent to Proceed".
+    ("stage1_deposit_invoice_done", "stage1_deposit_invoice_date"),
     ("stage1_agreement_invoice_done", "stage1_agreement_invoice_date"),
     # Added after the above 5 - Ashley's own recruitment review, sending
     # the full contract, and raising the final invoice. Franchisee-only,
@@ -1465,8 +1470,57 @@ def _contract_render_context(doc, franchisee_name, franchisee_address, franchise
     }
 
 
+def _current_franchisor_display_name():
+    user = frappe.session.user
+    return (
+        frappe.db.get_value("Coach", {"user": user}, "coach_name")
+        or frappe.utils.get_fullname(user)
+        or user
+    )
+
+
 @frappe.whitelist()
-def get_contract_sign_url(name=None, commencement_date=None, territory_description=None, permitted_area=None, franchisor_signature_name=None):
+def upload_contract_territory_map(name=None):
+    """
+    Franchisor-only: uploads the per-deal postcode map image shown in
+    Schedule 2 of the Franchise Agreement, directly from the Lead
+    Details page - Client Lead has accumulated so many fields by now
+    that asking Ashley to go find this one in Desk isn't realistic (see
+    create_recruitment_lead_doctype.py's own reasoning for why a whole
+    new, smaller doctype exists). Deliberately public (is_private=0),
+    unlike upload_lead_file's private attachments - this one has to be
+    visible on the public /franchisee-contract sign page to a guest with
+    no login, not just inside the dashboard.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    uploaded = frappe.request.files.get("file") if frappe.request else None
+    if not uploaded:
+        frappe.throw(_("No file was uploaded."))
+
+    file_doc = frappe.get_doc({
+        "doctype": "File",
+        "file_name": secure_filename(uploaded.filename or "territory-map"),
+        "attached_to_doctype": LEAD_DOCTYPE,
+        "attached_to_name": doc.name,
+        "attached_to_field": "contract_territory_map",
+        "is_private": 0,
+        "content": uploaded.stream.read(),
+    })
+    file_doc.insert(ignore_permissions=True)
+
+    frappe.db.set_value(LEAD_DOCTYPE, doc.name, "contract_territory_map", file_doc.file_url)
+    frappe.db.commit()
+
+    return {"ok": True, "url": file_doc.file_url}
+
+
+@frappe.whitelist()
+def get_contract_sign_url(name=None, commencement_date=None, territory_description=None, permitted_area=None):
     """
     Franchisor-only: generates (the first time) or reuses this lead's
     Franchise Agreement sign link. The commercial terms below are only
@@ -1475,15 +1529,16 @@ def get_contract_sign_url(name=None, commencement_date=None, territory_descripti
     end_date are for Intent to Proceed, so an already-generated link
     never changes underneath someone who's already been sent it.
 
-    franchisor_signature_name is Ashley typing her own name to sign the
-    agreement herself, captured here (with IP/user agent/timestamp, same
-    as the franchisee's own signature later) rather than ever being
-    pre-filled into the template - no sign link can exist, and so nothing
-    can be generated or sent to the franchisee, until she's actually done
-    this. Previously the document hardcoded her signature directly in
-    the text, which was effectively pre-signing on her behalf with no
-    real action or audit trail - see add_franchise_agreement_signing_
-    and_uploads.py.
+    Only the franchisee goes through a formal typed-name e-sign action -
+    Ashley operating this screen herself, logged in as the franchisor, IS
+    her authorisation, so contract_franchisor_signature_name is simply
+    her own name (from her Coach record, same as everywhere else in this
+    app - see _current_franchisor_display_name), captured automatically
+    the moment the link is generated, with the IP/user agent/timestamp
+    of whoever (her) did that. No extra typing step, no gate blocking
+    link generation - that's what the document previously hardcoding
+    "AJC" with no real action behind it was missing, not a second sign
+    ceremony on top of the franchisee's own.
 
     expiry_date is never typed in - it's always exactly CONTRACT_TERM_
     YEARS (3) after commencement_date, matching the Term defined in
@@ -1509,7 +1564,6 @@ def get_contract_sign_url(name=None, commencement_date=None, territory_descripti
         commencement_date = coalesce_raw("commencement_date", commencement_date)
         territory_description = coalesce_str("territory_description", territory_description)
         permitted_area = coalesce_str("permitted_area", permitted_area)
-        franchisor_signature_name = coalesce_str("franchisor_signature_name", franchisor_signature_name)
 
         if not commencement_date:
             frappe.throw(_("Enter the Commencement Date before generating the sign link."))
@@ -1517,8 +1571,6 @@ def get_contract_sign_url(name=None, commencement_date=None, territory_descripti
             frappe.throw(_("Enter the Territory (postcode areas) before generating the sign link."))
         if not permitted_area:
             frappe.throw(_("Enter the Permitted Area before generating the sign link."))
-        if not franchisor_signature_name:
-            frappe.throw(_("Type your name to sign this agreement before it can be sent to the franchisee."))
 
         commencement_date = frappe.utils.getdate(commencement_date)
 
@@ -1528,7 +1580,7 @@ def get_contract_sign_url(name=None, commencement_date=None, territory_descripti
         doc.contract_expiry_date = frappe.utils.add_years(commencement_date, CONTRACT_TERM_YEARS)
         doc.contract_territory_description = territory_description
         doc.contract_permitted_area = permitted_area
-        doc.contract_franchisor_signature_name = franchisor_signature_name
+        doc.contract_franchisor_signature_name = _current_franchisor_display_name()
         doc.contract_franchisor_signed_at = frappe.utils.now_datetime()
         doc.contract_franchisor_signer_ip = frappe.local.request_ip
         doc.contract_franchisor_signer_user_agent = frappe.get_request_header("User-Agent") or ""
@@ -1550,7 +1602,7 @@ def _contract_email_text(doc, contract_url):
 
 
 @frappe.whitelist()
-def get_contract_email_defaults(name=None, commencement_date=None, territory_description=None, permitted_area=None, franchisor_signature_name=None):
+def get_contract_email_defaults(name=None, commencement_date=None, territory_description=None, permitted_area=None):
     """
     Subject/message the compose modal pre-fills before send_contract_link
     actually sends it. The commercial terms are only used the first time
@@ -1567,7 +1619,6 @@ def get_contract_email_defaults(name=None, commencement_date=None, territory_des
         commencement_date=commencement_date,
         territory_description=territory_description,
         permitted_area=permitted_area,
-        franchisor_signature_name=franchisor_signature_name,
     )["url"]
     subject, message = _contract_email_text(doc, contract_url)
 
@@ -1580,7 +1631,6 @@ def send_contract_link(
     commencement_date=None,
     territory_description=None,
     permitted_area=None,
-    franchisor_signature_name=None,
     subject=None,
     message=None,
     cc=None,
@@ -1604,7 +1654,6 @@ def send_contract_link(
         commencement_date=commencement_date,
         territory_description=territory_description,
         permitted_area=permitted_area,
-        franchisor_signature_name=franchisor_signature_name,
     )["url"]
 
     subject = (subject or "").strip()
