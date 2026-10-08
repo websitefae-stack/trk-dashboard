@@ -23,10 +23,12 @@ import frappe
 from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, wrap_branded_email_html, _looks_like_html
 from dashboard.api.shared.profile import PUBLIC_SITE_URL
 from dashboard.api.shared.mail_throttle import send_email
+from dashboard.api.shared.franchise_brochure import BROCHURE_PAGE_PATH
 
 SEQUENCE_DOCTYPE = "Email Sequence"
 STEP_DOCTYPE = "Email Sequence Step"
 ENROLLMENT_DOCTYPE = "Email Sequence Enrollment"
+BROCHURE_REQUEST_DOCTYPE = "Franchise Brochure Request"
 
 # Never let a sequence trigger off the engine's own bookkeeping -
 # otherwise an Email Sequence Enrollment being created could itself
@@ -133,6 +135,28 @@ def process_due_sequence_steps():
         _send_next_step(name)
 
 
+def _brochure_url_for_enrollment(enrollment):
+    """
+    The same one-time, no-signup-again brochure link as the immediate
+    "Franchise Brochure Link" email (see franchise_brochure.py's own
+    send_brochure_link) - reads the token straight off the Franchise
+    Brochure Request this enrollment was triggered from, so every step
+    in a brochure-nurture sequence can reuse {{ brochure_url }} too, not
+    just that first email. Blank for any enrollment NOT triggered off a
+    Franchise Brochure Request (a sequence's trigger_doctype can be
+    anything), so a template using this merge field elsewhere just
+    renders nothing rather than erroring.
+    """
+    if enrollment.reference_doctype != BROCHURE_REQUEST_DOCTYPE or not enrollment.reference_name:
+        return ""
+
+    token = frappe.db.get_value(BROCHURE_REQUEST_DOCTYPE, enrollment.reference_name, "token")
+    if not token:
+        return ""
+
+    return f"{PUBLIC_SITE_URL}{BROCHURE_PAGE_PATH}?token={token}"
+
+
 def _send_next_step(enrollment_name):
     try:
         enrollment = frappe.get_doc(ENROLLMENT_DOCTYPE, enrollment_name)
@@ -174,6 +198,12 @@ def _send_next_step(enrollment_name):
                 # "book a call" CTA any sequence in this system sends
                 # people to so far.
                 "booking_url": PUBLIC_SITE_URL + "/book-franchise-call",
+                # Only ever populated for a Franchise Brochure Request
+                # enrollment (see _brochure_url_for_enrollment) - blank
+                # for any other sequence, so a template using this merge
+                # field in a non-brochure sequence just renders nothing
+                # rather than erroring.
+                "brochure_url": _brochure_url_for_enrollment(enrollment),
             },
             fallback_subject="",
             fallback_message="",

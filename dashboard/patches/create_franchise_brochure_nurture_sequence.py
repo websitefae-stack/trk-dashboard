@@ -9,8 +9,11 @@ Three placeholder steps/templates only - Ashley has her own sequence
 copy already written and just needs to paste it into each Email
 Template below (Desk - Email Template list), overwriting the
 "REPLACE ME" placeholder text. Every step's template can use
-{{ recipient_name }} and {{ booking_url }} (the Franchisee Call booking
-link - see email_sequences._send_next_step) as merge fields.
+{{ recipient_name }}, {{ booking_url }} (the Franchisee Call booking
+link) and {{ brochure_url }} (that person's own no-signup-again
+brochure link, same one the immediate first email sends - see
+email_sequences._send_next_step / _brochure_url_for_enrollment) as
+merge fields.
 
 Deliberately created with is_active = 0 on the Email Sequence itself -
 flip that to 1 in Desk once the real copy is in, so nobody is enrolled
