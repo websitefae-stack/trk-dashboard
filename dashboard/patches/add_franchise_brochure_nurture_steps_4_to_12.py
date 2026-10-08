@@ -14,7 +14,11 @@ _send_next_step/_first_step_delay. A uniform 24-hour cadence across all
    3 is left completely alone.
 2. Adds 9 more steps/Email Templates (4-12), same "REPLACE ME"
    placeholder pattern as the original 3 so Ashley can tell at a glance
-   which email is which while she writes the rest.
+   which email is which while she writes the rest. All 12 (plus the
+   immediate first email) can now use {{ brochure_url }} - that
+   person's own no-signup-again brochure link - alongside
+   {{ recipient_name }} and {{ booking_url }}, see email_sequences.py's
+   _brochure_url_for_enrollment.
 3. Pulls forward next_send_date on any already-Active enrollment of this
    sequence that's still waiting on the old, slower cadence (e.g.
    someone who requested the brochure before this patch ran, whose next
