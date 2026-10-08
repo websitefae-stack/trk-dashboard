@@ -167,8 +167,13 @@
       <label for="addServiceDescription">Description (optional)</label>
       <textarea id="addServiceDescription" class="dashboard-input" rows="2"></textarea>
 
-      <label for="addServicePrice">Price (£, optional - can be set later)</label>
+      <label for="addServicePrice">Franchisor Price (£, optional - can be set later)</label>
       <input type="number" id="addServicePrice" class="dashboard-input" min="0" step="0.01">
+      <p class="dashboard-help">What a coach bills a client for this - the normal rate everyone pays.</p>
+
+      <label for="addServiceCoachPrice">Coach Price (£, optional)</label>
+      <input type="number" id="addServiceCoachPrice" class="dashboard-input" min="0" step="0.01">
+      <p class="dashboard-help">A separate, discounted rate just for a coach themselves, if this service needs one - leave blank if not.</p>
 
       <p class="dashboard-help">
         After saving, find it in the table below to tick which coaches can access it, whether it shows on their
