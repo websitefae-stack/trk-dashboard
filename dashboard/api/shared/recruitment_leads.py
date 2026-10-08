@@ -48,6 +48,7 @@ STAGE1_MILESTONES = {
         ("stage1_nda_done", "stage1_nda_date"),
         ("stage1_discovery_day_done", "stage1_discovery_day_date"),
         ("stage1_intent_deposit_dbs_done", "stage1_intent_deposit_dbs_date"),
+        ("stage1_deposit_invoice_done", "stage1_deposit_invoice_date"),
         ("stage1_agreement_invoice_done", "stage1_agreement_invoice_date"),
         ("stage1_recruitment_questions_done", "stage1_recruitment_questions_date"),
         ("stage1_contract_sent_done", "stage1_contract_sent_date"),
@@ -158,8 +159,36 @@ def _notify_coach_of_lead_step(doc, step_label):
 LEAD_LIST_FIELDS = [
     "name", "lead_type", "status", "source", "contact_name", "contact_email", "contact_mobile",
     "coach", "modified", "creation", "stage1_contract_sent_done", "sw_setup_done", "converted_client",
-    "converted_session_worker",
+    "converted_session_worker", "nda_token", "intent_token", "franchisee_intake_token",
+    "contract_token", "contract_signed_snapshot",
 ]
+
+# The kanban board's own columns, each one "this step has been reached"
+# rather than "this step is fully complete" (so e.g. a sent-but-not-yet-
+# signed NDA still shows as "NDA Sent", not stuck on "New") - most
+# advanced first, the first match wins. Converted/Declined are Status
+# itself (a real terminal state); everything else is derived from
+# whichever token/flag exists so far, same signal the detail page's own
+# Send/Generate buttons already key off.
+PIPELINE_STAGES = ["New", "NDA Sent", "Intent Sent", "Intake Form", "Contract Sent", "Onboarding", "Converted", "Declined"]
+
+
+def _pipeline_stage(row):
+    if row.get("status") == "Converted":
+        return "Converted"
+    if row.get("status") == "Declined":
+        return "Declined"
+    if row.get("sw_setup_done") or row.get("contract_signed_snapshot"):
+        return "Onboarding"
+    if row.get("contract_token"):
+        return "Contract Sent"
+    if row.get("franchisee_intake_token"):
+        return "Intake Form"
+    if row.get("intent_token"):
+        return "Intent Sent"
+    if row.get("nda_token"):
+        return "NDA Sent"
+    return "New"
 
 
 def _lead_filters_for_current_user(scope=None):
@@ -200,6 +229,7 @@ def get_recruitment_leads(scope=None, lead_type=None):
 
     for row in rows:
         row["coach_label"] = get_coach_label(row.get("coach")) if row.get("coach") else ""
+        row["pipeline_stage"] = _pipeline_stage(row)
 
     return rows
 
@@ -928,8 +958,50 @@ def _contract_render_context(doc, franchisee_name, franchisee_address, franchise
     }
 
 
+def _current_franchisor_display_name():
+    user = frappe.session.user
+    return (
+        frappe.db.get_value("Coach", {"user": user}, "coach_name")
+        or frappe.utils.get_fullname(user)
+        or user
+    )
+
+
 @frappe.whitelist()
-def get_contract_sign_url(name=None, commencement_date=None, territory_description=None, permitted_area=None, franchisor_signature_name=None):
+def upload_contract_territory_map(name=None):
+    """Franchisor-only: uploads the per-deal postcode map image shown in
+    Schedule 2 - see leads.py's own upload_contract_territory_map for the
+    identical reasoning. Public (is_private=0) - has to be viewable on
+    the public /recruitment-contract sign page by a guest with no login."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    uploaded = frappe.request.files.get("file") if frappe.request else None
+    if not uploaded:
+        frappe.throw(_("No file was uploaded."))
+
+    file_doc = frappe.get_doc({
+        "doctype": "File",
+        "file_name": secure_filename(uploaded.filename or "territory-map"),
+        "attached_to_doctype": RECRUITMENT_LEAD_DOCTYPE,
+        "attached_to_name": doc.name,
+        "attached_to_field": "contract_territory_map",
+        "is_private": 0,
+        "content": uploaded.stream.read(),
+    })
+    file_doc.insert(ignore_permissions=True)
+
+    frappe.db.set_value(RECRUITMENT_LEAD_DOCTYPE, doc.name, "contract_territory_map", file_doc.file_url)
+    frappe.db.commit()
+
+    return {"ok": True, "url": file_doc.file_url}
+
+
+@frappe.whitelist()
+def get_contract_sign_url(name=None, commencement_date=None, territory_description=None, permitted_area=None):
     if not is_franchisor_user():
         frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
 
@@ -946,7 +1018,6 @@ def get_contract_sign_url(name=None, commencement_date=None, territory_descripti
         commencement_date = coalesce_raw("commencement_date", commencement_date)
         territory_description = coalesce_str("territory_description", territory_description)
         permitted_area = coalesce_str("permitted_area", permitted_area)
-        franchisor_signature_name = coalesce_str("franchisor_signature_name", franchisor_signature_name)
 
         if not commencement_date:
             frappe.throw(_("Enter the Commencement Date before generating the sign link."))
@@ -954,8 +1025,6 @@ def get_contract_sign_url(name=None, commencement_date=None, territory_descripti
             frappe.throw(_("Enter the Territory (postcode areas) before generating the sign link."))
         if not permitted_area:
             frappe.throw(_("Enter the Permitted Area before generating the sign link."))
-        if not franchisor_signature_name:
-            frappe.throw(_("Type your name to sign this agreement before it can be sent to the franchisee."))
 
         commencement_date = frappe.utils.getdate(commencement_date)
 
@@ -965,7 +1034,7 @@ def get_contract_sign_url(name=None, commencement_date=None, territory_descripti
         doc.contract_expiry_date = frappe.utils.add_years(commencement_date, CONTRACT_TERM_YEARS)
         doc.contract_territory_description = territory_description
         doc.contract_permitted_area = permitted_area
-        doc.contract_franchisor_signature_name = franchisor_signature_name
+        doc.contract_franchisor_signature_name = _current_franchisor_display_name()
         doc.contract_franchisor_signed_at = frappe.utils.now_datetime()
         doc.contract_franchisor_signer_ip = frappe.local.request_ip
         doc.contract_franchisor_signer_user_agent = frappe.get_request_header("User-Agent") or ""
@@ -983,7 +1052,7 @@ def _contract_email_text(doc, contract_url):
 
 
 @frappe.whitelist()
-def get_contract_email_defaults(name=None, commencement_date=None, territory_description=None, permitted_area=None, franchisor_signature_name=None):
+def get_contract_email_defaults(name=None, commencement_date=None, territory_description=None, permitted_area=None):
     name = coalesce_str("name", name)
     doc = ensure_lead_access(name)
 
@@ -993,7 +1062,6 @@ def get_contract_email_defaults(name=None, commencement_date=None, territory_des
     contract_url = get_contract_sign_url(
         name=name, commencement_date=commencement_date,
         territory_description=territory_description, permitted_area=permitted_area,
-        franchisor_signature_name=franchisor_signature_name,
     )["url"]
     subject, message = _contract_email_text(doc, contract_url)
 
@@ -1001,7 +1069,7 @@ def get_contract_email_defaults(name=None, commencement_date=None, territory_des
 
 
 @frappe.whitelist()
-def send_contract_link(name=None, commencement_date=None, territory_description=None, permitted_area=None, franchisor_signature_name=None, subject=None, message=None, cc=None, reply_to=None):
+def send_contract_link(name=None, commencement_date=None, territory_description=None, permitted_area=None, subject=None, message=None, cc=None, reply_to=None):
     name = coalesce_str("name", name)
     doc = ensure_lead_access(name)
 
@@ -1011,7 +1079,6 @@ def send_contract_link(name=None, commencement_date=None, territory_description=
     contract_url = get_contract_sign_url(
         name=name, commencement_date=commencement_date,
         territory_description=territory_description, permitted_area=permitted_area,
-        franchisor_signature_name=franchisor_signature_name,
     )["url"]
 
     subject = (subject or "").strip()

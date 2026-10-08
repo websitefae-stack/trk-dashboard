@@ -5,7 +5,11 @@
 
   const SHARED_API = "dashboard.api.shared.recruitment_leads";
 
-  const STATUS_COLUMNS = ["New", "Converted", "Declined"];
+  // Mirrors recruitment_leads.PIPELINE_STAGES exactly - each one "this
+  // step has been reached" rather than "fully complete", so a card
+  // moves the moment an NDA/Intent/Intake/Contract link is generated,
+  // not only once it's actually signed back.
+  const STAGE_COLUMNS = ["New", "NDA Sent", "Intent Sent", "Intake Form", "Contract Sent", "Onboarding", "Converted", "Declined"];
   const CONVERTED_PREVIEW_COUNT = 3;
 
   function getCsrfToken() {
@@ -87,24 +91,24 @@
     const baseUrl = board.dataset.baseUrl || "/franchisor_db";
     const showCoach = board.dataset.showCoach === "1";
 
-    const byStatus = {};
-    STATUS_COLUMNS.forEach((status) => { byStatus[status] = []; });
+    const byStage = {};
+    STAGE_COLUMNS.forEach((stage) => { byStage[stage] = []; });
 
     leads.forEach((lead) => {
-      const status = STATUS_COLUMNS.indexOf(lead.status) !== -1 ? lead.status : "New";
-      byStatus[status].push(lead);
+      const stage = STAGE_COLUMNS.indexOf(lead.pipeline_stage) !== -1 ? lead.pipeline_stage : "New";
+      byStage[stage].push(lead);
     });
 
-    board.innerHTML = STATUS_COLUMNS.map((status) => {
-      const rows = byStatus[status];
-      const body = status === "Converted"
+    board.innerHTML = STAGE_COLUMNS.map((stage) => {
+      const rows = byStage[stage];
+      const body = stage === "Converted"
         ? renderConvertedColumnBody(rows, baseUrl, showCoach)
         : (rows.length ? rows.map((lead) => renderCard(lead, baseUrl, showCoach)).join("") : '<div class="dashboard-lead-column-empty">No leads</div>');
 
       return `
         <div class="dashboard-lead-column">
           <div class="dashboard-lead-column-head">
-            <span>${escapeHtml(status)}</span>
+            <span>${escapeHtml(stage)}</span>
             <span class="dashboard-lead-column-count">${rows.length}</span>
           </div>
           <div class="dashboard-lead-column-body">

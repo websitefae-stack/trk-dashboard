@@ -184,10 +184,13 @@ SAMPLE_MERGE_CONTEXT = {
     # franchise_brochure.py) that /franchise-brochure checks against a
     # real Franchise Brochure Request record - a made-up sample token
     # would correctly get bounced to the request form, same as any
-    # other invalid/guessed link, which isn't useful for previewing
-    # what the email itself looks like. Points at the plain /brochure
-    # page instead (no token, nothing to fake) purely for this preview.
-    "brochure_url": PUBLIC_SITE_URL + "/brochure",
+    # other invalid/guessed link, which isn't useful for previewing what
+    # the email itself looks like. Points at /franchise-brochure with no
+    # token at all (not a nonexistent /brochure page, which 404s with no
+    # explanation) - that page's own token check still correctly
+    # redirects to the real request form, giving a sensible result to
+    # click through to rather than a dead end.
+    "brochure_url": PUBLIC_SITE_URL + "/franchise-brochure",
     "booking_url": PUBLIC_SITE_URL + "/book-franchise-call",
 }
 
