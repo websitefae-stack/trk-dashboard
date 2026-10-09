@@ -9,7 +9,7 @@
   // step has been reached" rather than "fully complete", so a card
   // moves the moment an NDA/Intent/Intake/Contract link is generated,
   // not only once it's actually signed back.
-  const STAGE_COLUMNS = ["New", "NDA Sent", "Intent Sent", "Intake Form", "Contract Sent", "Onboarding", "Converted", "Declined"];
+  const STAGE_COLUMNS = ["New", "NDA Sent", "Intent Sent", "Converted", "Intake Form", "Contract Sent", "Onboarding", "Declined"];
   const CONVERTED_PREVIEW_COUNT = 3;
 
   function getCsrfToken() {

@@ -170,7 +170,7 @@ LEAD_LIST_FIELDS = [
 # itself (a real terminal state); everything else is derived from
 # whichever token/flag exists so far, same signal the detail page's own
 # Send/Generate buttons already key off.
-PIPELINE_STAGES = ["New", "NDA Sent", "Intent Sent", "Intake Form", "Contract Sent", "Onboarding", "Converted", "Declined"]
+PIPELINE_STAGES = ["New", "NDA Sent", "Intent Sent", "Converted", "Intake Form", "Contract Sent", "Onboarding", "Declined"]
 
 
 def _pipeline_stage(row):
