@@ -710,10 +710,8 @@ def backfill_client_transfer(
     transfer.requires_franchisor_signature = 1 if requires_franchisor else 0
     transfer.status = STATUS_AWAITING_RECEIVING
     transfer.append("activity", _log_row(
-        "Backfill started by {0} - {1} actually moved from {2} to {3} on {4}, before this automation existed. "
-        "Real signatures being collected now.".format(
-            get_fullname(frappe.session.user) or frappe.session.user, transfer.client_name,
-            _coach_label(transferring_coach), _coach_label(receiving_coach), effective_transfer_date,
+        "Backfill started by {0} - see Reason for Transfer for details.".format(
+            get_fullname(frappe.session.user) or frappe.session.user,
         )
     ))
     transfer.insert(ignore_permissions=True)
