@@ -1,0 +1,94 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">School Licenses</h1>
+          <p class="dashboard-page-subtitle">Which schools have access to the School Dashboard, and their license details. A school must already be a Client to be added here.</p>
+        </div>
+
+        <div class="dashboard-page-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="addSchoolLicenseBtn">+ Add School License</button>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>School</th>
+                <th>Account Manager</th>
+                <th>Active</th>
+                <th>License Type</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Seats</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="schoolLicensesTableBody">
+              <tr><td colspan="8" class="dashboard-empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-modal-backdrop" id="schoolLicenseModal">
+  <div class="dashboard-modal">
+    <div class="dashboard-modal-head">
+      <h3 id="schoolLicenseModalTitle">Add School License</h3>
+      <button type="button" class="dashboard-modal-close" id="closeSchoolLicenseModal">×</button>
+    </div>
+
+    <div class="dashboard-modal-body">
+      <label for="schoolLicenseClient">School (from Clients)</label>
+      <select id="schoolLicenseClient" class="dashboard-input">
+        <option value="">Loading…</option>
+      </select>
+      <p class="dashboard-help">Only existing Clients of type "School" are listed - a school can't be added here any other way.</p>
+
+      <label for="schoolLicenseAccountManager">Account Manager</label>
+      <input type="text" id="schoolLicenseAccountManager" class="dashboard-input" placeholder="Their login email">
+
+      <label class="dashboard-checkbox-row" style="display:flex; align-items:center; gap:8px; margin-top:10px;">
+        <input type="checkbox" id="schoolLicensePortalActive" checked>
+        Portal Active
+      </label>
+      <p class="dashboard-help">Untick to immediately cut off this school's portal access without deleting anything - their staff and records stay in place.</p>
+
+      <label for="schoolLicenseType">License Type</label>
+      <input type="text" id="schoolLicenseType" class="dashboard-input" placeholder="e.g. Standard, Trial">
+
+      <div style="display:flex; gap:10px;">
+        <div style="flex:1;">
+          <label for="schoolLicenseStart">License Start</label>
+          <input type="date" id="schoolLicenseStart" class="dashboard-input">
+        </div>
+        <div style="flex:1;">
+          <label for="schoolLicenseEnd">License End</label>
+          <input type="date" id="schoolLicenseEnd" class="dashboard-input">
+        </div>
+      </div>
+
+      <label for="schoolLicenseSeats">Staff Seats</label>
+      <input type="number" id="schoolLicenseSeats" class="dashboard-input" min="0" step="1">
+
+      <div class="dashboard-help" id="schoolLicenseModalMessage" style="color:#C01C3E;"></div>
+    </div>
+
+    <div class="dashboard-modal-foot">
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelSchoolLicenseModal">Cancel</button>
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveSchoolLicenseBtn">Save</button>
+    </div>
+  </div>
+</div>
