@@ -19,11 +19,6 @@
     ["stage1_intent_deposit_dbs_done", "Intent to Proceed"],
     ["stage1_deposit_invoice_done", "Deposit Invoice Done"],
     ["stage1_agreement_invoice_done", "Franchisee Intake + DBS/Insurance Submitted"],
-    // Franchisee-only, after the intake step and before onboarding
-    // (email/logins/clothing) starts - deliberately not in
-    // SESSION_WORKER_STAGE_MILESTONES below. Plain manual ticks, same as
-    // every other row here - doesn't gate Convert to Client.
-    ["stage1_recruitment_questions_done", "Recruitment Questions Reviewed"],
     ["stage1_contract_sent_done", "Full Contract Signed"],
     ["stage1_final_invoice_done", "Final Invoice Raised"],
   ];
