@@ -25,6 +25,7 @@
               <tr>
                 <th>School</th>
                 <th>Account Manager</th>
+                <th>Primary Contact</th>
                 <th>Active</th>
                 <th>License Type</th>
                 <th>Start</th>
@@ -34,7 +35,7 @@
               </tr>
             </thead>
             <tbody id="schoolLicensesTableBody">
-              <tr><td colspan="8" class="dashboard-empty">Loading…</td></tr>
+              <tr><td colspan="9" class="dashboard-empty">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -59,6 +60,13 @@
 
       <label for="schoolLicenseAccountManager">Account Manager</label>
       <input type="text" id="schoolLicenseAccountManager" class="dashboard-input" placeholder="Their login email">
+      <p class="dashboard-help">Whoever on your side manages this school's account - not someone at the school itself.</p>
+
+      <div id="schoolLicensePrimaryContactWrap">
+        <label for="schoolLicensePrimaryContact">Primary Contact Email (at the school)</label>
+        <input type="email" id="schoolLicensePrimaryContact" class="dashboard-input" placeholder="Their login email">
+        <p class="dashboard-help">The first person at the school who'll get a login - they can then invite their own colleagues. Leave blank to skip for now.</p>
+      </div>
 
       <label class="dashboard-checkbox-row" style="display:flex; align-items:center; gap:8px; margin-top:10px;">
         <input type="checkbox" id="schoolLicensePortalActive" checked>
