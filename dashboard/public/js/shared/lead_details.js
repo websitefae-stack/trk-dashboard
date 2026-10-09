@@ -563,7 +563,7 @@
   // they're fixed constants for this brand in the real agreement text
   // (see add_franchise_agreement_practice_document.py), not deal-
   // specific. Expiry Date isn't asked for either - the server always
-  // computes it as exactly 3 years after Commencement Date (leads.
+  // computes it as exactly 5 years after Commencement Date (leads.
   // get_contract_sign_url's CONTRACT_TERM_YEARS), matching the Term
   // defined in the agreement's own clause 1.1.
   const CONTRACT_TERM_FIELDS = [

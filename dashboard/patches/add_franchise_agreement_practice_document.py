@@ -3,9 +3,11 @@ Creates the "Franchise Agreement" Practice Document - the final Stage 1
 contract. Full verbatim text of Ashley's real franchise agreement
 (supplied as a .docx, 2026-10), with the deal-specific details replaced
 by {{ }} merge-field placeholders: agreement_date, franchisee_name,
-franchisee_address, commencement_date, expiry_date (always exactly 3
-years after commencement_date - see leads.get_contract_sign_url, which
-computes it rather than asking Ashley to type it in), territory_description
+franchisee_address, commencement_date, expiry_date (always exactly
+CONTRACT_TERM_YEARS - 5, per the real agreement's Term (clause 1.1) and
+renewal (clause 3.2) - after commencement_date, see leads.get_contract_
+sign_url, which computes it rather than asking Ashley to type it in),
+territory_description
 (the postcode list), permitted_area, franchisee_signature, franchisee_date.
 
 Trade Name ("The Resilient Kid"), the registered Trade Mark number
@@ -81,7 +83,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>Software - the software listed in the Manual or otherwise notified by the Franchisor to the Franchisee for use in the Franchisee’s Business (for which the Franchisee shall be obliged to enter into any related contracts for use or licence of the Software and pay any related fees);</p>
 <p>Stationery - all letterheads, invoices, order forms, stickers, leaflets, posters, postcards and other documents approved or provided by the Franchisor from time to time or as referred to in the Manual to be used by the Franchisee for the purpose of the Franchisee's Business</p>
 <p>System - the business format and method developed and implemented by the Franchisor in connection with the Business using the Intellectual Property, Confidential Information, operational procedures, methods, management, marketing and advertising techniques, part of which are contained in the Manual;</p>
-<p>Term - three (3) years from the Commencement Date unless extended earlier determined as provided for by this Agreement;</p>
+<p>Term - five (5) years from the Commencement Date unless extended earlier determined as provided for by this Agreement;</p>
 <p>Territory - the area referred to in Schedule 2;</p>
 <p>Trade Marks - the trademarks set out Schedule 3 and any other trademarks registered by the Franchisor in relation to the Business from time to time during the Term;</p>
 <p>Trade Name - The Resilient Kid;</p>
@@ -134,7 +136,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>Account name: The Resilient People Limited</p>
 <p>Sort code:  64558141</p>
 <p>Account number: 60-83-71</p>
-<p>4.8Al  fees due under this Agreement are exclusive of VAT, which shall, where applicable, be paid by the Franchisee at the prevailing rate on the due date for payment or receipt of the relevant invoice from the Franchisor (as may be).</p>
+<p>4.8All fees due under this Agreement (including the Initial Fee, the Management Fee and the Marketing Fee) are exclusive of VAT, which shall, where applicable, be paid by the Franchisee at the prevailing rate on the due date for payment or receipt of the relevant invoice from the Franchisor (as may be). The Franchisor confirms that it is not currently registered for VAT. Should the Franchisor become VAT registered at any time during the Term, VAT shall from that date be added, at the prevailing rate, to the Initial Fee, the Management Fee, the Marketing Fee and any other fees due under this Agreement, in addition to the amounts set out in Schedule 1, and the Franchisor shall notify the Franchisee of this in writing.</p>
 <p>4.9The Franchisee shall be responsible for the prompt and complete payment of all invoices due to third party suppliers.</p>
 <p>4.10From the first (1st) anniversary of the Commencement Date, the Franchisee shall achieve a minimum monthly Gross Revenue of £1000 or 60% of the Franchisee’s average Gross Revenue for the previous twelve months (whichever is the higher) (Minimum Performance Criteria).  In subsequent years turnover must increase by 10% per annum. If the Franchisee fails to meet the Minimum Performance Criteria in three (3) or more successive months after the first (1st) anniversary of the Commencement Date, the Franchisor shall be entitled to:</p>
 <p>4.10.1require the Franchisee to take such steps as the Franchisor shall in its sole discretion deem necessary to assist the Franchisee to meet the Minimum Performance Criteria; or</p>
@@ -197,7 +199,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>7.3.27.9notify the Franchisor of any complaints immediately after such complaint is made and handle any such complaints in accordance with the Franchisor’s instructions and the procedure set out in the Manual;</p>
 <p>7.3.27.10permit the Franchisor and any of its representatives at reasonable times during normal business hours without notice, to inspect the books and records of the Franchisee’s Business on request for the purposes of ascertaining whether the provisions of this Agreement are being complied with;</p>
 <p>7.3.27.11permit the Franchisor to contact any customer of the Franchisee’s Business to ensure that customer needs are being efficiently and courteously met by the Franchisee;</p>
-<p>7.3.27.12maintain a dedicated business land line and call divert facility; and</p>
+<p>7.3.27.12maintain a dedicated business landline or dedicated business mobile number, and call divert facility; and</p>
 <p>7.3.27.13attend all meetings and conferences as the Franchisor shall reasonably request, at the cost of the Franchisee.</p>
 <h4>8.TRAINING</h4>
 <p>8.1The Franchisor shall provide to the Franchisee the initial training in the operation of the System and in all aspects of the Business.  The initial training shall take place at the Franchisor’s head office, or such other location as the Franchisor shall specify, and shall last for at least three (3) days.</p>
@@ -244,7 +246,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>12.7The Franchisee acknowledges and agrees that all Intellectual Property in the Manual is and shall remain the exclusive property of the Franchisor. The Franchisee shall hold the Manual in safe custody at its own risk and maintained and kept in good condition by the Franchisee until returned to the Franchisor or destroyed at the option of the Franchisor in accordance with clause 17.3.</p>
 <h4>13.SALE OF BUSINESS</h4>
 <p>13.1The Franchisee shall not have the right to assign this Agreement but it shall have the right to sell the Franchisee’s Business with the prior written consent of the Franchisor and subject to the conditions listed in clause 13.3.</p>
-<p>13.2Subject to clause 13.3, the Franchisor hereby undertakes to grant to a buyer of the Franchisee’s Business a franchise for a three (3) year term and upon similar terms and conditions to those contained in the Franchisor’s then current standard franchise agreement excluding the payment of any sum expressed therein to be payable by way of the initial fee.</p>
+<p>13.2Subject to clause 13.3, the Franchisor hereby undertakes to grant to a buyer of the Franchisee’s Business a franchise for a five (5) year term and upon similar terms and conditions to those contained in the Franchisor’s then current standard franchise agreement excluding the payment of any sum expressed therein to be payable by way of the initial fee.</p>
 <p>13.3The conditions with which the Franchisee must comply are as follows:</p>
 <p>13.3.1any proposed buyer must meet the Franchisor’s standards with regard to business experience, financial status, character and ability;</p>
 <p>13.3.2the proposed buyer shall submit a detailed offer in writing which shall be a bona fide arms-length offer and which shall provide for the Products and Stationery (if any) to be included in the sale together with the goodwill (i.e. the value of the customers) at valuation and the Franchisee shall provide a copy of such offer to the Franchisor;</p>
@@ -410,9 +412,9 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>1. All fees stated in this Schedule are correct as at the date of this Agreement.</p>
 <p>2. The Franchisor reserves the right to review and increase the Management Fee, Marketing Fee and/or other fees set out in this Schedule from time to time, on reasonable written notice to the Franchisee.</p>
 <p>Marketing Fee:2% of gross monthly revenue</p>
-<p>Transfer Fee: All fees are expressed exclusive of VAT which shall also be charged.</p>
+<p>Transfer Fee: All fees are expressed exclusive of VAT which shall also be charged. The Franchisor is not currently VAT registered - see clause 4.8 for what happens if that changes.</p>
 <p><strong>Commencement Date:</strong> {{ commencement_date }}</p>
-<p><strong>Expiry Date:</strong> {{ expiry_date }} <span class="dashboard-help">(three years from the Commencement Date)</span></p>
+<p><strong>Expiry Date:</strong> {{ expiry_date }} <span class="dashboard-help">(five years from the Commencement Date)</span></p>
 <p><strong>Permitted Name:</strong> The Resilient Kid ({{ permitted_area }})</p>
 <h3>SCHEDULE 2</h3>
 <h3>THE TERRITORY</h3>

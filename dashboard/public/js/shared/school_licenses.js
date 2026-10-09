@@ -38,6 +38,7 @@
   }
 
   let editingCustomer = "";
+  let editingExistingContactEmail = "";
 
   function renderRow(row) {
     const activeBadge = row.portal_active
@@ -172,7 +173,8 @@
 
     const titleEl = el("schoolLicenseModalTitle");
     const clientSelect = el("schoolLicenseClient");
-    const contactWrap = el("schoolLicensePrimaryContactWrap");
+    const contactHelp = el("schoolLicensePrimaryContactHelp");
+    editingExistingContactEmail = "";
 
     let selectedClient = "";
 
@@ -187,13 +189,21 @@
         el("schoolLicenseStart").value = existing.licence_start || "";
         el("schoolLicenseEnd").value = existing.licence_end || "";
         el("schoolLicenseSeats").value = existing.number_of_seats || "";
+        editingExistingContactEmail = existing.primary_contact_email || "";
+        el("schoolLicensePrimaryContact").value = editingExistingContactEmail;
       }
       clientSelect.disabled = true;
-      if (contactWrap) contactWrap.style.display = "none";
+      if (contactHelp) {
+        contactHelp.textContent = editingExistingContactEmail
+          ? "Currently invited: " + editingExistingContactEmail + ". Change this and save to invite someone new instead (e.g. if the primary contact has left) - leave as-is to keep them."
+          : "No primary contact yet - enter an email and save to send them a login invite.";
+      }
     } else {
       titleEl.textContent = "Add School License";
       clientSelect.disabled = false;
-      if (contactWrap) contactWrap.style.display = "";
+      if (contactHelp) {
+        contactHelp.textContent = "The first person at the school who'll get a login - they can then invite their own colleagues. Leave blank to skip for now.";
+      }
     }
 
     await populateClientSelect(selectedClient);
@@ -221,8 +231,10 @@
     if (messageEl) messageEl.textContent = "";
 
     try {
-      const isNewLicense = !editingCustomer;
-      const contactEmail = isNewLicense ? el("schoolLicensePrimaryContact").value.trim() : "";
+      const contactEmailInput = el("schoolLicensePrimaryContact").value.trim();
+      const contactEmail = contactEmailInput && contactEmailInput !== editingExistingContactEmail
+        ? contactEmailInput
+        : "";
 
       const result = await apiPost(`${SHARED_API}.save_school_license`, {
         client: client,
@@ -234,7 +246,7 @@
         number_of_seats: el("schoolLicenseSeats").value,
       });
 
-      if (isNewLicense && contactEmail && result.customer) {
+      if (contactEmail && result.customer) {
         try {
           await apiPost(`${SCHOOL_API}.invite_first_school_contact`, {
             organisation: result.customer,
