@@ -485,6 +485,9 @@ def get_lead(name=None):
             if doc.get("contract_franchisor_signed_at") else ""
         )
         row["contract_territory_map"] = doc.get("contract_territory_map") or ""
+        row["contract_commencement_date"] = str(doc.get("contract_commencement_date") or "")
+        row["contract_territory_description"] = doc.get("contract_territory_description") or ""
+        row["contract_permitted_area"] = doc.get("contract_permitted_area") or ""
 
     if row["is_session_worker_lead"]:
         row["session_worker_stage"] = {
@@ -1588,6 +1591,58 @@ def get_contract_sign_url(name=None, commencement_date=None, territory_descripti
         frappe.db.commit()
 
     return {"url": get_url(f"/franchisee-contract?token={doc.contract_token}")}
+
+
+@frappe.whitelist()
+def update_contract_terms(name=None, commencement_date=None, territory_description=None, permitted_area=None):
+    """
+    Franchisor-only: fixes a mistake in the commercial terms after the
+    sign link has already been generated. get_contract_sign_url() only
+    ever sets these the first time (see its own docstring) and the Lead
+    Details page previously hid the term fields entirely once a link
+    existed, so there was no way to correct a typo in the Commencement
+    Date/Territory/Permitted Area short of resetting the whole flow.
+
+    Safe to do right up until the franchisee actually signs - the public
+    sign page (get_contract_preview) always renders from these doc
+    fields live, not a frozen copy, so a correction here is reflected
+    the next time they open the same link. Once contract_signed_snapshot
+    exists the text is locked in for good, same as everywhere else this
+    pattern is used (NDA, Intent to Proceed).
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not is_franchise_lead(doc.get("appointment_type")):
+        frappe.throw(_("This lead isn't a Franchisee Call - the Franchise Agreement flow doesn't apply to it."))
+
+    if doc.get("contract_signed_snapshot"):
+        frappe.throw(_("This lead's Franchise Agreement has already been signed - the terms can no longer be changed."))
+
+    commencement_date = coalesce_raw("commencement_date", commencement_date)
+    territory_description = coalesce_str("territory_description", territory_description)
+    permitted_area = coalesce_str("permitted_area", permitted_area)
+
+    if not commencement_date:
+        frappe.throw(_("Enter the Commencement Date."))
+    if not territory_description:
+        frappe.throw(_("Enter the Territory (postcode areas)."))
+    if not permitted_area:
+        frappe.throw(_("Enter the Permitted Area."))
+
+    commencement_date = frappe.utils.getdate(commencement_date)
+
+    doc.contract_commencement_date = commencement_date
+    doc.contract_expiry_date = frappe.utils.add_years(commencement_date, CONTRACT_TERM_YEARS)
+    doc.contract_territory_description = territory_description
+    doc.contract_permitted_area = permitted_area
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True}
 
 
 def _contract_email_text(doc, contract_url):
