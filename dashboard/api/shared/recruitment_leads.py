@@ -2388,6 +2388,15 @@ def migrate_client_lead_to_recruitment_lead(lead=None, force=0):
         "added_on": now,
     })
 
+    if unmapped_with_data:
+        lines = "\n".join(f"- {row['label']}: {row['value']}" for row in unmapped_with_data)
+        target.append("notes", {
+            "note": f"From the original Client Lead {source.name} (fields with no home on this new record):\n{lines}",
+            "note_date": today,
+            "added_by": frappe.session.user,
+            "added_on": now,
+        })
+
     target.insert(ignore_permissions=True)
     frappe.db.commit()
 
@@ -2425,3 +2434,57 @@ def migrate_client_lead_to_recruitment_lead(lead=None, force=0):
         ),
         "unmapped_fields_with_data": unmapped_with_data,
     }
+
+
+@frappe.whitelist()
+def append_unmapped_migration_note(recruitment_lead=None, client_lead=None):
+    """Follow-up for a lead already migrated by migrate_client_lead_to_
+    recruitment_lead() above: re-reads whatever didn't have anywhere to
+    go on the new record (same _copy_matching_fields check, run again
+    against the still-untouched original) and appends it as a proper
+    note on the Recruitment Lead, rather than leaving it sitting only
+    in that first call's JSON response. Safe to re-run - skips fields
+    that are empty, and does nothing at all if there's nothing left
+    unmapped with real data."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    from dashboard.api.shared.leads import LEAD_DOCTYPE
+
+    recruitment_lead = coalesce_str("recruitment_lead", recruitment_lead)
+    client_lead = coalesce_str("client_lead", client_lead)
+
+    if not recruitment_lead or not frappe.db.exists(RECRUITMENT_LEAD_DOCTYPE, recruitment_lead):
+        frappe.throw(_("Recruitment Lead not found."))
+    if not client_lead or not frappe.db.exists(LEAD_DOCTYPE, client_lead):
+        frappe.throw(_("Client Lead not found."))
+
+    source = frappe.get_doc(LEAD_DOCTYPE, client_lead)
+    target = frappe.get_doc(RECRUITMENT_LEAD_DOCTYPE, recruitment_lead)
+
+    # Re-run purely as a read - a throwaway doc, never inserted, just
+    # used so _copy_matching_fields can tell us what it would have left
+    # unmapped without actually touching the real target again.
+    scratch = frappe.new_doc(RECRUITMENT_LEAD_DOCTYPE)
+    unmapped = _copy_matching_fields(source, scratch)
+
+    if not unmapped:
+        return {"ok": True, "added": False, "reason": "Nothing unmapped with data - nothing to add."}
+
+    lines = "\n".join(f"- {row['label']}: {row['value']}" for row in unmapped)
+    note_text = f"From the original Client Lead {source.name} (fields with no home on this new record):\n{lines}"
+
+    already_added = any((row.note or "").startswith(f"From the original Client Lead {source.name}") for row in (target.notes or []))
+    if already_added:
+        return {"ok": True, "added": False, "reason": "Already added."}
+
+    target.append("notes", {
+        "note": note_text,
+        "note_date": frappe.utils.today(),
+        "added_by": frappe.session.user,
+        "added_on": frappe.utils.now_datetime(),
+    })
+    target.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True, "added": True, "fields": unmapped}
