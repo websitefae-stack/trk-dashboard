@@ -435,7 +435,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <h3>MATERIALS</h3>
 <ul>
 <li>Polo shirt or T-shirt</li>
-<li>Soft shell jacket or Fleece or Body Warmer</li>
+<li>Hoodie or Sweatshirt</li>
 <li>10 x A parent's guide to raising a resilient kid</li>
 <li>10 x Resilient kid journal</li>
 <li>1 x Tote bag</li>

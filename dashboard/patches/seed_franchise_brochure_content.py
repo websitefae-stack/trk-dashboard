@@ -873,7 +873,7 @@ CONTENT = """<div class="trh-page trh-services-page">
         <div class="trh-service-card trh-blue-card trh-service-therapy">
           <h3>Branded clothing</h3>
           <p>Polo shirt or T-shirt</p>
-          <p>Soft shell jacket or Fleece or Body Warmer</p>
+          <p>Hoodie or Sweatshirt</p>
         </div>
 
         <div class="trh-service-card trh-blue-card trh-service-cpd">
