@@ -2195,3 +2195,233 @@ def get_franchisee_intake(name=None):
         "reference2_details": doc.get("franchisee_intake_reference2_details") or "",
         "submitted_at": frappe.utils.format_datetime(doc.get("franchisee_intake_submitted_at"), "dd-MM-yyyy HH:mm") if doc.get("franchisee_intake_submitted_at") else "",
     }
+
+
+# =====================================================
+# ONE-OFF: MIGRATE A CLIENT LEAD TO RECRUITMENT LEAD
+# =====================================================
+#
+# Recruitment Lead was deliberately built field-name-compatible with
+# Client Lead's recruitment fields (NDA/Intent/Contract/Franchisee
+# Intake+DBS/Safer Recruitment/Fees Guide - see create_recruitment_
+# lead_doctype.py's own docstring), so a migration is almost entirely a
+# same-name field copy rather than a remapping exercise. _NON_DATA_
+# FIELDTYPES below is what makes that copy generic instead of a
+# hand-maintained ~90-field list that would silently go stale the next
+# time either doctype's schema changes.
+
+_NON_DATA_FIELDTYPES = {
+    "Section Break", "Column Break", "Tab Break", "HTML", "Button", "Table", "Table MultiSelect",
+}
+
+# Fields deliberately never copied even though both doctypes have them -
+# Frappe's own document identity/meta fields, plus `status` and
+# `event`, which the migration sets explicitly below rather than
+# blindly (status because Recruitment Lead's option list is narrower -
+# no "Intake Sent" - and event because a booked call is worth a second
+# look rather than a silent copy, given calendar.py still only knows
+# how to resolve it back to a Client Lead, not a Recruitment Lead).
+_MIGRATION_SKIP_FIELDS = {
+    "name", "owner", "creation", "modified", "modified_by", "docstatus", "idx", "doctype", "parent",
+    "parentfield", "parenttype", "status", "event",
+}
+
+
+def _copy_matching_fields(source_doc, target_doc):
+    """Returns the fieldname/value pairs that had actual data on the
+    source but have nowhere to go on the target (no matching fieldname
+    there) - e.g. client_type and its whole ordinary-client-enquiry
+    block, which Recruitment Lead's schema never had any reason to
+    carry. Surfaced in the migration's result rather than silently
+    dropped, in case either specific lead has stray data in one of
+    those fields that's actually worth knowing about."""
+    source_meta = frappe.get_meta(source_doc.doctype)
+    target_fieldnames = {field.fieldname for field in frappe.get_meta(target_doc.doctype).fields}
+    unmapped_with_data = []
+
+    for field in source_meta.fields:
+        fieldname = field.fieldname
+
+        if fieldname in _MIGRATION_SKIP_FIELDS or field.fieldtype in _NON_DATA_FIELDTYPES:
+            continue
+
+        if fieldname not in target_fieldnames:
+            value = source_doc.get(fieldname)
+            if value:
+                unmapped_with_data.append({"fieldname": fieldname, "label": field.label or fieldname, "value": str(value)[:200]})
+            continue
+
+        target_doc.set(fieldname, source_doc.get(fieldname))
+
+    return unmapped_with_data
+
+
+def _copy_child_table(source_doc, target_doc, tablefield):
+    meta_field = frappe.get_meta(source_doc.doctype).get_field(tablefield)
+    if not meta_field:
+        return
+
+    child_meta = frappe.get_meta(meta_field.options)
+    data_fields = [f.fieldname for f in child_meta.fields if f.fieldtype not in _NON_DATA_FIELDTYPES]
+
+    for row in (source_doc.get(tablefield) or []):
+        target_doc.append(tablefield, {fieldname: row.get(fieldname) for fieldname in data_fields})
+
+
+def _reparent_lead_files(from_doctype, from_name, to_doctype, to_name, attached_to_field=None):
+    """Best-effort - re-parents every File actually attached to the old
+    record onto the new one (just the two/three ownership columns, the
+    storage path doesn't change) so nothing uploaded against the old
+    lead is orphaned. Mirrors leads.py's own _copy_lead_attachments_to_
+    client. Returns how many files were moved, for the migration's own
+    summary."""
+    filters = {"attached_to_doctype": from_doctype, "attached_to_name": from_name}
+    if attached_to_field is not None:
+        filters["attached_to_field"] = attached_to_field
+
+    try:
+        file_names = frappe.get_all("File", filters=filters, pluck="name")
+
+        for file_name in file_names:
+            frappe.db.set_value("File", file_name, {
+                "attached_to_doctype": to_doctype,
+                "attached_to_name": to_name,
+            })
+
+        if file_names:
+            frappe.db.commit()
+
+        return len(file_names)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Reparent Lead Files Failed - {from_doctype} {from_name}")
+        return 0
+
+
+@frappe.whitelist()
+def migrate_client_lead_to_recruitment_lead(lead=None, force=0):
+    """
+    Franchisor-only one-off: copies a Franchisee/Session Worker Client
+    Lead record into a brand new Recruitment Lead record - NDA/Intent/
+    Contract tokens and signed snapshots, every Stage 1 milestone,
+    Franchisee Intake + DBS data, the Safer Recruitment Checklist, Fees
+    Guide, notes - essentially everything, since the two doctypes share
+    almost every fieldname by design (see this module's own section
+    docstring above).
+
+    Deliberately a COPY, not a move: the source Client Lead is left
+    completely untouched - not deleted, not even its status changed.
+    Both records end up cross-referencing each other via a note, so
+    there's a full audit trail and nothing is at risk - the old record
+    stays there to compare against, or delete by hand later once the
+    new one's been checked.
+
+    `status` is handled specially (Recruitment Lead's Select has no
+    "Intake Sent" option, which shouldn't be possible for a genuine
+    Franchisee/Session Worker lead per leads.py's own send_intake_email
+    gating, but this refuses to guess if it somehow is - re-run with
+    force=1 to migrate it in as "New" anyway). `event` (a booked call)
+    is copied as a plain reference too, but flagged in the result since
+    calendar.py's own Event<->lead lookups still only resolve back to
+    Client Lead, not Recruitment Lead, until that's ported.
+
+    Known gap, flagged in the result rather than silently dropped: any
+    file attached via the lead's generic "Attach a file" button (not
+    one of the named Attach fields, which copy as part of the normal
+    field copy above) has no equivalent viewer on the Recruitment Lead
+    page yet - its File record is still re-parented so it isn't
+    orphaned, just only visible via Desk's Files sidebar for now.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    from dashboard.api.shared.leads import LEAD_DOCTYPE, LEAD_ATTACHMENT_FIELD, is_franchise_lead, is_session_worker_lead
+
+    lead = coalesce_str("lead", lead)
+    if not lead or not frappe.db.exists(LEAD_DOCTYPE, lead):
+        frappe.throw(_("Client Lead not found."))
+
+    source = frappe.get_doc(LEAD_DOCTYPE, lead)
+
+    duplicate = frappe.db.exists(RECRUITMENT_LEAD_DOCTYPE, {"contact_email": source.contact_email, "client_name": source.client_name})
+    if duplicate and not int(force or 0):
+        frappe.throw(_(
+            "A Recruitment Lead for this same contact/client already exists ({0}) - "
+            "pass force=1 if you're sure you want to create another one."
+        ).format(duplicate))
+
+    if is_franchise_lead(source.get("appointment_type")):
+        lead_type = "Franchisee"
+    elif is_session_worker_lead(source.get("appointment_type")):
+        lead_type = "Session Worker"
+    else:
+        frappe.throw(_(
+            "This lead's appointment type (\"{0}\") isn't a Franchisee Call or Session Worker lead - "
+            "the Recruitment Lead flow doesn't apply to it."
+        ).format(source.get("appointment_type") or ""))
+
+    status = source.get("status") or "New"
+    status_note = ""
+    if status not in ("New", "Converted", "Declined"):
+        if not int(force or 0):
+            frappe.throw(_(
+                "This lead's status (\"{0}\") isn't one Recruitment Lead supports (New/Converted/Declined) - "
+                "pass force=1 to migrate it in as \"New\" anyway."
+            ).format(status))
+        status_note = f' (was "{status}" on the original Client Lead)'
+        status = "New"
+
+    target = frappe.new_doc(RECRUITMENT_LEAD_DOCTYPE)
+    target.lead_type = lead_type
+    unmapped_with_data = _copy_matching_fields(source, target)
+    target.status = status
+    target.event = source.get("event") or ""
+
+    _copy_child_table(source, target, "notes")
+    _copy_child_table(source, target, "safer_recruitment_checklist")
+
+    today = frappe.utils.today()
+    now = frappe.utils.now_datetime()
+    target.append("notes", {
+        "note": f"Migrated from Client Lead {source.name}{status_note}.",
+        "note_date": today,
+        "added_by": frappe.session.user,
+        "added_on": now,
+    })
+
+    target.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    source.append("notes", {
+        "note": f"Migrated to Recruitment Lead {target.name} - this record was left as-is, not deleted.",
+        "note_date": today,
+        "added_by": frappe.session.user,
+        "added_on": now,
+    })
+    source.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    named_files_moved = 0
+    for fieldname in ("franchisee_intake_dbs_certificate", "franchisee_intake_additional_document", "contract_territory_map"):
+        named_files_moved += _reparent_lead_files(LEAD_DOCTYPE, source.name, RECRUITMENT_LEAD_DOCTYPE, target.name, attached_to_field=fieldname)
+
+    generic_files_moved = _reparent_lead_files(
+        LEAD_DOCTYPE, source.name, RECRUITMENT_LEAD_DOCTYPE, target.name, attached_to_field=LEAD_ATTACHMENT_FIELD
+    )
+
+    return {
+        "ok": True,
+        "source": source.name,
+        "recruitment_lead": target.name,
+        "named_files_moved": named_files_moved,
+        "generic_files_moved": generic_files_moved,
+        "generic_files_note": (
+            "Re-parented but has no viewer on the Recruitment Lead page yet - check Desk's Files sidebar."
+            if generic_files_moved else ""
+        ),
+        "event_note": (
+            "This lead has a booked call (Event {0}) - it still only links back to the original Client Lead "
+            "record, not this new one, until Event gets its own Recruitment Lead reference field.".format(source.get("event"))
+            if source.get("event") else ""
+        ),
+        "unmapped_fields_with_data": unmapped_with_data,
+    }
