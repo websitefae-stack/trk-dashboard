@@ -349,8 +349,14 @@ def get_leads(dashboard_type=None, scope=None):
         "limit_page_length": 2000,
     }
 
-    if filters is not None:
-        args["filters"] = filters
+    # Franchisee Call / Session Worker recruitment now lives on
+    # Recruitment Lead - the picker no longer offers either as an
+    # enquiry type (see franchisor_db/lead_details), and any already
+    # migrated across (migrate_client_lead_to_recruitment_lead) is kept
+    # here deliberately as an untouched copy to compare against, not to
+    # keep showing on this board.
+    recruitment_filter = {"appointment_type": ["not in", ["Franchisee Call", "Session Worker"]]}
+    args["filters"] = {**(filters or {}), **recruitment_filter}
 
     rows = frappe.get_all(**args, ignore_permissions=True)
 

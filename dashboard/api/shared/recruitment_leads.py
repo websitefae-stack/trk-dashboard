@@ -2437,6 +2437,65 @@ def migrate_client_lead_to_recruitment_lead(lead=None, force=0):
 
 
 @frappe.whitelist()
+def resync_recruitment_lead_from_client_lead(recruitment_lead=None, client_lead=None):
+    """One-off repair for a lead migrated before this module's field-copy
+    logic (_copy_matching_fields/_copy_child_table) was finished - re-runs
+    the same field and Safer Recruitment Checklist copy against the
+    now-complete logic, straight onto the EXISTING Recruitment Lead
+    record rather than creating a new one. `status` and `event` are
+    still never touched (same skip list as the original migration), so
+    this can't un-convert an already-converted lead or lose its
+    converted_client link.
+
+    Safe to re-run - it's a straight re-copy from the still-untouched
+    Client Lead, not additive, so running it twice just re-applies the
+    same values."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    from dashboard.api.shared.leads import LEAD_DOCTYPE
+
+    recruitment_lead = coalesce_str("recruitment_lead", recruitment_lead)
+    client_lead = coalesce_str("client_lead", client_lead)
+
+    if not recruitment_lead or not frappe.db.exists(RECRUITMENT_LEAD_DOCTYPE, recruitment_lead):
+        frappe.throw(_("Recruitment Lead not found."))
+    if not client_lead or not frappe.db.exists(LEAD_DOCTYPE, client_lead):
+        frappe.throw(_("Client Lead not found."))
+
+    source = frappe.get_doc(LEAD_DOCTYPE, client_lead)
+    target = frappe.get_doc(RECRUITMENT_LEAD_DOCTYPE, recruitment_lead)
+
+    unmapped_with_data = _copy_matching_fields(source, target)
+
+    target.set("safer_recruitment_checklist", [])
+    _copy_child_table(source, target, "safer_recruitment_checklist")
+
+    today = frappe.utils.today()
+    now = frappe.utils.now_datetime()
+    target.append("notes", {
+        "note": f"Re-synced from Client Lead {source.name} (repair for an earlier incomplete migration).",
+        "note_date": today,
+        "added_by": frappe.session.user,
+        "added_on": now,
+    })
+
+    target.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    named_files_moved = 0
+    for fieldname in ("franchisee_intake_dbs_certificate", "franchisee_intake_additional_document", "contract_territory_map"):
+        named_files_moved += _reparent_lead_files(LEAD_DOCTYPE, source.name, RECRUITMENT_LEAD_DOCTYPE, target.name, attached_to_field=fieldname)
+
+    return {
+        "ok": True,
+        "recruitment_lead": target.name,
+        "named_files_moved": named_files_moved,
+        "unmapped_fields_with_data": unmapped_with_data,
+    }
+
+
+@frappe.whitelist()
 def append_unmapped_migration_note(recruitment_lead=None, client_lead=None):
     """Follow-up for a lead already migrated by migrate_client_lead_to_
     recruitment_lead() above: re-reads whatever didn't have anywhere to
