@@ -130,6 +130,38 @@ def get_school_client_options():
     return options
 
 
+def _primary_contact_for_organisation(customer):
+    """The one person who can invite the rest of a school's own staff
+    (can_manage_users=1) - raw queries against client_portal's own
+    doctypes rather than a Python import, same reasoning as everywhere
+    else in this module. Prefers an already-Active membership; falls
+    back to a still-pending Portal Invitation so a franchisor granting
+    a license can see "invited, not yet accepted" rather than nothing."""
+    if not frappe.db.exists("DocType", "Organisation Membership"):
+        return None
+
+    active = frappe.db.get_value(
+        "Organisation Membership",
+        {"organisation": customer, "can_manage_users": 1, "membership_status": "Active"},
+        ["email", "user"], as_dict=True, order_by="creation asc",
+    )
+    if active:
+        return {"email": active.email or active.user or "", "status": "Active"}
+
+    if not frappe.db.exists("DocType", "Portal Invitation"):
+        return None
+
+    invited = frappe.db.get_value(
+        "Portal Invitation",
+        {"invitation_type": "Organisation Membership", "organisation": customer, "status": "Sent"},
+        "email", order_by="creation desc",
+    )
+    if invited:
+        return {"email": invited, "status": "Invited"}
+
+    return None
+
+
 @frappe.whitelist()
 def get_school_licenses():
     """Every Client currently flagged as a School Portal Organisation -
@@ -162,6 +194,7 @@ def get_school_licenses():
     results = []
     for customer in customers:
         client = client_by_customer.get(customer.name)
+        contact = _primary_contact_for_organisation(customer.name)
         results.append({
             "customer": customer.name,
             "client": client.name if client else "",
@@ -173,6 +206,8 @@ def get_school_licenses():
             "licence_end": str(customer.licence_end or ""),
             "number_of_seats": customer.number_of_seats or 0,
             "seats_used": customer.seats_used or 0,
+            "primary_contact_email": contact["email"] if contact else "",
+            "primary_contact_status": contact["status"] if contact else "",
         })
 
     return results

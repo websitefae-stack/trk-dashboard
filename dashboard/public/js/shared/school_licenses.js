@@ -4,6 +4,7 @@
   var el = Dashboard.el;
 
   const SHARED_API = "dashboard.api.shared.school_licenses";
+  const SCHOOL_API = "school_dashboard.api.school";
 
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
@@ -47,10 +48,24 @@
       ? `${row.seats_used} / ${row.number_of_seats}`
       : `${row.seats_used}`;
 
+    const contactStatusBadge = row.primary_contact_status === "Active"
+      ? `<span class="dashboard-badge dashboard-status-active">Active</span>`
+      : row.primary_contact_status === "Invited"
+        ? `<span class="dashboard-badge dashboard-status-unread">Invited</span>`
+        : "";
+
+    const resetLabel = row.primary_contact_status === "Active" ? "Reset Login" : "Send Login";
+
+    const contactCell = row.primary_contact_email
+      ? `${escapeHtml(row.primary_contact_email)} ${contactStatusBadge}<br>
+         <button type="button" class="dashboard-link-btn" data-reset-login="${escapeHtml(row.customer)}" data-contact-email="${escapeHtml(row.primary_contact_email)}" data-contact-status="${escapeHtml(row.primary_contact_status)}">${resetLabel}</button>`
+      : `<span class="dashboard-empty">None yet</span>`;
+
     return `
       <tr>
         <td>${escapeHtml(row.client_name)}</td>
         <td>${escapeHtml(row.account_manager || "—")}</td>
+        <td>${contactCell}</td>
         <td>${activeBadge}</td>
         <td>${escapeHtml(row.licence_type || "—")}</td>
         <td>${escapeHtml(row.licence_start || "—")}</td>
@@ -73,15 +88,45 @@
 
       bodyEl.innerHTML = licenses.length
         ? licenses.map(renderRow).join("")
-        : `<tr><td colspan="8" class="dashboard-empty">No schools licensed yet.</td></tr>`;
+        : `<tr><td colspan="9" class="dashboard-empty">No schools licensed yet.</td></tr>`;
 
       bodyEl.querySelectorAll("[data-edit-license]").forEach(function (button) {
         button.addEventListener("click", function () {
           openModal(button.dataset.editLicense);
         });
       });
+
+      bodyEl.querySelectorAll("[data-reset-login]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          resetLogin(button.dataset.resetLogin, button.dataset.contactEmail, button.dataset.contactStatus, button);
+        });
+      });
     } catch (error) {
-      bodyEl.innerHTML = `<tr><td colspan="8" class="dashboard-empty">${escapeHtml(error.message || "Could not load school licenses.")}</td></tr>`;
+      bodyEl.innerHTML = `<tr><td colspan="9" class="dashboard-empty">${escapeHtml(error.message || "Could not load school licenses.")}</td></tr>`;
+    }
+  }
+
+  async function resetLogin(customerName, email, status, button) {
+    if (!email) return;
+
+    const confirmMessage = status === "Active"
+      ? `Send a password reset email to ${email}?`
+      : `Send/resend a login invite to ${email}?`;
+    if (!window.confirm(confirmMessage)) return;
+
+    if (button) { button.disabled = true; button.textContent = "Sending..."; }
+
+    try {
+      if (status === "Active") {
+        await apiPost("frappe.core.doctype.user.user.reset_password", { user: email });
+      } else {
+        await apiPost(`${SCHOOL_API}.invite_first_school_contact`, { organisation: customerName, email: email });
+      }
+      window.alert("Sent.");
+    } catch (error) {
+      window.alert(error.message || "Could not send this.");
+    } finally {
+      if (button) { button.disabled = false; button.textContent = status === "Active" ? "Reset Login" : "Send Login"; }
     }
   }
 
@@ -111,6 +156,7 @@
 
   function clearForm() {
     el("schoolLicenseAccountManager").value = "";
+    el("schoolLicensePrimaryContact").value = "";
     el("schoolLicensePortalActive").checked = true;
     el("schoolLicenseType").value = "";
     el("schoolLicenseStart").value = "";
@@ -126,6 +172,7 @@
 
     const titleEl = el("schoolLicenseModalTitle");
     const clientSelect = el("schoolLicenseClient");
+    const contactWrap = el("schoolLicensePrimaryContactWrap");
 
     let selectedClient = "";
 
@@ -142,9 +189,11 @@
         el("schoolLicenseSeats").value = existing.number_of_seats || "";
       }
       clientSelect.disabled = true;
+      if (contactWrap) contactWrap.style.display = "none";
     } else {
       titleEl.textContent = "Add School License";
       clientSelect.disabled = false;
+      if (contactWrap) contactWrap.style.display = "";
     }
 
     await populateClientSelect(selectedClient);
@@ -172,7 +221,10 @@
     if (messageEl) messageEl.textContent = "";
 
     try {
-      await apiPost(`${SHARED_API}.save_school_license`, {
+      const isNewLicense = !editingCustomer;
+      const contactEmail = isNewLicense ? el("schoolLicensePrimaryContact").value.trim() : "";
+
+      const result = await apiPost(`${SHARED_API}.save_school_license`, {
         client: client,
         account_manager: el("schoolLicenseAccountManager").value,
         portal_active: el("schoolLicensePortalActive").checked ? 1 : 0,
@@ -181,6 +233,21 @@
         licence_end: el("schoolLicenseEnd").value,
         number_of_seats: el("schoolLicenseSeats").value,
       });
+
+      if (isNewLicense && contactEmail && result.customer) {
+        try {
+          await apiPost(`${SCHOOL_API}.invite_first_school_contact`, {
+            organisation: result.customer,
+            email: contactEmail,
+          });
+        } catch (inviteError) {
+          window.alert(
+            "The license was saved, but the login invite could not be sent: " +
+            (inviteError.message || "unknown error") +
+            ". Use the Send Login button in the table to try again."
+          );
+        }
+      }
 
       closeModal();
       await loadLicenses();
