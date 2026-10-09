@@ -53,7 +53,9 @@ def _organisation_fields_available():
 
 
 def _client_display(client_doc):
-    return client_doc.get("client_name") or client_doc.get("name1") or client_doc.name
+    from dashboard.api.shared.dashboard import _get_client_display
+
+    return _get_client_display(client_doc.as_dict()) or client_doc.name
 
 
 def _get_or_create_customer_for_client(client_name):
@@ -95,11 +97,13 @@ def get_school_client_options():
     if not meta.has_field("client_type"):
         return []
 
+    from dashboard.api.shared.dashboard import _get_client_display_name
+
     rows = frappe.get_all(
         CLIENT_DOCTYPE,
         filters={"client_type": SCHOOL_CLIENT_TYPE},
-        fields=["name", "client_name", "billing_contact"],
-        order_by="client_name asc",
+        fields=["name", "billing_contact"],
+        order_by="creation desc",
     )
 
     org_flags = {}
@@ -114,14 +118,16 @@ def get_school_client_options():
                 )
             }
 
-    return [
+    options = [
         {
             "name": row.name,
-            "client_name": row.client_name or row.name,
+            "client_name": _get_client_display_name(row.name),
             "already_licensed": org_flags.get(row.billing_contact, False),
         }
         for row in rows
     ]
+    options.sort(key=lambda option: option["client_name"].lower())
+    return options
 
 
 @frappe.whitelist()
@@ -143,11 +149,13 @@ def get_school_licenses():
     if not customers:
         return []
 
+    from dashboard.api.shared.dashboard import _get_client_display_name
+
     client_by_customer = {
         row.billing_contact: row
         for row in frappe.get_all(
             CLIENT_DOCTYPE, filters={"billing_contact": ["in", [c.name for c in customers]]},
-            fields=["name", "client_name", "billing_contact"],
+            fields=["name", "billing_contact"],
         )
     }
 
@@ -157,7 +165,7 @@ def get_school_licenses():
         results.append({
             "customer": customer.name,
             "client": client.name if client else "",
-            "client_name": (client.client_name if client else "") or customer.customer_name,
+            "client_name": (_get_client_display_name(client.name) if client else "") or customer.customer_name,
             "account_manager": customer.assigned_account_manager or "",
             "portal_active": bool(customer.portal_active),
             "licence_type": customer.licence_type or "",
