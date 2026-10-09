@@ -549,35 +549,46 @@ def create_transfer(lead=None, receiving_coach=None, effective_transfer_date=Non
 @frappe.whitelist()
 def backfill_client_transfer(
     lead=None, client_name=None, transferring_coach=None, receiving_coach=None,
-    effective_transfer_date=None, reason_for_transfer=None, raise_invoice=1,
+    effective_transfer_date=None, reason_for_transfer=None,
 ):
     """
-    Franchisor-only one-off: creates a historical Client Transfer Agreement
-    (and, if raise_invoice, its transfer fee invoice) for a transfer that
-    already happened manually - the Client Lead's coach field was already
-    moved by hand - before this automation existed.
+    Franchisor-only one-off: starts a REAL Client Transfer Agreement for a
+    transfer that already took effect manually (the Client Lead's coach
+    field was moved by hand) before this automation existed - so the two
+    coaches involved can give genuine signatures and have real IP
+    addresses captured, same as any live transfer, rather than a
+    synthetic record with blank signature fields pretending they signed
+    something they never saw.
 
-    Inserted straight into status Completed with no real signatures
-    collected (nobody signs something that already happened), so none of
-    create_transfer()/sign_transfer()'s role-gating or
-    _notify_next_signer()/_notify_transfer_completed() machinery ever
-    runs - this never touches Client Lead.active_transfer either, since
-    there's no open transfer to track.
+    Deliberately does NOT touch Client Lead.coach at all (unlike
+    create_transfer(), which derives transferring_coach from it) -
+    receiving_coach must already match the lead's current coach (asserted
+    below), so there's nothing to flip back and forth. That matters: if
+    the receiving coach has already been working this client for a while
+    (appointments held, things allocated to them), briefly moving the
+    coach field away and back to trigger the normal "Reassign To" UI
+    flow risks disrupting whatever's keyed off it in the meantime. This
+    skips that entirely - transferring_coach/receiving_coach are passed
+    in directly, the agreement is created straight in "Awaiting Receiving
+    Coach" with the SAME notify/sign/complete path create_transfer() and
+    sign_transfer() already use (Client Lead.active_transfer is set for
+    the duration, which only shows a banner and disables the Coach
+    dropdown on the Lead Details page - nothing appointment- or
+    invoice-related reads it). On completion, Client Lead.coach is set to
+    receiving_coach same as any transfer - a no-op here since it's
+    already that value - and the transfer fee invoice is raised
+    automatically at that point via the existing Converted-lead path in
+    sign_transfer(), with no separate invoicing step needed here.
 
     `lead` identifies the Client Lead directly if known; otherwise
     `client_name` is matched (case-insensitive substring) against
     Client Lead.client_name - it must resolve to exactly one record, or
     this throws listing every match so the right one can be re-run via
-    `lead` instead. receiving_coach defaults to the lead's current coach
-    (the normal case - the backfill is recording a move that's already
-    reflected there); transferring_coach has no default and must be
-    given explicitly, since nothing on the lead remembers who it was
-    transferred from.
-
-    The invoice (if raised) is built by the same _create_transfer_fee_
-    invoice() a live transfer uses, posting_date = today (not backdated
-    to effective_transfer_date) - this is being billed now, for a
-    transfer that happened before billing for it existed.
+    `lead` instead. transferring_coach has no default and must be given
+    explicitly, since nothing on the lead remembers who it was
+    transferred from; receiving_coach must be given too, and is checked
+    against the lead's current coach as a safety rail against pointing
+    this at the wrong client.
     """
     if not is_franchisor_user():
         frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
@@ -608,7 +619,7 @@ def backfill_client_transfer(
     lead_doc = frappe.get_doc(LEAD_DOCTYPE, lead)
 
     transferring_coach = _resolve_coach(coalesce_str("transferring_coach", transferring_coach))
-    receiving_coach = _resolve_coach(coalesce_str("receiving_coach", receiving_coach)) or lead_doc.coach
+    receiving_coach = _resolve_coach(coalesce_str("receiving_coach", receiving_coach))
 
     if not transferring_coach:
         frappe.throw(_("Transferring coach not found - pass their name, login email, or Coach record name via transferring_coach."))
@@ -617,17 +628,21 @@ def backfill_client_transfer(
     if receiving_coach == transferring_coach:
         frappe.throw(_("Transferring and receiving coach can't be the same."))
 
+    if lead_doc.coach != receiving_coach:
+        frappe.throw(_(
+            "This lead's current coach ({0}) doesn't match receiving_coach ({1}) - "
+            "double-check you have the right client before starting this."
+        ).format(_coach_label(lead_doc.coach) or lead_doc.coach, _coach_label(receiving_coach)))
+
+    if lead_doc.get("active_transfer") and frappe.db.exists(TRANSFER_DOCTYPE, lead_doc.active_transfer):
+        existing_status = frappe.db.get_value(TRANSFER_DOCTYPE, lead_doc.active_transfer, "status")
+        if existing_status in OPEN_STATUSES:
+            frappe.throw(_("This lead already has a transfer agreement in progress: {0}").format(lead_doc.active_transfer))
+
     effective_transfer_date = coalesce_raw("effective_transfer_date", effective_transfer_date)
     if not effective_transfer_date:
         frappe.throw(_("Provide effective_transfer_date (the date the transfer actually took effect)."))
     effective_transfer_date = frappe.utils.getdate(effective_transfer_date)
-
-    duplicate = frappe.db.exists(TRANSFER_DOCTYPE, {
-        "client_lead": lead, "transferring_coach": transferring_coach,
-        "receiving_coach": receiving_coach, "status": STATUS_COMPLETED,
-    })
-    if duplicate:
-        frappe.throw(_("A completed transfer agreement for this lead/coach pair already exists: {0}").format(duplicate))
 
     requires_franchisor = not (_is_franchisor_coach(transferring_coach) or _is_franchisor_coach(receiving_coach))
 
@@ -636,40 +651,31 @@ def backfill_client_transfer(
     transfer.client_name = lead_doc.client_name
     transfer.transferring_coach = transferring_coach
     transfer.receiving_coach = receiving_coach
-    transfer.agreement_date = effective_transfer_date
+    transfer.agreement_date = frappe.utils.nowdate()
     transfer.effective_transfer_date = effective_transfer_date
     transfer.reason_for_transfer = (
         coalesce_str("reason_for_transfer", reason_for_transfer)
-        or "Backfilled record - this transfer happened before the Client Transfer Agreement automation existed."
+        or "Backfilled paperwork - this transfer already took effect on {0}, before this automation existed. "
+           "Signatures below are real, collected now.".format(effective_transfer_date)
     )
     transfer.transfer_fee_amount = DEFAULT_TRANSFER_FEE
     transfer.requires_franchisor_signature = 1 if requires_franchisor else 0
-    transfer.status = STATUS_COMPLETED
+    transfer.status = STATUS_AWAITING_RECEIVING
     transfer.append("activity", _log_row(
-        "Backfilled by {0} on {1} - transfer to {2} actually took effect on {3}, before this automation existed. "
-        "No signatures collected.".format(
-            get_fullname(frappe.session.user) or frappe.session.user,
-            frappe.utils.nowdate(), _coach_label(receiving_coach), effective_transfer_date,
+        "Backfill started by {0} - {1} actually moved from {2} to {3} on {4}, before this automation existed. "
+        "Real signatures being collected now.".format(
+            get_fullname(frappe.session.user) or frappe.session.user, transfer.client_name,
+            _coach_label(transferring_coach), _coach_label(receiving_coach), effective_transfer_date,
         )
     ))
     transfer.insert(ignore_permissions=True)
+
+    frappe.db.set_value(LEAD_DOCTYPE, lead, "active_transfer", transfer.name)
     frappe.db.commit()
 
-    if lead_doc.coach != receiving_coach:
-        frappe.msgprint(_(
-            "Note: this lead's current coach ({0}) doesn't match the receiving coach ({1}) you passed in - "
-            "this backfill does NOT change the Client Lead's coach field, it only records that the transfer happened."
-        ).format(lead_doc.coach, receiving_coach))
+    _notify_next_signer(transfer)
 
-    invoice_name = ""
-    if int(raise_invoice or 0):
-        invoice_name = _create_transfer_fee_invoice(transfer)
-        transfer.invoice = invoice_name
-        transfer.append("activity", _log_row(f"Transfer fee invoice {invoice_name} created (backfilled)"))
-        transfer.save(ignore_permissions=True)
-        frappe.db.commit()
-
-    return {"ok": True, "transfer": transfer.name, "invoice": invoice_name}
+    return {"ok": True, "transfer": transfer.name, "sign_url": _sign_url(transfer.name)}
 
 
 @frappe.whitelist()
