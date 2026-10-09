@@ -1294,3 +1294,98 @@ def get_school_for_client(client=None):
         return None
 
     return get_school(school_name)
+
+
+# =====================================================
+# School Dashboard portal (school_dashboard app) - staff self-service
+# =====================================================
+#
+# A school's own staff (via client_portal's Organisation Membership,
+# itself keyed to a Customer) need to read/edit this School record's
+# profile fields - but never the franchisor-only CRM data above (stage,
+# notes, contacts, outreach timeline). These two functions are the only
+# ones in this module not gated by _ensure_franchisor().
+#
+# Access is checked with a raw Organisation Membership query rather than
+# importing from client_portal - this app has no Python dependency on
+# client_portal (see that app's own README: it's meant to be a one-way
+# consumer of this one, never the reverse), but every Frappe app shares
+# one site database, so reading another app's doctype by name through
+# frappe.db is normal and already how this app reads core Customer/Sales
+# Invoice records it doesn't own either.
+
+def _school_for_organisation(organisation):
+    """Customer (organisation) -> Client (billing_contact) -> School
+    (linked_client) - the same chain client_transfers.py's own
+    _get_or_create_billing_customer walks in reverse when building a
+    Customer FROM a Client. Returns the School docname, or throws if the
+    chain doesn't resolve (this Customer was never actually a School
+    pipeline conversion, or the links are broken)."""
+
+    client_name = frappe.db.get_value("Client", {"billing_contact": organisation}, "name")
+    if not client_name:
+        frappe.throw(_("No school profile is linked to this organisation yet."))
+
+    school_name = frappe.db.get_value(SCHOOL_DOCTYPE, {"linked_client": client_name}, "name")
+    if not school_name:
+        frappe.throw(_("No school profile is linked to this organisation yet."))
+
+    return school_name
+
+
+def _ensure_school_portal_staff(organisation):
+    if is_franchisor_user():
+        return
+
+    has_access = frappe.db.exists("Organisation Membership", {
+        "organisation": organisation, "user": frappe.session.user, "membership_status": "Active",
+    })
+    if not has_access:
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+
+@frappe.whitelist()
+def get_school_profile_for_organisation(organisation=None):
+    """Portal-safe read: only the profile fields a school's own staff
+    should see, never stage/notes/contacts/the sales outreach timeline."""
+    organisation = (organisation or "").strip()
+    ensure_logged_in()
+    _ensure_school_portal_staff(organisation)
+
+    school_name = _school_for_organisation(organisation)
+    doc = frappe.get_doc(SCHOOL_DOCTYPE, school_name)
+
+    return {
+        "name": doc.name,
+        "school_name": doc.school_name,
+        "website": doc.website,
+        "address": doc.address,
+        "telephone": doc.telephone,
+        "area": doc.area,
+    }
+
+
+@frappe.whitelist()
+def update_school_profile_for_organisation(organisation=None, school_name=None, website=None, address=None, telephone=None, area=None):
+    organisation = (organisation or "").strip()
+    ensure_logged_in()
+    _ensure_school_portal_staff(organisation)
+
+    school_doc_name = _school_for_organisation(organisation)
+    doc = frappe.get_doc(SCHOOL_DOCTYPE, school_doc_name)
+
+    if school_name is not None:
+        doc.school_name = school_name
+    if website is not None:
+        doc.website = website
+    if address is not None:
+        doc.address = address
+    if telephone is not None:
+        doc.telephone = telephone
+    if area is not None:
+        doc.area = area
+
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True}
