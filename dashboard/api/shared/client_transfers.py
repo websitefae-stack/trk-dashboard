@@ -92,7 +92,7 @@ def _resolve_coach(value):
         if found:
             return found
 
-    matches = frappe.get_all("Coach", filters={"coach_name": ["like", value]}, pluck="name")
+    matches = frappe.get_all("Coach", filters={"coach_name": ["like", f"%{value}%"]}, pluck="name")
     if len(matches) == 1:
         return matches[0]
 
