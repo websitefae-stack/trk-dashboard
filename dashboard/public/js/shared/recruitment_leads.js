@@ -99,7 +99,7 @@
       byStage[stage].push(lead);
     });
 
-    board.innerHTML = STAGE_COLUMNS.map((stage) => {
+    board.innerHTML = STAGE_COLUMNS.filter((stage) => stage === "New" || byStage[stage].length).map((stage) => {
       const rows = byStage[stage];
       const body = stage === "Converted"
         ? renderConvertedColumnBody(rows, baseUrl, showCoach)
