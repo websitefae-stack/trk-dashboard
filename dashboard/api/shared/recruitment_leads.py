@@ -2547,3 +2547,53 @@ def append_unmapped_migration_note(recruitment_lead=None, client_lead=None):
     frappe.db.commit()
 
     return {"ok": True, "added": True, "fields": unmapped}
+
+
+@frappe.whitelist()
+def debug_recruitment_migration_fields(client_lead=None, recruitment_lead=None):
+    """One-off diagnostic: shows the actual stored value of every
+    intake/signing field on both the original Client Lead and its
+    migrated Recruitment Lead side by side, plus whether the
+    Recruitment Lead doctype even has that field yet - so a "why isn't
+    my data showing" report can be answered from real values instead of
+    more guessing. Read-only, changes nothing."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    from dashboard.api.shared.leads import LEAD_DOCTYPE
+
+    client_lead = coalesce_str("client_lead", client_lead)
+    recruitment_lead = coalesce_str("recruitment_lead", recruitment_lead)
+
+    if not client_lead or not frappe.db.exists(LEAD_DOCTYPE, client_lead):
+        frappe.throw(_("Client Lead not found."))
+    if not recruitment_lead or not frappe.db.exists(RECRUITMENT_LEAD_DOCTYPE, recruitment_lead):
+        frappe.throw(_("Recruitment Lead not found."))
+
+    source = frappe.get_doc(LEAD_DOCTYPE, client_lead)
+    target = frappe.get_doc(RECRUITMENT_LEAD_DOCTYPE, recruitment_lead)
+    target_meta = frappe.get_meta(RECRUITMENT_LEAD_DOCTYPE)
+
+    fields_to_check = [
+        "franchisee_intake_submitted", "franchisee_intake_submitted_at",
+        "franchisee_intake_first_name", "franchisee_intake_last_name",
+        "franchisee_intake_dbs_number", "franchisee_intake_dbs_certificate",
+        "nda_signed_snapshot", "nda_signed_at", "nda_signer_ip", "nda_signer_user_agent",
+        "intent_signed_snapshot", "intent_signed_at", "intent_signer_ip", "intent_signer_user_agent",
+        "contract_signed_snapshot", "contract_signed_at", "contract_signer_ip", "contract_signer_user_agent",
+        "safer_recruitment_checklist",
+    ]
+
+    def summarise(doc, fieldname):
+        value = doc.get(fieldname)
+        if fieldname == "safer_recruitment_checklist":
+            return f"{len(value or [])} row(s)"
+        if value in (None, "", 0):
+            return value
+        return str(value)[:200]
+
+    return {
+        "source_values": {f: summarise(source, f) for f in fields_to_check},
+        "target_values": {f: summarise(target, f) for f in fields_to_check},
+        "target_has_field": {f: target_meta.has_field(f) for f in fields_to_check},
+    }
