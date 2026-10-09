@@ -641,7 +641,7 @@
         </div>
         <button type="button" class="dashboard-btn dashboard-btn-light" id="updateContractTermsBtn">Update Terms</button>
         <span class="dashboard-help" id="contractTermsStatus"></span>
-        <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendContractBtn" style="flex-basis:100%;">${sendBtnLabel}</button>
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="sendContractBtn">${sendBtnLabel}</button>
         <button type="button" class="dashboard-btn dashboard-btn-light" id="getContractLinkBtn">Get Sign Link Again</button>
         ${sentStatusHtml}
         ${linkRowHtml}

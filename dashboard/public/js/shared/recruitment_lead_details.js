@@ -519,7 +519,7 @@
         </div>
         <button type="button" class="dashboard-btn dashboard-btn-light" id="rlUpdateContractTermsBtn">Update Terms</button>
         <span class="dashboard-help" id="rlContractTermsStatus"></span>
-        <button type="button" class="dashboard-btn dashboard-btn-primary" id="rlSendContractBtn" style="flex-basis:100%;">${sendBtnLabel}</button>
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="rlSendContractBtn">${sendBtnLabel}</button>
         <button type="button" class="dashboard-btn dashboard-btn-light" id="rlGetContractLinkBtn">Get Sign Link Again</button>
         ${sentStatusHtml}
         ${linkRow}
