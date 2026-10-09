@@ -267,3 +267,32 @@ def set_school_license_active(customer=None, active=1):
     frappe.db.commit()
 
     return {"ok": True}
+
+
+@frappe.whitelist()
+def send_password_reset(email=None):
+    """Franchisor-only "Reset Login" action for a School's already-Active
+    primary contact. Calls User.reset_password() directly - the same
+    underlying method Frappe's own core frappe.core.doctype.user.user.
+    reset_password whitelisted function calls internally - rather than
+    going through that endpoint itself, which was returning an HTML
+    error page instead of JSON when called this way (POST, authenticated
+    franchisor session, X-Frappe-CSRF-Token header) instead of the way
+    every login page's own "Forgot password?" link calls it (guest,
+    no CSRF token at all). Doing it ourselves sidesteps whatever that
+    endpoint's web-request-shaped behaviour was doing here, and gives a
+    reliable, plain JSON response either way."""
+    _ensure_franchisor()
+
+    email = (email or "").strip()
+    if not email or not frappe.db.exists("User", email):
+        frappe.throw(_("No account found for that email."))
+
+    user_doc = frappe.get_doc("User", email)
+    if not user_doc.enabled:
+        frappe.throw(_("That account is disabled."))
+
+    user_doc.reset_password(send_email=True)
+    frappe.db.commit()
+
+    return {"ok": True}

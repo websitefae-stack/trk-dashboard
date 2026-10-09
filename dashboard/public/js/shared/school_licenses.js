@@ -119,7 +119,7 @@
 
     try {
       if (status === "Active") {
-        await apiPost("frappe.core.doctype.user.user.reset_password", { user: email });
+        await apiPost(`${SHARED_API}.send_password_reset`, { email: email });
       } else {
         await apiPost(`${SCHOOL_API}.invite_first_school_contact`, { organisation: customerName, email: email });
       }
