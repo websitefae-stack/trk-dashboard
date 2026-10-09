@@ -239,6 +239,17 @@
   text-decoration: none;
 }
 
+/* The New Clients tiles are <button>s (they open a modal, not a link)
+   reusing this same class for identical styling - buttons need their
+   browser-default chrome reset to actually look like the <a> tiles. */
+button.dashboard-summary-card-link {
+  border: none;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+
 .dashboard-home-appointments-table {
   table-layout: fixed;
   width: 100%;

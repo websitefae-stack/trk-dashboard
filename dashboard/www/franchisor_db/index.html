@@ -137,15 +137,15 @@
               <div class="dashboard-summary-value" id="dashboardTotalSessionWorkers">—</div>
             </a>
 
-            <div class="dashboard-summary-card">
+            <button type="button" class="dashboard-summary-card dashboard-summary-card-link" id="dashboardNewClientsPreviousTile">
               <div class="dashboard-summary-label" id="dashboardPreviousMonthLabel">New Clients Last Month</div>
               <div class="dashboard-summary-value" id="dashboardNewClientsPrevious">—</div>
-            </div>
+            </button>
 
-            <div class="dashboard-summary-card">
+            <button type="button" class="dashboard-summary-card dashboard-summary-card-link" id="dashboardNewClientsCurrentTile">
               <div class="dashboard-summary-label" id="dashboardCurrentMonthLabel">New Clients This Month</div>
               <div class="dashboard-summary-value" id="dashboardNewClientsCurrent">—</div>
-            </div>
+            </button>
 
             <a class="dashboard-summary-card dashboard-summary-card-link" href="/franchisor_db/clients">
               <div class="dashboard-summary-label">Total Clients</div>
@@ -245,6 +245,18 @@
         </div>
       </div>
 
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-modal-backdrop" id="dashboardNewClientsModal">
+  <div class="dashboard-modal">
+    <div class="dashboard-modal-head">
+      <h3 id="dashboardNewClientsModalTitle">New Clients</h3>
+      <button type="button" class="dashboard-modal-close" id="dashboardNewClientsModalClose">×</button>
+    </div>
+    <div class="dashboard-modal-body" id="dashboardNewClientsModalBody">
+      <p class="dashboard-empty">Loading…</p>
     </div>
   </div>
 </div>

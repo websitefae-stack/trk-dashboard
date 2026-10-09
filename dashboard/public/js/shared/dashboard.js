@@ -478,6 +478,98 @@
     renderOutstandingInternalInvoices(payload.outstanding_internal_invoices || [], payload.dashboard_type);
   }
 
+  function openNewClientsModal() {
+    const modal = el("dashboardNewClientsModal");
+    if (modal) modal.classList.add("is-open");
+  }
+
+  function closeNewClientsModal() {
+    const modal = el("dashboardNewClientsModal");
+    if (modal) modal.classList.remove("is-open");
+  }
+
+  function renderNewClientsModal(title, clients) {
+    const titleEl = el("dashboardNewClientsModalTitle");
+    if (titleEl) titleEl.textContent = title;
+
+    const bodyEl = el("dashboardNewClientsModalBody");
+    if (!bodyEl) return;
+
+    if (!clients.length) {
+      bodyEl.innerHTML = `<p class="dashboard-empty">No new clients in this period.</p>`;
+      return;
+    }
+
+    const basePath = getDashboardType() === "coach" ? "/coach_db" : "/franchisor_db";
+
+    bodyEl.innerHTML = `
+      <table class="dashboard-table dashboard-table-compact">
+        <thead><tr><th>Client</th><th>Client Type</th></tr></thead>
+        <tbody>
+          ${clients.map(function (client) {
+            return `
+              <tr>
+                <td><a href="${basePath}/client_details?name=${encodeURIComponent(client.name)}">${escapeHtml(client.client_name || client.name)}</a></td>
+                <td>${escapeHtml(client.client_type || "—")}</td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  async function loadNewClientsList(period, title) {
+    const bodyEl = el("dashboardNewClientsModalBody");
+    const titleEl = el("dashboardNewClientsModalTitle");
+    if (titleEl) titleEl.textContent = title;
+    if (bodyEl) bodyEl.innerHTML = `<p class="dashboard-empty">Loading…</p>`;
+
+    openNewClientsModal();
+
+    const dashboardType = getDashboardType();
+    const params = new URLSearchParams(window.location.search);
+
+    try {
+      const payload = await apiGet(SHARED_API + ".get_new_clients_list", {
+        dashboard_type: dashboardType,
+        view_as: params.get("view_as") || "",
+        viewer: params.get("viewer") || "",
+        period: period
+      });
+
+      renderNewClientsModal(title, payload.clients || []);
+    } catch (error) {
+      if (bodyEl) bodyEl.innerHTML = `<p class="dashboard-empty">${escapeHtml(error.message || "Could not load this list.")}</p>`;
+    }
+  }
+
+  function wireNewClientsTiles() {
+    const currentBtn = el("dashboardNewClientsCurrentTile");
+    const previousBtn = el("dashboardNewClientsPreviousTile");
+    const closeBtn = el("dashboardNewClientsModalClose");
+    const modal = el("dashboardNewClientsModal");
+
+    if (currentBtn) {
+      currentBtn.addEventListener("click", function () {
+        loadNewClientsList("current", el("dashboardCurrentMonthLabel") ? el("dashboardCurrentMonthLabel").textContent : "New Clients This Month");
+      });
+    }
+
+    if (previousBtn) {
+      previousBtn.addEventListener("click", function () {
+        loadNewClientsList("previous", el("dashboardPreviousMonthLabel") ? el("dashboardPreviousMonthLabel").textContent : "New Clients Last Month");
+      });
+    }
+
+    if (closeBtn) closeBtn.addEventListener("click", closeNewClientsModal);
+    if (modal) {
+      modal.addEventListener("click", function (event) {
+        if (event.target === modal) closeNewClientsModal();
+      });
+    }
+  }
+
   async function loadDashboardSummary() {
     const dashboardType = getDashboardType();
     const params = new URLSearchParams(window.location.search);
@@ -524,6 +616,7 @@
 
     bindRefresh();
     bindInvoicePaymentButtons();
+    wireNewClientsTiles();
     loadDashboardSummary();
   }
 

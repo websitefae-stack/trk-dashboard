@@ -286,6 +286,7 @@ def _get_client_fields():
         "billing_contact",
         "status",
         "date_of_birth",
+        "client_type",
     ]
 
     fields = ["creation"]
@@ -446,10 +447,10 @@ def _get_dashboard_client_rows(dashboard_type, context, primary_only_for_coach=F
     return []
 
 
-def _count_clients_added(rows, start_date, end_date):
+def _clients_added_in_range(rows, start_date, end_date):
     # Based on the Client record's own creation date in Frappe, not the
     # (manually editable, sometimes stale/backfilled) date_added field.
-    count = 0
+    matches = []
 
     for row in rows:
         created_on = row.get("creation")
@@ -459,9 +460,13 @@ def _count_clients_added(rows, start_date, end_date):
         created_on = getdate(created_on)
 
         if getdate(start_date) <= created_on <= getdate(end_date):
-            count += 1
+            matches.append(row)
 
-    return count
+    return matches
+
+
+def _count_clients_added(rows, start_date, end_date):
+    return len(_clients_added_in_range(rows, start_date, end_date))
 
 
 def _next_birthday(dob, from_date):
@@ -2238,3 +2243,52 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
         response["total_coaches"] = _count_doctype("Coach")
 
     return response
+
+
+@frappe.whitelist()
+def get_new_clients_list(dashboard_type=None, view_as=None, viewer=None, period=None):
+    """Drill-down for the New Clients This Month/Last Month dashboard
+    tiles - who those clients actually are and their client_type, not
+    just the count. Reuses exactly the same row-scoping get_dashboard_
+    summary uses (a coach's own clients, or a coach being viewed via
+    view_as/viewer "view mode"), so this list always matches whatever
+    number the tile itself is showing."""
+    _require_logged_in_user()
+
+    dashboard_type = _normalise_dashboard_type(dashboard_type)
+    view_as = _coalesce_str("view_as", view_as)
+    viewer = _coalesce_str("viewer", viewer)
+    period = (_coalesce_str("period", period) or "current").strip().lower()
+
+    context = _get_context_for_dashboard(dashboard_type)
+
+    if dashboard_type == COACH_DASHBOARD and view_as:
+        view_mode = get_coach_view_mode(scope=viewer, coach_name=view_as)
+
+        if not view_mode.get("is_view_mode"):
+            frappe.throw(_("You do not have permission to view this coach."), frappe.PermissionError)
+
+        context["coach_name"] = view_mode.get("view_coach_name")
+
+    current_month_start, current_month_end = _get_current_month_range()
+    previous_month_start, previous_month_end = _get_previous_month_range()
+
+    start_date, end_date = (
+        (previous_month_start, previous_month_end) if period == "previous"
+        else (current_month_start, current_month_end)
+    )
+
+    client_rows = _get_dashboard_client_rows(dashboard_type, context, primary_only_for_coach=False)
+    matches = _clients_added_in_range(client_rows, start_date, end_date)
+
+    return {
+        "period": period,
+        "clients": [
+            {
+                "name": row.get("name"),
+                "client_name": _get_client_display(row),
+                "client_type": row.get("client_type") or "",
+            }
+            for row in matches
+        ],
+    }
