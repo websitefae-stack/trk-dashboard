@@ -910,7 +910,7 @@ def sign_intent(token=None, recipient_name=None, recipient_address=None, signatu
 # -------------------------------------------------------------------
 
 CONTRACT_PRACTICE_DOCUMENT_TITLE = "Franchise Agreement"
-CONTRACT_TERM_YEARS = 3
+CONTRACT_TERM_YEARS = 5
 
 
 def _contract_template_text():

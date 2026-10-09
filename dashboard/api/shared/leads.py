@@ -1445,7 +1445,7 @@ def _get_lead_by_contract_token(token):
     return frappe.get_doc(LEAD_DOCTYPE, lead_name)
 
 
-CONTRACT_TERM_YEARS = 3
+CONTRACT_TERM_YEARS = 5
 
 
 def _contract_image_html(file_url, missing_note):
