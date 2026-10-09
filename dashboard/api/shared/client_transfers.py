@@ -546,6 +546,54 @@ def create_transfer(lead=None, receiving_coach=None, effective_transfer_date=Non
     return {"ok": True, "name": transfer.name, "sign_url": _sign_url(transfer.name)}
 
 
+def _search_client_leads(query):
+    """
+    Word-by-word, case-insensitive match against BOTH client_name and
+    contact_name (client_name alone missed "Doug Sale" live - turned out
+    not to matter why; a contact/guardian name search or a different
+    word order would hit the same wall) - every word in `query` must
+    appear somewhere in one of those two fields, in any order, rather
+    than requiring the exact phrase as a single substring.
+    """
+    words = [w for w in (query or "").strip().split() if w]
+    if not words:
+        return []
+
+    filters = []
+    for word in words:
+        filters.append([LEAD_DOCTYPE, "client_name", "like", f"%{word}%"])
+
+    name_matches = {row.name: row for row in frappe.get_all(
+        LEAD_DOCTYPE, filters=filters, fields=["name", "client_name", "contact_name", "coach", "status"],
+    )}
+
+    contact_filters = [[LEAD_DOCTYPE, "contact_name", "like", f"%{word}%"] for word in words]
+    for row in frappe.get_all(
+        LEAD_DOCTYPE, filters=contact_filters, fields=["name", "client_name", "contact_name", "coach", "status"],
+    ):
+        name_matches[row.name] = row
+
+    return [dict(row) for row in name_matches.values()]
+
+
+@frappe.whitelist()
+def find_client_leads(query=None):
+    """
+    Franchisor-only diagnostic search - read-only, changes nothing. Use
+    this when backfill_client_transfer (or anything else taking a
+    client_name) can't find a match, to see what's actually on file
+    before guessing at spelling/word order.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    query = coalesce_str("query", query)
+    if not query:
+        frappe.throw(_("Provide a query (part of the client's or contact's name)."))
+
+    return {"matches": _search_client_leads(query)}
+
+
 @frappe.whitelist()
 def backfill_client_transfer(
     lead=None, client_name=None, transferring_coach=None, receiving_coach=None,
@@ -600,18 +648,18 @@ def backfill_client_transfer(
         if not client_name:
             frappe.throw(_("Provide either lead or client_name."))
 
-        matches = frappe.get_all(
-            LEAD_DOCTYPE,
-            filters={"client_name": ["like", f"%{client_name}%"]},
-            fields=["name", "client_name", "coach", "status"],
-        )
+        matches = _search_client_leads(client_name)
         if not matches:
-            frappe.throw(_("No Client Lead found matching \"{0}\".").format(client_name))
+            frappe.throw(_(
+                "No Client Lead found matching \"{0}\" (checked both client name and contact name). "
+                "Try find_client_leads?query=... with just part of the name to see what's actually on file, "
+                "then pass the exact record via `lead`."
+            ).format(client_name))
         if len(matches) > 1:
             frappe.throw(_("Multiple Client Leads match \"{0}\" - pass the exact one via `lead` instead: {1}").format(
-                client_name, ", ".join(f"{m.name} ({m.coach}, {m.status})" for m in matches)
+                client_name, ", ".join(f"{m['name']} ({m['client_name']}, {m['coach']}, {m['status']})" for m in matches)
             ))
-        lead = matches[0].name
+        lead = matches[0]["name"]
 
     if not frappe.db.exists(LEAD_DOCTYPE, lead):
         frappe.throw(_("Lead not found."))
