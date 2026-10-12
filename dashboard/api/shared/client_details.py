@@ -1124,7 +1124,15 @@ def get_package_balances(client_name):
 
     rows = frappe.get_all(
         "Client Package Balance",
-        filters={"client": client_name},
+        # Cancelled rows (e.g. a Parent Check-In balance that should never
+        # have existed for an Adult/School/Company client - see
+        # cancel_parent_checkin_balances_for_ineligible_clients.py) are
+        # excluded outright, not just hidden by the "Show All Session
+        # Packs" toggle - that toggle only ever hides a pack with nothing
+        # left to add/book, which a Cancelled row with qty_purchased still
+        # sitting there doesn't count as, so it was showing up regardless
+        # of the toggle.
+        filters={"client": client_name, "status": ["!=", "Cancelled"]},
         fields=fields,
         order_by="creation desc",
         limit_page_length=200,
