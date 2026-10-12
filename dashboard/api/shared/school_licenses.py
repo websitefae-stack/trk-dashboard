@@ -269,6 +269,9 @@ def set_school_license_active(customer=None, active=1):
     return {"ok": True}
 
 
+OFFICE_SENDER_EMAIL = "office@theresilienthub.co.uk"
+
+
 @frappe.whitelist()
 def send_password_reset(email=None):
     """Franchisor-only "Reset Login" action for a School's already-Active
@@ -278,14 +281,26 @@ def send_password_reset(email=None):
     User instance method, guessing it was the same thing the core
     frappe.core.doctype.user.user.reset_password whitelisted function
     uses internally - confirmed live to be wrong: User has no such
-    method on this site (AttributeError). That core function itself is
-    real and does work (every login page's own "Forgot password?" link
-    calls it successfully), so this now calls that exact function
-    directly, in-process, rather than guessing at User's internal API
-    or round-tripping through its own HTTP endpoint (which was the
-    original problem here - something about calling it that way,
-    authenticated with a CSRF header rather than as a guest, was
-    returning an HTML error page instead of JSON)."""
+    method on this site (AttributeError). Calling that core function
+    directly (as this does now) is real and does work - but confirmed
+    live a second time: it sends from whichever Email Account matches
+    the CALLER (the franchisor clicking the button) rather than this
+    app's normal default of "The Resilient Office" every other system
+    email (invitations, order emails, etc - see client_portal's own
+    _send_invitation_email, which never sets a sender and still lands
+    as office@theresilienthub.co.uk) correctly falls back to. For
+    Ashley specifically that resolved to the "Ashley Costello" Email
+    Account, whose Gmail credentials are broken - server rejected with
+    "535 Authentication Required" - so every reset sent this way was
+    silently failing at the SMTP step, invisible from this method's own
+    successful-looking JSON response.
+
+    Reusing frappe's own core reset_password() rather than
+    reimplementing the reset-link/key generation ourselves (safer - it
+    stays whatever Frappe's own /update-password flow actually expects,
+    which isn't something to guess at a third time) and then
+    redirecting the Email Queue record it just created to send from the
+    Office account instead, matching this app's own normal default."""
     _ensure_franchisor()
 
     email = (email or "").strip()
@@ -294,6 +309,7 @@ def send_password_reset(email=None):
 
     from frappe.core.doctype.user.user import reset_password as core_reset_password
 
+    just_before = frappe.utils.now_datetime()
     result = core_reset_password(user=email)
 
     if result == "not found":
@@ -303,4 +319,35 @@ def send_password_reset(email=None):
     if result == "not allowed":
         frappe.throw(_("Password reset isn't allowed for that account."))
 
+    _redirect_latest_queued_email_to_office(just_before)
+
     return {"ok": True}
+
+
+def _redirect_latest_queued_email_to_office(created_after):
+    """The one Email Queue row core_reset_password() just created (there's
+    no other write happening in this same request to confuse it with) -
+    switches its sender over to the Office account before the scheduler
+    ever picks it up to actually send. Best-effort: if nothing is found
+    (an unexpected Email Queue shape on this site), the reset email
+    still exists and still works, just from the wrong address - worth
+    noticing in the Email Queue list rather than worth failing the
+    whole action over."""
+    queued_name = frappe.db.get_value(
+        "Email Queue",
+        {"creation": [">=", created_after]},
+        "name",
+        order_by="creation desc",
+    )
+    if not queued_name:
+        return
+
+    updates = {"sender": OFFICE_SENDER_EMAIL}
+
+    if frappe.get_meta("Email Queue").has_field("email_account"):
+        office_account = frappe.db.get_value("Email Account", {"email_id": OFFICE_SENDER_EMAIL}, "name")
+        if office_account:
+            updates["email_account"] = office_account
+
+    frappe.db.set_value("Email Queue", queued_name, updates)
+    frappe.db.commit()
