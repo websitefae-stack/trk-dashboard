@@ -272,6 +272,7 @@ def set_school_license_active(customer=None, active=1):
 
 
 OFFICE_SENDER_EMAIL = "office@theresilienthub.co.uk"
+SCHOOL_LOGIN_REDIRECT_URL = "https://theresilientschool.co.uk/trs-login"
 
 
 @frappe.whitelist()
@@ -310,6 +311,15 @@ def send_password_reset(email=None):
         frappe.throw(_("No account found for that email."))
 
     from frappe.core.doctype.user.user import reset_password as core_reset_password
+
+    # Frappe's own /update-password page ignores any redirect query param on
+    # the reset link - confirmed against frappe's core update_password()/
+    # reset_user_data(): it redirects wherever the User doc's own (hidden)
+    # redirect_url field says, reading it once and clearing it straight back
+    # to "" - never a URL param. Setting it here (before the key email even
+    # goes out) is what makes the post-reset redirect land on the School
+    # Dashboard's own login rather than Frappe's generic default.
+    frappe.db.set_value("User", email, "redirect_url", SCHOOL_LOGIN_REDIRECT_URL)
 
     just_before = frappe.utils.now_datetime()
     result = core_reset_password(user=email)
