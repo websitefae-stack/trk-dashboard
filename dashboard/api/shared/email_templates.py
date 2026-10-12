@@ -376,21 +376,22 @@ def plain_text_to_email_html(message):
 # match each logo's own aspect ratio automatically - same fix already
 # applied to the course-access email's own brand logo row (course_
 # unlock_on_payment.py's _email_brand_logo_row).
-_WORDMARK_CELLS_HTML = "".join(
-    f'<td align="center" style="padding:4px 8px;">'
-    f'<img src="{url}" alt="{alt}" height="80" style="display:block; height:80px; border:0;">'
-    f"</td>"
-    for url, alt in BRAND_WORDMARK_URLS
-)
-
-DEFAULT_EMAIL_FOOTER_HTML = f"""
-<table role="presentation" align="center" cellpadding="0" cellspacing="0" style="margin:0 auto;">
-  <tr>{_WORDMARK_CELLS_HTML}</tr>
-</table>
-"""
+def _wordmark_cells_html(height):
+    return "".join(
+        f'<td align="center" style="padding:4px 8px;">'
+        f'<img src="{url}" alt="{alt}" height="{height}" style="display:block; height:{height}px; border:0;">'
+        f"</td>"
+        for url, alt in BRAND_WORDMARK_URLS
+    )
 
 
-def wrap_branded_email_html(body_html, logo_url=None, footer_html=None):
+# Kept as the module-level default (every existing caller's untouched
+# output) - wrap_branded_email_html's own footer_logo_height param is
+# what actually varies the size per call now.
+_WORDMARK_CELLS_HTML = _wordmark_cells_html(80)
+
+
+def wrap_branded_email_html(body_html, logo_url=None, footer_html=None, header_logo_height=None, footer_logo_height=80):
     """
     Wraps an already-built message body (e.g. the output of
     plain_text_to_email_html()) in a simple branded shell - a logo at the
@@ -403,21 +404,43 @@ def wrap_branded_email_html(body_html, logo_url=None, footer_html=None):
     wordmark row (e.g. a custom footer message) - the wordmark row itself
     always shows, since that's the standing brand footer.
 
+    header_logo_height/footer_logo_height default to this function's
+    original sizing (header scales from its own 180px width; footer
+    wordmarks are 80px tall) so every existing caller's email is
+    completely unchanged - pass a smaller number (e.g. 30) for a caller
+    that wants smaller logos without affecting anyone else's already-
+    sent-and-approved template.
+
     Built as a <table> throughout rather than <div>/CSS, and every image
-    carries an explicit HTML width attribute - both deliberate for
+    carries an explicit HTML width/height attribute - both deliberate for
     Outlook desktop, which renders HTML email through Word's engine and
     is unreliable with plain CSS layout and outright ignores CSS
-    max-width on images.
+    max-width/max-height on images.
     """
     body_html = body_html or ""
     logo_url = logo_url or HUB_LOGO_URL
     footer_html = footer_html or ""
 
+    if header_logo_height:
+        header_logo_html = (
+            f'<img src="{logo_url}" alt="" height="{header_logo_height}" '
+            f'style="display:inline-block; height:{header_logo_height}px; max-height:{header_logo_height}px; width:auto; border:0;">'
+        )
+    else:
+        header_logo_html = (
+            f'<img src="{logo_url}" alt="" width="180" '
+            f'style="display:inline-block; width:180px; max-width:180px; height:auto; border:0;">'
+        )
+
+    footer_wordmarks_html = (
+        _WORDMARK_CELLS_HTML if footer_logo_height == 80 else _wordmark_cells_html(footer_logo_height)
+    )
+
     return f"""
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px; margin:0 auto; font-family:Arial, Helvetica, sans-serif; color:#222222;">
       <tr>
         <td style="text-align:center; padding:24px 0;">
-          <img src="{logo_url}" alt="" width="180" style="display:inline-block; width:180px; max-width:180px; height:auto; border:0;">
+          {header_logo_html}
         </td>
       </tr>
       <tr>
@@ -428,7 +451,9 @@ def wrap_branded_email_html(body_html, logo_url=None, footer_html=None):
       <tr>
         <td style="border-top:1px solid #e0e0e0; padding:18px 24px; text-align:center; font-size:12px; color:#888888;">
           {footer_html}
-          {DEFAULT_EMAIL_FOOTER_HTML}
+          <table role="presentation" align="center" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+            <tr>{footer_wordmarks_html}</tr>
+          </table>
         </td>
       </tr>
     </table>
