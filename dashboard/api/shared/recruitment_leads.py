@@ -2504,6 +2504,42 @@ def resync_recruitment_lead_from_client_lead(recruitment_lead=None, client_lead=
 
 
 @frappe.whitelist()
+def resync_recruitment_lead_from_matching_client_lead(recruitment_lead=None):
+    """Front-door for the "Fix migrated data from original Lead" button -
+    resync_recruitment_lead_from_client_lead() above needs both record
+    names, but nothing stores a link back to the Client Lead a
+    Recruitment Lead was migrated from (the migration never added one),
+    so the detail page can't just pass it straight through. Matches by
+    contact_email instead - good enough for the handful of leads that
+    were ever actually migrated this way - and refuses to guess if that
+    doesn't resolve to exactly one Client Lead, rather than resyncing
+    against the wrong record."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    from dashboard.api.shared.leads import LEAD_DOCTYPE
+
+    recruitment_lead = coalesce_str("recruitment_lead", recruitment_lead)
+    if not recruitment_lead or not frappe.db.exists(RECRUITMENT_LEAD_DOCTYPE, recruitment_lead):
+        frappe.throw(_("Recruitment Lead not found."))
+
+    contact_email = frappe.db.get_value(RECRUITMENT_LEAD_DOCTYPE, recruitment_lead, "contact_email")
+    if not contact_email:
+        frappe.throw(_("This lead has no contact email to match against the original Lead."))
+
+    matches = frappe.get_all(LEAD_DOCTYPE, filters={"contact_email": contact_email}, pluck="name")
+
+    if not matches:
+        frappe.throw(_("No Client Lead found with a matching contact email - there's nothing to resync from."))
+    if len(matches) > 1:
+        frappe.throw(_(
+            "Found {0} Client Leads with this contact email - too ambiguous to resync automatically."
+        ).format(len(matches)))
+
+    return resync_recruitment_lead_from_client_lead(recruitment_lead=recruitment_lead, client_lead=matches[0])
+
+
+@frappe.whitelist()
 def append_unmapped_migration_note(recruitment_lead=None, client_lead=None):
     """Follow-up for a lead already migrated by migrate_client_lead_to_
     recruitment_lead() above: re-reads whatever didn't have anywhere to
