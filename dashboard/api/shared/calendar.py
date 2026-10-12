@@ -37,7 +37,7 @@ NON_CLIENT_TYPES = ["Initial Consultation", "Internal Training", "School Visit",
 # meet-and-greet by nature, not something that repeats.
 _RECURRING_EXCLUDED_TYPES = ("Holiday", "Initial Consultation")
 RECURRING_ALLOWED_TYPES = CLIENT_SESSION_TYPES + [t for t in NON_CLIENT_TYPES if t not in _RECURRING_EXCLUDED_TYPES]
-SCHOOL_LINKED_TYPES = ("School Visit", "Company Meeting", "School Session", "Company Session")
+SCHOOL_LINKED_TYPES = ("School Visit", "Company Meeting", "School Session", "Company Session", "Leadership Day")
 PACK_LINKED_SCHOOL_TYPES = ("School Session", "Company Session")
 
 

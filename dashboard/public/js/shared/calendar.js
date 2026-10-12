@@ -78,7 +78,7 @@
 
   const CLIENT_REQUIRED_TYPES = ["Therapy Session", "Parent Check-In"];
   const NON_CLIENT_TITLE_TYPES = ["Internal Training", "Event / Stall", "Leadership Day", "Personal"];
-  const SCHOOL_LINKED_TYPES = ["School Visit", "Company Meeting", "School Session", "Company Session"];
+  const SCHOOL_LINKED_TYPES = ["School Visit", "Company Meeting", "School Session", "Company Session", "Leadership Day"];
 
   const DEFAULT_BILLING_BY_TYPE = {
     "Therapy Session": "One to One",
@@ -90,7 +90,7 @@
     "School Session": "One to One",
     "Company Session": "One to One",
     "Event / Stall": "Non-Billable",
-    "Leadership Day": "Non-Billable",
+    "Leadership Day": "One to One",
     "Holiday": "Non-Billable",
     "Personal": "Non-Billable"
   };
