@@ -25,6 +25,7 @@ from dashboard.api.shared.email_templates import render_email, plain_text_to_ema
 from dashboard.api.shared.profile import PUBLIC_SITE_URL
 from dashboard.api.shared.mail_throttle import send_email
 from dashboard.api.shared.franchise_brochure import BROCHURE_PAGE_PATH
+from dashboard.api.shared.permissions import is_franchisor_user
 
 SEQUENCE_DOCTYPE = "Email Sequence"
 STEP_DOCTYPE = "Email Sequence Step"
@@ -323,3 +324,66 @@ def _send_next_step(enrollment_name):
         frappe.db.commit()
     except Exception:
         frappe.log_error(frappe.get_traceback(), f"Email Sequence Send Failed - {enrollment_name}")
+
+
+@frappe.whitelist()
+def fix_broken_brochure_links_in_templates(apply=0):
+    """One-off repair: finds every "Franchise Brochure Follow-up N -
+    Resilient Kid" Email Template (add_franchise_brochure_nurture_
+    steps_4_to_12.py's own placeholders, since hand-replaced with
+    Ashley's real copy directly in Desk - never committed here, so this
+    has to inspect the live content rather than a source file) whose
+    body hardcodes the plain https://theresilienthub.co.uk/franchise-
+    brochure URL instead of the {{ brochure_url }} merge field this
+    sequence already supports (see _brochure_url_for_enrollment above) -
+    a hardcoded link carries no token, so every recipient who clicks it
+    lands back on the brochure-request form instead of the brochure
+    they already asked for, exactly the bug reported live. The request
+    form's own URL (.../franchise-brochure-request) is deliberately
+    excluded from the match so it's never touched.
+
+    Dry-run by default (apply=0) - returns which templates have the
+    problem and how many times, without changing anything. Pass apply=1
+    to actually save the fix. Safe to re-run either way."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    import re
+
+    broken_pattern = re.compile(r"https?://theresilienthub\.co\.uk/franchise-brochure(?!-)")
+
+    meta = frappe.get_meta("Email Template")
+    body_fieldname = None
+    for fieldname in ("response", "response_html", "message", "content"):
+        if meta.has_field(fieldname):
+            body_fieldname = fieldname
+            break
+
+    if not body_fieldname:
+        frappe.throw(_("Could not find the Email Template body field on this site."))
+
+    names = frappe.get_all(
+        "Email Template",
+        filters={"name": ["like", "Franchise Brochure Follow-up%"]},
+        pluck="name",
+    )
+
+    do_apply = bool(int(apply or 0))
+    results = []
+
+    for name in names:
+        body = frappe.db.get_value("Email Template", name, body_fieldname) or ""
+        occurrences = broken_pattern.findall(body)
+        if not occurrences:
+            continue
+
+        results.append({"template": name, "occurrences": len(occurrences)})
+
+        if do_apply:
+            fixed_body = broken_pattern.sub("{{ brochure_url }}", body)
+            frappe.db.set_value("Email Template", name, body_fieldname, fixed_body)
+
+    if do_apply and results:
+        frappe.db.commit()
+
+    return {"apply": do_apply, "templates_checked": len(names), "templates_fixed": results}
