@@ -61,6 +61,37 @@
         >
       </div>
 
+      <div class="trk-calendar-field" id="trkCalendarInviteGuestRow" style="display:none;">
+        <label>
+          <input type="checkbox" id="trkCalendarInviteGuest" value="1">
+          Invite someone (sends them a Google Meet link by email)
+        </label>
+      </div>
+
+      <div id="trkCalendarGuestDetailsWrap" style="display:none;">
+        <div class="trk-calendar-field" id="trkCalendarGuestNameRow">
+          <label for="trkCalendarGuestName">Guest Name</label>
+
+          <input
+            type="text"
+            id="trkCalendarGuestName"
+            class="dashboard-input"
+            placeholder="Enter guest's name"
+          >
+        </div>
+
+        <div class="trk-calendar-field" id="trkCalendarGuestEmailRow">
+          <label for="trkCalendarGuestEmail">Guest Email *</label>
+
+          <input
+            type="email"
+            id="trkCalendarGuestEmail"
+            class="dashboard-input"
+            placeholder="Enter guest's email"
+          >
+        </div>
+      </div>
+
       <div class="trk-calendar-field" id="trkCalendarSchoolRow" style="display:none;">
         <label for="trkCalendarSchoolSelect">School</label>
 

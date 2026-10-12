@@ -2522,6 +2522,9 @@ def _create_booking_impl(
     additional_workers=None,
     dashboard_type=None,
     send_confirmation_email=None,
+    invite_guest=None,
+    guest_name=None,
+    guest_email=None,
 ):
     _require_logged_in_user()
 
@@ -2564,6 +2567,9 @@ def _create_booking_impl(
     recurring_frequency = _coalesce_str("recurring_frequency", recurring_frequency)
     recurring_count = _coalesce_raw("recurring_count", recurring_count)
     send_confirmation_email = _to_int(_coalesce_raw("send_confirmation_email", send_confirmation_email))
+    invite_guest = _to_int(_coalesce_raw("invite_guest", invite_guest))
+    guest_name = _coalesce_str("guest_name", guest_name)
+    guest_email = _coalesce_str("guest_email", guest_email)
 
     if isinstance(additional_workers, str):
         import json as _json
@@ -2606,6 +2612,19 @@ def _create_booking_impl(
 
     if appointment_type in ["Internal Training", "Event / Stall", "Personal"] and not item_name:
         frappe.throw(_("Please enter a title."))
+
+    if invite_guest and appointment_type != "Personal":
+        # The checkbox only exists on the Personal appointment form - this
+        # is just a guard against a stray/forged value on any other type,
+        # never something a real user should be able to trigger.
+        invite_guest = 0
+
+    if invite_guest:
+        guest_email = (guest_email or "").strip()
+        if not guest_email:
+            frappe.throw(_("Please enter the guest's email address."))
+        if not frappe.utils.validate_email_address(guest_email, throw=False):
+            frappe.throw(_("Please enter a valid email address for the guest."))
 
     if appointment_type in SCHOOL_LINKED_TYPES and not school and not school_manual_name:
         frappe.throw(_("Please select a school / company or type the name."))
@@ -2952,6 +2971,24 @@ def _create_booking_impl(
         if phone and appointment_type == "Initial Consultation":
             final_notes = f"Phone: {phone}\n\n{final_notes}".strip()
 
+        if appointment_type == "Personal" and invite_guest and guest_email:
+            if _event_has_field("custom_guest_name"):
+                event.custom_guest_name = guest_name or ""
+            if _event_has_field("custom_guest_email"):
+                event.custom_guest_email = guest_email
+
+            # coach_calendar_sync's own _wants_meet() only creates a Google
+            # Meet link for a handful of named session types, or when the
+            # location itself mentions one of "google meet"/"online"/
+            # "virtual" - Personal isn't one of those named types (not
+            # every Personal appointment should get a Meet link, only one
+            # where a guest is actually being invited), so this ensures the
+            # location keyword match fires instead, without overwriting
+            # whatever was actually typed into Location.
+            guest_meet_keywords = ("google meet", "online", "virtual")
+            if not any(kw in (event_location or "").lower() for kw in guest_meet_keywords):
+                event_location = f"{event_location} (Google Meet)".strip() if event_location else "Google Meet"
+
         if _event_has_field("location"):
             event.location = event_location
 
@@ -3167,6 +3204,9 @@ def create_booking(
     dashboard_type=None,
     allow_double_booking=None,
     send_confirmation_email=None,
+    invite_guest=None,
+    guest_name=None,
+    guest_email=None,
 ):
     """
     Wrapper around _create_booking_impl() - see that function for the actual
@@ -3218,6 +3258,9 @@ def create_booking(
         dashboard_type=dashboard_type,
         allow_double_booking=allow_double_booking,
         send_confirmation_email=send_confirmation_email,
+        invite_guest=invite_guest,
+        guest_name=guest_name,
+        guest_email=guest_email,
     )
 
     try:
