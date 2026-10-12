@@ -43,7 +43,7 @@
   const RECURRING_ALLOWED_TYPES = [
     "Therapy Session", "Parent Check-In",
     "Internal Training", "School Visit", "Company Meeting",
-    "School Session", "Company Session", "Event / Stall", "Personal",
+    "School Session", "Company Session", "Event / Stall", "Leadership Day", "Personal",
   ];
 
   const COACH_ME_VALUE = "__coach_me__";
@@ -64,6 +64,7 @@
     "School Session": 45,
     "Company Session": 45,
     "Event / Stall": 180,
+    "Leadership Day": 360,
     "Holiday": 0,
     "Personal": 60
   };
@@ -76,7 +77,7 @@
   const FIXED_DURATION_EDIT_TYPES = ["Parent Check-In", "Initial Consultation"];
 
   const CLIENT_REQUIRED_TYPES = ["Therapy Session", "Parent Check-In"];
-  const NON_CLIENT_TITLE_TYPES = ["Internal Training", "Event / Stall", "Personal"];
+  const NON_CLIENT_TITLE_TYPES = ["Internal Training", "Event / Stall", "Leadership Day", "Personal"];
   const SCHOOL_LINKED_TYPES = ["School Visit", "Company Meeting", "School Session", "Company Session"];
 
   const DEFAULT_BILLING_BY_TYPE = {
@@ -89,6 +90,7 @@
     "School Session": "One to One",
     "Company Session": "One to One",
     "Event / Stall": "Non-Billable",
+    "Leadership Day": "Non-Billable",
     "Holiday": "Non-Billable",
     "Personal": "Non-Billable"
   };
@@ -103,6 +105,7 @@
     "Company Meeting":    { background: "#FF8438", border: "#CC5200", textColor: "#FFFFFF" },
     "School Session":     { background: "#1FA37A", border: "#127A5A", textColor: "#FFFFFF" },
     "Company Session":    { background: "#B85C1F", border: "#8A4415", textColor: "#FFFFFF" },
+    "Leadership Day":     { background: "#3B82C4", border: "#1F5E8C", textColor: "#FFFFFF" },
     "Holiday":            { background: "#2C9A48", border: "#1A6830", textColor: "#FFFFFF" },
     "Personal":           { background: "#D5DA39", border: "#A0A500", textColor: "#2B2D00" },
     "General":            { background: "#00A19E", border: "#007A78", textColor: "#FFFFFF" }
