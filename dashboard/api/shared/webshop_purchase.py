@@ -674,6 +674,22 @@ def create_checkout_session(
     if not email:
         frappe.throw(_("Email is required."))
 
+    # One address only - this field ends up as the sole SMTP recipient
+    # for every order email (see store_orders.py's own _send_shipped_
+    # email: recipients=[order.email]), and sendmail() treats a comma
+    # inside a single recipient string as part of one malformed address
+    # rather than splitting it, which is exactly what happened live:
+    # someone typed two addresses here expecting both to be notified,
+    # and every order-shipped email to that order has been silently
+    # failing ever since (SMTPRecipientsRefused: "Bad recipient address
+    # syntax"). Caught here instead, with a clear message, rather than
+    # only surfacing as a delivery failure days later.
+    if "," in email or ";" in email:
+        frappe.throw(_("Please enter a single email address, not more than one."))
+
+    if not frappe.utils.validate_email_address(email, throw=False):
+        frappe.throw(_("Please enter a valid email address."))
+
     coach = (coach or "").strip()
     if coach and not frappe.db.exists("Coach", coach):
         coach = ""
