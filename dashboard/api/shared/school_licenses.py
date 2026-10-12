@@ -26,6 +26,8 @@ typed in freehand, never a new Customer/organisation created from
 scratch.
 """
 
+import re
+
 import frappe
 from frappe import _
 
@@ -326,13 +328,19 @@ def send_password_reset(email=None):
 
 def _redirect_latest_queued_email_to_office(created_after):
     """The one Email Queue row core_reset_password() just created (there's
-    no other write happening in this same request to confuse it with) -
-    switches its sender over to the Office account before the scheduler
-    ever picks it up to actually send. Best-effort: if nothing is found
-    (an unexpected Email Queue shape on this site), the reset email
-    still exists and still works, just from the wrong address - worth
-    noticing in the Email Queue list rather than worth failing the
-    whole action over."""
+    no other write happening in this same request to confuse it with).
+
+    Switching just the sender/email_account fields (what this did at
+    first) isn't enough on its own - confirmed live: the SMTP server
+    rejected it outright (550 SenderAliasDenied) because the raw MIME
+    message frappe already built still had the caller's own From/
+    X-Original-From/Reply-To headers baked into it from when
+    core_reset_password() first composed it. Authenticating as Office
+    but claiming to be from the caller in the message itself is exactly
+    what an alias-spoofing check is supposed to catch. Rewrites those
+    three header lines in the stored message text too - never touches
+    the reset link/key itself, only the handful of header lines any
+    mail client would show as "From"."""
     queued_name = frappe.db.get_value(
         "Email Queue",
         {"creation": [">=", created_after]},
@@ -348,6 +356,21 @@ def _redirect_latest_queued_email_to_office(created_after):
         office_account = frappe.db.get_value("Email Account", {"email_id": OFFICE_SENDER_EMAIL}, "name")
         if office_account:
             updates["email_account"] = office_account
+
+    message = frappe.db.get_value("Email Queue", queued_name, "message")
+    if message:
+        caller = frappe.get_doc("User", frappe.session.user)
+        caller_display = f"{caller.full_name or caller.email} <{caller.email}>"
+
+        new_message = message
+        new_message = new_message.replace(
+            f"X-Original-From: {caller_display}",
+            f"X-Original-From: The Resilient Office <{OFFICE_SENDER_EMAIL}>",
+        )
+        new_message = re.sub(r"(?m)^Reply-To: .*$", f"Reply-To: {OFFICE_SENDER_EMAIL}", new_message)
+        new_message = re.sub(r"(?m)^From: .*$", f"From: {OFFICE_SENDER_EMAIL}", new_message)
+
+        updates["message"] = new_message
 
     frappe.db.set_value("Email Queue", queued_name, updates)
     frappe.db.commit()

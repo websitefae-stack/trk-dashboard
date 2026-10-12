@@ -494,6 +494,7 @@ def get_lead(name=None):
         row["contract_commencement_date"] = str(doc.get("contract_commencement_date") or "")
         row["contract_territory_description"] = doc.get("contract_territory_description") or ""
         row["contract_permitted_area"] = doc.get("contract_permitted_area") or ""
+        row["contract_initial_fee_details"] = doc.get("contract_initial_fee_details") or ""
 
     if row["is_session_worker_lead"]:
         row["session_worker_stage"] = {
@@ -1469,6 +1470,7 @@ def _contract_render_context(doc, franchisee_name, franchisee_address, franchise
         ),
         "territory_description": doc.get("contract_territory_description") or "",
         "permitted_area": doc.get("contract_permitted_area") or "",
+        "initial_fee_details": doc.get("contract_initial_fee_details") or "£5,999 (less any deposit paid)",
         "territory_map_html": _contract_image_html(
             doc.get("contract_territory_map"),
             "The postcode map for this franchisee's Territory hasn't been uploaded yet - add it to this lead's Territory Map Image field.",
@@ -1529,7 +1531,7 @@ def upload_contract_territory_map(name=None):
 
 
 @frappe.whitelist()
-def get_contract_sign_url(name=None, commencement_date=None, territory_description=None, permitted_area=None):
+def get_contract_sign_url(name=None, commencement_date=None, territory_description=None, permitted_area=None, initial_fee_details=None):
     """
     Franchisor-only: generates (the first time) or reuses this lead's
     Franchise Agreement sign link. The commercial terms below are only
@@ -1573,6 +1575,7 @@ def get_contract_sign_url(name=None, commencement_date=None, territory_descripti
         commencement_date = coalesce_raw("commencement_date", commencement_date)
         territory_description = coalesce_str("territory_description", territory_description)
         permitted_area = coalesce_str("permitted_area", permitted_area)
+        initial_fee_details = coalesce_str("initial_fee_details", initial_fee_details)
 
         if not commencement_date:
             frappe.throw(_("Enter the Commencement Date before generating the sign link."))
@@ -1589,6 +1592,7 @@ def get_contract_sign_url(name=None, commencement_date=None, territory_descripti
         doc.contract_expiry_date = frappe.utils.add_years(commencement_date, CONTRACT_TERM_YEARS)
         doc.contract_territory_description = territory_description
         doc.contract_permitted_area = permitted_area
+        doc.contract_initial_fee_details = initial_fee_details
         doc.contract_franchisor_signature_name = _current_franchisor_display_name()
         doc.contract_franchisor_signed_at = frappe.utils.now_datetime()
         doc.contract_franchisor_signer_ip = frappe.local.request_ip
@@ -1600,7 +1604,7 @@ def get_contract_sign_url(name=None, commencement_date=None, territory_descripti
 
 
 @frappe.whitelist()
-def update_contract_terms(name=None, commencement_date=None, territory_description=None, permitted_area=None):
+def update_contract_terms(name=None, commencement_date=None, territory_description=None, permitted_area=None, initial_fee_details=None):
     """
     Franchisor-only: fixes a mistake in the commercial terms after the
     sign link has already been generated. get_contract_sign_url() only
@@ -1631,6 +1635,7 @@ def update_contract_terms(name=None, commencement_date=None, territory_descripti
     commencement_date = coalesce_raw("commencement_date", commencement_date)
     territory_description = coalesce_str("territory_description", territory_description)
     permitted_area = coalesce_str("permitted_area", permitted_area)
+    initial_fee_details = coalesce_str("initial_fee_details", initial_fee_details)
 
     if not commencement_date:
         frappe.throw(_("Enter the Commencement Date."))
@@ -1645,6 +1650,7 @@ def update_contract_terms(name=None, commencement_date=None, territory_descripti
     doc.contract_expiry_date = frappe.utils.add_years(commencement_date, CONTRACT_TERM_YEARS)
     doc.contract_territory_description = territory_description
     doc.contract_permitted_area = permitted_area
+    doc.contract_initial_fee_details = initial_fee_details
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 
@@ -1663,7 +1669,7 @@ def _contract_email_text(doc, contract_url):
 
 
 @frappe.whitelist()
-def get_contract_email_defaults(name=None, commencement_date=None, territory_description=None, permitted_area=None):
+def get_contract_email_defaults(name=None, commencement_date=None, territory_description=None, permitted_area=None, initial_fee_details=None):
     """
     Subject/message the compose modal pre-fills before send_contract_link
     actually sends it. The commercial terms are only used the first time
@@ -1680,6 +1686,7 @@ def get_contract_email_defaults(name=None, commencement_date=None, territory_des
         commencement_date=commencement_date,
         territory_description=territory_description,
         permitted_area=permitted_area,
+        initial_fee_details=initial_fee_details,
     )["url"]
     subject, message = _contract_email_text(doc, contract_url)
 
@@ -1692,6 +1699,7 @@ def send_contract_link(
     commencement_date=None,
     territory_description=None,
     permitted_area=None,
+    initial_fee_details=None,
     subject=None,
     message=None,
     cc=None,
@@ -1715,6 +1723,7 @@ def send_contract_link(
         commencement_date=commencement_date,
         territory_description=territory_description,
         permitted_area=permitted_area,
+        initial_fee_details=initial_fee_details,
     )["url"]
 
     subject = (subject or "").strip()
