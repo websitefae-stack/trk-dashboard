@@ -22,7 +22,7 @@
     const data = await response.json();
 
     if (!response.ok || data.exc) {
-      throw new Error(data.message || "Search failed.");
+      throw new Error(Dashboard.extractErrorMessage(data, "Search failed."));
     }
 
     return data.message || {};

@@ -29,7 +29,7 @@
     const data = await response.json();
 
     if (!response.ok || data.exc) {
-      throw new Error(data.message || "There was a problem.");
+      throw new Error(Dashboard.extractErrorMessage(data, "There was a problem."));
     }
 
     return data.message;
@@ -382,7 +382,7 @@
       });
       const data = await response.json();
       if (!response.ok || data.exc) {
-        throw new Error(data.message || "Could not import this file.");
+        throw new Error(Dashboard.extractErrorMessage(data, "Could not import this file."));
       }
 
       const result = data.message;

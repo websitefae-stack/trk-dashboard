@@ -17,7 +17,7 @@
     const data = await response.json();
 
     if (!response.ok || data.exc) {
-      throw new Error(data.message || "Could not save.");
+      throw new Error(Dashboard.extractErrorMessage(data, "Could not save."));
     }
 
     return data.message || data;

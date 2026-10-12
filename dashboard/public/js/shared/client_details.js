@@ -111,7 +111,7 @@
     }
 
     if (!response.ok || data.exc) {
-      throw new Error(data.message || "Request failed.");
+      throw new Error(Dashboard.extractErrorMessage(data, "Request failed."));
     }
 
     return data.message;
@@ -1324,7 +1324,7 @@
       const data = await response.json();
 
       if (!response.ok || data.exc) {
-        throw new Error(data.message || "Could not upload the file.");
+        throw new Error(Dashboard.extractErrorMessage(data, "Could not upload the file."));
       }
 
       return data.message;
@@ -1459,7 +1459,7 @@
       }
 
       if (!response.ok || data.exc) {
-        throw new Error(data.message || "Request failed.");
+        throw new Error(Dashboard.extractErrorMessage(data, "Request failed."));
       }
 
       return data.message;
@@ -2329,7 +2329,7 @@
         const data = await response.json();
 
         if (!response.ok || data.exc) {
-          throw new Error(data.message || "Could not upload the file.");
+          throw new Error(Dashboard.extractErrorMessage(data, "Could not upload the file."));
         }
 
         window.location.reload();
