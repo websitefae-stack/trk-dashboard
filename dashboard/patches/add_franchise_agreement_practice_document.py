@@ -8,7 +8,14 @@ CONTRACT_TERM_YEARS - 5, per the real agreement's Term (clause 1.1) and
 renewal (clause 3.2) - after commencement_date, see leads.get_contract_
 sign_url, which computes it rather than asking Ashley to type it in),
 territory_description
-(the postcode list), permitted_area, franchisee_signature, franchisee_date.
+(the postcode list), permitted_area, franchisee_signature, franchisee_date,
+initial_fee_details (Schedule 1's own Initial Fee line - free text so
+Ashley can type whatever actually applies to this specific deal, e.g.
+a travel discount or part-paid deposit, rather than every franchisee
+showing the same flat "£5,999 (less any deposit paid)" regardless of
+what they actually agreed - defaults to that same standard wording
+when left blank, see leads.py/recruitment_leads.py's own
+_contract_render_context).
 
 Trade Name ("The Resilient Kid"), the registered Trade Mark number
 (UK00004020678) and the Trade Mark image itself (the TRK logo, same for
@@ -378,7 +385,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>This Agreement has been entered into on the date stated at the beginning of it.</p>
 <h3>SCHEDULE 1</h3>
 <h3>FEES:</h3>
-<p><strong>Initial Fee:</strong> £5,999 (less any deposit paid)</p>
+<p><strong>Initial Fee:</strong> {{ initial_fee_details }}</p>
 <p>Management Fee:shall be calculated as follows:</p>
 <table style="width:100%; border-collapse:collapse;" border="1" cellpadding="6">
 <tr>

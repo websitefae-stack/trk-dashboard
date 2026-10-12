@@ -570,6 +570,7 @@
     ["contractCommencementDateInput", "commencement_date", "date", "Commencement Date"],
     ["contractTerritoryInput", "territory_description", "text", "Territory (postcode areas)"],
     ["contractPermittedAreaInput", "permitted_area", "text", "Permitted Area (e.g. Hartford)"],
+    ["contractInitialFeeDetailsInput", "initial_fee_details", "text", "Initial Fee (defaults to £5,999 less any deposit paid)"],
   ];
 
   function renderContractBlock(lead) {
@@ -616,6 +617,7 @@
       commencement_date: lead.contract_commencement_date || "",
       territory_description: lead.contract_territory_description || "",
       permitted_area: lead.contract_permitted_area || "",
+      initial_fee_details: lead.contract_initial_fee_details || "",
     };
     const termInputsHtml = CONTRACT_TERM_FIELDS.map(([id, fieldname, type, placeholder]) =>
       `<input type="${type}" id="${id}" class="dashboard-input" placeholder="${escapeHtml(placeholder)}" style="flex:1; min-width:200px;" title="${escapeHtml(placeholder)}" value="${escapeHtml(termValues[fieldname] || "")}">`

@@ -470,6 +470,7 @@
       commencement_date: getValue("rlContractCommencementDateInput"),
       territory_description: getValue("rlContractTerritoryInput"),
       permitted_area: getValue("rlContractPermittedAreaInput"),
+      initial_fee_details: getValue("rlContractInitialFeeDetailsInput"),
     };
   }
 
@@ -502,6 +503,7 @@
       <input type="date" id="rlContractCommencementDateInput" class="dashboard-input" style="width:170px;" title="Commencement Date" value="${escapeHtml(lead.contract_commencement_date || "")}">
       <input type="text" id="rlContractTerritoryInput" class="dashboard-input" placeholder="Territory (postcode areas)" style="flex:1; min-width:200px;" value="${escapeHtml(lead.contract_territory_description || "")}">
       <input type="text" id="rlContractPermittedAreaInput" class="dashboard-input" placeholder="Permitted Area (e.g. Hartford)" style="width:200px;" value="${escapeHtml(lead.contract_permitted_area || "")}">
+      <input type="text" id="rlContractInitialFeeDetailsInput" class="dashboard-input" placeholder="Initial Fee (defaults to &#163;5,999 less any deposit paid)" style="flex-basis:100%;" value="${escapeHtml(lead.contract_initial_fee_details || "")}">
     `;
 
     if (lead.contract_link_generated) {
