@@ -322,6 +322,7 @@ def send_password_reset(email=None):
     frappe.db.set_value("User", email, "redirect_url", SCHOOL_LOGIN_REDIRECT_URL)
 
     just_before = frappe.utils.now_datetime()
+    pending_callbacks_before = len(frappe.db.after_commit)
     result = core_reset_password(user=email)
 
     if result == "not found":
@@ -330,6 +331,31 @@ def send_password_reset(email=None):
         frappe.throw(_("That account is disabled."))
     if result == "not allowed":
         frappe.throw(_("Password reset isn't allowed for that account."))
+
+    # core_reset_password() builds its Email Queue row as an in-memory
+    # Document and registers frappe.db.after_commit.add(that_doc.send) -
+    # Frappe's own "send straight after this request's commit" mechanism.
+    # Confirmed live (real Error Log traceback) that this fires it using
+    # the STALE in-memory object - still carrying Ashley's own From/
+    # Reply-To/sender, exactly as it was before the rewrite below -
+    # because frappe.db.set_value() below only touches the database row,
+    # it has no way to reach back into the specific Python object
+    # core_reset_password() already built and queued a callback against.
+    # Every previous version of this function called frappe.db.commit()
+    # at the end of _redirect_latest_queued_email_to_office() without
+    # ever removing that stale callback first, so it kept firing anyway,
+    # straight past the already-rewritten row, and kept failing with the
+    # exact same "530 Authentication Required" on Ashley's broken Gmail
+    # credentials this whole fix was meant to stop.
+    #
+    # Dropping just the callback(s) queued during core_reset_password()
+    # itself (nothing else should have queued one in this same request)
+    # leaves the row sitting "Not Sent" with the now-corrected sender/
+    # email_account/message below - Frappe's own regular Email Queue
+    # flush (a background job, not this request) picks it up fresh from
+    # the database within the next few minutes and sends it using the
+    # correct account, instead of this request trying to send it itself.
+    frappe.db.after_commit.truncate(pending_callbacks_before)
 
     _redirect_latest_queued_email_to_office(just_before)
 
