@@ -2525,6 +2525,7 @@ def _create_booking_impl(
     invite_guest=None,
     guest_name=None,
     guest_email=None,
+    is_leadership_day=None,
 ):
     _require_logged_in_user()
 
@@ -2570,6 +2571,7 @@ def _create_booking_impl(
     invite_guest = _to_int(_coalesce_raw("invite_guest", invite_guest))
     guest_name = _coalesce_str("guest_name", guest_name)
     guest_email = _coalesce_str("guest_email", guest_email)
+    is_leadership_day = _to_int(_coalesce_raw("is_leadership_day", is_leadership_day))
 
     if isinstance(additional_workers, str):
         import json as _json
@@ -2798,7 +2800,11 @@ def _create_booking_impl(
         elif appointment_type == "Initial Consultation":
             event.subject = f"{lead_name} - Initial Consultation"
         elif appointment_type in SCHOOL_LINKED_TYPES:
-            event.subject = f"{school_name or school_manual_name or _get_client_display_name(school)} - {appointment_type}"
+            school_label = school_name or school_manual_name or _get_client_display_name(school)
+            if appointment_type == "School Session" and is_leadership_day:
+                event.subject = f"{school_label} - School Session (Leadership Day)"
+            else:
+                event.subject = f"{school_label} - {appointment_type}"
         elif appointment_type == "Holiday":
             event.subject = "Holiday"
         else:
@@ -2840,7 +2846,21 @@ def _create_booking_impl(
         # both adds needless work to the save and risks a false "no
         # balance available" block on a booking that was never meant to
         # touch packages at all.
-        if appointment_type in PACK_LINKED_SCHOOL_TYPES and resolved_school and _event_has_field("custom_client"):
+        #
+        # A School Session flagged as a Leadership Day is the same
+        # exception on purpose - it's still billed and still shown against
+        # the school (custom_visit_client below still gets set), it just
+        # never deducts from or requires a session pack. Leaving
+        # custom_client unset here is what keeps the Package Booking
+        # Validation server script from having a client to check a balance
+        # against at all, same as it already does for School Visit/Company
+        # Meeting above.
+        if (
+            appointment_type in PACK_LINKED_SCHOOL_TYPES
+            and resolved_school
+            and _event_has_field("custom_client")
+            and not (appointment_type == "School Session" and is_leadership_day)
+        ):
             event.custom_client = resolved_school
 
         # custom_visit_client is set for every SCHOOL_LINKED_TYPES booking
@@ -2851,6 +2871,9 @@ def _create_booking_impl(
         # for School Visit/Company Meeting (see comment above).
         if appointment_type in SCHOOL_LINKED_TYPES and resolved_school and _event_has_field("custom_visit_client"):
             event.custom_visit_client = resolved_school
+
+        if appointment_type == "School Session" and _event_has_field("custom_is_leadership_day"):
+            event.custom_is_leadership_day = 1 if is_leadership_day else 0
 
         _set_session_type(event, appointment_type)
 
@@ -3207,6 +3230,7 @@ def create_booking(
     invite_guest=None,
     guest_name=None,
     guest_email=None,
+    is_leadership_day=None,
 ):
     """
     Wrapper around _create_booking_impl() - see that function for the actual
@@ -3261,6 +3285,7 @@ def create_booking(
         invite_guest=invite_guest,
         guest_name=guest_name,
         guest_email=guest_email,
+        is_leadership_day=is_leadership_day,
     )
 
     try:
