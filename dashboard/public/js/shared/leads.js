@@ -33,7 +33,7 @@
     const data = await response.json();
 
     if (!response.ok || data.exc) {
-      throw new Error(data.message || "There was a problem loading leads.");
+      throw new Error(Dashboard.extractErrorMessage(data, "There was a problem loading leads."));
     }
 
     return data.message || {};

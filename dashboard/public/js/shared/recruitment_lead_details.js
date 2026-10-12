@@ -88,7 +88,7 @@
     const data = await response.json();
 
     if (!response.ok || data.exc) {
-      throw new Error(data.message || "There was a problem saving.");
+      throw new Error(Dashboard.extractErrorMessage(data, "There was a problem saving."));
     }
 
     return data.message || {};
@@ -105,7 +105,7 @@
     const data = await response.json();
 
     if (!response.ok || data.exc) {
-      throw new Error(data.message || "There was a problem.");
+      throw new Error(Dashboard.extractErrorMessage(data, "There was a problem."));
     }
 
     return data.message || {};

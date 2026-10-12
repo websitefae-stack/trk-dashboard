@@ -27,7 +27,7 @@
             throw new Error("Could not read server response.");
         }
         if (!response.ok || data.exc) {
-            throw new Error(data.message || "Request failed.");
+            throw new Error(Dashboard.extractErrorMessage(data, "Request failed."));
         }
         return data.message;
     }

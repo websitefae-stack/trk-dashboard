@@ -37,7 +37,7 @@
     var data = await response.json();
 
     if (!response.ok || data.exc) {
-      throw new Error(data.message || "There was a problem loading your documents.");
+      throw new Error(Dashboard.extractErrorMessage(data, "There was a problem loading your documents."));
     }
 
     return data.message;
@@ -57,7 +57,7 @@
     var data = await response.json();
 
     if (!response.ok || data.exc) {
-      throw new Error(data.message || "There was a problem saving this.");
+      throw new Error(Dashboard.extractErrorMessage(data, "There was a problem saving this."));
     }
 
     return data.message;

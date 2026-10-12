@@ -18,6 +18,7 @@
     "School Session": 45,
     "Company Session": 45,
     "Event / Stall": 180,
+    "Leadership Day": 360,
     "Holiday": 0,
     "Personal": 60
   };

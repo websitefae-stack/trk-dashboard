@@ -7,6 +7,8 @@ Stripe confirms payment, and this module adds the two steps after that -
 actually needs picking, packing and posting.
 """
 
+import re
+
 import frappe
 from frappe import _
 from frappe.utils import now_datetime, nowdate
@@ -292,10 +294,21 @@ def _send_shipped_email(order):
         f"{settings.company}"
     )
 
-    cc = [settings.office_notification_email] if settings.office_notification_email else []
+    # order.email and office_notification_email can each genuinely hold
+    # more than one comma/semicolon-separated address (see
+    # webshop_purchase.py's own create_checkout_session) - split into
+    # real recipients rather than passing the raw string straight
+    # through, which sendmail() treats as one single malformed address
+    # rather than several (confirmed live: SMTPRecipientsRefused "Bad
+    # recipient address syntax").
+    def _split_addresses(value):
+        return [part.strip() for part in re.split(r"[,;]", value or "") if part.strip()]
+
+    recipients = _split_addresses(order.email)
+    cc = _split_addresses(settings.office_notification_email)
 
     send_email(
-        recipients=[order.email],
+        recipients=recipients,
         cc=cc,
         subject="Your order has been shipped",
         message=plain_text_to_email_html(message),

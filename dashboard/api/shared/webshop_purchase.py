@@ -674,21 +674,24 @@ def create_checkout_session(
     if not email:
         frappe.throw(_("Email is required."))
 
-    # One address only - this field ends up as the sole SMTP recipient
-    # for every order email (see store_orders.py's own _send_shipped_
-    # email: recipients=[order.email]), and sendmail() treats a comma
-    # inside a single recipient string as part of one malformed address
-    # rather than splitting it, which is exactly what happened live:
-    # someone typed two addresses here expecting both to be notified,
-    # and every order-shipped email to that order has been silently
-    # failing ever since (SMTPRecipientsRefused: "Bad recipient address
-    # syntax"). Caught here instead, with a clear message, rather than
-    # only surfacing as a delivery failure days later.
-    if "," in email or ";" in email:
-        frappe.throw(_("Please enter a single email address, not more than one."))
+    # One or more comma/semicolon-separated addresses are genuinely
+    # supported (Ashley's own workflow for a manually-placed order: both
+    # her own and the store's address here, so the shipped-notification
+    # reaches whoever needs to action it) - each one is validated
+    # individually so a typo still gets caught, but a real multi-address
+    # entry is no longer rejected outright the way an earlier version of
+    # this check did. _send_shipped_email (store_orders.py) is what
+    # actually has to treat this as several real recipients rather than
+    # one malformed string - this validation alone doesn't fix delivery.
+    email_parts = [part.strip() for part in re.split(r"[,;]", email) if part.strip()]
+    if not email_parts:
+        frappe.throw(_("Email is required."))
 
-    if not frappe.utils.validate_email_address(email, throw=False):
-        frappe.throw(_("Please enter a valid email address."))
+    for part in email_parts:
+        if not frappe.utils.validate_email_address(part, throw=False):
+            frappe.throw(_("\"{0}\" isn't a valid email address.").format(part))
+
+    email = ", ".join(email_parts)
 
     coach = (coach or "").strip()
     if coach and not frappe.db.exists("Coach", coach):

@@ -37,7 +37,7 @@
 
     if (!response.ok || data.exc) {
       console.error(data);
-      throw new Error(data.message || "Request failed.");
+      throw new Error(Dashboard.extractErrorMessage(data, "Request failed."));
     }
 
     return data.message || data;

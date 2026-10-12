@@ -272,27 +272,35 @@ def set_school_license_active(customer=None, active=1):
 @frappe.whitelist()
 def send_password_reset(email=None):
     """Franchisor-only "Reset Login" action for a School's already-Active
-    primary contact. Calls User.reset_password() directly - the same
-    underlying method Frappe's own core frappe.core.doctype.user.user.
-    reset_password whitelisted function calls internally - rather than
-    going through that endpoint itself, which was returning an HTML
-    error page instead of JSON when called this way (POST, authenticated
-    franchisor session, X-Frappe-CSRF-Token header) instead of the way
-    every login page's own "Forgot password?" link calls it (guest,
-    no CSRF token at all). Doing it ourselves sidesteps whatever that
-    endpoint's web-request-shaped behaviour was doing here, and gives a
-    reliable, plain JSON response either way."""
+    primary contact.
+
+    An earlier version of this called user_doc.reset_password() as a
+    User instance method, guessing it was the same thing the core
+    frappe.core.doctype.user.user.reset_password whitelisted function
+    uses internally - confirmed live to be wrong: User has no such
+    method on this site (AttributeError). That core function itself is
+    real and does work (every login page's own "Forgot password?" link
+    calls it successfully), so this now calls that exact function
+    directly, in-process, rather than guessing at User's internal API
+    or round-tripping through its own HTTP endpoint (which was the
+    original problem here - something about calling it that way,
+    authenticated with a CSRF header rather than as a guest, was
+    returning an HTML error page instead of JSON)."""
     _ensure_franchisor()
 
     email = (email or "").strip()
     if not email or not frappe.db.exists("User", email):
         frappe.throw(_("No account found for that email."))
 
-    user_doc = frappe.get_doc("User", email)
-    if not user_doc.enabled:
-        frappe.throw(_("That account is disabled."))
+    from frappe.core.doctype.user.user import reset_password as core_reset_password
 
-    user_doc.reset_password(send_email=True)
-    frappe.db.commit()
+    result = core_reset_password(user=email)
+
+    if result == "not found":
+        frappe.throw(_("No account found for that email."))
+    if result == "disabled":
+        frappe.throw(_("That account is disabled."))
+    if result == "not allowed":
+        frappe.throw(_("Password reset isn't allowed for that account."))
 
     return {"ok": True}

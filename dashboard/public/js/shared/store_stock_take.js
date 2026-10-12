@@ -32,7 +32,7 @@
     const data = await response.json();
 
     if (!response.ok || data.exc) {
-      throw new Error(data.message || "There was a problem loading this.");
+      throw new Error(Dashboard.extractErrorMessage(data, "There was a problem loading this."));
     }
 
     return data.message;

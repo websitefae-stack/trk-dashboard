@@ -278,7 +278,7 @@
           .then(function (response) {
             return response.json().then(function (data) {
               if (!response.ok || data.exc) {
-                throw new Error(data.message || "Could not upload image.");
+                throw new Error(Dashboard.extractErrorMessage(data, "Could not upload image."));
               }
               return data.message;
             });
@@ -379,5 +379,47 @@
         label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-qr-code." + extension
       );
     });
+  };
+
+  /**
+   * Pulls a human-readable message out of a Frappe /api/method/ error
+   * response. frappe.throw()/frappe.msgprint() never populate the
+   * top-level data.message field (that's reserved for a whitelisted
+   * method's own successful return value) - the actual text lands in
+   * data._server_messages, a JSON-encoded array of JSON-encoded message
+   * objects. Every apiPost() across this app was doing `data.message ||
+   * "<generic fallback>"`, which is always falsy for a thrown
+   * ValidationError/PermissionError - every such error has been
+   * showing a useless generic string instead of the real reason since
+   * whichever of these was first copy-pasted. Falls back to
+   * data.exception (strips the "SomeError: " class-name prefix most
+   * Frappe exceptions lead with) if _server_messages isn't present,
+   * and only then to the caller's own generic fallback.
+   * @param {object} data - parsed JSON body of a failed /api/method/ response
+   * @param {string} [fallback] - shown only if nothing better can be found
+   * @returns {string}
+   */
+  Dashboard.extractErrorMessage = function (data, fallback) {
+    fallback = fallback || "Something went wrong.";
+    if (!data) return fallback;
+
+    if (data._server_messages) {
+      try {
+        var outer = JSON.parse(data._server_messages);
+        for (var i = 0; i < outer.length; i++) {
+          var inner = JSON.parse(outer[i]);
+          if (inner && inner.message) return inner.message;
+        }
+      } catch (e) {
+        // Fall through to the other candidates below.
+      }
+    }
+
+    if (data.exception) {
+      var withoutPrefix = String(data.exception).replace(/^[\w.]+(Error|Exception):\s*/, "");
+      if (withoutPrefix) return withoutPrefix;
+    }
+
+    return data.message || fallback;
   };
 })();

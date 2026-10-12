@@ -41,7 +41,7 @@
     }
 
     if (!response.ok || data.exc) {
-      throw new Error(data.message || data._server_messages || "Request failed.");
+      throw new Error(Dashboard.extractErrorMessage(data, "Request failed."));
     }
 
     return data.message;

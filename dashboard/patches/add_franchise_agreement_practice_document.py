@@ -376,19 +376,6 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>34.1. This Agreement, and any dispute or claim arising out of or in connection with it or its subject matter or formation (including non-contractual disputes or claims), shall be governed by and construed in accordance with the law of England and Wales.</p>
 <p>34.2. The parties irrevocably agree that the courts of England and Wales shall have exclusive jurisdiction to settle any dispute or claim that arises out of, or in connection with, this Agreement or its subject matter or formation (including non-contractual disputes or claims).</p>
 <p>This Agreement has been entered into on the date stated at the beginning of it.</p>
-<h3>Addendum to Franchise Agreement</h3>
-<p>This Addendum is made on <strong>{{ agreement_date }}</strong> between:</p>
-<p>The Resilient People Limited (the Franchisor); and</p>
-<p><strong>{{ franchisee_name }}</strong> (the Franchisee).</p>
-<h3>BACKGROUND:</h3>
-<p>The Franchisee has entered into a Franchise Agreement dated {{ agreement_date }} to operate “The Resilient Kid” business. The parties now agree to extend the scope of the Franchisee’s Business to include The Resilient Teen.</p>
-<h4>Agreed Terms:</h4>
-<p>The definition of “Business” in the Franchise Agreement shall be deemed amended to include The Resilient Teen.</p>
-<p>The Franchisee shall pay to the Franchisor an additional initial fee of £4000</p>
-<p>The Franchisee shall complete any additional training as reasonably required by the Franchisor.</p>
-<p>All other terms of the Franchise Agreement remain in full force and effect.</p>
-<p>Signed: <span style="font-style:italic;">{{ franchisor_signature }}</span> (Franchisor)</p>
-<p>Signed: <span style="font-style:italic;">{{ franchisee_signature }}</span> (Franchisee)</p>
 <h3>SCHEDULE 1</h3>
 <h3>FEES:</h3>
 <p><strong>Initial Fee:</strong> £5,999 (less any deposit paid)</p>
