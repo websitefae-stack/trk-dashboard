@@ -78,7 +78,7 @@
 
   const CLIENT_REQUIRED_TYPES = ["Therapy Session", "Parent Check-In"];
   const NON_CLIENT_TITLE_TYPES = ["Internal Training", "Event / Stall", "Leadership Day", "Personal"];
-  const SCHOOL_LINKED_TYPES = ["School Visit", "Company Meeting", "School Session", "Company Session"];
+  const SCHOOL_LINKED_TYPES = ["School Visit", "Company Meeting", "School Session", "Company Session", "Leadership Day"];
 
   const DEFAULT_BILLING_BY_TYPE = {
     "Therapy Session": "One to One",
@@ -90,7 +90,7 @@
     "School Session": "One to One",
     "Company Session": "One to One",
     "Event / Stall": "Non-Billable",
-    "Leadership Day": "Non-Billable",
+    "Leadership Day": "One to One",
     "Holiday": "Non-Billable",
     "Personal": "Non-Billable"
   };
@@ -341,6 +341,10 @@
       }
 
       if (event.target && event.target.id === "trkCalendarRecurring") {
+        syncBookingFields();
+      }
+
+      if (event.target && event.target.id === "trkCalendarInviteGuest") {
         syncBookingFields();
       }
 
@@ -1359,6 +1363,9 @@
     const travelCharged = isChecked("trkCalendarTravelChargedSingle") ? "1" : "0";
     const phone = getValue("trkCalendarPhone");
     const notes = getValue("trkCalendarNotes");
+    const inviteGuest = type === "Personal" && isChecked("trkCalendarInviteGuest");
+    const guestName = getValue("trkCalendarGuestName");
+    const guestEmail = getValue("trkCalendarGuestEmail");
 
     let location = "";
 
@@ -1386,6 +1393,11 @@
 
     if (NON_CLIENT_TITLE_TYPES.indexOf(type) !== -1 && !itemName) {
       showToast("Please enter a title");
+      return;
+    }
+
+    if (inviteGuest && !guestEmail) {
+      showToast("Please enter the guest's email address");
       return;
     }
 
@@ -1451,7 +1463,10 @@
         return JSON.stringify(Array.prototype.map.call(checked, function (cb) { return cb.dataset.workerValue; }));
       })(),
       allow_double_booking: state.allowDoubleBooking ? "1" : "0",
-      send_confirmation_email: isChecked("trkCalendarSendEmailToClient") ? "1" : "0"
+      send_confirmation_email: isChecked("trkCalendarSendEmailToClient") ? "1" : "0",
+      invite_guest: inviteGuest ? "1" : "0",
+      guest_name: guestName,
+      guest_email: guestEmail
     }).then(function (result) {
       setButtonLoading("trkCalendarSaveBtn", false, "Save Calendar Item");
       state.allowDoubleBooking = false;
@@ -1683,6 +1698,9 @@
     setValue("trkCalendarItemName", "");
     setValue("trkCalendarSchoolSelect", "");
     setValue("trkCalendarSchoolManualName", "");
+    setChecked("trkCalendarInviteGuest", false);
+    setValue("trkCalendarGuestName", "");
+    setValue("trkCalendarGuestEmail", "");
 
     setValue("trkCalendarDate", dateStr || "");
     setValue("trkCalendarTime", timeStr || "");
@@ -2097,6 +2115,14 @@
     toggleDisplay("trkCalendarItemNameRow", isNamedItem);
     toggleDisplay("trkCalendarSchoolRow", isSchoolVisit);
     toggleDisplay("trkCalendarSchoolManualRow", isSchoolVisit);
+
+    const isPersonal = type === "Personal";
+    toggleDisplay("trkCalendarInviteGuestRow", isPersonal);
+    const showGuestDetails = isPersonal && isChecked("trkCalendarInviteGuest");
+    toggleDisplay("trkCalendarGuestDetailsWrap", showGuestDetails);
+    if (!isPersonal) {
+      setChecked("trkCalendarInviteGuest", false);
+    }
 
     toggleDisplay("trkCalendarSingleDateTimeRow", !isHoliday);
     toggleDisplay("trkCalendarHolidayDateRow", isHoliday);
