@@ -695,6 +695,35 @@
   // Intake + DBS/Insurance form (shared)
   // ---------------------------------------------------------------
 
+  function resyncButtonHtml() {
+    return `<button type="button" class="dashboard-btn dashboard-btn-light" id="rlResyncFromLeadBtn" style="flex-basis:100%;" title="If this record was migrated from the old Leads section and something looks missing (e.g. no Convert to Client button, or a submitted intake form not showing), use this to re-pull everything from the original Lead by matching contact email.">Fix migrated data from original Lead</button>
+      <div id="rlResyncStatus" class="dashboard-help" style="flex-basis:100%;"></div>`;
+  }
+
+  async function resyncFromMatchingLead() {
+    const name = getValue("rlDocname");
+    const btn = el("rlResyncFromLeadBtn");
+    const statusEl = el("rlResyncStatus");
+    if (!name) return;
+
+    if (!window.confirm("Re-pull this lead's data from the original Client Lead it was migrated from (matched by contact email)? This won't undo a conversion or change its status.")) {
+      return;
+    }
+
+    if (btn) { btn.disabled = true; btn.textContent = "Resyncing..."; }
+    if (statusEl) statusEl.textContent = "";
+
+    try {
+      const result = await apiPost(`${SHARED_API}.resync_recruitment_lead_from_matching_client_lead`, { recruitment_lead: name });
+      if (statusEl) statusEl.textContent = `Resynced from ${result.client_lead || "the original lead"}.`;
+      await loadLead();
+    } catch (error) {
+      if (statusEl) statusEl.textContent = error.message || "Could not resync this.";
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Fix migrated data from original Lead"; }
+    }
+  }
+
   function renderFranchiseeIntakeBlock(lead) {
     const block = el(stage1ActionsId("stage1_agreement_invoice_done"));
     if (!block) return;
@@ -720,12 +749,14 @@
         ${reopenHtml}
         ${convertHtml}
         <div id="rlConvertStatus" class="dashboard-help" style="flex-basis:100%;"></div>
+        ${resyncButtonHtml()}
       `;
       loadIntakeSummary();
       loadSaferRecruitmentChecklist();
 
       el("rlConvertBtn")?.addEventListener("click", convertLeadToClient);
       el("rlReopenIntakeBtn")?.addEventListener("click", reopenIntake);
+      el("rlResyncFromLeadBtn")?.addEventListener("click", resyncFromMatchingLead);
       return;
     }
 
@@ -736,8 +767,10 @@
       <button type="button" class="dashboard-btn dashboard-btn-light" id="rlGetIntakeLinkBtn">${lead.franchisee_intake_link_generated ? "Get Form Link Again" : "Generate Form Link"}</button>
       <div class="dashboard-help" style="flex-basis:100%;">${lead.franchisee_intake_sent_at ? `Sent ${escapeHtml(lead.franchisee_intake_sent_at)}` : ""}</div>
       ${linkRow}
+      ${resyncButtonHtml()}
     `;
 
+    el("rlResyncFromLeadBtn")?.addEventListener("click", resyncFromMatchingLead);
     el("rlSendIntakeBtn")?.addEventListener("click", () => prepareEmail("intake"));
     el("rlGetIntakeLinkBtn")?.addEventListener("click", async () => {
       const btn = el("rlGetIntakeLinkBtn");
