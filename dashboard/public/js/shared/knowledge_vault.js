@@ -69,22 +69,82 @@
     `;
   }
 
+  function renderList(list) {
+    const bodyEl = el("kvResourceTableBody");
+
+    bodyEl.innerHTML = list.length
+      ? list.map(renderRow).join("")
+      : `<tr><td colspan="6" class="dashboard-empty">No resources match.</td></tr>`;
+
+    bodyEl.querySelectorAll("[data-edit-kv]").forEach(function (button) {
+      button.addEventListener("click", function () { openModal(button.dataset.editKv); });
+    });
+
+    bodyEl.querySelectorAll("[data-delete-kv]").forEach(function (button) {
+      button.addEventListener("click", function () { deleteResource(button.dataset.deleteKv); });
+    });
+  }
+
+  function matchesFilters(row) {
+    const search = (el("kvFilterSearch")?.value || "").trim().toLowerCase();
+    const type = el("kvFilterType")?.value || "";
+    const role = el("kvFilterRole")?.value || "";
+    const yearGroup = el("kvFilterYearGroup")?.value || "";
+    const school = el("kvFilterSchool")?.value || "";
+
+    if (search && !(row.title || "").toLowerCase().includes(search)) return false;
+    if (type && row.resource_type !== type) return false;
+    if (role && row.target_roles.length && row.target_roles.indexOf(role) === -1) return false;
+    if (yearGroup && row.target_year_groups.length && row.target_year_groups.indexOf(yearGroup) === -1) return false;
+    if (school && row.allocated_schools.indexOf(school) === -1) return false;
+
+    return true;
+  }
+
+  function applyFilters() {
+    renderList(cachedResources.filter(matchesFilters));
+  }
+
+  function populateFilterOptions() {
+    function fill(selectEl, options, placeholder) {
+      if (!selectEl) return;
+      const current = selectEl.value;
+      selectEl.innerHTML = `<option value="">${escapeHtml(placeholder)}</option>` + options.map(function (option) {
+        return `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`;
+      }).join("");
+      selectEl.value = current;
+    }
+
+    fill(el("kvFilterType"), cachedOptions.resource_type_options.map(function (o) { return { value: o, label: o }; }), "All types");
+    fill(el("kvFilterRole"), cachedOptions.role_options.map(function (o) { return { value: o, label: o }; }), "All roles");
+    fill(el("kvFilterYearGroup"), cachedOptions.year_group_options.map(function (o) { return { value: o, label: o }; }), "All year groups");
+    fill(el("kvFilterSchool"), cachedSchools.map(function (s) { return { value: s.customer, label: s.label }; }), "All schools");
+  }
+
+  function wireFilters() {
+    ["kvFilterSearch", "kvFilterType", "kvFilterRole", "kvFilterYearGroup", "kvFilterSchool"].forEach(function (id) {
+      const input = el(id);
+      if (!input) return;
+      input.addEventListener(id === "kvFilterSearch" ? "input" : "change", applyFilters);
+    });
+
+    el("kvFilterClearBtn")?.addEventListener("click", function () {
+      el("kvFilterSearch").value = "";
+      el("kvFilterType").value = "";
+      el("kvFilterRole").value = "";
+      el("kvFilterYearGroup").value = "";
+      el("kvFilterSchool").value = "";
+      applyFilters();
+    });
+  }
+
   async function loadResources() {
     const bodyEl = el("kvResourceTableBody");
     try {
       cachedResources = await apiPost(`${SHARED_API}.get_knowledge_vault_resources`, {});
-
-      bodyEl.innerHTML = cachedResources.length
-        ? cachedResources.map(renderRow).join("")
-        : `<tr><td colspan="6" class="dashboard-empty">No resources yet.</td></tr>`;
-
-      bodyEl.querySelectorAll("[data-edit-kv]").forEach(function (button) {
-        button.addEventListener("click", function () { openModal(button.dataset.editKv); });
-      });
-
-      bodyEl.querySelectorAll("[data-delete-kv]").forEach(function (button) {
-        button.addEventListener("click", function () { deleteResource(button.dataset.deleteKv); });
-      });
+      await ensureOptionsLoaded();
+      populateFilterOptions();
+      applyFilters();
     } catch (error) {
       bodyEl.innerHTML = `<tr><td colspan="6" class="dashboard-empty">${escapeHtml(error.message || "Could not load resources.")}</td></tr>`;
     }
@@ -272,6 +332,7 @@
     el("closeKvResourceModal")?.addEventListener("click", closeModal);
     el("cancelKvResourceModal")?.addEventListener("click", closeModal);
     el("saveKvResourceBtn")?.addEventListener("click", saveResource);
+    wireFilters();
 
     const modal = el("kvResourceModal");
     if (modal) {

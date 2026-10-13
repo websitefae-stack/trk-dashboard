@@ -18,6 +18,34 @@
         </div>
       </div>
 
+      <div class="dashboard-card" style="margin-bottom:16px;">
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+          <div style="flex:1; min-width:180px;">
+            <label for="kvFilterSearch">Search</label>
+            <input type="text" id="kvFilterSearch" class="dashboard-input" placeholder="Title...">
+          </div>
+          <div>
+            <label for="kvFilterType">Type</label>
+            <select id="kvFilterType" class="dashboard-input"><option value="">All types</option></select>
+          </div>
+          <div>
+            <label for="kvFilterRole">Role</label>
+            <select id="kvFilterRole" class="dashboard-input"><option value="">All roles</option></select>
+          </div>
+          <div>
+            <label for="kvFilterYearGroup">Year Group</label>
+            <select id="kvFilterYearGroup" class="dashboard-input"><option value="">All year groups</option></select>
+          </div>
+          <div>
+            <label for="kvFilterSchool">School</label>
+            <select id="kvFilterSchool" class="dashboard-input"><option value="">All schools</option></select>
+          </div>
+          <div>
+            <button type="button" class="dashboard-btn dashboard-btn-light" id="kvFilterClearBtn">Clear filters</button>
+          </div>
+        </div>
+      </div>
+
       <div class="dashboard-card">
         <div class="dashboard-table-wrap">
           <table class="dashboard-table">
