@@ -52,7 +52,11 @@ RESOURCE_DOCTYPE = "Knowledge Vault Resource"
 RESOURCE_SCHOOL_DOCTYPE = "Knowledge Vault Resource School"
 RESOURCE_STAFF_DOCTYPE = "Knowledge Vault Resource Staff"
 
-RESOURCE_TYPE_OPTIONS = ["Video", "PDF", "Image", "Document", "Email Template", "Instructions", "Other"]
+RESOURCE_TYPE_OPTIONS = [
+    "Video", "PDF", "Image", "Document", "Email Template",
+    "Teacher Emails", "Parent Emails", "Teacher Crib Sheet", "Tools",
+    "Session Summary", "Instructions", "Other",
+]
 
 # Same lists school_dashboard's own school.py defines for the staff-invite
 # Role/Year Group selects - duplicated rather than cross-imported, same
