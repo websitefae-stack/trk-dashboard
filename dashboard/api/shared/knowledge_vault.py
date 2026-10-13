@@ -108,6 +108,7 @@ def _resource_row(doc):
         "resource_type": doc.resource_type or "",
         "file": doc.file or "",
         "video_url": doc.video_url or "",
+        "text_content": doc.get("text_content") or "",
         "is_active": bool(doc.is_active),
         "target_roles": _parse_list(doc.target_roles),
         "target_year_groups": _parse_list(doc.target_year_groups),
@@ -138,7 +139,7 @@ def get_knowledge_vault_resource(name=None):
 
 @frappe.whitelist()
 def save_knowledge_vault_resource(
-    name=None, title=None, description=None, resource_type=None, video_url=None,
+    name=None, title=None, description=None, resource_type=None, video_url=None, text_content=None,
     is_active=1, target_roles=None, target_year_groups=None, allocated_schools=None,
 ):
     _ensure_franchisor()
@@ -172,6 +173,7 @@ def save_knowledge_vault_resource(
     doc.description = coalesce_str("description", description) or ""
     doc.resource_type = resource_type
     doc.video_url = coalesce_str("video_url", video_url) or ""
+    doc.set("text_content", coalesce_str("text_content", text_content) or "")
     doc.is_active = 1 if int(coalesce_raw("is_active", is_active) or 0) else 0
     doc.target_roles = json.dumps(target_roles) if target_roles else ""
     doc.target_year_groups = json.dumps(target_year_groups) if target_year_groups else ""
@@ -264,7 +266,7 @@ def get_knowledge_vault_resources_for_school_staff(organisation, role=None, year
     docs = frappe.get_all(
         RESOURCE_DOCTYPE,
         filters={"name": ["in", list(resource_names)], "is_active": 1},
-        fields=["name", "title", "description", "resource_type", "file", "video_url", "target_roles", "target_year_groups", "modified"],
+        fields=["name", "title", "description", "resource_type", "file", "video_url", "text_content", "target_roles", "target_year_groups", "modified"],
         order_by="modified desc",
     )
 
@@ -285,6 +287,7 @@ def get_knowledge_vault_resources_for_school_staff(organisation, role=None, year
             "resource_type": row.resource_type or "",
             "file": row.file or "",
             "video_url": row.video_url or "",
+            "text_content": row.get("text_content") or "",
         })
 
     return results

@@ -145,6 +145,7 @@
     el("kvTitle").value = "";
     el("kvDescription").value = "";
     el("kvVideoUrl").value = "";
+    el("kvTextContent").value = "";
     el("kvIsActive").checked = true;
     el("kvFileInput").value = "";
     el("kvCurrentFile").textContent = "";
@@ -163,7 +164,12 @@
 
     if (editingName) {
       titleEl.textContent = "Edit Resource";
-      resource = cachedResources.find(function (row) { return row.name === editingName; }) || null;
+      // Autoincrement-named doctype - doc.name comes back from the API as
+      // a JSON number, while editingName (read off a button's dataset)
+      // is always a string. A strict === here silently never matched
+      // anything, so Edit always opened a blank "Add" form instead -
+      // confirmed live.
+      resource = cachedResources.find(function (row) { return String(row.name) === String(editingName); }) || null;
     } else {
       titleEl.textContent = "Add Resource";
     }
@@ -173,6 +179,7 @@
       el("kvDescription").value = resource.description || "";
       el("kvResourceType").value = resource.resource_type || "Video";
       el("kvVideoUrl").value = resource.video_url || "";
+      el("kvTextContent").value = resource.text_content || "";
       el("kvIsActive").checked = !!resource.is_active;
       if (resource.file) {
         el("kvCurrentFile").innerHTML = `Current file: <a href="${escapeHtml(resource.file)}" target="_blank" rel="noopener">${escapeHtml(resource.file)}</a> (choose a new file above to replace it)`;
@@ -240,6 +247,7 @@
         description: el("kvDescription").value,
         resource_type: el("kvResourceType").value,
         video_url: el("kvVideoUrl").value,
+        text_content: el("kvTextContent").value,
         is_active: el("kvIsActive").checked ? 1 : 0,
         target_roles: JSON.stringify(getCheckedValues("[data-kv-role-option]")),
         target_year_groups: JSON.stringify(getCheckedValues("[data-kv-yeargroup-option]")),
