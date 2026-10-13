@@ -34,7 +34,7 @@ from dashboard.api.shared.utils import coalesce_str, coalesce_raw
 RESOURCE_DOCTYPE = "Knowledge Vault Resource"
 RESOURCE_SCHOOL_DOCTYPE = "Knowledge Vault Resource School"
 
-RESOURCE_TYPE_OPTIONS = ["Video", "PDF", "Image", "Document", "Email Template", "Other"]
+RESOURCE_TYPE_OPTIONS = ["Video", "PDF", "Image", "Document", "Email Template", "Instructions", "Other"]
 
 # Same lists school_dashboard's own school.py defines for the staff-invite
 # Role/Year Group selects - duplicated rather than cross-imported, same
