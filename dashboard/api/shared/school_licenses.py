@@ -133,19 +133,22 @@ def get_school_client_options():
 
 
 def _primary_contact_for_organisation(customer):
-    """The one person who can invite the rest of a school's own staff
-    (can_manage_users=1) - raw queries against client_portal's own
-    doctypes rather than a Python import, same reasoning as everywhere
-    else in this module. Prefers an already-Active membership; falls
-    back to a still-pending Portal Invitation so a franchisor granting
-    a license can see "invited, not yet accepted" rather than nothing."""
+    """The one person flagged is_primary_contact=1 (set exclusively by
+    invite_first_school_contact() in school_dashboard's own school.py,
+    cleared off anyone else at this organisation whenever a new one is
+    invited - see that function's own docstring) - raw queries against
+    client_portal's own doctypes rather than a Python import, same
+    reasoning as everywhere else in this module. Prefers an already-
+    Active membership; falls back to a still-pending Portal Invitation
+    so a franchisor granting a license can see "invited, not yet
+    accepted" rather than nothing."""
     if not frappe.db.exists("DocType", "Organisation Membership"):
         return None
 
     active = frappe.db.get_value(
         "Organisation Membership",
-        {"organisation": customer, "can_manage_users": 1, "membership_status": "Active"},
-        ["email", "user"], as_dict=True, order_by="creation asc",
+        {"organisation": customer, "is_primary_contact": 1, "membership_status": "Active"},
+        ["email", "user"], as_dict=True, order_by="creation desc",
     )
     if active:
         return {"email": active.email or active.user or "", "status": "Active"}
@@ -155,7 +158,7 @@ def _primary_contact_for_organisation(customer):
 
     invited = frappe.db.get_value(
         "Portal Invitation",
-        {"invitation_type": "Organisation Membership", "organisation": customer, "status": "Sent"},
+        {"invitation_type": "Organisation Membership", "organisation": customer, "is_primary_contact": 1, "status": "Sent"},
         "email", order_by="creation desc",
     )
     if invited:
