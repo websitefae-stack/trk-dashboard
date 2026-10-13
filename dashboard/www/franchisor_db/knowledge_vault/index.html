@@ -1,0 +1,103 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Knowledge Vault</h1>
+          <p class="dashboard-page-subtitle">Training videos, PDFs, images and documents for School Dashboard staff - allocate each one to specific schools, and optionally narrow it to specific roles and/or year groups.</p>
+        </div>
+
+        <div class="dashboard-page-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="addKvResourceBtn">+ Add Resource</button>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Type</th>
+                <th>For</th>
+                <th>Schools</th>
+                <th>Active</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="kvResourceTableBody">
+              <tr><td colspan="6" class="dashboard-empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-modal-backdrop" id="kvResourceModal">
+  <div class="dashboard-modal" style="max-width:640px;">
+    <div class="dashboard-modal-head">
+      <h3 id="kvResourceModalTitle">Add Resource</h3>
+      <button type="button" class="dashboard-modal-close" id="closeKvResourceModal">×</button>
+    </div>
+
+    <div class="dashboard-modal-body">
+      <label for="kvTitle">Title</label>
+      <input type="text" id="kvTitle" class="dashboard-input" placeholder="e.g. Butterfly Hug - Calming Exercise">
+
+      <label for="kvDescription">Description</label>
+      <textarea id="kvDescription" class="dashboard-input" rows="3" placeholder="Optional notes shown alongside this resource"></textarea>
+
+      <label for="kvResourceType">Resource Type</label>
+      <select id="kvResourceType" class="dashboard-input"></select>
+
+      <label for="kvFileInput">File</label>
+      <input type="file" id="kvFileInput" class="dashboard-input">
+      <p class="dashboard-help" id="kvCurrentFile"></p>
+
+      <label for="kvVideoUrl">Video URL (optional, instead of or alongside a file)</label>
+      <input type="text" id="kvVideoUrl" class="dashboard-input" placeholder="e.g. a YouTube or Vimeo link">
+
+      <label class="dashboard-checkbox-row" style="display:flex; align-items:center; gap:8px; margin-top:10px;">
+        <input type="checkbox" id="kvIsActive" checked>
+        Active
+      </label>
+
+      <div style="margin-top:16px;">
+        <label>Who This Is For</label>
+        <p class="dashboard-help">Leave a group blank to not restrict by it. If both are set, a staff member needs to match both (e.g. Teaching Assistant AND Year 2) - not just one.</p>
+
+        <div style="display:flex; gap:24px; flex-wrap:wrap; margin-top:8px;">
+          <div>
+            <div class="dashboard-help" style="font-weight:600; margin-bottom:4px;">Roles</div>
+            <div id="kvRoleCheckboxes" style="display:flex; flex-direction:column; gap:4px;"></div>
+          </div>
+          <div>
+            <div class="dashboard-help" style="font-weight:600; margin-bottom:4px;">Year Groups</div>
+            <div id="kvYearGroupCheckboxes" style="display:flex; flex-direction:column; gap:4px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <label>Allocated Schools</label>
+        <p class="dashboard-help">Only these schools' staff can see this resource at all, regardless of the targeting above.</p>
+        <div id="kvSchoolCheckboxes" style="display:flex; flex-direction:column; gap:4px; max-height:200px; overflow-y:auto; margin-top:8px; padding:8px; background:#f8f9fa; border-radius:6px; border:1px solid #e0e0e0;"></div>
+      </div>
+
+      <div class="dashboard-help" id="kvResourceModalMessage" style="color:#C01C3E; margin-top:10px;"></div>
+    </div>
+
+    <div class="dashboard-modal-foot">
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelKvResourceModal">Cancel</button>
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveKvResourceBtn">Save</button>
+    </div>
+  </div>
+</div>
