@@ -38,7 +38,8 @@ import frappe
 from frappe import _
 
 from dashboard.api.shared.permissions import is_franchisor_user, get_current_coach_name
-from dashboard.api.shared.invoices import _coach_label_from_name
+from dashboard.api.shared.invoices import _coach_label_from_name, _get_coach_options
+from dashboard.api.shared.store_products import _parse_json_list
 from dashboard.api.shared.utils import coalesce_str, coalesce_raw
 
 MOVEMENT_DOCTYPE = "Coach Stock Movement"
@@ -60,19 +61,21 @@ HANDOVER_STATUS_OPTIONS = (
 # so a franchisor can never hand-fabricate either audit trail.
 ADJUSTMENT_MOVEMENT_TYPES = ("Opening Count", "Manual Adjustment")
 
-# Kid Pack/Teen Pack are looked up by item_name (not a fixed item_code) -
-# these two Items must already exist on the site; neither is ever
-# auto-created here (see _pack_item_for_client_type()'s own note).
-PACK_ITEM_NAMES = ("Kid Pack", "Teen Pack")
+# Looked up by item_name (not a fixed item_code) - these two Items must
+# already exist on the site; neither is ever auto-created here (see
+# _pack_item_for_client_type()'s own note). Confirmed live against the
+# real Store product names - not the generic "Kid Pack"/"Teen Pack"
+# this module shipped with, which matched nothing on the real site.
+PACK_ITEM_NAMES = ("The Resilient Kid Client Pack", "The Resilient Teen Client Pack")
 
 
 def _pack_item_for_client_type(client_type):
-    """Teen -> "Teen Pack", anything else Kid-eligible (only ever called
-    for client_type in PACK_CLIENT_TYPES - see record_pack_handover()'s
-    own guard) -> "Kid Pack". Doesn't auto-create either Item if it's
-    missing from this site - callers look it up by item_name themselves
-    and decide what to do when it's not found."""
-    return "Teen Pack" if client_type == "Teen" else "Kid Pack"
+    """Teen -> the Teen pack, anything else Kid-eligible (only ever
+    called for client_type in PACK_CLIENT_TYPES - see record_pack_
+    handover()'s own guard) -> the Kid pack. Doesn't auto-create either
+    Item if it's missing from this site - callers look it up by
+    item_name themselves and decide what to do when it's not found."""
+    return PACK_ITEM_NAMES[1] if client_type == "Teen" else PACK_ITEM_NAMES[0]
 
 
 def _resolve_coach_for_call(coach=None):
@@ -274,18 +277,18 @@ def record_pack_handover(client, status, reason=None):
         if not item_code:
             frappe.throw(_("No '{0}' Item exists yet - ask the franchisor to set one up first.").format(item_name))
 
+        # Confirmed decision (reversed from this feature's first build,
+        # which allowed a negative balance and just logged it): a coach
+        # can never record "Given" without the stock to back it up - no
+        # negative balances allowed at all. Steers them towards "Could
+        # Not Give - Out of Stock" instead, which is itself the accurate
+        # record of what actually happened.
         balance = _balance_for_item(coach, item_code)
         if balance <= 0:
-            # Confirmed decision: trust the coach, record the handover
-            # anyway, and let the balance go negative - a negative
-            # balance is itself the useful signal (a stock-count problem
-            # worth the franchisor investigating via the compliance
-            # report), not something worth blocking a real handover over.
-            frappe.log_error(
-                f"Coach {coach} handed over a {item_name} to client {client} "
-                f"with stock balance already at {balance} - going negative.",
-                "Coach Stock Went Negative",
-            )
+            frappe.throw(_(
+                "{0} has no {1} left in stock to give out - record this as "
+                "\"Could Not Give - Out of Stock\" instead."
+            ).format(_coach_label_from_name(coach), item_name))
 
         frappe.get_doc({
             "doctype": MOVEMENT_DOCTYPE,
@@ -346,6 +349,11 @@ def set_coach_stock_adjustment(coach, item, quantity_change, movement_type, note
     if not frappe.db.exists("Item", item):
         frappe.throw(_("Item not found."))
 
+    # No negative balances allowed anywhere in this ledger - same rule
+    # as record_pack_handover()'s own guard.
+    if _balance_for_item(coach, item) + quantity_change < 0:
+        frappe.throw(_("That would take {0}'s stock below zero.").format(_coach_label_from_name(coach)))
+
     frappe.get_doc({
         "doctype": MOVEMENT_DOCTYPE,
         "coach": coach,
@@ -358,6 +366,94 @@ def set_coach_stock_adjustment(coach, item, quantity_change, movement_type, note
     frappe.db.commit()
 
     return {"ok": True, "balance": _balance_for_item(coach, item)}
+
+
+@frappe.whitelist()
+def get_coach_stock_take_rows():
+    """Franchisor-only - the whole count sheet in one call: every coach,
+    crossed with every pack Item, with their current balance already
+    filled in. Confirmed live request: entering stock one coach/one item
+    at a time (the existing Adjust Stock modal) was too slow for an
+    actual stock take across the whole coach roster - this is the "see
+    the full list and just type the numbers in" view, paired with
+    coach_stock_take_update() below for the one bulk save."""
+    if not is_franchisor_user():
+        frappe.throw(_("Only the franchisor can view this."), frappe.PermissionError)
+
+    items = get_pack_item_options()
+    coaches = _get_coach_options()
+
+    rows = []
+    for coach in coaches:
+        balances = _coach_stock_balances(coach["value"])
+        rows.append({
+            "coach": coach["value"],
+            "coach_name": coach["label"],
+            "balances": {item["item_code"]: balances.get(item["item_code"], 0) for item in items},
+        })
+
+    return {"items": items, "coaches": rows}
+
+
+@frappe.whitelist()
+def coach_stock_take_update(updates=None):
+    """Franchisor-only bulk save for the Stock Take grid - one round trip
+    for the whole count sheet rather than one per coach/item (see get_
+    coach_stock_take_rows()'s own docstring for why). `updates` is
+    [{"coach":, "item":, "stock_qty":}, ...] - an ABSOLUTE count per
+    cell, same shape as store_products.stock_take_update()'s own updates
+    list, not a relative quantity_change like set_coach_stock_adjustment
+    takes. A row whose stock_qty hasn't actually changed from the
+    current balance is skipped - no empty movement rows. First-ever
+    count for a coach/item records as "Opening Count", any later
+    recount as "Manual Adjustment", decided automatically rather than
+    asking the franchisor to pick for every cell. stock_qty is always
+    treated as >= 0 - a physical count can't be negative, so there's no
+    separate negative-balance guard to apply here (unlike set_coach_
+    stock_adjustment's free-form relative quantity_change)."""
+    if not is_franchisor_user():
+        frappe.throw(_("Only the franchisor can update stock."), frappe.PermissionError)
+
+    updates = _parse_json_list(updates)
+    if not updates:
+        frappe.throw(_("Nothing to save."))
+
+    updated = 0
+    for row in updates:
+        coach = (row.get("coach") or "").strip()
+        item = (row.get("item") or "").strip()
+        stock_qty = row.get("stock_qty")
+
+        if not coach or not item or stock_qty in (None, ""):
+            continue
+        if not frappe.db.exists("Coach", coach) or not frappe.db.exists("Item", item):
+            continue
+
+        try:
+            stock_qty = max(0, int(stock_qty))
+        except (TypeError, ValueError):
+            continue
+
+        current = _balance_for_item(coach, item)
+        delta = stock_qty - current
+        if delta == 0:
+            continue
+
+        has_prior_movement = bool(frappe.db.exists(MOVEMENT_DOCTYPE, {"coach": coach, "item": item}))
+
+        frappe.get_doc({
+            "doctype": MOVEMENT_DOCTYPE,
+            "coach": coach,
+            "item": item,
+            "quantity_change": delta,
+            "movement_type": "Manual Adjustment" if has_prior_movement else "Opening Count",
+            "notes": "Stock take" if has_prior_movement else None,
+            "created_by_user": frappe.session.user,
+        }).insert(ignore_permissions=True)
+        updated += 1
+
+    frappe.db.commit()
+    return {"ok": True, "updated": updated}
 
 
 @frappe.whitelist()

@@ -205,6 +205,95 @@
       }
     }
 
+    // Stock Take - the whole coach roster crossed with every pack Item
+    // in one editable grid, confirmed live as the preferred way to do a
+    // real stock take over the one-coach/one-item Adjust Stock modal.
+    let stockTakeItems = [];
+
+    function stockTakeInputId(coach, itemCode) {
+      return `stockTake__${coach}__${itemCode}`;
+    }
+
+    async function loadStockTake() {
+      const headEl = el("stockTakeTableHead");
+      const bodyEl = el("stockTakeTableBody");
+      const columnCount = 1 + stockTakeItems.length;
+
+      try {
+        const data = await apiPost(`${STOCK_API}.get_coach_stock_take_rows`, {});
+        stockTakeItems = data.items || [];
+
+        if (headEl) {
+          headEl.innerHTML = "<th>Coach</th>" + stockTakeItems.map(function (item) {
+            return `<th>${escapeHtml(item.item_name)}</th>`;
+          }).join("");
+        }
+
+        if (!bodyEl) return;
+
+        if (!data.coaches || !data.coaches.length) {
+          bodyEl.innerHTML = `<tr><td colspan="${1 + stockTakeItems.length}" class="dashboard-empty">No coaches found.</td></tr>`;
+          return;
+        }
+
+        if (!stockTakeItems.length) {
+          bodyEl.innerHTML = `<tr><td class="dashboard-empty">No Kid Pack/Teen Pack Item set up yet - nothing to count.</td></tr>`;
+          return;
+        }
+
+        bodyEl.innerHTML = data.coaches.map(function (row) {
+          const cells = stockTakeItems.map(function (item) {
+            const value = (row.balances || {})[item.item_code] || 0;
+            return `<td><input type="number" min="0" class="dashboard-input" id="${escapeHtml(stockTakeInputId(row.coach, item.item_code))}" data-stock-take-coach="${escapeHtml(row.coach)}" data-stock-take-item="${escapeHtml(item.item_code)}" data-original-value="${escapeHtml(value)}" value="${escapeHtml(value)}" style="width:90px;"></td>`;
+          }).join("");
+          return `<tr><td>${escapeHtml(row.coach_name)}</td>${cells}</tr>`;
+        }).join("");
+      } catch (error) {
+        if (bodyEl) bodyEl.innerHTML = `<tr><td colspan="${columnCount}" class="dashboard-empty">${escapeHtml(error.message || "Could not load the stock take.")}</td></tr>`;
+      }
+    }
+
+    async function saveStockTake() {
+      const saveBtn = el("saveStockTakeBtn");
+      const messageEl = el("stockTakeMessage");
+
+      const updates = [];
+      document.querySelectorAll("#stockTakeTableBody [data-stock-take-coach]").forEach(function (input) {
+        const original = input.dataset.originalValue;
+        if (input.value === original || input.value === "") return;
+
+        updates.push({
+          coach: input.dataset.stockTakeCoach,
+          item: input.dataset.stockTakeItem,
+          stock_qty: parseInt(input.value, 10) || 0,
+        });
+      });
+
+      if (!updates.length) {
+        if (messageEl) { messageEl.textContent = "Nothing's changed."; messageEl.style.color = ""; }
+        return;
+      }
+
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving..."; }
+      if (messageEl) messageEl.textContent = "";
+
+      try {
+        const result = await apiPost(`${STOCK_API}.coach_stock_take_update`, { updates: JSON.stringify(updates) });
+        if (messageEl) {
+          messageEl.textContent = `Saved - ${result.updated} ${result.updated === 1 ? "count" : "counts"} updated.`;
+          messageEl.style.color = "#007274";
+        }
+        await loadStockTake();
+        await loadComplianceReport();
+      } catch (error) {
+        if (messageEl) { messageEl.textContent = error.message || "Could not save the stock take."; messageEl.style.color = "#C01C3E"; }
+      } finally {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save Stock Take"; }
+      }
+    }
+
+    el("saveStockTakeBtn")?.addEventListener("click", saveStockTake);
+
     async function ensureAdjustmentOptionsLoaded() {
       if (cachedCoachOptions.length && cachedItemOptions.length) return;
 
@@ -305,6 +394,7 @@
     }
 
     loadComplianceReport();
+    loadStockTake();
   }
 
   function init() {

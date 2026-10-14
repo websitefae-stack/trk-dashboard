@@ -14,8 +14,29 @@
         </div>
 
         <div class="dashboard-page-actions">
-          <button type="button" class="dashboard-btn dashboard-btn-primary" id="addStockAdjustmentBtn">+ Adjust Stock</button>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="addStockAdjustmentBtn">+ One-off Adjustment</button>
         </div>
+      </div>
+
+      <div class="dashboard-card" style="margin-bottom:20px;">
+        <div class="dashboard-table-header">
+          <div>
+            <div class="dashboard-table-title">Stock Take</div>
+            <p class="dashboard-page-subtitle" style="margin:4px 0 0;">Every coach's current count - edit any number and Save Stock Take once, instead of one adjustment at a time.</p>
+          </div>
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveStockTakeBtn">Save Stock Take</button>
+        </div>
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table" id="stockTakeTable">
+            <thead>
+              <tr id="stockTakeTableHead"><th>Coach</th></tr>
+            </thead>
+            <tbody id="stockTakeTableBody">
+              <tr><td class="dashboard-empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="dashboard-help" id="stockTakeMessage" style="margin-top:10px;"></div>
       </div>
 
       <div class="dashboard-card">
