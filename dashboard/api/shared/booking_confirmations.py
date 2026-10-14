@@ -14,17 +14,36 @@ marks the batch pending, and the scheduled sweep below
 sends it once every online occurrence has a link - or after
 PENDING_TIMEOUT_MINUTES, whichever comes first, so a booking never goes
 completely un-confirmed just because a sync attempt is stuck.
+
+Also owns send_online_session_reminders() - a separate 1-hour-before
+reminder for online sessions specifically, confirmed requested live
+after the business owner couldn't find any existing reminder feature
+anywhere in this codebase (there wasn't one). Every email this module
+sends goes through _send_confirmation_email(), which wraps the message
+in wrap_branded_email_html() so confirmations, meet-link follow-ups and
+reminders are all consistently branded rather than a bare paragraph of
+text.
 """
 
 import frappe
 from frappe.utils import add_to_date, get_datetime, now_datetime
 
 from dashboard.api.shared.calendar import _event_has_field, _get_client_display_name, _is_online_location
-from dashboard.api.shared.email_templates import plain_text_to_email_html
+from dashboard.api.shared.email_templates import plain_text_to_email_html, wrap_branded_email_html
+from dashboard.api.shared.invoices import _coach_label_from_name, get_client_email_options
 from dashboard.api.shared.mail_throttle import send_email
 
 PENDING_TIMEOUT_MINUTES = 10
 FOLLOWUP_GIVE_UP_HOURS = 24
+
+# How long before an online session's start time the reminder sweep
+# targets, and how wide a net it casts around that mark - wide enough to
+# comfortably straddle the 5-minute cron interval (hooks.py) so a run
+# that's a few minutes early or late never skips an event entirely, kept
+# safe from duplicates by custom_reminder_sent regardless of how many
+# sweeps actually see the same event inside that window.
+REMINDER_LEAD_MINUTES = 60
+REMINDER_WINDOW_MINUTES = 10
 
 
 def _batch_needs_meet_link(created_events):
@@ -112,7 +131,7 @@ def _send_confirmation_email(recipient, subject, message, reference_event):
         send_email(
             recipients=[recipient],
             subject=subject,
-            message=plain_text_to_email_html(message),
+            message=wrap_branded_email_html(plain_text_to_email_html(message)),
             reference_doctype="Event",
             reference_name=reference_event,
         )
@@ -288,5 +307,86 @@ def send_pending_meet_link_followups():
             _send_confirmation_email(leader.custom_confirmation_recipient, subject, message, leader.name)
 
         frappe.db.set_value("Event", leader.name, "custom_confirmation_link_pending", 0, update_modified=False)
+
+    frappe.db.commit()
+
+
+def _compose_online_session_reminder_message(event_row, client, coach_name):
+    start_dt = get_datetime(event_row.get("starts_on"))
+    meet_link = event_row.get("custom_google_meet_url") or event_row.get("google_meet_link") or ""
+    contact_name = _get_client_display_name(client)
+    who_with = f" with {coach_name}" if coach_name else ""
+
+    subject = "Your session starts in 1 hour"
+    message = (
+        f"Hi {contact_name},\n\n"
+        f"Just a reminder - your online session{who_with} starts in 1 hour, "
+        f"at {start_dt.strftime('%H:%M')} on {start_dt.strftime('%A %d %B %Y')}.\n\n"
+        f"Here is the Google Meet link for easy access: {meet_link}\n\n"
+        "Please let us know if you have any questions or need to make any changes.\n\n"
+        "The Resilient Office"
+    )
+
+    return subject, message
+
+
+def send_online_session_reminders():
+    """
+    Scheduled sweep (hooks.py, every 5 minutes) - a reminder email roughly
+    REMINDER_LEAD_MINUTES before an online session starts, confirmed
+    requested live (no reminder feature of any kind existed anywhere in
+    this codebase before this). Online sessions only - an in-person
+    session has no link worth reminding anyone of - and only once a
+    Google Meet link actually exists, same reasoning as the confirmation
+    flow above: no point reminding someone of a link that isn't there
+    yet. custom_reminder_sent keeps this to exactly one send per event
+    regardless of how many 5-minute sweeps land inside the matching
+    window (see REMINDER_WINDOW_MINUTES's own comment for why that
+    window is wider than the cron interval).
+    """
+    if not _event_has_field("custom_reminder_sent"):
+        return
+
+    half_window = REMINDER_WINDOW_MINUTES / 2
+    window_start = add_to_date(now_datetime(), minutes=REMINDER_LEAD_MINUTES - half_window)
+    window_end = add_to_date(now_datetime(), minutes=REMINDER_LEAD_MINUTES + half_window)
+
+    fields = ["name", "starts_on", "location", "custom_client", "custom_google_meet_url"]
+    if _event_has_field("custom_coach"):
+        fields.append("custom_coach")
+    if _event_has_field("google_meet_link"):
+        fields.append("google_meet_link")
+
+    events = frappe.get_all(
+        "Event",
+        filters={
+            "starts_on": ["between", [window_start, window_end]],
+            "custom_reminder_sent": 0,
+        },
+        fields=fields,
+    )
+
+    for event in events:
+        if not _is_online_location(event.get("location")):
+            continue
+
+        meet_link = event.get("custom_google_meet_url") or event.get("google_meet_link") or ""
+        if not meet_link:
+            continue
+
+        client = event.get("custom_client")
+        if not client:
+            continue
+
+        email_options = get_client_email_options(client_name=client)
+        recipient = email_options[0]["value"] if email_options else ""
+        if not recipient:
+            continue
+
+        coach_name = _coach_label_from_name(event.get("custom_coach")) if event.get("custom_coach") else ""
+        subject, message = _compose_online_session_reminder_message(event, client, coach_name)
+        _send_confirmation_email(recipient, subject, message, event.name)
+
+        frappe.db.set_value("Event", event.name, "custom_reminder_sent", 1, update_modified=False)
 
     frappe.db.commit()

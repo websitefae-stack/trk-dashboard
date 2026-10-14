@@ -411,6 +411,7 @@ scheduler_events = {
             "dashboard.api.shared.pending_bookings.sweep_stuck_pending_bookings",
             "dashboard.api.shared.booking_confirmations.send_pending_booking_confirmations",
             "dashboard.api.shared.booking_confirmations.send_pending_meet_link_followups",
+            "dashboard.api.shared.booking_confirmations.send_online_session_reminders",
         ],
         # Fires once a day at 10am (site/server time) rather than hourly -
         # Ashley wants every outgoing email to go out at a predictable

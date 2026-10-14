@@ -8,7 +8,7 @@ from dashboard.api.shared.session_worker_view_mode import get_session_worker_vie
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 from dashboard.api.shared.utils import get_label as _get_label, get_request_payload as _get_request_payload, coalesce_raw as _coalesce_raw, coalesce_str as _coalesce_str, find_session_worker_for_user as _find_session_worker_for_user
 from dashboard.api.shared.clients import build_display_name as _build_client_display_name
-from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, parse_email_list, BOOKING_CONFIRMATION_TEMPLATE
+from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, parse_email_list, wrap_branded_email_html, BOOKING_CONFIRMATION_TEMPLATE
 from dashboard.api.shared.mail_throttle import send_email
 
 
@@ -2260,7 +2260,10 @@ def send_booking_confirmation_email(event=None, recipient=None, subject=None, me
         frappe.throw(_("This appointment has no client or lead linked, so there's no one to email."))
 
     subject = (subject or "Your appointment is confirmed").strip()
-    message = plain_text_to_email_html((message or "").strip())
+    # Same branded shell as booking_confirmations.py's own automatic
+    # sends - confirmed requested live that every confirmation/reminder
+    # email should carry the logos, not just the automatic ones.
+    message = wrap_branded_email_html(plain_text_to_email_html((message or "").strip()))
 
     # Default to whoever's actually sending this, not the shared outgoing
     # account - otherwise every client reply lands in office's inbox
