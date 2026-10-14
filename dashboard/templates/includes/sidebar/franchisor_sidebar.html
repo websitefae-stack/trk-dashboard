@@ -47,88 +47,124 @@
             <span>Leads</span>
         </a>
 
-        <a href="/franchisor_db/recruitment_leads" class="{% if active_page == 'recruitment_leads' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">📋</span>
-            <span>Recruitment</span>
-        </a>
-
-        <a href="/franchisor_db/schools" class="{% if active_page == 'schools' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">🏫</span>
-            <span>School Pipeline</span>
-        </a>
-
         <a href="/franchisor_db/calendar" class="{% if active_page == 'calendar' %}is-active{% endif %}">
             <span class="dashboard-nav-icon">📅</span>
             <span>Calendar</span>
         </a>
 
-        <a href="/franchisor_db/coaches" class="{% if active_page == 'coaches' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">🎓</span>
-            <span>Coaches</span>
-        </a>
+        <div class="dashboard-nav-group {% if active_page in ['recruitment_leads', 'coaches', 'session_workers', 'item_access', 'onboarding'] %}is-open{% endif %}">
+            <button type="button" class="dashboard-nav-group-toggle">
+                <span class="dashboard-nav-icon">🎓</span>
+                <span>Staff</span>
+                <span class="dashboard-nav-group-arrow">›</span>
+            </button>
+            <div class="dashboard-nav-group-items">
+                <a href="/franchisor_db/recruitment_leads" class="{% if active_page == 'recruitment_leads' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">📋</span>
+                    <span>Recruitment</span>
+                </a>
 
-        <a href="/franchisor_db/session_workers" class="{% if active_page == 'session_workers' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">🏫</span>
-            <span>Session Workers</span>
-        </a>
+                <a href="/franchisor_db/coaches" class="{% if active_page == 'coaches' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🎓</span>
+                    <span>Coaches</span>
+                </a>
 
-        <a href="/franchisor_db/item_access" class="{% if active_page == 'item_access' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">🔑</span>
-            <span>Service Access</span>
-        </a>
+                <a href="/franchisor_db/session_workers" class="{% if active_page == 'session_workers' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🏫</span>
+                    <span>Session Workers</span>
+                </a>
 
-        <a href="/franchisor_db/school_licenses" class="{% if active_page == 'school_licenses' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">🏫</span>
-            <span>School Licenses</span>
-        </a>
+                <a href="/franchisor_db/item_access" class="{% if active_page == 'item_access' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🔑</span>
+                    <span>Service Access</span>
+                </a>
 
-        <a href="/franchisor_db/knowledge_vault" class="{% if active_page == 'knowledge_vault' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">📚</span>
-            <span>Knowledge Vault</span>
-        </a>
+                <a href="/franchisor_db/onboarding" class="{% if active_page == 'onboarding' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🧭</span>
+                    <span>Onboarding</span>
+                </a>
+            </div>
+        </div>
 
-        <a href="/franchisor_db/invoices" class="{% if active_page == 'invoices' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">🧾</span>
-            <span>Invoices</span>
-        </a>
+        <div class="dashboard-nav-group {% if active_page in ['schools', 'school_licenses', 'knowledge_vault'] %}is-open{% endif %}">
+            <button type="button" class="dashboard-nav-group-toggle">
+                <span class="dashboard-nav-icon">🏫</span>
+                <span>Schools</span>
+                <span class="dashboard-nav-group-arrow">›</span>
+            </button>
+            <div class="dashboard-nav-group-items">
+                <a href="/franchisor_db/schools" class="{% if active_page == 'schools' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🏫</span>
+                    <span>School Pipeline</span>
+                </a>
 
-        <a href="/franchisor_db/statements" class="{% if active_page == 'statements' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">📬</span>
-            <span>Statements</span>
-        </a>
+                <a href="/franchisor_db/school_licenses" class="{% if active_page == 'school_licenses' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🏫</span>
+                    <span>School Licenses</span>
+                </a>
 
-        <a href="/franchisor_db/reports" class="{% if active_page == 'reports' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">🩺</span>
-            <span>Reports</span>
-        </a>
+                <a href="/franchisor_db/knowledge_vault" class="{% if active_page == 'knowledge_vault' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">📚</span>
+                    <span>Knowledge Vault</span>
+                </a>
+            </div>
+        </div>
 
-        {% if frappe.session.user == "office@theresilienthub.co.uk" %}
-        <a href="/franchisor_db/email_templates" class="{% if active_page == 'email_templates' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">📧</span>
-            <span>Email Templates</span>
-        </a>
-        {% endif %}
+        <div class="dashboard-nav-group {% if active_page in ['invoices', 'statements'] %}is-open{% endif %}">
+            <button type="button" class="dashboard-nav-group-toggle">
+                <span class="dashboard-nav-icon">🧾</span>
+                <span>Finance</span>
+                <span class="dashboard-nav-group-arrow">›</span>
+            </button>
+            <div class="dashboard-nav-group-items">
+                <a href="/franchisor_db/invoices" class="{% if active_page == 'invoices' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🧾</span>
+                    <span>Invoices</span>
+                </a>
 
-        <a href="/franchisor_db/documents" class="{% if active_page == 'documents' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">📄</span>
-            <span>Documents</span>
-        </a>
+                <a href="/franchisor_db/statements" class="{% if active_page == 'statements' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">📬</span>
+                    <span>Statements</span>
+                </a>
+            </div>
+        </div>
 
-        <a href="/franchisor_db/links" class="{% if active_page == 'links' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">🔗</span>
-            <span>Links</span>
-        </a>
+        <div class="dashboard-nav-group {% if active_page in ['documents', 'reports', 'links', 'email_templates'] %}is-open{% endif %}">
+            <button type="button" class="dashboard-nav-group-toggle">
+                <span class="dashboard-nav-icon">🧰</span>
+                <span>Tools</span>
+                <span class="dashboard-nav-group-arrow">›</span>
+            </button>
+            <div class="dashboard-nav-group-items">
+                <a href="/franchisor_db/documents" class="{% if active_page == 'documents' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">📄</span>
+                    <span>Documents</span>
+                </a>
 
-        <a href="/franchisor_db/onboarding" class="{% if active_page == 'onboarding' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">🧭</span>
-            <span>Onboarding</span>
-        </a>
+                <a href="/franchisor_db/reports" class="{% if active_page == 'reports' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🩺</span>
+                    <span>Reports</span>
+                </a>
+
+                <a href="/franchisor_db/links" class="{% if active_page == 'links' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🔗</span>
+                    <span>Links</span>
+                </a>
+
+                {% if frappe.session.user == "office@theresilienthub.co.uk" %}
+                <a href="/franchisor_db/email_templates" class="{% if active_page == 'email_templates' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">📧</span>
+                    <span>Email Templates</span>
+                </a>
+                {% endif %}
+            </div>
+        </div>
 
         <a href="/franchisor_db/profile" class="{% if active_page == 'profile' %}is-active{% endif %}">
             <span class="dashboard-nav-icon">⚙️</span>
             <span>Profile</span>
         </a>
-                
+
         <button type="button" id="dashboardLogoutBtn" class="dashboard-sidebar-logout">
             <span class="dashboard-nav-icon">⎋</span>
             <span>Log Out</span>

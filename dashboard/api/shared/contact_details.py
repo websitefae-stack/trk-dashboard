@@ -398,6 +398,8 @@ def send_contact_statement_email(contact_name=None, scope="coach", recipient=Non
         "message": message,
         "reply_to": reply_to,
         "attachments": attachments,
+        "reference_doctype": "Contact",
+        "reference_name": contact_name,
     }
 
     cc_list = parse_email_list(cc)

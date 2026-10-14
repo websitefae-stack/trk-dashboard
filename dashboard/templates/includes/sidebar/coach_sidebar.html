@@ -64,25 +64,48 @@
             <span>Session Workers</span>
         </a>
 
-        <a href="/coach_db/invoices{{ coach_view_query or '' }}" class="{% if active_page == 'invoices' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">🧾</span>
-            <span>Invoices</span>
-        </a>
+        <div class="dashboard-nav-group {% if active_page in ['invoices', 'statements'] %}is-open{% endif %}">
+            <button type="button" class="dashboard-nav-group-toggle">
+                <span class="dashboard-nav-icon">🧾</span>
+                <span>Finance</span>
+                <span class="dashboard-nav-group-arrow">›</span>
+            </button>
+            <div class="dashboard-nav-group-items">
+                <a href="/coach_db/invoices{{ coach_view_query or '' }}" class="{% if active_page == 'invoices' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🧾</span>
+                    <span>Invoices</span>
+                </a>
 
-        <a href="/coach_db/reports{{ coach_view_query or '' }}" class="{% if active_page == 'reports' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">🩺</span>
-            <span>Reports</span>
-        </a>
+                <a href="/coach_db/statements{{ coach_view_query or '' }}" class="{% if active_page == 'statements' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">📬</span>
+                    <span>Statements</span>
+                </a>
+            </div>
+        </div>
 
-        <a href="/coach_db/documents{{ coach_view_query or '' }}" class="{% if active_page == 'documents' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">📄</span>
-            <span>Documents</span>
-        </a>
+        <div class="dashboard-nav-group {% if active_page in ['documents', 'reports', 'links'] %}is-open{% endif %}">
+            <button type="button" class="dashboard-nav-group-toggle">
+                <span class="dashboard-nav-icon">🧰</span>
+                <span>Tools</span>
+                <span class="dashboard-nav-group-arrow">›</span>
+            </button>
+            <div class="dashboard-nav-group-items">
+                <a href="/coach_db/documents{{ coach_view_query or '' }}" class="{% if active_page == 'documents' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">📄</span>
+                    <span>Documents</span>
+                </a>
 
-        <a href="/coach_db/links{{ coach_view_query or '' }}" class="{% if active_page == 'links' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">🔗</span>
-            <span>Links</span>
-        </a>
+                <a href="/coach_db/reports{{ coach_view_query or '' }}" class="{% if active_page == 'reports' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🩺</span>
+                    <span>Reports</span>
+                </a>
+
+                <a href="/coach_db/links{{ coach_view_query or '' }}" class="{% if active_page == 'links' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🔗</span>
+                    <span>Links</span>
+                </a>
+            </div>
+        </div>
 
         <a href="/coach_db/onboarding{{ coach_view_query or '' }}" class="{% if active_page == 'onboarding' %}is-active{% endif %}">
             <span class="dashboard-nav-icon">🧭</span>

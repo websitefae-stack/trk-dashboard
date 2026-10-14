@@ -2380,6 +2380,8 @@ def send_client_email(client_name=None, recipient=None, subject=None, message=No
         "subject": subject,
         "message": message,
         "reply_to": reply_to,
+        "reference_doctype": "Client",
+        "reference_name": client_name,
     }
 
     cc_list = parse_email_list(cc)
@@ -2702,6 +2704,8 @@ def send_client_statement_email(client_name=None, recipient=None, subject=None, 
         "message": message,
         "reply_to": reply_to,
         "attachments": attachments,
+        "reference_doctype": "Client",
+        "reference_name": client_name,
     }
 
     cc_list = parse_email_list(cc)

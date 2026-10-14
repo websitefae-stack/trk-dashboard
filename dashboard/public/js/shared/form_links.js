@@ -34,8 +34,22 @@
     return short.length < trimmed.length ? short : trimmed;
   }
 
+  // /franchisor_db/links or /coach_db/links - same prefix the report
+  // page this links out to lives under, so "View Feedback" stays on
+  // the same dashboard rather than bouncing a coach into franchisor_db.
+  function dashboardBasePath() {
+    var match = window.location.pathname.match(/^\/(franchisor_db|coach_db)/);
+    return match ? "/" + match[1] : "/franchisor_db";
+  }
+
   function renderLink(link) {
     var description = truncateDescription(link.description);
+    var clickCount = clickCountsCache[link.target_url] || 0;
+    var clickLabel = clickCount === 1 ? "1 click" : clickCount + " clicks";
+
+    var reportButton = link.form_doctype
+      ? '<a class="dashboard-btn dashboard-btn-light" href="' + dashboardBasePath() + "/reports?form=" + encodeURIComponent(link.form_doctype) + '">View Feedback</a>'
+      : "";
 
     return (
       '<div class="dashboard-card dashboard-link-card">' +
@@ -43,12 +57,14 @@
         (description
           ? '<div class="dashboard-doc-list-meta" style="margin-bottom:8px;">' + escapeHtml(description) + "</div>"
           : "") +
+        '<div class="dashboard-doc-list-meta" style="margin-bottom:8px;">' + escapeHtml(clickLabel) + "</div>" +
         '<div class="dashboard-link-card-body">' +
           '<div class="dashboard-login-qr" data-qr-value="' + escapeHtml(link.url) + '" data-qr-label="' + escapeHtml(link.title) + '"></div>' +
           '<div class="dashboard-link-card-actions">' +
             '<a href="#" class="dashboard-btn dashboard-btn-grey dashboard-login-qr-download" download>Download QR code (JPG)</a>' +
             '<button type="button" class="dashboard-btn dashboard-btn-light" data-copy-value="' + escapeHtml(link.url) + '">Copy Link</button>' +
             '<a class="dashboard-btn dashboard-btn-primary" href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener noreferrer">Open</a>' +
+            reportButton +
           "</div>" +
         "</div>" +
       "</div>"
@@ -96,6 +112,24 @@
   }
 
   var allLinksCache = [];
+  var clickCountsCache = {};
+
+  async function loadClickCounts() {
+    try {
+      var response = await fetch("/api/method/dashboard.api.shared.form_reports.get_link_click_counts", {
+        method: "GET",
+        credentials: "same-origin"
+      });
+      var data = await response.json();
+      if (response.ok && !data.exc) {
+        clickCountsCache = data.message || {};
+      }
+    } catch (error) {
+      // Click counts are a nice-to-have on top of the link list itself -
+      // if this fails, every card just shows "0 clicks" rather than
+      // blocking the links page from loading at all.
+    }
+  }
 
   function renderLinks(links, emptyMessage) {
     var container = el("formLinksList");
@@ -152,6 +186,8 @@
       container.innerHTML = '<div class="dashboard-empty">Could not load links right now.</div>';
       return;
     }
+
+    await loadClickCounts();
 
     allLinksCache = data.message || [];
     renderLinks(allLinksCache, "No links are available to you yet.");

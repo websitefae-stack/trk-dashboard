@@ -73,7 +73,17 @@ def get_email_volume():
 
 def send_email(**kwargs):
     """Same keyword arguments as frappe.sendmail() - recipients, subject,
-    message, reference_doctype, reference_name, cc, reply_to, etc."""
+    message, reference_doctype, reference_name, cc, reply_to, etc.
+
+    Defaults expose_recipients to "header" unless a caller explicitly
+    sets it - confirmed live, every transactional email here goes
+    through this one function, yet Email Queue's own "Expose Recipients"
+    column showed blank across the board, making it harder to see at a
+    glance who an email actually went to. There's no bulk/BCC reason to
+    hide recipients from each other on this app's own transactional
+    sends (unlike a real newsletter blast), so there's no good reason
+    not to default this on everywhere."""
+    kwargs.setdefault("expose_recipients", "header")
     kwargs["now"] = False
 
     sent_recently = _sent_in_last_hour()

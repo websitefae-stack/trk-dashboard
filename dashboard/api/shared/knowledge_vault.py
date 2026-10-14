@@ -305,31 +305,39 @@ def get_knowledge_vault_resources_for_school_staff(organisation, role=None, year
         order_by="modified desc",
     )
 
+    # Autoincrement-named doctype - row.name below comes back as a JSON/
+    # Python NUMBER (same quirk already hit once on the franchisor Edit
+    # button, see knowledge_vault.js's own comment), while "parent" on a
+    # child table row is always a plain string column. row.name in
+    # granted_resource_names (a set built from "parent" strings) was
+    # therefore silently NEVER true - confirmed live: an explicit grant
+    # or exclusion never actually took effect here, regardless of what
+    # was saved. str() both sides consistently to fix it for good.
     granted_resource_names = set()
     excluded_resource_names = set()
     if not is_admin and membership and frappe.db.table_exists(RESOURCE_STAFF_DOCTYPE):
-        granted_resource_names = set(frappe.get_all(
+        granted_resource_names = {str(name) for name in frappe.get_all(
             RESOURCE_STAFF_DOCTYPE,
             filters={"parent": ["in", list(resource_names)], "parentfield": "staff_grants", "staff_member": membership},
             pluck="parent",
-        ))
-        excluded_resource_names = set(frappe.get_all(
+        )}
+        excluded_resource_names = {str(name) for name in frappe.get_all(
             RESOURCE_STAFF_DOCTYPE,
             filters={"parent": ["in", list(resource_names)], "parentfield": "staff_exclusions", "staff_member": membership},
             pluck="parent",
-        ))
+        )}
 
     results = []
     for row in docs:
         if not is_admin:
-            if row.name in excluded_resource_names:
+            if str(row.name) in excluded_resource_names:
                 continue
 
             roles = _parse_list(row.target_roles)
             year_groups = _parse_list(row.target_year_groups)
             auto_matches = (not roles or role in roles) and (not year_groups or year_group in year_groups)
 
-            if not auto_matches and row.name not in granted_resource_names:
+            if not auto_matches and str(row.name) not in granted_resource_names:
                 continue
 
         results.append({
@@ -408,7 +416,7 @@ def get_resource_staff_grants_for_school(organisation):
     exclusions_by_resource = {}
     for row in frappe.get_all(RESOURCE_STAFF_DOCTYPE, filters={"parent": ["in", resource_names]}, fields=["parent", "parentfield", "staff_member"]):
         bucket = grants_by_resource if row.parentfield == "staff_grants" else exclusions_by_resource
-        bucket.setdefault(row.parent, []).append(row.staff_member)
+        bucket.setdefault(str(row.parent), []).append(row.staff_member)
 
     staff_rows = frappe.get_all(
         "Organisation Membership",
@@ -420,8 +428,13 @@ def get_resource_staff_grants_for_school(organisation):
     for doc in docs:
         roles = _parse_list(doc.target_roles)
         year_groups = _parse_list(doc.target_year_groups)
-        granted = set(grants_by_resource.get(doc.name, []))
-        excluded = set(exclusions_by_resource.get(doc.name, []))
+        # Autoincrement-named doctype - doc.name here is a Python number,
+        # while the dicts above are keyed by the child row's own "parent"
+        # string column (see this function's sibling, get_knowledge_
+        # vault_resources_for_school_staff, for the fuller explanation of
+        # this exact quirk). str() to actually match.
+        granted = set(grants_by_resource.get(str(doc.name), []))
+        excluded = set(exclusions_by_resource.get(str(doc.name), []))
 
         effective_staff = [
             staff.name for staff in staff_rows

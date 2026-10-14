@@ -300,6 +300,8 @@ def _send_next_step(enrollment_name):
                 recipients=[enrollment.recipient_email],
                 subject=subject or sequence.sequence_name,
                 message=final_message,
+                reference_doctype=enrollment.reference_doctype,
+                reference_name=enrollment.reference_name,
             )
             enrollment.last_sent_on = frappe.utils.now_datetime()
         else:

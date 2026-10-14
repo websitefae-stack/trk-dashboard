@@ -761,6 +761,7 @@ def submit_public_booking(
                 date=date,
                 time=time,
                 location_address=location_address,
+                event_name=event.name,
             )
         except Exception:
             frappe.log_error(frappe.get_traceback(), "Public Booking - Confirmation Email Failed")
@@ -768,7 +769,7 @@ def submit_public_booking(
     return {"ok": True}
 
 
-def _send_booking_confirmation_email(contact_email, contact_name, coach, appointment_type, date, time, location_address):
+def _send_booking_confirmation_email(contact_email, contact_name, coach, appointment_type, date, time, location_address, event_name=None):
     coach_display_name = frappe.db.get_value("Coach", coach, "coach_name") or coach
     date_text = get_datetime(f"{date} 00:00:00").strftime("%A %d %B %Y")
 
@@ -818,5 +819,9 @@ def _send_booking_confirmation_email(contact_email, contact_name, coach, appoint
 
     if reply_to:
         kwargs["reply_to"] = reply_to
+
+    if event_name:
+        kwargs["reference_doctype"] = "Event"
+        kwargs["reference_name"] = event_name
 
     send_email(**kwargs)

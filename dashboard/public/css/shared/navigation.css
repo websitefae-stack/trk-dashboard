@@ -35,6 +35,62 @@
   margin-right: 8px;
 }
 
+/* Collapsible sidebar groups (e.g. Staff, Schools, Finance, Tools) -
+   a plain button that expands/collapses a nested list of nav links,
+   auto-opened server-side (is-open) when the current page is one of
+   its own items so you never land on a closed group hiding where you
+   are. */
+.dashboard-nav-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-nav-group-toggle {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: #434B49;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dashboard-nav-group-toggle:hover {
+  background: #F2F8F8;
+  color: #007274;
+}
+
+.dashboard-nav-group-arrow {
+  margin-left: auto;
+  transition: transform 0.15s ease;
+}
+
+.dashboard-nav-group.is-open > .dashboard-nav-group-toggle .dashboard-nav-group-arrow {
+  transform: rotate(90deg);
+}
+
+.dashboard-nav-group-items {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 22px;
+  margin-top: 2px;
+}
+
+.dashboard-nav-group.is-open > .dashboard-nav-group-items {
+  display: flex;
+}
+
+.dashboard-nav-group-items a {
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
 .dashboard-mobile-nav {
   display: none;
   gap: 10px;

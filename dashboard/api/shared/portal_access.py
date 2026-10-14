@@ -175,7 +175,7 @@ def save_portal_access_row(client_name, contact, data):
         user_created = _ensure_user_account(email, row.contact_name)
 
     if data.get("notify_by_email"):
-        _send_portal_notification(email, row.contact_name, user_created)
+        _send_portal_notification(email, row.contact_name, user_created, client_name)
 
     return {"success": True, "user_created": user_created}
 
@@ -223,7 +223,7 @@ def _ensure_user_account(email, full_name):
     return True
 
 
-def _send_portal_notification(email, full_name, user_created):
+def _send_portal_notification(email, full_name, user_created, client_name):
     login_url = frappe.utils.get_url("/login")
     greeting = f"Hi {full_name}," if full_name else "Hi,"
 
@@ -247,4 +247,6 @@ def _send_portal_notification(email, full_name, user_created):
         recipients=[email],
         subject="Your client portal access",
         message=message,
+        reference_doctype=CLIENT_DOCTYPE,
+        reference_name=client_name,
     )
