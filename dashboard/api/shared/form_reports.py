@@ -10,6 +10,7 @@ answer rendering here.
 """
 
 import re
+from urllib.parse import quote
 
 import frappe
 from frappe import _
@@ -771,9 +772,23 @@ STATIC_PUBLIC_LINKS = [
     {
         "title": "Newsletter Sign-Up",
         "description": "A standalone sign-up page for the newsletter - share the link or its QR code at events, in printed materials, or on social media.",
-        "url": PUBLIC_SITE_URL + "/newsletter-signup",
+        "target_url": PUBLIC_SITE_URL + "/newsletter-signup",
     },
 ]
+
+
+def _tracked_link_url(target_url, title, form_doctype=None):
+    """Wraps `target_url` in the /l tracking redirect (see www/l.py) -
+    the URL that actually gets copied/QR'd/opened from the Links page,
+    so a real click/scan gets logged before going on to its real
+    destination. title/form_doctype are carried along in the query
+    string (not looked up from a registry - there isn't one, see this
+    doctype's own creation patch) purely so the click log row is
+    self-describing without a second lookup."""
+    params = f"u={quote(target_url, safe='')}&t={quote(title or '', safe='')}"
+    if form_doctype:
+        params += f"&d={quote(form_doctype, safe='')}"
+    return f"{PUBLIC_SITE_URL}/l?{params}"
 
 # Mirrors practice_documents.py's PRACTICE_DOCUMENT_BRAND_FIELDS - same
 # brand values, same Coach Brand Access child table, just for Web Form
@@ -895,20 +910,52 @@ def get_form_links():
             {
                 "title": f"Book: {card['appointment_name']}",
                 "description": "Share this link or QR code so someone can book this appointment type directly.",
-                "url": PUBLIC_SITE_URL + card["url"],
+                "target_url": PUBLIC_SITE_URL + card["url"],
             }
             for card in get_coach_public_booking_cards(own_coach_name)
         ]
 
-    return STATIC_PUBLIC_LINKS + booking_cards + [
+    form_links = [
         {
             "title": wf.title or wf.name,
             "description": _strip_html_to_text(wf.introduction_text),
-            "url": PUBLIC_SITE_URL + "/" + (wf.route or ""),
+            "target_url": PUBLIC_SITE_URL + "/" + (wf.route or ""),
+            "form_doctype": wf.doc_type,
         }
         for wf in web_forms
         if wf.route
     ]
+
+    all_links = STATIC_PUBLIC_LINKS + booking_cards + form_links
+
+    return [
+        {
+            "title": link["title"],
+            "description": link.get("description") or "",
+            "url": _tracked_link_url(link["target_url"], link["title"], link.get("form_doctype")),
+            "target_url": link["target_url"],
+            "form_doctype": link.get("form_doctype"),
+        }
+        for link in all_links
+    ]
+
+
+@frappe.whitelist()
+def get_link_click_counts():
+    """Click counts (see www/l.py's own tracking redirect), grouped by
+    target_url - the Links page's own stable identifier for "the same
+    link" across repeated get_form_links() calls, since that list is
+    computed fresh every time rather than read from a stored table."""
+    ensure_logged_in()
+
+    if not frappe.db.exists("DocType", "Dashboard Link Click"):
+        return {}
+
+    rows = frappe.db.sql(
+        "SELECT target_url, COUNT(name) AS click_count FROM `tabDashboard Link Click` GROUP BY target_url",
+        as_dict=True,
+    )
+    return {row.target_url: row.click_count for row in rows}
 
 
 def sync_web_form_report_visibility(doc, method=None):
