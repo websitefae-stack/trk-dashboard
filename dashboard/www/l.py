@@ -13,6 +13,11 @@ import frappe
 
 
 def get_context(context):
+    # Never cache - every visit needs to run this and log its own click,
+    # not serve back whatever happened to render (or not render, since
+    # this always redirects) on an earlier hit.
+    context.no_cache = 1
+
     target = unquote(frappe.form_dict.get("u") or "")
 
     if not target:
