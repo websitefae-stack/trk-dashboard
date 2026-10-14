@@ -1,0 +1,80 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Stock</h1>
+          <p class="dashboard-page-subtitle">Pack handover compliance per coach, and each coach's own current Kid/Teen Pack stock balance.</p>
+        </div>
+
+        <div class="dashboard-page-actions">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="addStockAdjustmentBtn">+ Adjust Stock</button>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Coach</th>
+                <th>Given</th>
+                <th>Out of Stock</th>
+                <th>Not Given - Other</th>
+                <th>Not Recorded</th>
+                <th>Current Stock</th>
+              </tr>
+            </thead>
+            <tbody id="stockComplianceTableBody">
+              <tr><td colspan="6" class="dashboard-empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-modal-backdrop" id="stockAdjustmentModal">
+  <div class="dashboard-modal" style="max-width:480px;">
+    <div class="dashboard-modal-head">
+      <h3>Adjust Stock</h3>
+      <button type="button" class="dashboard-modal-close" id="closeStockAdjustmentModal">×</button>
+    </div>
+
+    <div class="dashboard-modal-body">
+      <label for="stockAdjustmentCoach">Coach</label>
+      <select id="stockAdjustmentCoach" class="dashboard-input"></select>
+
+      <label for="stockAdjustmentItem">Item</label>
+      <select id="stockAdjustmentItem" class="dashboard-input"></select>
+
+      <label for="stockAdjustmentMovementType">Reason</label>
+      <select id="stockAdjustmentMovementType" class="dashboard-input">
+        <option value="Opening Count">Opening Count</option>
+        <option value="Manual Adjustment">Manual Adjustment</option>
+      </select>
+
+      <label for="stockAdjustmentQuantity">Quantity Change</label>
+      <input type="number" id="stockAdjustmentQuantity" class="dashboard-input" placeholder="e.g. 10, or -2 to remove">
+      <p class="dashboard-help">Positive to add stock, negative to remove it.</p>
+
+      <label for="stockAdjustmentNotes">Notes</label>
+      <textarea id="stockAdjustmentNotes" class="dashboard-input" rows="3" placeholder="Required for a Manual Adjustment"></textarea>
+
+      <div class="dashboard-help" id="stockAdjustmentMessage" style="color:#C01C3E; margin-top:10px;"></div>
+    </div>
+
+    <div class="dashboard-modal-foot">
+      <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelStockAdjustmentModal">Cancel</button>
+      <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveStockAdjustmentBtn">Save</button>
+    </div>
+  </div>
+</div>

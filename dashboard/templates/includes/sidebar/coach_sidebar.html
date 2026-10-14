@@ -64,6 +64,11 @@
             <span>Session Workers</span>
         </a>
 
+        <a href="/coach_db/stock{{ coach_view_query or '' }}" class="{% if active_page == 'stock' %}is-active{% endif %}">
+            <span class="dashboard-nav-icon">📦</span>
+            <span>Stock</span>
+        </a>
+
         <div class="dashboard-nav-group {% if active_page in ['invoices', 'statements'] %}is-open{% endif %}">
             <button type="button" class="dashboard-nav-group-toggle">
                 <span class="dashboard-nav-icon">🧾</span>

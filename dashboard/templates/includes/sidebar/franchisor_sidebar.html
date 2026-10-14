@@ -52,7 +52,7 @@
             <span>Calendar</span>
         </a>
 
-        <div class="dashboard-nav-group {% if active_page in ['recruitment_leads', 'coaches', 'session_workers', 'item_access', 'onboarding'] %}is-open{% endif %}">
+        <div class="dashboard-nav-group {% if active_page in ['recruitment_leads', 'coaches', 'session_workers', 'item_access', 'onboarding', 'stock'] %}is-open{% endif %}">
             <button type="button" class="dashboard-nav-group-toggle">
                 <span class="dashboard-nav-icon">🎓</span>
                 <span>Staff</span>
@@ -82,6 +82,11 @@
                 <a href="/franchisor_db/onboarding" class="{% if active_page == 'onboarding' %}is-active{% endif %}">
                     <span class="dashboard-nav-icon">🧭</span>
                     <span>Onboarding</span>
+                </a>
+
+                <a href="/franchisor_db/stock" class="{% if active_page == 'stock' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">📦</span>
+                    <span>Stock</span>
                 </a>
             </div>
         </div>

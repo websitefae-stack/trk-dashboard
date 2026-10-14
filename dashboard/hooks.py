@@ -313,8 +313,17 @@ doc_events = {
     # raised by hand (e.g. invoicing a coach for merch) both submit the
     # same core Sales Invoice doctype, so this one hook covers both. See
     # store_stock.py's module docstring.
+    #
+    # Second on_submit function: a coach's own Coach Store order
+    # (webshop_purchase.create_coach_store_order, identified by
+    # custom_coach being set) separately feeds the PER-COACH Coach Stock
+    # Movement ledger - a different concept from the global warehouse
+    # count above. See coach_stock.py's module docstring.
     "Sales Invoice": {
-        "on_submit": "dashboard.api.shared.store_stock.decrement_stock_on_submit",
+        "on_submit": [
+            "dashboard.api.shared.store_stock.decrement_stock_on_submit",
+            "dashboard.api.shared.coach_stock.record_coach_stock_received_on_submit",
+        ],
         "on_cancel": "dashboard.api.shared.store_stock.restore_stock_on_cancel",
     },
     # Fires for every route an invoice can be marked paid - the dashboard's
