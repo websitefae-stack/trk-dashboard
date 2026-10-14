@@ -41,6 +41,37 @@
   let cachedSchools = [];
   let editingName = "";
 
+  // Reception at the top, Year 6 at the bottom; within a year group,
+  // Session Summary / Parent Emails / Teacher Emails / Teacher Crib
+  // Sheet lead, then everything else in whatever order it came back in.
+  const RESOURCE_YEAR_GROUP_SORT_ORDER = ["Reception", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6", "Whole School", "Other"];
+  const RESOURCE_TYPE_SORT_ORDER = ["Session Summary", "Parent Emails", "Teacher Emails", "Teacher Crib Sheet"];
+
+  function resourceYearGroupRank(resource) {
+    const groups = resource.target_year_groups || [];
+    if (!groups.length) return RESOURCE_YEAR_GROUP_SORT_ORDER.length;
+
+    let best = RESOURCE_YEAR_GROUP_SORT_ORDER.length;
+    groups.forEach(function (group) {
+      const index = RESOURCE_YEAR_GROUP_SORT_ORDER.indexOf(group);
+      if (index !== -1 && index < best) best = index;
+    });
+    return best;
+  }
+
+  function resourceTypeRank(resource) {
+    const index = RESOURCE_TYPE_SORT_ORDER.indexOf(resource.resource_type);
+    return index === -1 ? RESOURCE_TYPE_SORT_ORDER.length : index;
+  }
+
+  function sortResources(list) {
+    return list.slice().sort(function (a, b) {
+      return resourceYearGroupRank(a) - resourceYearGroupRank(b)
+        || resourceTypeRank(a) - resourceTypeRank(b)
+        || (a.title || "").localeCompare(b.title || "");
+    });
+  }
+
   function renderForList(list) {
     return list && list.length ? list.join(", ") : "All";
   }
@@ -141,7 +172,7 @@
   async function loadResources() {
     const bodyEl = el("kvResourceTableBody");
     try {
-      cachedResources = await apiPost(`${SHARED_API}.get_knowledge_vault_resources`, {});
+      cachedResources = sortResources(await apiPost(`${SHARED_API}.get_knowledge_vault_resources`, {}));
       await ensureOptionsLoaded();
       populateFilterOptions();
       applyFilters();

@@ -300,7 +300,7 @@ def get_knowledge_vault_resources_for_school_staff(organisation, role=None, year
     )
 
     granted_resource_names = set()
-    if not is_admin and membership:
+    if not is_admin and membership and frappe.db.table_exists(RESOURCE_STAFF_DOCTYPE):
         granted_resource_names = set(frappe.get_all(
             RESOURCE_STAFF_DOCTYPE,
             filters={"parent": ["in", list(resource_names)], "staff_member": membership},
@@ -325,9 +325,33 @@ def get_knowledge_vault_resources_for_school_staff(organisation, role=None, year
             "file": row.file or "",
             "video_url": row.video_url or "",
             "text_content": row.get("text_content") or "",
+            # Not used for the match logic above (already applied) - just
+            # along for the ride so school_dashboard can sort its own
+            # resource list by Year Group without a second round trip.
+            "target_year_groups": _parse_list(row.target_year_groups),
         })
 
     return results
+
+
+def _ensure_staff_grants_field_exists():
+    """staff_grants is a Table field added by a patch
+    (add_staff_grants_to_knowledge_vault_resource.py), not part of this
+    doctype's original definition - if that patch hasn't actually run on
+    this site yet (or failed partway, e.g. during one of this project's
+    earlier deploy failures), frappe.get_doc(...).save() silently drops
+    anything written to doc.staff_grants (not in the doctype's own meta,
+    so get_valid_dict() filters it out before the INSERT/UPDATE), and a
+    raw frappe.get_all(RESOURCE_STAFF_DOCTYPE, ...) throws a bare
+    "table doesn't exist" SQL error instead of a clean message - either
+    way, "Manage access" looked broken with no indication why. This
+    turns that into one clear, actionable error instead."""
+    if not frappe.get_meta(RESOURCE_DOCTYPE).has_field("staff_grants") or not frappe.db.table_exists(RESOURCE_STAFF_DOCTYPE):
+        frappe.throw(_(
+            "Per-staff resource access isn't finished setting up on this site yet "
+            "(Staff Grants is missing) - this needs a fresh deploy/migrate to "
+            "finish creating it before access can be hand-picked per staff member."
+        ))
 
 
 def get_resource_staff_grants_for_school(organisation):
@@ -338,6 +362,8 @@ def get_resource_staff_grants_for_school(organisation):
     already confirmed the current user manages this organisation."""
     if not organisation:
         return []
+
+    _ensure_staff_grants_field_exists()
 
     resource_names = [
         row.parent for row in
@@ -378,6 +404,8 @@ def set_resource_staff_grants(resource, organisation, staff_members):
     never given) and that every staff_member is a real, Active
     Organisation Membership row at that same organisation (so they can
     never grant it to someone at a different school)."""
+    _ensure_staff_grants_field_exists()
+
     if not frappe.db.exists(RESOURCE_DOCTYPE, resource):
         frappe.throw(_("Resource not found."))
 
