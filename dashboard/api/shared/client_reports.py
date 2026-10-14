@@ -271,6 +271,8 @@ def send_client_report_email(name=None, recipient=None, subject=None, message=No
         "subject": subject,
         "message": message,
         "reply_to": reply_to,
+        "reference_doctype": CLIENT_REPORT_DOCTYPE,
+        "reference_name": doc.name,
     }
 
     cc_list = parse_email_list(cc)

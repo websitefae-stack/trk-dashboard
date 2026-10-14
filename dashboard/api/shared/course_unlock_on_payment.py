@@ -244,7 +244,7 @@ def _process_invoice(invoice_name):
     _ensure_portal_access(client_name, contact_name, email)
     _ensure_user_account(email, full_name)
 
-    _send_course_access_email(email, full_name, newly_enrolled)
+    _send_course_access_email(email, full_name, newly_enrolled, "Sales Invoice", invoice.name)
 
 
 def _resolve_client_contact(client_name):
@@ -343,7 +343,7 @@ def _email_brand_logo_row():
     return f'<div style="margin-top:28px; text-align:center;">{logos}</div>'
 
 
-def _send_course_access_email(email, full_name, courses):
+def _send_course_access_email(email, full_name, courses, reference_doctype=None, reference_name=None):
     course_titles = [
         frappe.db.get_value("LMS Course", course, "title") or course for course in courses
     ]
@@ -366,11 +366,17 @@ def _send_course_access_email(email, full_name, courses):
         {_email_brand_logo_row()}
     """
 
-    send_email(
-        recipients=[email],
-        subject=f"You now have access to {course_titles[0]}" if len(course_titles) == 1 else "You now have access to your new course",
-        message=message,
-    )
+    kwargs = {
+        "recipients": [email],
+        "subject": f"You now have access to {course_titles[0]}" if len(course_titles) == 1 else "You now have access to your new course",
+        "message": message,
+    }
+
+    if reference_doctype and reference_name:
+        kwargs["reference_doctype"] = reference_doctype
+        kwargs["reference_name"] = reference_name
+
+    send_email(**kwargs)
 
 
 def send_new_enrollment_welcome_email(doc, method=None):
@@ -415,7 +421,7 @@ def _send_new_enrollment_welcome_email(doc):
 
     user_created = _ensure_user_account(email, full_name)
 
-    _send_course_access_email(email, full_name, [doc.course])
+    _send_course_access_email(email, full_name, [doc.course], "LMS Enrollment", doc.name)
 
 
 def add_paid_enrollment_to_course_email_group(doc, method=None):

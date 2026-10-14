@@ -584,6 +584,8 @@ def send_nda_link(name=None, subject=None, message=None, cc=None, reply_to=None)
         "subject": subject,
         "message": plain_text_to_email_html(message),
         "reply_to": reply_to,
+        "reference_doctype": RECRUITMENT_LEAD_DOCTYPE,
+        "reference_name": doc.name,
     }
 
     cc_list = parse_email_list(cc)
@@ -799,6 +801,8 @@ def send_intent_link(name=None, territory=None, deposit_amount=None, end_date=No
         "subject": subject,
         "message": plain_text_to_email_html(message),
         "reply_to": reply_to,
+        "reference_doctype": RECRUITMENT_LEAD_DOCTYPE,
+        "reference_name": doc.name,
     }
 
     cc_list = parse_email_list(cc)
@@ -1148,6 +1152,8 @@ def send_contract_link(name=None, commencement_date=None, territory_description=
         "subject": subject,
         "message": plain_text_to_email_html(message),
         "reply_to": reply_to,
+        "reference_doctype": RECRUITMENT_LEAD_DOCTYPE,
+        "reference_name": doc.name,
     }
 
     cc_list = parse_email_list(cc)
@@ -1553,6 +1559,8 @@ def send_fees_guide_link(name=None, rate_1to1=None, rate_group=None, rate_worksh
         "subject": subject,
         "message": plain_text_to_email_html(message),
         "reply_to": reply_to,
+        "reference_doctype": RECRUITMENT_LEAD_DOCTYPE,
+        "reference_name": doc.name,
     }
 
     cc_list = parse_email_list(cc)
@@ -1799,6 +1807,8 @@ def send_franchisee_intake_form(name=None, subject=None, message=None, cc=None, 
         "subject": subject,
         "message": plain_text_to_email_html(message),
         "reply_to": reply_to,
+        "reference_doctype": RECRUITMENT_LEAD_DOCTYPE,
+        "reference_name": doc.name,
     }
 
     cc_list = parse_email_list(cc)

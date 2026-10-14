@@ -1192,6 +1192,8 @@ def _notify_ashley_of_school_reply(school, matched_contact, sender_email, snippe
             "This has been logged automatically against the school in the pipeline. "
             "Reply via office@theresilienthub.co.uk (not your own inbox) to keep your reply on record too."
         ),
+        reference_doctype=SCHOOL_DOCTYPE,
+        reference_name=school.name,
     )
 
 
