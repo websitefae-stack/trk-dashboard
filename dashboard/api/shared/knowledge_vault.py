@@ -512,4 +512,29 @@ def set_resource_staff_grants(resource, organisation, staff_members):
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 
+    # Belt-and-braces: confirmed live that unticking someone looked like
+    # it saved (no error) but came back unchanged on reopening - rather
+    # than leave that as a silent, confusing no-op again, read the row
+    # straight back from the DB (not the in-memory doc) and throw a
+    # specific, actionable error the moment what's actually stored
+    # doesn't match what was just asked for, instead of claiming success.
+    saved_grants = set(frappe.get_all(
+        RESOURCE_STAFF_DOCTYPE,
+        filters={"parent": resource, "parentfield": "staff_grants"},
+        pluck="staff_member",
+    ))
+    saved_exclusions = set(frappe.get_all(
+        RESOURCE_STAFF_DOCTYPE,
+        filters={"parent": resource, "parentfield": "staff_exclusions"},
+        pluck="staff_member",
+    ))
+
+    if saved_grants != set(grants) or saved_exclusions != set(exclusions):
+        frappe.throw(_(
+            "This looked like it saved, but reading it straight back shows it didn't "
+            "actually stick - that points to a setup problem with Staff Grants/Staff "
+            "Exclusions on this site rather than anything wrong with what you picked. "
+            "Please report this back rather than retrying."
+        ))
+
     return {"ok": True}
