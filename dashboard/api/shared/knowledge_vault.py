@@ -356,10 +356,23 @@ def _ensure_staff_grants_field_exists():
 
 def get_resource_staff_grants_for_school(organisation):
     """Every resource allocated to `organisation`, with which of its own
-    staff have been explicitly granted it - for the school admin's own
-    allocation screen. Same no-login-check-of-its-own reasoning as
-    get_knowledge_vault_resources_for_school_staff() - the caller has
-    already confirmed the current user manages this organisation."""
+    staff have been explicitly granted it (granted_staff) AND which
+    already see it anyway through Role/Year Group targeting
+    (auto_matched_staff) - for the school admin's own allocation screen.
+    Both lists matter there: confirmed live, a staff member who already
+    has access through targeting showed up with no tick at all in
+    "Manage access", looking like they had no access when they actually
+    did - auto_matched_staff is what lets the front end show that
+    clearly, as a separate thing from the explicit grant checkbox (which
+    only ever controls staff_grants - there's no per-resource way to
+    revoke a Role/Year Group match itself here; that needs the resource's
+    own targeting changed, the staff member's own Role/Year Group
+    changed, or their master can_access_knowledge_vault switch turned
+    off on the Staff page).
+
+    Same no-login-check-of-its-own reasoning as get_knowledge_vault_
+    resources_for_school_staff() - the caller has already confirmed the
+    current user manages this organisation."""
     if not organisation:
         return []
 
@@ -375,7 +388,7 @@ def get_resource_staff_grants_for_school(organisation):
     docs = frappe.get_all(
         RESOURCE_DOCTYPE,
         filters={"name": ["in", resource_names], "is_active": 1},
-        fields=["name", "title", "resource_type"],
+        fields=["name", "title", "resource_type", "target_roles", "target_year_groups"],
         order_by="modified desc",
     )
 
@@ -383,15 +396,30 @@ def get_resource_staff_grants_for_school(organisation):
     for row in frappe.get_all(RESOURCE_STAFF_DOCTYPE, filters={"parent": ["in", resource_names]}, fields=["parent", "staff_member"]):
         grants_by_resource.setdefault(row.parent, []).append(row.staff_member)
 
-    return [
-        {
+    staff_rows = frappe.get_all(
+        "Organisation Membership",
+        filters={"organisation": organisation, "membership_status": "Active"},
+        fields=["name", "role", "year_group"],
+    )
+
+    results = []
+    for doc in docs:
+        roles = _parse_list(doc.target_roles)
+        year_groups = _parse_list(doc.target_year_groups)
+        auto_matched_staff = [
+            staff.name for staff in staff_rows
+            if (not roles or staff.role in roles) and (not year_groups or staff.year_group in year_groups)
+        ]
+
+        results.append({
             "name": doc.name,
             "title": doc.title,
             "resource_type": doc.resource_type or "",
             "granted_staff": grants_by_resource.get(doc.name, []),
-        }
-        for doc in docs
-    ]
+            "auto_matched_staff": auto_matched_staff,
+        })
+
+    return results
 
 
 def set_resource_staff_grants(resource, organisation, staff_members):
