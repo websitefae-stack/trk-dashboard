@@ -123,11 +123,25 @@
     window.location.href = "/login";
   }
 
+  function bindNavGroupToggles() {
+    qsa(".dashboard-nav-group-toggle").forEach(function (button) {
+      if (button.dataset.navGroupBound === "1") return;
+      button.dataset.navGroupBound = "1";
+
+      button.addEventListener("click", function () {
+        const group = button.closest(".dashboard-nav-group");
+        if (group) group.classList.toggle("is-open");
+      });
+    });
+  }
+
   function bindSidebarEvents() {
     const menuBtn = qs(".dashboard-menu-toggle");
     const closeBtn = qs(".dashboard-sidebar-close");
     const overlay = qs(".dashboard-sidebar-overlay");
     const logoutBtn = qs("#dashboardLogoutBtn");
+
+    bindNavGroupToggles();
 
     if (menuBtn && menuBtn.dataset.sidebarBound !== "1") {
       menuBtn.dataset.sidebarBound = "1";
