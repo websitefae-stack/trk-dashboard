@@ -2899,16 +2899,20 @@ def _copy_lead_attachments_to_client(doc, client_name):
 
 
 def _intake_url(doc):
-    # No query param to pre-fill - the submission is matched back to this
-    # Client Lead by name afterwards instead (see
-    # sync_intake_doctype_submission()), since there's no field on the Web
-    # Form a guest could sensibly be asked to fill in to link the two up.
     # A podcast-booking lead gets the Podcast Guest Booking Form instead of
     # the usual client intake form - it asks nothing relevant to signing up
-    # a client, and vice versa.
+    # a client, and vice versa. Podcast leads don't go through Client Lead
+    # matching at all, so no source_client_lead param here.
     if is_podcast_lead(doc.get("appointment_type")):
         return get_url(f"/{PODCAST_ROUTE}")
-    return get_url(f"/{INTAKE_ROUTE}/new")
+
+    # source_client_lead pre-fills the Web Form's own same-named hidden
+    # field (standard Frappe Web Form behaviour) so
+    # _find_client_lead_for_intake_submission() can match this submission
+    # straight back to THIS Lead instead of guessing by email/name - see
+    # that function's own docstring, and add_source_client_lead_to_
+    # intake_doctype.py's for the one-off Desk setup this still needs.
+    return get_url(f"/{INTAKE_ROUTE}/new?source_client_lead={quote(doc.name)}")
 
 
 def _intake_email_context(doc):
@@ -3342,6 +3346,13 @@ def _find_client_lead_by_names(display_names):
 
 def _find_client_lead_for_intake_submission(doc):
     """
+    source_client_lead first - set from the ?source_client_lead=<Lead
+    name> query param on the specific link this family was actually
+    sent (see _intake_url()), it identifies the Lead directly with no
+    guessing at all. Only a submission that doesn't carry one (a link
+    sent before this field existed, or the form reached some other way)
+    falls through to matching by email, then name.
+
     Email first (_find_client_lead_by_emails) - it's exactly what the
     intake invite was sent to and essentially never collides between two
     different families, unlike a name. Falls back to name matching
@@ -3354,6 +3365,12 @@ def _find_client_lead_for_intake_submission(doc):
     ambiguous), used by _notify_intake_match_failed to route a failed
     match to the coach it's actually about instead of broadcasting.
     """
+    source_lead = (doc.get("source_client_lead") or "").strip()
+    if source_lead:
+        source_lead_status = frappe.db.get_value(LEAD_DOCTYPE, source_lead, "status")
+        if source_lead_status and source_lead_status != "Converted":
+            return source_lead, None, [source_lead]
+
     email_lead, email_reason, email_candidates = _find_client_lead_by_emails(_intake_doctype_display_emails(doc))
     if email_lead:
         return email_lead, None, [email_lead]
