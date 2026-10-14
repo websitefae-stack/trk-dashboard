@@ -5,10 +5,12 @@ School organisations get access to each one at all, and narrow each one
 further to specific staff Roles and/or Year Groups within those schools.
 A school's own Primary Contact (is_primary_contact - not just anyone
 with can_manage_users, which an admin can grant a colleague without
-making them the Primary Contact) can additionally hand-pick specific
-staff members for a resource, on top of that Role/Year Group targeting
-- see get_knowledge_vault_resources_for_school_staff() and
-set_resource_staff_grants() below for the full rule.
+making them the Primary Contact) can additionally override that Role/
+Year Group targeting per staff member, either way - hand-picking someone
+in who wouldn't otherwise see it (staff_grants) or excluding someone who
+otherwise would (staff_exclusions) - see get_knowledge_vault_resources_
+for_school_staff() and set_resource_staff_grants() below for the full
+rule.
 
 Gates a non-admin staff member must clear to see a resource (see
 get_knowledge_vault_resources_for_school_staff() below, the one
@@ -18,7 +20,9 @@ function school_dashboard actually calls):
    ticked (client_portal's existing master on/off switch - unchanged by
    this module, checked by the caller before it ever reaches here).
 2. Their school is one of the resource's allocated_schools.
-3. EITHER their own Role/Year Group match the resource's target_roles/
+3. They're NOT explicitly listed in the resource's staff_exclusions for
+   their own organisation - this always wins, regardless of 4 below.
+4. EITHER their own Role/Year Group match the resource's target_roles/
    target_year_groups (each blank = no restriction on that dimension,
    both must match when both are set) OR they're explicitly listed in
    the resource's staff_grants for their own organisation - confirmed
@@ -28,7 +32,7 @@ function school_dashboard actually calls):
    meant for them (e.g. internal admin notes vs teacher-facing content).
 
 The staff member with is_primary_contact ticked (the school's own
-Primary Contact) skips gates 2-3 entirely for their OWN school and sees
+Primary Contact) skips gates 2-4 entirely for their OWN school and sees
 everything allocated to it - they're the one deciding what reaches who,
 so they need full visibility, not the filtered view regular staff get.
 
@@ -273,15 +277,17 @@ def get_knowledge_vault_resources_for_school_staff(organisation, role=None, year
     this module's own docstring for why.
 
     Otherwise a resource matches when: it's active, this organisation is
-    one of its allocated_schools, AND EITHER (its target_roles is empty
-    OR role is in it) AND (its target_year_groups is empty OR year_group
-    is in it) OR membership is explicitly in its staff_grants - the
-    Role/Year Group side uses AND between the two dimensions
-    deliberately (a resource targeted at both "Teaching Assistant" and
-    "Year 2" is for a Year 2 TA specifically, not every TA or every Year
-    2 staff member), while staff_grants is a flat OR on top of that -
-    an explicit grant always gets someone in, regardless of their own
-    Role/Year Group."""
+    one of its allocated_schools, it's not in this staff member's own
+    staff_exclusions (an explicit override that beats everything else
+    below - see set_resource_staff_grants()'s own docstring for why this
+    exists), AND EITHER (its target_roles is empty OR role is in it) AND
+    (its target_year_groups is empty OR year_group is in it) OR
+    membership is explicitly in its staff_grants - the Role/Year Group
+    side uses AND between the two dimensions deliberately (a resource
+    targeted at both "Teaching Assistant" and "Year 2" is for a Year 2
+    TA specifically, not every TA or every Year 2 staff member), while
+    staff_grants is a flat OR on top of that - an explicit grant always
+    gets someone in, regardless of their own Role/Year Group."""
     if not organisation:
         return []
 
@@ -300,16 +306,25 @@ def get_knowledge_vault_resources_for_school_staff(organisation, role=None, year
     )
 
     granted_resource_names = set()
+    excluded_resource_names = set()
     if not is_admin and membership and frappe.db.table_exists(RESOURCE_STAFF_DOCTYPE):
         granted_resource_names = set(frappe.get_all(
             RESOURCE_STAFF_DOCTYPE,
-            filters={"parent": ["in", list(resource_names)], "staff_member": membership},
+            filters={"parent": ["in", list(resource_names)], "parentfield": "staff_grants", "staff_member": membership},
+            pluck="parent",
+        ))
+        excluded_resource_names = set(frappe.get_all(
+            RESOURCE_STAFF_DOCTYPE,
+            filters={"parent": ["in", list(resource_names)], "parentfield": "staff_exclusions", "staff_member": membership},
             pluck="parent",
         ))
 
     results = []
     for row in docs:
         if not is_admin:
+            if row.name in excluded_resource_names:
+                continue
+
             roles = _parse_list(row.target_roles)
             year_groups = _parse_list(row.target_year_groups)
             auto_matches = (not roles or role in roles) and (not year_groups or year_group in year_groups)
@@ -335,40 +350,37 @@ def get_knowledge_vault_resources_for_school_staff(organisation, role=None, year
 
 
 def _ensure_staff_grants_field_exists():
-    """staff_grants is a Table field added by a patch
-    (add_staff_grants_to_knowledge_vault_resource.py), not part of this
-    doctype's original definition - if that patch hasn't actually run on
-    this site yet (or failed partway, e.g. during one of this project's
-    earlier deploy failures), frappe.get_doc(...).save() silently drops
-    anything written to doc.staff_grants (not in the doctype's own meta,
-    so get_valid_dict() filters it out before the INSERT/UPDATE), and a
-    raw frappe.get_all(RESOURCE_STAFF_DOCTYPE, ...) throws a bare
-    "table doesn't exist" SQL error instead of a clean message - either
-    way, "Manage access" looked broken with no indication why. This
-    turns that into one clear, actionable error instead."""
-    if not frappe.get_meta(RESOURCE_DOCTYPE).has_field("staff_grants") or not frappe.db.table_exists(RESOURCE_STAFF_DOCTYPE):
+    """staff_grants/staff_exclusions are Table fields added by patches
+    (add_staff_grants_to_knowledge_vault_resource.py,
+    add_staff_exclusions_to_knowledge_vault_resource.py), not part of
+    this doctype's original definition - if either patch hasn't actually
+    run on this site yet (or failed partway, e.g. during one of this
+    project's earlier deploy failures), frappe.get_doc(...).save()
+    silently drops anything written to that field (not in the doctype's
+    own meta, so get_valid_dict() filters it out before the INSERT/
+    UPDATE), and a raw frappe.get_all(RESOURCE_STAFF_DOCTYPE, ...) throws
+    a bare "table doesn't exist" SQL error instead of a clean message -
+    either way, "Manage access" looked broken with no indication why.
+    This turns that into one clear, actionable error instead."""
+    meta = frappe.get_meta(RESOURCE_DOCTYPE)
+    if not meta.has_field("staff_grants") or not meta.has_field("staff_exclusions") or not frappe.db.table_exists(RESOURCE_STAFF_DOCTYPE):
         frappe.throw(_(
             "Per-staff resource access isn't finished setting up on this site yet "
-            "(Staff Grants is missing) - this needs a fresh deploy/migrate to "
-            "finish creating it before access can be hand-picked per staff member."
+            "(Staff Grants/Staff Exclusions is missing) - this needs a fresh "
+            "deploy/migrate to finish creating it before access can be hand-picked "
+            "per staff member."
         ))
 
 
 def get_resource_staff_grants_for_school(organisation):
-    """Every resource allocated to `organisation`, with which of its own
-    staff have been explicitly granted it (granted_staff) AND which
-    already see it anyway through Role/Year Group targeting
-    (auto_matched_staff) - for the school admin's own allocation screen.
-    Both lists matter there: confirmed live, a staff member who already
-    has access through targeting showed up with no tick at all in
-    "Manage access", looking like they had no access when they actually
-    did - auto_matched_staff is what lets the front end show that
-    clearly, as a separate thing from the explicit grant checkbox (which
-    only ever controls staff_grants - there's no per-resource way to
-    revoke a Role/Year Group match itself here; that needs the resource's
-    own targeting changed, the staff member's own Role/Year Group
-    changed, or their master can_access_knowledge_vault switch turned
-    off on the Staff page).
+    """Every resource allocated to `organisation`, with its own
+    effective_staff - every one of the school's Active staff who
+    currently actually sees it, combining Role/Year Group targeting,
+    staff_grants and staff_exclusions exactly the way get_knowledge_
+    vault_resources_for_school_staff() does for a single staff member -
+    for the "Manage Access" screen's single tick-per-person checkbox,
+    which is meant to be the final word either way (see
+    set_resource_staff_grants()'s own docstring).
 
     Same no-login-check-of-its-own reasoning as get_knowledge_vault_
     resources_for_school_staff() - the caller has already confirmed the
@@ -393,8 +405,10 @@ def get_resource_staff_grants_for_school(organisation):
     )
 
     grants_by_resource = {}
-    for row in frappe.get_all(RESOURCE_STAFF_DOCTYPE, filters={"parent": ["in", resource_names]}, fields=["parent", "staff_member"]):
-        grants_by_resource.setdefault(row.parent, []).append(row.staff_member)
+    exclusions_by_resource = {}
+    for row in frappe.get_all(RESOURCE_STAFF_DOCTYPE, filters={"parent": ["in", resource_names]}, fields=["parent", "parentfield", "staff_member"]):
+        bucket = grants_by_resource if row.parentfield == "staff_grants" else exclusions_by_resource
+        bucket.setdefault(row.parent, []).append(row.staff_member)
 
     staff_rows = frappe.get_all(
         "Organisation Membership",
@@ -406,32 +420,54 @@ def get_resource_staff_grants_for_school(organisation):
     for doc in docs:
         roles = _parse_list(doc.target_roles)
         year_groups = _parse_list(doc.target_year_groups)
-        auto_matched_staff = [
+        granted = set(grants_by_resource.get(doc.name, []))
+        excluded = set(exclusions_by_resource.get(doc.name, []))
+
+        effective_staff = [
             staff.name for staff in staff_rows
-            if (not roles or staff.role in roles) and (not year_groups or staff.year_group in year_groups)
+            if staff.name not in excluded
+            and (granted.__contains__(staff.name) or ((not roles or staff.role in roles) and (not year_groups or staff.year_group in year_groups)))
         ]
 
         results.append({
             "name": doc.name,
             "title": doc.title,
             "resource_type": doc.resource_type or "",
-            "granted_staff": grants_by_resource.get(doc.name, []),
-            "auto_matched_staff": auto_matched_staff,
+            "effective_staff": effective_staff,
         })
 
     return results
 
 
 def set_resource_staff_grants(resource, organisation, staff_members):
-    """Replaces the full staff_grants list for `resource` with
-    `staff_members`. organisation/the caller's own permission to manage
-    it are the caller's responsibility (same pattern as this module's
-    other school-facing functions) - this only double-checks that
-    `resource` is actually allocated to `organisation` (so a school
-    admin can never grant access to a resource their own school was
-    never given) and that every staff_member is a real, Active
-    Organisation Membership row at that same organisation (so they can
-    never grant it to someone at a different school)."""
+    """Replaces WHO (among this school's own Active staff) can see
+    `resource`, taking `staff_members` as the final, complete list of
+    everyone who should have access - the Manage Access screen's one
+    checkbox per person, ticked or not, is meant to settle it either
+    way, overriding Role/Year Group targeting in both directions.
+    Confirmed live: the old version only ever ADDED explicit grants on
+    top of Role/Year Group targeting, so unticking someone who already
+    had access through targeting was a silent no-op - it looked like
+    "doesn't save" when really there was just no way to override an
+    automatic match at all.
+
+    Diffs `staff_members` against each Active staff member's own Role/
+    Year Group auto-match for this resource: wanted-but-not-auto-
+    matching goes in staff_grants (an explicit top-up, as before),
+    auto-matching-but-not-wanted goes in the new staff_exclusions (an
+    explicit override), and anyone who needs neither (because being in
+    staff_members already agrees with their own auto-match, or they're
+    not in staff_members and don't auto-match either) is removed from
+    both.
+
+    organisation/the caller's own permission to manage it are the
+    caller's responsibility (same pattern as this module's other
+    school-facing functions) - this only double-checks that `resource`
+    is actually allocated to `organisation` (so a school admin can
+    never grant access to a resource their own school was never given)
+    and that every staff_member is a real, Active Organisation
+    Membership row at that same organisation (so they can never grant
+    it to, or exclude, someone at a different school)."""
     _ensure_staff_grants_field_exists()
 
     if not frappe.db.exists(RESOURCE_DOCTYPE, resource):
@@ -440,20 +476,39 @@ def set_resource_staff_grants(resource, organisation, staff_members):
     if not frappe.db.exists(RESOURCE_SCHOOL_DOCTYPE, {"parent": resource, "school": organisation}):
         frappe.throw(_("This resource isn't allocated to your school."))
 
-    valid_staff = set(frappe.get_all(
+    staff_rows = frappe.get_all(
         "Organisation Membership",
         filters={"organisation": organisation, "membership_status": "Active"},
-        pluck="name",
-    ))
+        fields=["name", "role", "year_group"],
+    )
 
     if isinstance(staff_members, str):
         staff_members = frappe.parse_json(staff_members) if staff_members else []
-    staff_members = [s for s in (staff_members or []) if s in valid_staff]
+    desired = set(staff_members or [])
 
     doc = frappe.get_doc(RESOURCE_DOCTYPE, resource)
+    roles = _parse_list(doc.target_roles)
+    year_groups = _parse_list(doc.target_year_groups)
+
+    grants = []
+    exclusions = []
+    for staff in staff_rows:
+        wants_access = staff.name in desired
+        auto_matches = (not roles or staff.role in roles) and (not year_groups or staff.year_group in year_groups)
+
+        if wants_access and not auto_matches:
+            grants.append(staff.name)
+        elif not wants_access and auto_matches:
+            exclusions.append(staff.name)
+
     doc.set("staff_grants", [])
-    for staff_member in staff_members:
+    for staff_member in grants:
         doc.append("staff_grants", {"staff_member": staff_member})
+
+    doc.set("staff_exclusions", [])
+    for staff_member in exclusions:
+        doc.append("staff_exclusions", {"staff_member": staff_member})
+
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 
