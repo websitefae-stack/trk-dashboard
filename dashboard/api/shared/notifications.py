@@ -2389,6 +2389,28 @@ def create_trk_notification(
     if not recipient_user:
         return None
 
+    if not frappe.db.exists("User", recipient_user):
+        # Whatever resolved this recipient (a Coach's linked user/
+        # coach_email, usually) pointed at something that isn't a real
+        # Frappe User - sending it anyway would create a notification
+        # nobody can ever actually see (it only shows "for_user" =
+        # that bogus value, which never matches any real session.user),
+        # silently losing it rather than erroring. Office is the
+        # standing fallback inbox for exactly this kind of "should have
+        # gone to a specific person but didn't resolve" case elsewhere
+        # in this module (see OFFICE_USER).
+        frappe.log_error(
+            f"create_trk_notification: recipient_user {recipient_user!r} is not a real User - "
+            f"routing to {OFFICE_USER} instead. notification_type={notification_type!r} "
+            f"reference_doctype={reference_doctype!r} reference_name={reference_name!r}",
+            "Notification Recipient Invalid",
+        )
+
+        if not frappe.db.exists("User", OFFICE_USER):
+            return None
+
+        recipient_user = OFFICE_USER
+
     if _conversation_enabled():
         doc = frappe.new_doc(CONVERSATION_DOCTYPE)
         doc.title = notification_type or "Dashboard Notification"
