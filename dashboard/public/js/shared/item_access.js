@@ -232,12 +232,8 @@
         return accessCellHtml(item, coach);
       }).join("");
 
-      const storeBadge = item.is_store_item
-        ? ' <span class="dashboard-badge dashboard-status-active" style="font-size:10px;">Store</span>'
-        : "";
-
       const nameCell = '<td class="item-access-name-col">'
-        + '<div>' + escapeHtml(item.label) + storeBadge + '</div>'
+        + '<div>' + escapeHtml(item.label) + '</div>'
         + '<button type="button" class="dashboard-btn dashboard-btn-light" style="margin-top:6px;font-size:11px;padding:4px 8px;white-space:nowrap;" '
         + 'data-grant-all data-item="' + escapeHtml(item.name) + '">Give access to all coaches</button>'
         + '<button type="button" class="dashboard-btn dashboard-btn-light" style="margin-top:4px;font-size:11px;padding:4px 8px;white-space:nowrap;" '
