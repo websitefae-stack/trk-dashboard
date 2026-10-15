@@ -103,8 +103,13 @@ def get_item_access_grid():
     # fails with a PermissionError on every one of the template's
     # variants for a Store product, since those auto-generated variant
     # documents were never actually granted to whoever's saving here.
+    # Nor Courses (item_group "Courses" - see store_products.py's
+    # COURSE_ITEM_GROUP) - a coach doesn't individually invoice a client
+    # for a self-serve LMS course the way they would a real service, and
+    # these already get granted to coaches a different way (see
+    # lms_access.py), not through this grid.
     has_store_field = item_meta.has_field("custom_store_enabled")
-    filters = {"disabled": 0, "variant_of": ["is", "not set"]}
+    filters = {"disabled": 0, "variant_of": ["is", "not set"], "item_group": ["!=", "Courses"]}
     if has_store_field:
         filters["custom_store_enabled"] = ["!=", 1]
 
