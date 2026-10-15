@@ -92,21 +92,23 @@ def get_item_access_grid():
     item_meta = frappe.get_meta("Item")
     brand_fieldnames = [fieldname for fieldname in BRAND_FIELDS if item_meta.has_field(fieldname)]
 
-    # Covers both services (a coach invoices a client individually) and
-    # store products (sold through the Coach Store) - the same Access/
-    # Show on Site grant (Item Default row, keyed by the coach's own
-    # company) gates both now, so Ashley has one single place to decide
-    # who sees what, for anything newly added. Variants of a store
-    # product are excluded - access is granted at the template level and
-    # a coach's own store already only ever lists templates, never each
-    # size/colour variant separately (see resilient_domains'
-    # get_coach_store_items).
+    # Services only - not Store products any more. Store products already
+    # have their own separate Access/Show on Site management on the
+    # Products tab (see store_products.py's _ensure_item_default_row),
+    # and a Store product that has_variants=1 (e.g. a hoodie with size/
+    # colour options) breaks when saved from here: Item.save() on a
+    # variant template triggers ERPNext's own update_variants background
+    # job, which calls variant.save() with no ignore_permissions - fine
+    # for a plain service (no variants, nothing to cascade), but that job
+    # fails with a PermissionError on every one of the template's
+    # variants for a Store product, since those auto-generated variant
+    # documents were never actually granted to whoever's saving here.
+    has_store_field = item_meta.has_field("custom_store_enabled")
     filters = {"disabled": 0, "variant_of": ["is", "not set"]}
+    if has_store_field:
+        filters["custom_store_enabled"] = ["!=", 1]
 
     item_fields = ["name", "item_name", "variant_of", *brand_fieldnames]
-    has_store_field = item_meta.has_field("custom_store_enabled")
-    if has_store_field:
-        item_fields.append("custom_store_enabled")
 
     items = frappe.get_all(
         "Item",
@@ -155,7 +157,6 @@ def get_item_access_grid():
             {
                 "name": item.get("name"),
                 "label": item.get("item_name") or item.get("name"),
-                "is_store_item": bool(item.get("custom_store_enabled")) if has_store_field else False,
                 "brands": {
                     fieldname: int(item.get(fieldname) or 0)
                     for fieldname in brand_fieldnames
