@@ -625,13 +625,20 @@ def _get_reference_link(reference_doctype, reference_name, dashboard_base_url=""
         # regardless of which dashboard they're logged into.
         return f"/transfer_sign?name={reference_name}"
 
-    if reference_doctype == "Sessional Worker Reference Response":
-        # Straight to the Reports section's Form Results tab, with the
-        # specific submission's modal opened automatically - see
-        # reports.js's own applyFormModuleDeepLink(), which reads these
-        # same "form"/"submission" query params on page load.
-        if not dashboard_base_url:
-            return ""
+    if reference_doctype == "Client Lead":
+        # Covers _notify_intake_completed (leads.py) among others - an
+        # "intake form completed" notification lands here as a Client
+        # Lead reference, and the intake answers are shown as part of
+        # the lead's own detail page rather than a separate view.
+        return f"{dashboard_base_url}/lead_details?name={reference_name}" if dashboard_base_url else ""
+
+    # Any Desk-built form in the "Forms" module (Sessional Worker Reference
+    # Response, and every other Forms-module DocType form_reports.py's own
+    # get_form_module_doctypes() discovers) - straight to the Reports
+    # section's Form Results tab, with the specific submission's modal
+    # opened automatically - see reports.js's own applyFormModuleDeepLink(),
+    # which reads these same "form"/"submission" query params on page load.
+    if dashboard_base_url and frappe.db.get_value("DocType", reference_doctype, "module") == "Forms":
         return f"{dashboard_base_url}/reports?form={quote(reference_doctype)}&submission={quote(reference_name)}"
 
     return ""
