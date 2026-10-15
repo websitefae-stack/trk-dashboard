@@ -192,3 +192,4 @@ dashboard.patches.backfill_store_enabled_for_merch_items
 dashboard.patches.correct_store_enabled_using_item_visibility
 dashboard.patches.fix_client_transfer_fee_item_group
 dashboard.patches.diag_cara_coaching_pack_visibility
+dashboard.patches.diag_cara_coaching_pack_raw_sql
