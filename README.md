@@ -198,4 +198,4 @@ A genuinely useful chronological index of everything this app has grown into. Ma
 
 `dashboard/tests/test_invoice_payment_rounding.py` - covers invoice outstanding-amount rounding and partial-allocation math. No other test modules exist; most correctness here is enforced by extensive in-code docstrings and manual/production verification rather than an automated suite.
 
-<!-- deploy trigger: 2026-09-11a -->
+<!-- deploy trigger: 2026-10-15a -->
