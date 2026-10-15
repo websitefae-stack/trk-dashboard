@@ -5,7 +5,7 @@ from frappe.utils import now_datetime, get_url, get_fullname, flt
 from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user, get_current_coach_name
 from dashboard.api.shared.utils import coalesce_str, coalesce_raw
 from dashboard.api.shared.notifications import create_trk_notification, FRANCHISOR_USERS, ASHLEY_USER
-from dashboard.api.shared.item_access import _get_coach_login, DEFAULT_PRICE_LIST
+from dashboard.api.shared.item_access import _get_coach_login, DEFAULT_PRICE_LIST, SERVICE_ITEM_GROUP
 
 
 LEAD_DOCTYPE = "Client Lead"
@@ -272,12 +272,15 @@ def _ensure_transfer_fee_item():
     if frappe.db.exists("Item", TRANSFER_FEE_ITEM_CODE):
         return TRANSFER_FEE_ITEM_CODE
 
-    item_group = frappe.db.get_value("Item Group", {"is_group": 0}, "name") or "All Item Groups"
+    # Local import - store_products.py imports from item_access.py at load
+    # time, which this module also imports from, so importing _ensure_
+    # item_group back at module level here would risk a circular import.
+    from dashboard.api.shared.store_products import _ensure_item_group
 
     item = frappe.new_doc("Item")
     item.item_code = TRANSFER_FEE_ITEM_CODE
     item.item_name = TRANSFER_FEE_ITEM_CODE
-    item.item_group = item_group
+    item.item_group = _ensure_item_group(SERVICE_ITEM_GROUP)
     item.stock_uom = "Nos"
     item.is_stock_item = 0
     item.include_item_in_manufacturing = 0
