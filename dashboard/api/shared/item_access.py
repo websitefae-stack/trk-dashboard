@@ -438,6 +438,48 @@ def grant_item_access_to_all_coaches(item_code=None, show_on_site=None):
     return _grant_item_access_to_all_coaches_unchecked(item_code, show_on_site=show_on_site)
 
 
+def _revoke_item_access_from_all_coaches_unchecked(item_code):
+    """Core of revoke_item_access_from_all_coaches(), without the
+    ensure_office_user() gate - see _set_item_access_unchecked's own
+    docstring for why."""
+    item_code = (item_code or "").strip()
+
+    if not item_code or not frappe.db.exists("Item", item_code):
+        frappe.throw(_("Item not found."))
+
+    coach_names = frappe.get_all(
+        "Coach",
+        filters={"company": ["is", "set"]},
+        pluck="name",
+    )
+
+    skipped = []
+
+    for coach_name in coach_names:
+        try:
+            _set_item_access_unchecked(item_code, coach_name, 0)
+        except Exception:
+            skipped.append(coach_name)
+
+    return {"ok": 1, "revoked": len(coach_names) - len(skipped), "skipped": skipped}
+
+
+@frappe.whitelist()
+def revoke_item_access_from_all_coaches(item_code=None):
+    """
+    "Remove access for all coaches" button next to an item - the mirror
+    of grant_item_access_to_all_coaches() above. Removing Access deletes
+    the whole Item Default row per coach (see _set_item_access_unchecked),
+    which takes Show on Site with it the same way a single unticked
+    Access checkbox already does - there's no separate "show on site"
+    argument here the way there is for granting, since there's nothing
+    left to show once access itself is gone.
+    """
+    ensure_office_user()
+
+    return _revoke_item_access_from_all_coaches_unchecked(item_code)
+
+
 # =====================================================
 # WORKSHOP RESOURCES (Item <-> Practice Document)
 # =====================================================

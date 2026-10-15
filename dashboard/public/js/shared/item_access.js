@@ -240,6 +240,8 @@
         + '<div>' + escapeHtml(item.label) + storeBadge + '</div>'
         + '<button type="button" class="dashboard-btn dashboard-btn-light" style="margin-top:6px;font-size:11px;padding:4px 8px;white-space:nowrap;" '
         + 'data-grant-all data-item="' + escapeHtml(item.name) + '">Give access to all coaches</button>'
+        + '<button type="button" class="dashboard-btn dashboard-btn-light" style="margin-top:4px;font-size:11px;padding:4px 8px;white-space:nowrap;" '
+        + 'data-revoke-all data-item="' + escapeHtml(item.name) + '">Remove access for all coaches</button>'
         + '</td>';
 
       return '<tr>' + nameCell + cells + '</tr>';
@@ -260,6 +262,12 @@
     body.querySelectorAll("[data-grant-all]").forEach(function (button) {
       button.addEventListener("click", function () {
         grantAllForItem(button);
+      });
+    });
+
+    body.querySelectorAll("[data-revoke-all]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        revokeAllForItem(button);
       });
     });
   }
@@ -378,6 +386,37 @@
       showMessage(error.message || "Could not grant access to all coaches.", true);
       button.disabled = false;
       button.textContent = "Give access to all coaches";
+    }
+  }
+
+  async function revokeAllForItem(button) {
+    const itemCode = button.dataset.item;
+    const item = state.items.find(function (i) { return i.name === itemCode; });
+    const itemLabel = item ? item.label : itemCode;
+
+    if (!window.confirm('Remove every coach\'s Access (and Show on site) for "' + itemLabel + '"? This cannot be undone in bulk - it would need to be granted back one coach at a time, or with "Give access to all coaches" again.')) {
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Removing...";
+    showMessage("Removing access from all coaches...");
+
+    try {
+      const result = await apiPost(`${SHARED_API}.revoke_item_access_from_all_coaches`, {
+        item_code: itemCode
+      });
+
+      showMessage(
+        (result.revoked || 0) + " coach(es) had access removed."
+        + (result.skipped && result.skipped.length ? " " + result.skipped.length + " skipped." : "")
+      );
+
+      await loadGrid();
+    } catch (error) {
+      showMessage(error.message || "Could not remove access for all coaches.", true);
+      button.disabled = false;
+      button.textContent = "Remove access for all coaches";
     }
   }
 
