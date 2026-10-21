@@ -193,3 +193,4 @@ dashboard.patches.correct_store_enabled_using_item_visibility
 dashboard.patches.fix_client_transfer_fee_item_group
 dashboard.patches.diag_cara_coaching_pack_visibility
 dashboard.patches.diag_cara_coaching_pack_raw_sql
+dashboard.patches.update_franchise_agreement_practice_document_v8
