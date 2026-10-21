@@ -721,6 +721,24 @@
     }
   }
 
+  function applyTabDeepLink() {
+    // ?tab=<data-forms-report-tab value> - generic, so any future tab
+    // with its own "View Feedback" override (FORM_REPORT_URL_OVERRIDES
+    // in form_reports.py) can reuse this with no JS change here.
+    var params = new URLSearchParams(window.location.search);
+    var tabParam = params.get("tab");
+    if (!tabParam) return;
+
+    var tabBtn = document.querySelector('[data-forms-report-tab="' + tabParam + '"]');
+    if (!tabBtn) return;
+
+    tabBtn.click();
+
+    if (tabParam === "resilience_comparison") {
+      runResilienceComparisonReport();
+    }
+  }
+
   function resetFormModuleReport() {
     formModuleState.rows = [];
     formModuleState.questionRows = [];
@@ -1833,6 +1851,7 @@
     }
 
     initFormsReportPicker();
+    applyTabDeepLink();
     initCoachLogs();
 
     var viewModeSelect = el("intakeFormViewMode");

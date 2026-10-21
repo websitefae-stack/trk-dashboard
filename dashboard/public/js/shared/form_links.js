@@ -47,8 +47,12 @@
     var clickCount = clickCountsCache[link.target_url] || 0;
     var clickLabel = clickCount === 1 ? "1 click" : clickCount + " clicks";
 
-    var reportButton = link.form_doctype
-      ? '<a class="dashboard-btn dashboard-btn-light" href="' + dashboardBasePath() + "/reports?form=" + encodeURIComponent(link.form_doctype) + '">View Feedback</a>'
+    var reportHref = link.report_url
+      ? dashboardBasePath() + link.report_url
+      : (link.form_doctype ? dashboardBasePath() + "/reports?form=" + encodeURIComponent(link.form_doctype) : "");
+
+    var reportButton = reportHref
+      ? '<a class="dashboard-btn dashboard-btn-light" href="' + escapeHtml(reportHref) + '">View Feedback</a>'
       : "";
 
     return (

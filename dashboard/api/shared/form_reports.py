@@ -33,6 +33,7 @@ from dashboard.api.shared.appointment_types import get_coach_public_booking_card
 from dashboard.api.shared.notifications import create_trk_notification, ASHLEY_USER
 
 REFERENCE_RESPONSE_DOCTYPE = "Sessional Worker Reference Response"
+STUDENT_RESILIENCE_DOCTYPE = "Student Resilience Survey Response"
 
 FORMS_MODULE = "Forms"
 
@@ -266,10 +267,28 @@ def _form_doctype_meta(doctype):
     return frappe.get_meta(doctype)
 
 
+# A form whose own doctype permission is restricted (see e.g.
+# create_student_resilience_survey_form.py's own docstring) but that
+# still gets shown here - fieldnames that must never appear as a
+# "question" in this generic report regardless, because they're the
+# identifying data the restriction exists to protect. The Student
+# Resilience Survey has its own dedicated, properly anonymised
+# comparison report (student_resilience_survey.py) for the thing this
+# generic one can't safely show - this only stops this form's names
+# leaking into the generic per-submission view that every other form
+# in the Forms module also uses.
+FORM_HIDDEN_FIELDNAMES = {
+    STUDENT_RESILIENCE_DOCTYPE: {"student_first_name", "student_last_name"},
+}
+
+
 def _form_question_fields(meta):
+    hidden = FORM_HIDDEN_FIELDNAMES.get(meta.name, set())
     return [
         df for df in meta.fields
-        if df.fieldtype not in _FORM_SKIP_FIELDTYPES and df.fieldname not in _FORM_SKIP_FIELDNAMES
+        if df.fieldtype not in _FORM_SKIP_FIELDTYPES
+        and df.fieldname not in _FORM_SKIP_FIELDNAMES
+        and df.fieldname not in hidden
     ]
 
 
@@ -296,6 +315,19 @@ def _form_link_field(meta):
 # person_column_label, secondary_fieldname, secondary_column_label)}.
 FORM_PERSON_COLUMN_OVERRIDES = {
     REFERENCE_RESPONSE_DOCTYPE: ("applicant_name", "Applicant", "referee_name", "Referee"),
+}
+
+# A form whose "View Feedback" button (Links page) should open its own
+# dedicated report tab instead of the generic per-submission Form
+# Results deep link every other form gets - path relative to
+# /franchisor_db or /coach_db (form_links.js prefixes the right one).
+# The Student Resilience Survey's comparison report (its own "Student
+# Resilience (Before/After)" Reports tab) is the properly anonymised
+# view of its data; the generic one is still reachable too (now with
+# names hidden - see FORM_HIDDEN_FIELDNAMES above) but isn't what this
+# button should lead with.
+FORM_REPORT_URL_OVERRIDES = {
+    STUDENT_RESILIENCE_DOCTYPE: "/reports?tab=resilience_comparison",
 }
 
 
@@ -921,6 +953,7 @@ def get_form_links():
             "description": _strip_html_to_text(wf.introduction_text),
             "target_url": PUBLIC_SITE_URL + "/" + (wf.route or ""),
             "form_doctype": wf.doc_type,
+            "report_url": FORM_REPORT_URL_OVERRIDES.get(wf.doc_type),
         }
         for wf in web_forms
         if wf.route
@@ -935,6 +968,7 @@ def get_form_links():
             "url": _tracked_link_url(link["target_url"], link["title"], link.get("form_doctype")),
             "target_url": link["target_url"],
             "form_doctype": link.get("form_doctype"),
+            "report_url": link.get("report_url"),
         }
         for link in all_links
     ]
