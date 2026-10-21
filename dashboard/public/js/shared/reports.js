@@ -1153,6 +1153,98 @@
     ], openPacksState.rows);
   }
 
+  var resilienceComparisonState = { groups: [] };
+
+  function renderResilienceComparisonReport(data) {
+    var empty = el("resilienceComparisonEmpty");
+    var results = el("resilienceComparisonResults");
+    var note = el("resilienceComparisonUnmatchedNote");
+    if (!empty || !results) return;
+
+    resilienceComparisonState.groups = data.groups || [];
+
+    if (note) {
+      if (data.unmatched_count) {
+        note.textContent = data.unmatched_count + " response(s) have no matching Before/After pair yet, so "
+          + "aren't shown below.";
+        note.style.display = "";
+      } else {
+        note.style.display = "none";
+      }
+    }
+
+    if (!resilienceComparisonState.groups.length) {
+      empty.textContent = "No matched Before/After pairs found yet.";
+      empty.style.display = "";
+      results.style.display = "none";
+      return;
+    }
+
+    empty.style.display = "none";
+    results.style.display = "";
+
+    results.innerHTML = resilienceComparisonState.groups.map(function (group) {
+      var pairsHtml = group.pairs.map(function (pair) {
+        var sectionRows = pair.section_averages.map(function (section) {
+          return "<tr><td>" + escapeHtml(section.section) + "</td><td>"
+            + escapeHtml(section.before_avg == null ? "—" : section.before_avg) + "</td><td>"
+            + escapeHtml(section.after_avg == null ? "—" : section.after_avg) + "</td></tr>";
+        }).join("");
+
+        var questionRows = pair.questions.map(function (question) {
+          return "<tr><td>" + escapeHtml(question.section) + "</td><td>" + escapeHtml(question.question)
+            + "</td><td>" + escapeHtml(question.before == null ? "—" : question.before) + "</td><td>"
+            + escapeHtml(question.after == null ? "—" : question.after) + "</td></tr>";
+        }).join("");
+
+        return '<div class="dashboard-card" style="margin-bottom:16px;">'
+          + "<h3 style=\"margin-bottom:6px;\">" + escapeHtml(pair.label) + "</h3>"
+          + '<p class="dashboard-help" style="margin-bottom:12px;">Before: ' + escapeHtml(pair.before_date)
+          + " (overall avg " + escapeHtml(pair.overall_before_avg == null ? "—" : pair.overall_before_avg) + ")"
+          + " · After: " + escapeHtml(pair.after_date)
+          + " (overall avg " + escapeHtml(pair.overall_after_avg == null ? "—" : pair.overall_after_avg) + ")</p>"
+          + '<div class="dashboard-table-wrap" style="margin-bottom:14px;"><table class="dashboard-table '
+          + 'dashboard-table-compact"><thead><tr><th>Section</th><th>Before (avg)</th><th>After (avg)</th>'
+          + "</tr></thead><tbody>" + sectionRows + "</tbody></table></div>"
+          + '<details><summary style="cursor:pointer; margin-bottom:8px;">Full question-by-question answers</summary>'
+          + '<div class="dashboard-table-wrap"><table class="dashboard-table dashboard-table-compact">'
+          + "<thead><tr><th>Section</th><th>Question</th><th>Before</th><th>After</th></tr></thead><tbody>"
+          + questionRows + "</tbody></table></div></details></div>";
+      }).join("");
+
+      return '<div style="margin-bottom:28px;"><h3 style="margin-bottom:12px;">' + escapeHtml(group.school_label)
+        + "</h3>" + pairsHtml + "</div>";
+    }).join("");
+  }
+
+  async function runResilienceComparisonReport() {
+    var btn = el("runResilienceComparisonReportBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Running..."; }
+
+    try {
+      var school = (el("resilienceComparisonSchoolSelect") || {}).value || "";
+      var data = await callApi(
+        "dashboard.api.shared.student_resilience_survey.get_student_resilience_comparison",
+        { school: school }
+      );
+      renderResilienceComparisonReport(data);
+    } catch (error) {
+      console.error("Student resilience comparison report failed:", error);
+      window.alert(error.message || "Could not run the report.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Run Report"; }
+    }
+  }
+
+  async function loadResilienceComparisonSchools() {
+    try {
+      var schools = await callApi("dashboard.api.shared.student_resilience_survey.get_student_resilience_schools", {});
+      fillSelect(el("resilienceComparisonSchoolSelect"), schools, "All Schools");
+    } catch (error) {
+      console.error("Could not load schools for the resilience comparison report:", error);
+    }
+  }
+
   var coachRevenueState = { client_types: [], rows: [] };
 
   function formatMoney(value) {
@@ -1700,6 +1792,11 @@
 
     var exportPacksBtn = el("exportOpenPacksReportBtn");
     if (exportPacksBtn) exportPacksBtn.addEventListener("click", exportOpenPacksReport);
+
+    var resilienceComparisonBtn = el("runResilienceComparisonReportBtn");
+    if (resilienceComparisonBtn) resilienceComparisonBtn.addEventListener("click", runResilienceComparisonReport);
+
+    if (el("resilienceComparisonSchoolSelect")) loadResilienceComparisonSchools();
 
     var coachRevenueBtn = el("runCoachRevenueReportBtn");
     if (coachRevenueBtn) coachRevenueBtn.addEventListener("click", runCoachRevenueReport);
