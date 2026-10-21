@@ -96,7 +96,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>Trade Marks - the trademarks set out Schedule 3 and any other trademarks registered by the Franchisor in relation to the Business from time to time during the Term;</p>
 <p>Trade Name - The Resilient Kid;</p>
 <p>VAT - value added tax chargeable under the Value Added Tax Act 1994 and any similar replacement or additional tax;</p>
-<p>Website - the website(s) owned and operated by the Franchisor from time to time including those with the url www.theresilientacadamy.co.uk;</p>
+<p>Website - the website(s) owned and operated by the Franchisor from time to time including those with the url www.theresilientkid.co.uk;</p>
 <p>1.2. Clause, schedule and paragraph headings shall not affect the interpretation of this Agreement.</p>
 <p>1.3. A person includes a natural person, corporate or unincorporated body (whether or not having separate legal personality) and that person's personal representatives, successors or permitted assigns.</p>
 <p>1.4. The Schedules form part of this Agreement and shall have effect as if set out in full in the body of this Agreement. Any reference to this Agreement includes the Schedules.</p>
