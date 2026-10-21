@@ -165,7 +165,7 @@ def _create_web_form():
         "success_message": "All done - thanks for sharing how you've been feeling.",
         "web_form_fields": web_form_fields,
         "custom_show_in_franchisor_reports": 1,
-        "custom_show_in_coach_reports": 0,
+        "custom_show_in_coach_reports": 1,
     })
     doc.insert(ignore_permissions=True)
     frappe.db.commit()

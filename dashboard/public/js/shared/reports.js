@@ -736,6 +736,8 @@
 
     if (tabParam === "resilience_comparison") {
       runResilienceComparisonReport();
+    } else if (tabParam === "stirling_comparison") {
+      runStirlingComparisonReport();
     }
   }
 
@@ -1260,6 +1262,101 @@
       fillSelect(el("resilienceComparisonSchoolSelect"), schools, "All Schools");
     } catch (error) {
       console.error("Could not load schools for the resilience comparison report:", error);
+    }
+  }
+
+  var stirlingComparisonState = { groups: [] };
+
+  function renderStirlingComparisonReport(data) {
+    var empty = el("stirlingComparisonEmpty");
+    var results = el("stirlingComparisonResults");
+    var note = el("stirlingComparisonUnmatchedNote");
+    if (!empty || !results) return;
+
+    stirlingComparisonState.groups = data.groups || [];
+
+    if (note) {
+      if (data.unmatched_count) {
+        note.textContent = data.unmatched_count + " response(s) have no matching Before/After pair yet, so "
+          + "aren't shown below.";
+        note.style.display = "";
+      } else {
+        note.style.display = "none";
+      }
+    }
+
+    if (!stirlingComparisonState.groups.length) {
+      empty.textContent = "No matched Before/After pairs found yet.";
+      empty.style.display = "";
+      results.style.display = "none";
+      return;
+    }
+
+    empty.style.display = "none";
+    results.style.display = "";
+
+    results.innerHTML = stirlingComparisonState.groups.map(function (group) {
+      var pairsHtml = group.pairs.map(function (pair) {
+        var questionRows = pair.questions.map(function (question) {
+          return "<tr><td>" + escapeHtml(question.statement) + "</td><td>"
+            + escapeHtml(question.before == null ? "—" : question.before) + "</td><td>"
+            + escapeHtml(question.after == null ? "—" : question.after) + "</td></tr>";
+        }).join("");
+
+        var cautionNote = (pair.before_validity_caution || pair.after_validity_caution)
+          ? '<p class="dashboard-help" style="color:#b45309; margin-bottom:8px;">Treat with caution - the '
+            + "Social Desirability score flags that one or both responses may not reflect how the student "
+            + "actually feels.</p>"
+          : "";
+
+        return '<div class="dashboard-card" style="margin-bottom:16px;">'
+          + "<h3 style=\"margin-bottom:6px;\">" + escapeHtml(pair.label) + "</h3>"
+          + '<p class="dashboard-help" style="margin-bottom:12px;">Before: ' + escapeHtml(pair.before_date)
+          + " · After: " + escapeHtml(pair.after_date) + "</p>"
+          + cautionNote
+          + '<div class="dashboard-table-wrap" style="margin-bottom:14px;"><table class="dashboard-table '
+          + 'dashboard-table-compact"><thead><tr><th></th><th>Before</th><th>After</th></tr></thead><tbody>'
+          + "<tr><td>Wellbeing Score (out of 60)</td><td>" + escapeHtml(pair.before_wellbeing_score) + "</td><td>"
+          + escapeHtml(pair.after_wellbeing_score) + "</td></tr>"
+          + "<tr><td>Social Desirability Score (out of 15)</td><td>" + escapeHtml(pair.before_social_desirability_score)
+          + "</td><td>" + escapeHtml(pair.after_social_desirability_score) + "</td></tr>"
+          + "</tbody></table></div>"
+          + '<details><summary style="cursor:pointer; margin-bottom:8px;">Full question-by-question answers</summary>'
+          + '<div class="dashboard-table-wrap"><table class="dashboard-table dashboard-table-compact">'
+          + "<thead><tr><th>Statement</th><th>Before</th><th>After</th></tr></thead><tbody>"
+          + questionRows + "</tbody></table></div></details></div>";
+      }).join("");
+
+      return '<div style="margin-bottom:28px;"><h3 style="margin-bottom:12px;">' + escapeHtml(group.school_label)
+        + "</h3>" + pairsHtml + "</div>";
+    }).join("");
+  }
+
+  async function runStirlingComparisonReport() {
+    var btn = el("runStirlingComparisonReportBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Running..."; }
+
+    try {
+      var school = (el("stirlingComparisonSchoolSelect") || {}).value || "";
+      var data = await callApi(
+        "dashboard.api.shared.wellbeing_forms.get_stirling_wellbeing_comparison",
+        { school: school }
+      );
+      renderStirlingComparisonReport(data);
+    } catch (error) {
+      console.error("Stirling wellbeing comparison report failed:", error);
+      window.alert(error.message || "Could not run the report.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Run Report"; }
+    }
+  }
+
+  async function loadStirlingComparisonSchools() {
+    try {
+      var schools = await callApi("dashboard.api.shared.wellbeing_forms.get_stirling_wellbeing_schools", {});
+      fillSelect(el("stirlingComparisonSchoolSelect"), schools, "All Schools");
+    } catch (error) {
+      console.error("Could not load schools for the Stirling wellbeing comparison report:", error);
     }
   }
 
@@ -1815,6 +1912,11 @@
     if (resilienceComparisonBtn) resilienceComparisonBtn.addEventListener("click", runResilienceComparisonReport);
 
     if (el("resilienceComparisonSchoolSelect")) loadResilienceComparisonSchools();
+
+    var stirlingComparisonBtn = el("runStirlingComparisonReportBtn");
+    if (stirlingComparisonBtn) stirlingComparisonBtn.addEventListener("click", runStirlingComparisonReport);
+
+    if (el("stirlingComparisonSchoolSelect")) loadStirlingComparisonSchools();
 
     var coachRevenueBtn = el("runCoachRevenueReportBtn");
     if (coachRevenueBtn) coachRevenueBtn.addEventListener("click", runCoachRevenueReport);
