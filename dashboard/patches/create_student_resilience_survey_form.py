@@ -20,13 +20,19 @@ form never needed to handle - see Ashley's own decision: students are
 matched across their two submissions by First/Last Name, not an
 anonymous code, since a self-generated code risks a child failing to
 reproduce it identically the second time and breaking the pairing. This
-is therefore NOT anonymous data the way the Stirling scale is - it's
-restricted instead: only System Manager can read it (no franchisor/coach
-report role on the DocType or the Web Form), so no name is ever exposed
-outside the people actually pairing up before/after responses. The
-school the survey was run at is recorded via a Link to the existing
-School doctype (see create_school_pipeline_doctypes.py) - the school is
-the Client here, the individual students never become one.
+is therefore NOT anonymous data the way the Stirling scale is - the raw
+DocType stays System Manager only, but coaches and the franchisor DO
+see this form's link and results, just never the two name fields: the
+generic Forms-module report hides them specifically for this doctype
+(see form_reports.py's FORM_HIDDEN_FIELDNAMES), and there's a dedicated
+Before/After comparison report (student_resilience_survey.py) that
+pairs up each student's two submissions and shows only "Student N",
+never a name - see enable_student_resilience_survey_reports_visibility.py
+for the follow-up patch that turned this on for the copy already live
+before this existed. The school the survey was run at is recorded via
+a Link to the existing School doctype (see
+create_school_pipeline_doctypes.py) - the school is the Client here,
+the individual students never become one.
 
 Runs automatically on the next `bench migrate` (part of a normal
 deploy) - no manual step needed.
@@ -285,8 +291,8 @@ def _create_web_form():
         "success_title": "Thank you!",
         "success_message": "All done - thanks for taking part.",
         "web_form_fields": web_form_fields,
-        "custom_show_in_franchisor_reports": 0,
-        "custom_show_in_coach_reports": 0,
+        "custom_show_in_franchisor_reports": 1,
+        "custom_show_in_coach_reports": 1,
     })
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
