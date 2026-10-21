@@ -421,7 +421,8 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>1. All fees stated in this Schedule are correct as at the date of this Agreement.</p>
 <p>2. The Franchisor reserves the right to review and increase the Management Fee, Marketing Fee and/or other fees set out in this Schedule from time to time, on reasonable written notice to the Franchisee.</p>
 <p>Marketing Fee: 2% of gross monthly revenue</p>
-<p>Transfer Fee: All fees are expressed exclusive of VAT which shall also be charged. The Franchisor is not currently VAT registered - see clause 4.8 for what happens if that changes.</p>
+<p>Transfer Fee: £1,500</p>
+<p>All fees are expressed exclusive of VAT which shall also be charged. The Franchisor is not currently VAT registered - see clause 4.8 for what happens if that changes.</p>
 <p><strong>Commencement Date:</strong> {{ commencement_date }}</p>
 <p><strong>Expiry Date:</strong> {{ expiry_date }} <span class="dashboard-help">(five years from the Commencement Date)</span></p>
 <p><strong>Permitted Name:</strong> The Resilient Kid ({{ permitted_area }})</p>
