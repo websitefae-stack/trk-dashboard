@@ -3,6 +3,7 @@
   <div class="dashboard-tabs" id="formsReportPicker">
     <button type="button" class="dashboard-tab-btn is-active" data-forms-report-tab="intake">Intake Forms</button>
     <button type="button" class="dashboard-tab-btn" data-forms-report-tab="forms">Form Results</button>
+    <button type="button" class="dashboard-tab-btn" data-forms-report-tab="resilience_comparison">Student Resilience (Before/After)</button>
     <button type="button" class="dashboard-tab-btn" data-forms-report-tab="packs">Open Session Packs</button>
     <button type="button" class="dashboard-tab-btn" data-forms-report-tab="coach_logs">Coach Logs</button>
     {% if dashboard_type == "franchisor" %}
@@ -212,6 +213,10 @@
       <ul id="formModuleQuestionAnswerList" class="form-chart-answer-list"></ul>
     </div>
   </div>
+</div>
+
+<div class="dashboard-tab-panel" data-forms-report-panel="resilience_comparison" style="display:none;">
+  {% include "dashboard/templates/includes/reports/student_resilience_comparison_report_body.html" %}
 </div>
 
 <div class="dashboard-tab-panel" data-forms-report-panel="packs" style="display:none;">

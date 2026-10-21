@@ -1,0 +1,29 @@
+<div class="dashboard-card">
+  <div class="dashboard-detail-section-head">
+    <h2 class="dashboard-detail-section-title">Student Resilience Survey - Before/After</h2>
+  </div>
+
+  <p class="dashboard-help" style="margin-bottom:16px;">
+    Matched Before/After responses, grouped by school. Students are shown anonymously as "Student 1",
+    "Student 2" and so on - no names appear anywhere on this page.
+  </p>
+
+  <div class="trk-calendar-form-row">
+    <div class="trk-calendar-field">
+      <label for="resilienceComparisonSchoolSelect">School</label>
+      <select id="resilienceComparisonSchoolSelect" class="dashboard-select">
+        <option value="">All Schools</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="dashboard-detail-actions" style="margin:8px 0 18px;">
+    <button type="button" class="dashboard-btn dashboard-btn-primary" id="runResilienceComparisonReportBtn">Run Report</button>
+  </div>
+
+  <div id="resilienceComparisonUnmatchedNote" class="dashboard-help" style="display:none; margin-bottom:16px;"></div>
+
+  <div id="resilienceComparisonEmpty" class="dashboard-empty">Run the report to see results.</div>
+
+  <div id="resilienceComparisonResults" style="display:none;"></div>
+</div>
