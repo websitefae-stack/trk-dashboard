@@ -71,7 +71,8 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <h3>AGREED TERMS</h3>
 <h4>1. INTERPRETATION</h4>
 <p>1.1. The definitions and rules of interpretation in this clause apply in this Agreement.</p>
-<p>Business - the provision of a children’s wellbeing service to both commercial and non commercial customers;</p>
+<p>Brand - collectively, The Resilient Kid, The Resilient Teen, The Resilient School, The Resilient Hub and The Resilient People, together with the Trade Marks, get-up, logos, colours and style associated with any of them from time to time;</p>
+<p>Business - the provision of a children’s wellbeing service to both commercial and non commercial clients;</p>
 <p>Business Day - a day other than a Saturday, Sunday or public holiday in England when banks in London are open for business;</p>
 <p>Commencement Date - the date set out in Schedule 1;</p>
 <p>Confidential Information - any information which is disclosed to the Franchisee by the Franchisor pursuant to, or in connection with, this Agreement (whether orally or in writing and whether or not such information is expressly stated to be confidential), or which otherwise comes into the hands of the Franchisee in relation to the Business, the Franchisee's Business, the System, the Services or the Products other than information which is already in the public domain (otherwise than as a result of a breach of any obligation of confidentiality);</p>
@@ -113,7 +114,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <h4>2. RIGHTS GRANTED</h4>
 <p>2.1. In consideration of the payment of the Initial Fee and the Management Fee by the Franchisee to the Franchisor in accordance with clause 4, the Franchisor grants to the Franchisee during the Term, and subject to and in accordance with the provisions of this Agreement, the right and licence to operate the Franchisee's Business and to provide the Services in accordance with the System within the Territory.</p>
 <p>2.2. Save as otherwise provided for in this Agreement the Franchisor agrees that it will not itself operate or licence any third party to operate any business involving the provision of the Services under the Trade Name within the Territory.</p>
-<p>2.3. The right and licence granted to the Franchisee to operate the Franchisee’s Business shall extend only to the Territory. The Franchisee agrees that it will not itself use nor will it permit or authorise any use directly or indirectly of the System or the Brand nor make available the Services outside the Territory but that if a third party franchisee of the Franchisor is requested by a potential client to provide the Services under the Name within the Territory, such third party franchisee may do so provided that they have not marketed their services within the Territory to such potential client.  For the avoidance of doubt, all other territories (other than the Territory) are expressly reserved to the Franchisor.</p>
+<p>2.3. The right and licence granted to the Franchisee to operate the Franchisee’s Business shall extend only to the Territory. The Franchisee agrees that it will not itself use nor will it permit or authorise any use directly or indirectly of the System or the Brand nor make available the Services outside the Territory but that if a third party franchisee of the Franchisor is requested by a potential client to provide the Services under the Trade Name within the Territory, such third party franchisee may do so provided that they have not marketed their services within the Territory to such potential client.  For the avoidance of doubt, all other territories (other than the Territory) are expressly reserved to the Franchisor.</p>
 <h4>3. TERM</h4>
 <p>3.1. This Agreement shall commence on the Commencement Date and shall continue in force for the Term ending on the Expiry Date (subject to earlier termination in accordance with clause 16) and subject to the Franchisee’s right to the grant of the new franchise agreement contained clause 3.2.</p>
 <p>3.2. The Franchisee may, by notice in writing to the Franchisor given not more than nine (9) months nor less than six (6) months before the end of the Term, request the grant of  a  new  agreement  (New  Agreement)  for  a  further  period  of  five  (5)  years commencing on the day following the Expiry Date. The Franchisor shall, by notice in writing to the Franchisee, given not less than four (4) months before the end of the Term, accept such request if:</p>
@@ -141,8 +142,8 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>Bank: Starling Bank</p>
 <p>Address: Operations Team, 5th Floor, Brunel House, 2 Fitzalan Road, Cardiff, CF24 0FG</p>
 <p>Account name: The Resilient People Limited</p>
-<p>Sort code:  64558141</p>
-<p>Account number: 60-83-71</p>
+<p>Sort code: 60-83-71</p>
+<p>Account number: 64558141</p>
 <p>4.8. All fees due under this Agreement (including the Initial Fee, the Management Fee and the Marketing Fee) are exclusive of VAT, which shall, where applicable, be paid by the Franchisee at the prevailing rate on the due date for payment or receipt of the relevant invoice from the Franchisor (as may be). The Franchisor confirms that it is not currently registered for VAT. Should the Franchisor become VAT registered at any time during the Term, VAT shall from that date be added, at the prevailing rate, to the Initial Fee, the Management Fee, the Marketing Fee and any other fees due under this Agreement, in addition to the amounts set out in Schedule 1, and the Franchisor shall notify the Franchisee of this in writing.</p>
 <p>4.9. The Franchisee shall be responsible for the prompt and complete payment of all invoices due to third party suppliers.</p>
 <p>4.10. From the first (1st) anniversary of the Commencement Date, the Franchisee shall achieve a minimum monthly Gross Revenue of £1000 or 60% of the Franchisee’s average Gross Revenue for the previous twelve months (whichever is the higher) (Minimum Performance Criteria).  In subsequent years turnover must increase by 10% per annum. If the Franchisee fails to meet the Minimum Performance Criteria in three (3) or more successive months after the first (1st) anniversary of the Commencement Date, the Franchisor shall be entitled to:</p>
@@ -160,7 +161,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>5.1.6. general advice on how to set up the Franchisee's Business and initial marketing assistance.</p>
 <h4>6. FRANCHISOR'S CONTINUING OBLIGATIONS</h4>
 <p>The Franchisor shall at all times during the Term:</p>
-<p>6.1. provide the Franchisee with know-how, advice and guidance relating to the operation of the Franchisee’s Business. Where additional support is required by the Franchisee in relation to substantial or continual operational business or customer service problems in the Franchisee’s Business then the Franchisee shall reimburse the Franchisor’s expenses incurred in providing such support immediately on demand and the Franchisor shall be entitled to charge a reasonable fee for its management time in accordance with the Manual ;</p>
+<p>6.1. provide the Franchisee with know-how, advice and guidance relating to the operation of the Franchisee’s Business. Where additional support is required by the Franchisee in relation to substantial or continual operational business or client service problems in the Franchisee’s Business then the Franchisee shall reimburse the Franchisor’s expenses incurred in providing such support immediately on demand and the Franchisor shall be entitled to charge a reasonable fee for its management time in accordance with the Manual ;</p>
 <p>6.2. develop the System and update the Manual from time to time and inform the Franchisee of all such updates;</p>
 <p>6.3. host, maintain and update the Website and the Franchisee’s Webpage as the Franchisor thinks fit; and</p>
 <p>6.4. assist the Franchisee in procuring such goods and services as are necessary for the purposes of the Franchisee's Business.</p>
@@ -170,7 +171,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>7.3. The Franchisee shall at all times during the Term, in relation to the Franchisee's Business:</p>
 <p>7.3.1. pay to the Franchisor all fees and payments due to the Franchisor in accordance with the terms of this Agreement and the Manual;</p>
 <p>7.3.2. take delivery of the Materials;</p>
-<p>7.3.3. purchase  and  maintain  such  minimum  stock  of  the  Materials  as  is sufficient to meet the demands of customers;</p>
+<p>7.3.3. purchase  and  maintain  such  minimum  stock  of  the  Materials  as  is sufficient to meet the demands of clients;</p>
 <p>7.3.4. operate the Franchisee's Business strictly in accordance with the Manual (including the content guidelines) and not do anything that could, in the Franchisor's reasonable opinion, damage the reputation of the Business, the Franchisee’s Business or the Intellectual Property;</p>
 <p>7.3.5. submit to the Franchisor the Gross Revenue Statement and such other reports and accounting information as is required by the Franchisor;</p>
 <p>7.3.6. comply with all advice and reasonable instructions of the Franchisor with regard to the operation of the System and the provision of the Services;</p>
@@ -190,7 +191,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>7.3.20. supply  the  Services  to  end  users  only  on  the  standard  terms  and conditions of sale set out in the Manual and not on any other terms and conditions;</p>
 <p>7.3.21. comply with ordering, invoicing and accounting procedures as required by  the Franchisor or as set out in the Manual;</p>
 <p>7.3.22. ensure that adequate working capital and other financial resources are available for the Franchisee’s Business to ensure that the Franchisee is capable of fulfilling all obligations under this Agreement;</p>
-<p>7.3.23. not offer credit to customers without the prior written consent of the  Franchisor;</p>
+<p>7.3.23. not offer credit to clients without the prior written consent of the  Franchisor;</p>
 <p>7.3.24. pay all third party suppliers promptly in accordance with the terms of supply agreed with them and otherwise to adhere to terms agreed with third party suppliers (including venues);</p>
 <p>7.3.25. not enter into any arrangement or agreement to factor, charge or otherwise deal with the debts of the Franchisee's Business without the prior written consent of the Franchisor;</p>
 <p>7.3.26. not licence any other person to operate the Franchisee’s Business under the Trade Name;</p>
@@ -201,11 +202,11 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>7.3.27.4. at the request of the Franchisor, provide potential franchisees with information as reasonably requested;</p>
 <p>7.3.27.5. attach any notices that the Franchisor requires to stationery, advertising or any other items used in the Franchisee’s Business;</p>
 <p>7.3.27.6. use only stationery and marketing materials in connection with the Franchisee's Business as have been approved by the Franchisor; and</p>
-<p>7.3.27.7. provide competent, sober and courteous service to every customer and present a neat and professional appearance;</p>
-<p>7.3.27.8. maintain details of all customers on a database in accordance with the provisions contained in the Manual and  provide the Franchisor with, and/or allow the Franchisor to access remotely, all updates to such lists as and when they are made, subject always to the provisions of the Data Protection Act 2018;</p>
+<p>7.3.27.7. provide competent, sober and courteous service to every client and present a neat and professional appearance;</p>
+<p>7.3.27.8. maintain details of all clients on a database in accordance with the provisions contained in the Manual and  provide the Franchisor with, and/or allow the Franchisor to access remotely, all updates to such lists as and when they are made, subject always to the provisions of the Data Protection Act 2018;</p>
 <p>7.3.27.9. notify the Franchisor of any complaints immediately after such complaint is made and handle any such complaints in accordance with the Franchisor’s instructions and the procedure set out in the Manual;</p>
 <p>7.3.27.10. permit the Franchisor and any of its representatives at reasonable times during normal business hours without notice, to inspect the books and records of the Franchisee’s Business on request for the purposes of ascertaining whether the provisions of this Agreement are being complied with;</p>
-<p>7.3.27.11. permit the Franchisor to contact any customer of the Franchisee’s Business to ensure that customer needs are being efficiently and courteously met by the Franchisee;</p>
+<p>7.3.27.11. permit the Franchisor to contact any client of the Franchisee’s Business to ensure that client needs are being efficiently and courteously met by the Franchisee;</p>
 <p>7.3.27.12. maintain a dedicated business landline or dedicated business mobile number, and call divert facility; and</p>
 <p>7.3.27.13. attend all meetings and conferences as the Franchisor shall reasonably request, at the cost of the Franchisee.</p>
 <h4>8. TRAINING</h4>
@@ -216,7 +217,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>8.3.2. not allow any employee or sub-contractor to run classes without the prior written consent of the Franchisor who may require such employee or subcontractor successfully to complete at the Franchisee’s cost an initial training programme;</p>
 <p>8.4. If on completion of the initial training the Franchisor reasonably believes that the Franchisee does not meet the minimum standards required the Franchisor has the right to terminate this Agreement immediately by giving notice in writing (in which event the Initial Fee will be refunded less an amount to compensate the Franchisor for the reasonable costs incurred in relation to the Franchisee’s appointment and training).</p>
 <p>8.5. If in the Franchisor’s reasonable opinion the Franchisee or any staff require further training at any time during the term of this Agreement, the Franchisee shall ensure that such persons attend such training provided that the Franchisor shall not require the Franchisee or staff to attend more than five (5) days of training per year.</p>
-<p>8.6. All training will be provided at the Franchisor’s standard rates as referred to in the Manual or otherwise at the Franchisee’s cost and in all cases the Franchisee shall be responsible for payment for the cost of accommodation, travel and subsistence incurred in attending any training together with the salaries of any staff and any training costs of the Franchisor.</p>
+<p>8.6. The initial training referred to in clauses 5.1.5 and 8.1 is included in the Initial Fee. Any further or refresher training under clause 8.5, and any training of employees or subcontractors under clause 8.3.2, shall be provided at the Franchisor’s standard rates as referred to in the Manual. In all cases the Franchisee shall be responsible for payment for the cost of accommodation, travel and subsistence incurred in attending any training together with the salaries of any staff.</p>
 <h4>9. ACCOUNTING RECORDS</h4>
 <p>The Franchisee shall:</p>
 <p>9.1. keep and maintain complete and accurate accounts and records relating to the Franchisee's Business in a form approved by the Franchisor. All such records shall be full, accurate and up to date. If required by the Franchisor, the Franchisee shall have them audited by qualified auditors nominated by the Franchisor;</p>
@@ -256,7 +257,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>13.2. Subject to clause 13.3, the Franchisor hereby undertakes to grant to a buyer of the Franchisee’s Business a franchise for a five (5) year term and upon similar terms and conditions to those contained in the Franchisor’s then current standard franchise agreement excluding the payment of any sum expressed therein to be payable by way of the initial fee.</p>
 <p>13.3. The conditions with which the Franchisee must comply are as follows:</p>
 <p>13.3.1. any proposed buyer must meet the Franchisor’s standards with regard to business experience, financial status, character and ability;</p>
-<p>13.3.2. the proposed buyer shall submit a detailed offer in writing which shall be a bona fide arms-length offer and which shall provide for the Products and Stationery (if any) to be included in the sale together with the goodwill (i.e. the value of the customers) at valuation and the Franchisee shall provide a copy of such offer to the Franchisor;</p>
+<p>13.3.2. the proposed buyer shall submit a detailed offer in writing which shall be a bona fide arms-length offer and which shall provide for the Products and Stationery (if any) to be included in the sale together with the goodwill (i.e. the value of the clients) at valuation and the Franchisee shall provide a copy of such offer to the Franchisor;</p>
 <p>13.3.3. the Franchisee shall pay to the Franchisor the Transfer Fee (as detailed in Schedule 1) plus the full amount of its legal costs in connection with the transfer (which shall not exceed £1,750 plus VAT); and</p>
 <p>13.3.4. the Franchisee must not at the time of the application for consent be in breach of any of its obligations under this Agreement.</p>
 <p>13.4. In the event that the Franchisee wishes to exercise the right to sell the Franchisee’s Business it shall as soon as possible submit to the Franchisor:</p>
@@ -307,8 +308,8 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>17.3.1. immediately pay the Franchisor the full amount of all sums due from the Franchisee to the Franchisor together with any interest payable in accordance with clause 4.4;</p>
 <p>17.3.2. cease to operate the Franchisee's Business and System and to trade under any of the Trade Marks, and not hold herself out as a franchisee of the Franchisor or do anything that may indicate any relationship between her and the Franchisor;</p>
 <p>17.3.3. immediately stop using the Intellectual Property, including the Trade Marks and take all steps as the Franchisor may reasonably require to remove the name of the Franchisee as licensee at the UK Trade Marks Registry and  all  other  applicable  trade  mark  registries  in other jurisdictions;</p>
-<p>17.3.4. pass all enquiries, and full details of potential customers, to the Franchisor;</p>
-<p>17.3.5. give all customer lists and full details of contracts with customers to the Franchisor;</p>
+<p>17.3.4. pass all enquiries, and full details of potential clients, to the Franchisor;</p>
+<p>17.3.5. give all client lists and full details of contracts with clients to the Franchisor;</p>
 <p>17.3.6. return or at the option of the Franchisor, destroy, all copies of the Manual, and any Products or materials bearing the Trade Marks;</p>
 <p>17.3.7. pay all debts owing to creditors of the Franchisee's Business; and</p>
 <p>17.3.8. assign to the Franchisor all domain name registrations and rights in web site content owned or used by the Franchisee in the Franchisee’s Business.</p>
@@ -318,8 +319,8 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>18.1.1. not within the Territory (except as a holder of not more than five percent (5%) of the issued shares of a publicly quoted company) to be engaged or interested or concerned in the provision of the Services or of any like services or in any business operating in competition with the Business and/or with any of the or other franchisees or licensees of the Franchisor</p>
 <p>18.1.2. not within the Territory of any other franchisees or licensees of the Franchisor or the Franchisor (except as a holder of not more than five percent (5%) of the issued shares of a publicly quoted company) to be engaged or interested or concerned in the provision of the Services or any like services or in any business which is similar to or in conflict with the Business and/or with the business of any of the other franchisees or licensees of the Franchisor</p>
 <p>18.1.3. not without the prior written consent of the Franchisor to employ or seek to employ any person who is at that time or has at any time in the previous twelve (12) months been a franchisee or been employed or engaged in a senior management or other senior position by the Franchisor or by any other franchisee or licensee of the Franchisor in any business carried on under the Brand using the System</p>
-<p>18.1.4. not to solicit Customers or former Customers (who were Customers in the previous twelve (12) months) of the Franchisee’s Business nor divert or seek to divert any custom from the Franchisor or any other franchisee or licensee of the Franchisor</p>
-<p>18.1.5. use the customer database for any other business activity than the operation of the Franchisee’s Business</p>
+<p>18.1.4. not to solicit Clients or former Clients (who were Clients in the previous twelve (12) months) of the Franchisee’s Business nor divert or seek to divert any custom from the Franchisor or any other franchisee or licensee of the Franchisor</p>
+<p>18.1.5. use the client database for any other business activity than the operation of the Franchisee’s Business</p>
 <p>18.2. The Franchisee hereby agrees that all the restrictions in this clause are reasonable and valid in the circumstances of this Agreement</p>
 <p>18.3. At any time after the termination or expiry of this Agreement the Franchisee shall not reveal or use for the benefit of the Franchisee or any third party any trade secret or confidential information of the Franchisor or any confidential information acquired from the Franchisor in connection with the Business</p>
 <p>18.4. If any provision of this clause is determined to be void or unenforceable in whole or in part it shall not be deemed to affect or impair the validity of any other provision of this clause or any other part thereof all of which provisions shall remain in full force and effect and where such provision would be valid and enforceable if part of the wording thereof was deleted or the period reduced or the range of services or the area was reduced in scope the said restriction shall apply with such modifications as may be necessary to make it valid and effective</p>
@@ -343,7 +344,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <p>22.1.5.1. provide the Franchisor with reasonable assistance in complying with any subject access request served on the Franchisor under article 15 of the 2018 Act.</p>
 <p>22.1.5.2. promptly inform the Franchisor about  the  receipt  of  any subject access request received by the Franchisee;</p>
 <p>22.1.5.3. not disclose or release any Franchise Data in response to a subject access request without first consulting with and obtaining the consent of the Franchisor; and</p>
-<p>22.1.5.4. inform any individual whose personal data may be processed under this Agreement (including prospective customers as well as those with whom the Franchisee enters into contracts) of such processing. This includes informing such individuals that, on the termination of this Agreement, personal data relating to them (including personal data contained in any customer list) shall be retained by or, as the case may be, transferred to the Franchisor. In addition, the Franchisee shall obtain any necessary consents for such processing under the 2018 Act. To ensure that the Franchisor's obligations under the 2018 Act are complied with, the Franchisee agrees to allow the Franchisor to approve and, if the Franchisor deems necessary, amend any such notice.</p>
+<p>22.1.5.4. inform any individual whose personal data may be processed under this Agreement (including prospective clients as well as those with whom the Franchisee enters into contracts) of such processing. This includes informing such individuals that, on the termination of this Agreement, personal data relating to them (including personal data contained in any client list) shall be retained by or, as the case may be, transferred to the Franchisor. In addition, the Franchisee shall obtain any necessary consents for such processing under the 2018 Act. To ensure that the Franchisor's obligations under the 2018 Act are complied with, the Franchisee agrees to allow the Franchisor to approve and, if the Franchisor deems necessary, amend any such notice.</p>
 <p>22.2. Where the Franchisee acts as data processor on behalf of the Franchisor in relation to the Franchise Data, the Franchisee shall:</p>
 <p>22.2.1. maintain technical  and  organisational  security  measures  sufficient  to comply at least with the obligations imposed on the Franchisor by the seventh data protection principle set out in the 2018 Act; and</p>
 <p>22.2.2. only process Franchise Data for and on behalf of the Franchisor for the purpose of performing her obligations under, and in accordance with, this Agreement and only on written instructions from the Franchisor to ensure compliance with the 2018 Act.</p>
@@ -386,14 +387,14 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 <h3>SCHEDULE 1</h3>
 <h3>FEES:</h3>
 <p><strong>Initial Fee:</strong> {{ initial_fee_details }}</p>
-<p>Management Fee:shall be calculated as follows:</p>
+<p>Management Fee: shall be calculated as follows:</p>
 <table style="width:100%; border-collapse:collapse;" border="1" cellpadding="6">
 <tr>
 <th>Gross Revenue achieved</th>
 <th>Percentage of Gross Revenue payable as Management Fee</th>
 </tr>
 <tr>
-<td>Up to £1,500</td>
+<td>Up to £1,499</td>
 <td>Ten percent (10%)</td>
 </tr>
 <tr>
@@ -407,7 +408,7 @@ FRANCHISE_AGREEMENT_TEMPLATE_TEXT = """
 </table>
 <p>1. All fees stated in this Schedule are correct as at the date of this Agreement.</p>
 <p>2. The Franchisor reserves the right to review and increase the Management Fee, Marketing Fee and/or other fees set out in this Schedule from time to time, on reasonable written notice to the Franchisee.</p>
-<p>Marketing Fee:2% of gross monthly revenue</p>
+<p>Marketing Fee: 2% of gross monthly revenue</p>
 <p>Transfer Fee: All fees are expressed exclusive of VAT which shall also be charged. The Franchisor is not currently VAT registered - see clause 4.8 for what happens if that changes.</p>
 <p><strong>Commencement Date:</strong> {{ commencement_date }}</p>
 <p><strong>Expiry Date:</strong> {{ expiry_date }} <span class="dashboard-help">(five years from the Commencement Date)</span></p>
