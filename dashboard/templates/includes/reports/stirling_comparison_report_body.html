@@ -1,0 +1,29 @@
+<div class="dashboard-card">
+  <div class="dashboard-detail-section-head">
+    <h2 class="dashboard-detail-section-title">Children's Wellbeing Check-In - Before/After</h2>
+  </div>
+
+  <p class="dashboard-help" style="margin-bottom:16px;">
+    Matched Before/After Stirling Wellbeing responses, grouped by school. Students are shown anonymously
+    as "Student 1", "Student 2" and so on - no names appear anywhere on this page.
+  </p>
+
+  <div class="trk-calendar-form-row">
+    <div class="trk-calendar-field">
+      <label for="stirlingComparisonSchoolSelect">School</label>
+      <select id="stirlingComparisonSchoolSelect" class="dashboard-select">
+        <option value="">All Schools</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="dashboard-detail-actions" style="margin:8px 0 18px;">
+    <button type="button" class="dashboard-btn dashboard-btn-primary" id="runStirlingComparisonReportBtn">Run Report</button>
+  </div>
+
+  <div id="stirlingComparisonUnmatchedNote" class="dashboard-help" style="display:none; margin-bottom:16px;"></div>
+
+  <div id="stirlingComparisonEmpty" class="dashboard-empty">Run the report to see results.</div>
+
+  <div id="stirlingComparisonResults" style="display:none;"></div>
+</div>

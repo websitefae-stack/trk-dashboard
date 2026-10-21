@@ -34,6 +34,7 @@ from dashboard.api.shared.notifications import create_trk_notification, ASHLEY_U
 
 REFERENCE_RESPONSE_DOCTYPE = "Sessional Worker Reference Response"
 STUDENT_RESILIENCE_DOCTYPE = "Student Resilience Survey Response"
+STIRLING_WELLBEING_DOCTYPE = "Stirling Wellbeing Response"
 
 FORMS_MODULE = "Forms"
 
@@ -279,6 +280,7 @@ def _form_doctype_meta(doctype):
 # in the Forms module also uses.
 FORM_HIDDEN_FIELDNAMES = {
     STUDENT_RESILIENCE_DOCTYPE: {"student_first_name", "student_last_name"},
+    STIRLING_WELLBEING_DOCTYPE: {"student_first_name", "student_last_name"},
 }
 
 
@@ -328,6 +330,7 @@ FORM_PERSON_COLUMN_OVERRIDES = {
 # button should lead with.
 FORM_REPORT_URL_OVERRIDES = {
     STUDENT_RESILIENCE_DOCTYPE: "/reports?tab=resilience_comparison",
+    STIRLING_WELLBEING_DOCTYPE: "/reports?tab=stirling_comparison",
 }
 
 
