@@ -204,3 +204,4 @@ dashboard.patches.add_stirling_wellbeing_matching_fields
 dashboard.patches.rename_kids_questionnaire_web_form
 dashboard.patches.switch_survey_school_fields_to_client
 dashboard.patches.fix_school_field_filter_script
+dashboard.patches.switch_survey_school_fields_to_select

@@ -36,23 +36,16 @@ from dashboard.patches.create_student_resilience_survey_form import DOCTYPE_NAME
 
 _STAGES = ("Before", "After")
 
-CLIENT_DOCTYPE = "Client"
-
 
 def _school_label(school_name):
-    # "school" is a Link to Client (client_type "School") - see
-    # switch_survey_school_fields_to_client.py. A response saved before
-    # that patch ran still has the old School-pipeline-doctype value, which
-    # won't resolve here - falls back to showing it raw rather than hiding it.
-    if not school_name:
-        return "Unknown School"
-
-    if frappe.db.exists("DocType", CLIENT_DOCTYPE):
-        label = frappe.db.get_value(CLIENT_DOCTYPE, school_name, "full_name")
-        if label:
-            return label
-
-    return school_name
+    # "school" is a plain Select of school names (see
+    # switch_survey_school_fields_to_select.py) - the stored value already
+    # is the display name, no lookup needed. Still a function (not just
+    # inlined) so a blank value - or a leftover value from either of the
+    # two earlier, since-abandoned "school" field designs (a Link to the
+    # School pipeline doctype, then a Link to Client) - gets the same
+    # "Unknown School" treatment instead of showing up as a blank group.
+    return school_name or "Unknown School"
 
 
 def _safe_int(value):
