@@ -1175,6 +1175,24 @@
 
   var resilienceComparisonState = { groups: [] };
 
+  function renderResilienceAverages(data) {
+    var wrap = el("resilienceComparisonAverages");
+    if (!wrap) return;
+
+    if (!data.pair_count) {
+      wrap.style.display = "none";
+      wrap.innerHTML = "";
+      return;
+    }
+
+    wrap.style.display = "";
+    wrap.innerHTML = renderScoreGaugePie(
+      "Average Before Score", data.average_before_score, data.score_max, formChartColor(0)
+    ) + renderScoreGaugePie(
+      "Average After Score", data.average_after_score, data.score_max, formChartColor(1)
+    );
+  }
+
   function renderResilienceComparisonReport(data) {
     var empty = el("resilienceComparisonEmpty");
     var results = el("resilienceComparisonResults");
@@ -1182,6 +1200,7 @@
     if (!empty || !results) return;
 
     resilienceComparisonState.groups = data.groups || [];
+    renderResilienceAverages(data);
 
     if (note) {
       if (data.unmatched_count) {

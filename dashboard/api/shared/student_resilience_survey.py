@@ -152,6 +152,9 @@ def get_student_resilience_comparison(school=None):
             unmatched_count += len(befores) + len(afters)
 
     groups = []
+    all_overall_before_avgs = []
+    all_overall_after_avgs = []
+
     for school_name in sorted(by_school.keys(), key=_school_label):
         pairs = sorted(by_school[school_name], key=lambda p: p["before"]["creation"])
 
@@ -192,12 +195,20 @@ def get_student_resilience_comparison(school=None):
                     "after_avg": _average(after_values),
                 })
 
+            overall_before_avg = _average(overall_before_values)
+            overall_after_avg = _average(overall_after_values)
+
+            if overall_before_avg is not None:
+                all_overall_before_avgs.append(overall_before_avg)
+            if overall_after_avg is not None:
+                all_overall_after_avgs.append(overall_after_avg)
+
             pairs_out.append({
                 "label": f"Student {index}",
                 "before_date": frappe.utils.formatdate(before.get("creation"), "dd-MM-yyyy"),
                 "after_date": frappe.utils.formatdate(after.get("creation"), "dd-MM-yyyy"),
-                "overall_before_avg": _average(overall_before_values),
-                "overall_after_avg": _average(overall_after_values),
+                "overall_before_avg": overall_before_avg,
+                "overall_after_avg": overall_after_avg,
                 "section_averages": section_averages,
                 "questions": questions,
             })
@@ -208,4 +219,16 @@ def get_student_resilience_comparison(school=None):
             "pairs": pairs_out,
         })
 
-    return {"groups": groups, "unmatched_count": unmatched_count}
+    return {
+        "groups": groups,
+        "unmatched_count": unmatched_count,
+        "pair_count": sum(len(g["pairs"]) for g in groups),
+        # Each question is answered on a 1-5 scale (see SECTIONS'
+        # options) - these are the mean of every matched pair's own
+        # overall average, for the report's two gauge-style summary
+        # charts (same idea as wellbeing_forms.get_stirling_wellbeing_
+        # comparison's average_before/after_wellbeing_score).
+        "average_before_score": _average(all_overall_before_avgs),
+        "average_after_score": _average(all_overall_after_avgs),
+        "score_max": 5,
+    }
