@@ -114,6 +114,11 @@ def get_stirling_wellbeing_comparison(school=None):
     (see add_stirling_wellbeing_matching_fields.py) have no school and
     no name, so they can never match anything - correctly excluded
     rather than guessed at.
+
+    Also returns average_before_wellbeing_score/average_after_
+    wellbeing_score - the plain mean Wellbeing Score across every
+    matched pair currently in view (i.e. respecting the school filter),
+    for the report's two gauge-style summary charts.
     """
     ensure_logged_in()
 
@@ -170,6 +175,9 @@ def get_stirling_wellbeing_comparison(school=None):
             unmatched_count += len(befores) + len(afters)
 
     groups = []
+    all_before_wellbeing = []
+    all_after_wellbeing = []
+
     for school_name in sorted(by_school.keys(), key=_school_label):
         pairs = sorted(by_school[school_name], key=lambda p: p["before"]["creation"])
 
@@ -184,6 +192,9 @@ def get_stirling_wellbeing_comparison(school=None):
             after_wellbeing = sum(after_items[n] for n in WELLBEING_ITEM_NUMBERS)
             before_sd = sum(before_items[n] for n in SOCIAL_DESIRABILITY_ITEM_NUMBERS)
             after_sd = sum(after_items[n] for n in SOCIAL_DESIRABILITY_ITEM_NUMBERS)
+
+            all_before_wellbeing.append(before_wellbeing)
+            all_after_wellbeing.append(after_wellbeing)
 
             questions = [
                 {
@@ -214,4 +225,19 @@ def get_stirling_wellbeing_comparison(school=None):
             "pairs": pairs_out,
         })
 
-    return {"groups": groups, "unmatched_count": unmatched_count}
+    pair_count = len(all_before_wellbeing)
+    average_before_wellbeing_score = (
+        round(sum(all_before_wellbeing) / pair_count, 1) if pair_count else None
+    )
+    average_after_wellbeing_score = (
+        round(sum(all_after_wellbeing) / pair_count, 1) if pair_count else None
+    )
+
+    return {
+        "groups": groups,
+        "unmatched_count": unmatched_count,
+        "pair_count": pair_count,
+        "average_before_wellbeing_score": average_before_wellbeing_score,
+        "average_after_wellbeing_score": average_after_wellbeing_score,
+        "wellbeing_score_max": len(WELLBEING_ITEM_NUMBERS) * 5,
+    }
