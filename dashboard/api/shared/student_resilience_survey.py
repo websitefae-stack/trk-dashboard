@@ -32,17 +32,23 @@ import frappe
 from frappe import _
 
 from dashboard.api.shared.permissions import ensure_logged_in
-from dashboard.patches.create_student_resilience_survey_form import DOCTYPE_NAME, SCHOOL_DOCTYPE, SECTIONS
+from dashboard.patches.create_student_resilience_survey_form import DOCTYPE_NAME, SECTIONS
 
 _STAGES = ("Before", "After")
 
+CLIENT_DOCTYPE = "Client"
+
 
 def _school_label(school_name):
+    # "school" is a Link to Client (client_type "School") - see
+    # switch_survey_school_fields_to_client.py. A response saved before
+    # that patch ran still has the old School-pipeline-doctype value, which
+    # won't resolve here - falls back to showing it raw rather than hiding it.
     if not school_name:
         return "Unknown School"
 
-    if frappe.db.exists("DocType", SCHOOL_DOCTYPE):
-        label = frappe.db.get_value(SCHOOL_DOCTYPE, school_name, "school_name")
+    if frappe.db.exists("DocType", CLIENT_DOCTYPE):
+        label = frappe.db.get_value(CLIENT_DOCTYPE, school_name, "full_name")
         if label:
             return label
 

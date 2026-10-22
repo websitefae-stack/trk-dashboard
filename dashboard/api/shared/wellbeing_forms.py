@@ -25,6 +25,12 @@ Student Resilience Survey's own comparison report
 the anonymisation happens here, server-side, never in the dashboard UI
 - the response this sends back never includes a name field, only a
 stable per-school "Student N" label.
+
+The School link itself points at Client (client_type "School") as of
+patches/switch_survey_school_fields_to_client.py - it originally
+pointed at the sales-pipeline "School" doctype, which named its
+records with a plain autoincrement number and showed up as a bare
+number on the form.
 """
 
 import frappe
@@ -32,7 +38,9 @@ import frappe
 from dashboard.api.shared.permissions import ensure_logged_in
 from dashboard.patches.create_stirling_wellbeing_scale_form import DOCTYPE_NAME, STATEMENTS
 
-SCHOOL_DOCTYPE = "School"
+# "school" is a Link to Client (client_type "School") - see
+# switch_survey_school_fields_to_client.py.
+SCHOOL_DOCTYPE = "Client"
 
 WELLBEING_ITEM_NUMBERS = (1, 3, 4, 5, 6, 8, 9, 10, 11, 12, 14, 15)
 SOCIAL_DESIRABILITY_ITEM_NUMBERS = (2, 7, 13)
@@ -64,11 +72,14 @@ _STAGES = ("Before", "After")
 
 
 def _school_label(school_name):
+    # A response saved before switch_survey_school_fields_to_client.py ran
+    # still has the old School-pipeline-doctype value, which won't resolve
+    # here - falls back to showing it raw rather than hiding it.
     if not school_name:
         return "Unknown School"
 
     if frappe.db.exists("DocType", SCHOOL_DOCTYPE):
-        label = frappe.db.get_value(SCHOOL_DOCTYPE, school_name, "school_name")
+        label = frappe.db.get_value(SCHOOL_DOCTYPE, school_name, "full_name")
         if label:
             return label
 
