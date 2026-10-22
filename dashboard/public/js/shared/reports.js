@@ -1267,6 +1267,42 @@
 
   var stirlingComparisonState = { groups: [] };
 
+  function renderScoreGaugePie(label, value, max, color) {
+    var safeMax = max || 1;
+    var filled = Math.max(0, Math.min(value == null ? 0 : value, safeMax));
+    var percent = Math.round((filled / safeMax) * 100);
+    var gradient = "conic-gradient(" + color + " 0% " + percent + "%, #F1F5F5 " + percent + "% 100%)";
+
+    return '<div class="form-chart-card">'
+      + '<div class="form-chart-title">' + escapeHtml(label) + '</div>'
+      + '<div class="form-chart-subtitle">Average across every matched pair shown</div>'
+      + '<div class="form-chart-pie" style="background:' + gradient + ';"></div>'
+      + '<div class="form-chart-legend">'
+      + '<div class="form-chart-legend-row">'
+      + '<span class="form-chart-swatch" style="background:' + color + ';"></span>'
+      + '<span class="form-chart-legend-label">Average score</span>'
+      + '<span class="form-chart-legend-value">' + (value == null ? "—" : value) + ' / ' + safeMax + '</span>'
+      + '</div></div></div>';
+  }
+
+  function renderStirlingAverages(data) {
+    var wrap = el("stirlingComparisonAverages");
+    if (!wrap) return;
+
+    if (!data.pair_count) {
+      wrap.style.display = "none";
+      wrap.innerHTML = "";
+      return;
+    }
+
+    wrap.style.display = "";
+    wrap.innerHTML = renderScoreGaugePie(
+      "Average Before Wellbeing Score", data.average_before_wellbeing_score, data.wellbeing_score_max, formChartColor(0)
+    ) + renderScoreGaugePie(
+      "Average After Wellbeing Score", data.average_after_wellbeing_score, data.wellbeing_score_max, formChartColor(1)
+    );
+  }
+
   function renderStirlingComparisonReport(data) {
     var empty = el("stirlingComparisonEmpty");
     var results = el("stirlingComparisonResults");
@@ -1274,6 +1310,7 @@
     if (!empty || !results) return;
 
     stirlingComparisonState.groups = data.groups || [];
+    renderStirlingAverages(data);
 
     if (note) {
       if (data.unmatched_count) {
