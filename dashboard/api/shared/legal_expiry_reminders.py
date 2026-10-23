@@ -37,12 +37,18 @@ deduped via a cache - simpler, and it means a missed run (e.g. the site
 was down) just results in that one threshold being skipped rather than
 a backlog of repeats; the person still gets whichever of the later
 thresholds comes next.
+
+Office (OFFICE_USER) gets a copy of every one of these reminders too,
+so Ashley can follow up and actually check the right document got
+uploaded - not just hear about it once someone's already locked out
+(permissions.notify_franchisors_of_expired_legal already covers that
+later point, unchanged).
 """
 
 import frappe
 
 from dashboard.api.shared.item_access import _get_coach_login
-from dashboard.api.shared.notifications import create_trk_notification
+from dashboard.api.shared.notifications import create_trk_notification, OFFICE_USER
 from dashboard.api.shared.permissions import MISSING_DOCUMENT_GRACE_DAYS, _latest_dated_row
 from dashboard.api.shared.practice_documents import _get_session_worker_login
 
@@ -147,6 +153,24 @@ def _reminder_message(label, is_missing, expiry_date, days_until):
     )
 
 
+def _office_reminder_message(person_name, label, is_missing, expiry_date, days_until):
+    # A heads-up for office to follow up and check the right document
+    # actually gets uploaded - not phrased as "your X", since this isn't
+    # the coach/session worker's own document.
+    if is_missing:
+        time_left = "until tomorrow" if days_until == 1 else f"{days_until} days"
+        return (
+            f"{person_name}'s {label} is not on file - they've been reminded, with {time_left} left "
+            "before they're locked out. Worth checking they actually sort it."
+        )
+
+    when = "tomorrow" if days_until == 1 else f"in {days_until} days"
+    return (
+        f"{person_name}'s {label} expires {when} (on {expiry_date}) - they've been reminded. "
+        "Worth checking they renew it and upload the correct document."
+    )
+
+
 def send_legal_expiry_reminders():
     today = frappe.utils.getdate(frappe.utils.today())
 
@@ -171,15 +195,36 @@ def send_legal_expiry_reminders():
                 continue
 
             recipient_user = config["login_resolver"](name)
-            if not recipient_user:
-                continue
+            person_name = doc.get("coach_name") or doc.get("sw_name") or name
 
             for label, is_missing, expiry_date, days_until in due_items:
+                if recipient_user:
+                    try:
+                        create_trk_notification(
+                            recipient_user=recipient_user,
+                            notification_type="Task",
+                            message=_reminder_message(label, is_missing, expiry_date, days_until),
+                            priority="High" if days_until == 1 else "Normal",
+                            reference_doctype=doctype,
+                            reference_name=name,
+                            coach=name if dashboard_type == "coach" else None,
+                            session_worker=name if dashboard_type == "session_worker" else None,
+                        )
+                    except Exception:
+                        frappe.log_error(
+                            frappe.get_traceback(), f"Legal Expiry Reminder Failed - {doctype} {name}"
+                        )
+
+                # Office gets a copy of every reminder too, so Ashley can
+                # follow up and confirm the right document actually gets
+                # uploaded - not just hear about it once someone's
+                # already locked out (see permissions.notify_franchisors_
+                # of_expired_legal, which only fires at that later point).
                 try:
                     create_trk_notification(
-                        recipient_user=recipient_user,
+                        recipient_user=OFFICE_USER,
                         notification_type="Task",
-                        message=_reminder_message(label, is_missing, expiry_date, days_until),
+                        message=_office_reminder_message(person_name, label, is_missing, expiry_date, days_until),
                         priority="High" if days_until == 1 else "Normal",
                         reference_doctype=doctype,
                         reference_name=name,
@@ -188,7 +233,7 @@ def send_legal_expiry_reminders():
                     )
                 except Exception:
                     frappe.log_error(
-                        frappe.get_traceback(), f"Legal Expiry Reminder Failed - {doctype} {name}"
+                        frappe.get_traceback(), f"Legal Expiry Office Reminder Failed - {doctype} {name}"
                     )
 
         frappe.db.commit()
