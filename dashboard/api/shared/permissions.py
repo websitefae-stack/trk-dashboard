@@ -581,6 +581,30 @@ def _latest_dated_row(rows, number_field):
     return best
 
 
+# How long a coach/session worker has to provide a legal document that
+# has never been on file at all, from the day it's first noticed missing
+# (see get_expired_legal_items's own docstring) - also the countdown
+# legal_expiry_reminders.py's 30/7/1-day "not in place" reminders use, so
+# the two stay in lockstep by construction rather than by two separately
+# hardcoded 30s.
+MISSING_DOCUMENT_GRACE_DAYS = 30
+
+
+def _missing_item_if_grace_period_over(label, missing_since, today):
+    if not missing_since:
+        return None
+
+    try:
+        missing_since_date = frappe.utils.getdate(missing_since)
+    except Exception:
+        return None
+
+    if (today - missing_since_date).days >= MISSING_DOCUMENT_GRACE_DAYS:
+        return {"label": label, "number": "", "expiry_date": None, "missing": True}
+
+    return None
+
+
 def get_expired_legal_items(doc, dashboard_type):
     """
     DBS and DBS Update Service are two ways of satisfying the same
@@ -592,6 +616,18 @@ def get_expired_legal_items(doc, dashboard_type):
     superseded DBS row alone could block access even while a genuinely
     current DBS Update Service covered them. Insurance/Indemnity have no
     such relationship, so those stay a plain per-row check.
+
+    A requirement with NO record on file at all (never provided, rather
+    than provided and now lapsed) used to never show up here at all -
+    _latest_dated_row returns None for an empty table, so dbs_family_best/
+    best below was simply skipped. Ashley's rule: that should still block
+    access, just with a 30-day grace period from whenever it's first
+    noticed missing. legal_expiry_reminders.send_legal_expiry_reminders
+    (run daily, plus once immediately on deploy) is what actually stamps
+    dbs_missing_since/insurance_missing_since/ico_missing_since - this
+    function only ever reads them, never writes, since it runs on every
+    page load and a 30-day grace period doesn't need write-on-every-
+    page-load precision.
     """
     expired = []
     today = frappe.utils.getdate(frappe.utils.today())
@@ -599,14 +635,14 @@ def get_expired_legal_items(doc, dashboard_type):
     if dashboard_type == "coach":
         dbs_update_field = "dbs_update_services"
         plain_tables = [
-            ("Insurance", "insurance", "insurance_number"),
-            ("ICO Certificate", "indemnity", "indemnity_number"),
+            ("Insurance", "insurance", "insurance_number", "insurance_missing_since"),
+            ("ICO Certificate", "indemnity", "indemnity_number", "ico_missing_since"),
         ]
     elif dashboard_type == "session_worker":
         dbs_update_field = "dbs_update_service"
         plain_tables = [
-            ("Insurance", "insurance", "insurance_number"),
-            ("ICO Certificate", "indemnity", "indemnity_number"),
+            ("Insurance", "insurance", "insurance_number", "insurance_missing_since"),
+            ("ICO Certificate", "indemnity", "indemnity_number", "ico_missing_since"),
         ]
     else:
         return expired
@@ -623,19 +659,28 @@ def get_expired_legal_items(doc, dashboard_type):
         default=None,
     )
 
-    if dbs_family_best and dbs_family_best["expiry"] < today:
-        expired.append({
-            "label": "DBS",
-            "number": dbs_family_best["number"],
-            "expiry_date": dbs_family_best["expiry_date"],
-        })
+    if dbs_family_best:
+        if dbs_family_best["expiry"] < today:
+            expired.append({
+                "label": "DBS",
+                "number": dbs_family_best["number"],
+                "expiry_date": dbs_family_best["expiry_date"],
+            })
+    else:
+        missing_item = _missing_item_if_grace_period_over("DBS", doc.get("dbs_missing_since"), today)
+        if missing_item:
+            expired.append(missing_item)
 
-    for label, table_field, number_field in plain_tables:
+    for label, table_field, number_field, missing_since_field in plain_tables:
+        has_dated_row = False
+
         for row in doc.get(table_field) or []:
             expiry_date = row.get("expiry_date")
 
             if not expiry_date:
                 continue
+
+            has_dated_row = True
 
             try:
                 expiry = frappe.utils.getdate(expiry_date)
@@ -648,6 +693,11 @@ def get_expired_legal_items(doc, dashboard_type):
                     "number": row.get(number_field) or "",
                     "expiry_date": expiry_date,
                 })
+
+        if not has_dated_row:
+            missing_item = _missing_item_if_grace_period_over(label, doc.get(missing_since_field), today)
+            if missing_item:
+                expired.append(missing_item)
 
     return expired
 
@@ -671,12 +721,14 @@ def notify_franchisors_of_expired_legal(doc, dashboard_type, expired_items):
         or doc.get("name")
     )
 
-    message = "{0} has expired legal document(s): {1}".format(
+    def _describe(item):
+        if item.get("missing"):
+            return "{0} not provided".format(item["label"])
+        return "{0} expired on {1}".format(item["label"], item["expiry_date"])
+
+    message = "{0} has expired/missing legal document(s): {1}".format(
         person_name,
-        ", ".join([
-            "{0} expired on {1}".format(item["label"], item["expiry_date"])
-            for item in expired_items
-        ]),
+        ", ".join(_describe(item) for item in expired_items),
     )
 
     # Compliance/admin tracking - office's job, not a franchisor-strategy

@@ -52,7 +52,11 @@
 
           <ul style="margin:8px 0 0 20px; padding:0;">
             {% for item in expired_legal_items %}
-              <li>{{ item.label }} expired on {{ frappe.utils.formatdate(item.expiry_date, "dd-MM-yyyy") }}</li>
+              {% if item.missing %}
+                <li>{{ item.label }} has not been provided</li>
+              {% else %}
+                <li>{{ item.label }} expired on {{ frappe.utils.formatdate(item.expiry_date, "dd-MM-yyyy") }}</li>
+              {% endif %}
             {% endfor %}
           </ul>
 
