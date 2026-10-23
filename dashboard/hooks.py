@@ -422,6 +422,7 @@ scheduler_events = {
         "0 10 * * *": [
             "dashboard.api.shared.school_pipeline.process_due_school_sequences",
             "dashboard.api.shared.email_sequences.process_due_sequence_steps",
+            "dashboard.api.shared.legal_expiry_reminders.send_legal_expiry_reminders",
         ],
     },
     # Keeps every client's age-derived client_type (Kid/Teen/Uni Student/
