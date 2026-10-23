@@ -207,3 +207,4 @@ dashboard.patches.fix_school_field_filter_script
 dashboard.patches.switch_survey_school_fields_to_select
 dashboard.patches.add_live_school_options_script
 dashboard.patches.diag_stirling_wellbeing_recent_responses
+dashboard.patches.add_safeguarding_training_onboarding_step
