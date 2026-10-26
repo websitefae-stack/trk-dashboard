@@ -15,6 +15,7 @@
   "scope",
   "items",
   "limits_section",
+  "valid_from",
   "expiry_date",
   "column_break_2",
   "max_uses",
@@ -84,7 +85,13 @@
    "label": "Limits"
   },
   {
-   "description": "Leave blank for no expiry.",
+   "description": "Leave blank to start immediately. The code becomes valid from midnight (site time zone) on this date.",
+   "fieldname": "valid_from",
+   "fieldtype": "Date",
+   "label": "Valid From"
+  },
+  {
+   "description": "Leave blank for no expiry. The code stays valid through the end of this date (midnight, site time zone).",
    "fieldname": "expiry_date",
    "fieldtype": "Date",
    "label": "Expiry Date"

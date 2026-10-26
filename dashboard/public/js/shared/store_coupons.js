@@ -68,7 +68,9 @@
 
   function renderRow(coupon) {
     const usesLabel = coupon.max_uses ? `${coupon.times_used} / ${coupon.max_uses}` : `${coupon.times_used}`;
-    const expired = coupon.expiry_date && new Date(coupon.expiry_date) < new Date(new Date().toDateString());
+    const today = new Date(new Date().toDateString());
+    const expired = coupon.expiry_date && new Date(coupon.expiry_date) < today;
+    const notStartedYet = coupon.valid_from && new Date(coupon.valid_from) > today;
     const usedUp = coupon.max_uses && coupon.times_used >= coupon.max_uses;
 
     let statusLabel = "Active";
@@ -78,6 +80,9 @@
       statusClass = "dashboard-status-archived";
     } else if (expired) {
       statusLabel = "Expired";
+      statusClass = "dashboard-status-onhold";
+    } else if (notStartedYet) {
+      statusLabel = "Scheduled";
       statusClass = "dashboard-status-onhold";
     } else if (usedUp) {
       statusLabel = "Fully redeemed";
@@ -175,6 +180,7 @@
     el("storeCouponDiscountType").value = coupon ? coupon.discount_type : "Percentage";
     el("storeCouponDiscountValue").value = coupon ? coupon.discount_value : "";
     el("storeCouponScope").value = coupon ? coupon.scope || "Entire Store" : "Entire Store";
+    el("storeCouponValidFrom").value = coupon && coupon.valid_from ? coupon.valid_from : "";
     el("storeCouponExpiry").value = coupon && coupon.expiry_date ? coupon.expiry_date : "";
     el("storeCouponMaxUses").value = coupon ? coupon.max_uses || 0 : 0;
     el("storeCouponDescription").value = coupon ? coupon.description || "" : "";
@@ -221,6 +227,7 @@
       active: el("storeCouponActive").checked ? 1 : 0,
       scope,
       items: JSON.stringify(items),
+      valid_from: el("storeCouponValidFrom").value || null,
       expiry_date: el("storeCouponExpiry").value || null,
       max_uses: el("storeCouponMaxUses").value || 0,
       description: el("storeCouponDescription").value,

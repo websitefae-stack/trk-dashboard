@@ -24,7 +24,7 @@ SCOPE_SPECIFIC_ITEMS = "Specific Items"
 
 COUPON_LIST_FIELDS = [
     "name", "code", "discount_type", "discount_value", "active", "scope",
-    "expiry_date", "max_uses", "times_used", "description",
+    "valid_from", "expiry_date", "max_uses", "times_used", "description",
 ]
 
 
@@ -53,6 +53,9 @@ def _get_valid_coupon(code):
 
     if not coupon.active:
         frappe.throw(_("That discount code isn't valid."))
+
+    if coupon.valid_from and getdate(nowdate()) < getdate(coupon.valid_from):
+        frappe.throw(_("That discount code isn't active yet."))
 
     if coupon.expiry_date and getdate(coupon.expiry_date) < getdate(nowdate()):
         frappe.throw(_("That discount code has expired."))
@@ -230,6 +233,7 @@ def get_coupon(name=None):
         "active": bool(coupon.active),
         "scope": coupon.scope,
         "items": _coupon_item_rows(coupon),
+        "valid_from": str(coupon.valid_from or ""),
         "expiry_date": str(coupon.expiry_date or ""),
         "max_uses": coupon.max_uses or 0,
         "times_used": coupon.times_used or 0,
@@ -257,7 +261,7 @@ def _apply_scope_and_items(coupon, scope, items):
 
 
 @frappe.whitelist()
-def create_coupon(code=None, discount_type=None, discount_value=None, active=1, scope=None, items=None, expiry_date=None, max_uses=0, description=None):
+def create_coupon(code=None, discount_type=None, discount_value=None, active=1, scope=None, items=None, valid_from=None, expiry_date=None, max_uses=0, description=None):
     _ensure_store_access()
 
     code = _normalize_code(code)
@@ -270,12 +274,16 @@ def create_coupon(code=None, discount_type=None, discount_value=None, active=1, 
     if not flt(discount_value) > 0:
         frappe.throw(_("Please enter a discount value greater than zero."))
 
+    if valid_from and expiry_date and getdate(valid_from) > getdate(expiry_date):
+        frappe.throw(_("Valid From can't be after the Expiry Date."))
+
     coupon = frappe.new_doc(COUPON_DOCTYPE)
     coupon.code = code
     coupon.discount_type = discount_type or "Percentage"
     coupon.discount_value = flt(discount_value)
     coupon.active = cint(active)
     coupon.scope = SCOPE_ENTIRE_STORE
+    coupon.valid_from = valid_from or None
     coupon.expiry_date = expiry_date or None
     coupon.max_uses = cint(max_uses)
     coupon.description = description or ""
@@ -287,7 +295,7 @@ def create_coupon(code=None, discount_type=None, discount_value=None, active=1, 
 
 
 @frappe.whitelist()
-def update_coupon(name=None, discount_type=None, discount_value=None, active=None, scope=None, items=None, expiry_date=None, max_uses=None, description=None):
+def update_coupon(name=None, discount_type=None, discount_value=None, active=None, scope=None, items=None, valid_from=None, expiry_date=None, max_uses=None, description=None):
     _ensure_store_access()
 
     if not name or not frappe.db.exists(COUPON_DOCTYPE, name):
@@ -301,12 +309,17 @@ def update_coupon(name=None, discount_type=None, discount_value=None, active=Non
         coupon.discount_value = flt(discount_value)
     if active is not None:
         coupon.active = cint(active)
+    if valid_from is not None:
+        coupon.valid_from = valid_from or None
     if expiry_date is not None:
         coupon.expiry_date = expiry_date or None
     if max_uses is not None:
         coupon.max_uses = cint(max_uses)
     if description is not None:
         coupon.description = description
+
+    if coupon.valid_from and coupon.expiry_date and getdate(coupon.valid_from) > getdate(coupon.expiry_date):
+        frappe.throw(_("Valid From can't be after the Expiry Date."))
 
     _apply_scope_and_items(coupon, scope, items)
 
