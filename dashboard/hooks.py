@@ -421,8 +421,20 @@ scheduler_events = {
         # instead of at whatever hour it crossed midnight.
         "0 10 * * *": [
             "dashboard.api.shared.school_pipeline.process_due_school_sequences",
-            "dashboard.api.shared.email_sequences.process_due_sequence_steps",
             "dashboard.api.shared.legal_expiry_reminders.send_legal_expiry_reminders",
+        ],
+        # Kept out of the 10am slot above, deliberately - two sequence-
+        # processing jobs in the same cron entry can be picked up by
+        # different workers and run at the same moment, so even with
+        # mail_throttle.stagger_sequence_sends() spacing each job's OWN
+        # sends apart, their two bursts could still interleave closely.
+        # A batch of a dozen-plus near-identical templated emails (school
+        # outreach + franchise brochure nurture) landing within the same
+        # minute is what caused the "Mail contain spam content" bounces
+        # across both sequences at once (Oct 2026) - this 15-minute offset
+        # guarantees the two jobs' sends never overlap at all.
+        "15 10 * * *": [
+            "dashboard.api.shared.email_sequences.process_due_sequence_steps",
         ],
     },
     # Keeps every client's age-derived client_type (Kid/Teen/Uni Student/

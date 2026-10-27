@@ -26,6 +26,8 @@ which is also where the hourly count below is read from. Any `now=True`
 passed in by a caller is silently dropped rather than honoured.
 """
 
+import time
+
 import frappe
 from frappe.utils import add_to_date, now_datetime
 
@@ -34,6 +36,27 @@ from frappe.utils import add_to_date, now_datetime
 # (Email Queue rows created in the last hour) rather than Titan's own
 # authoritative counter.
 HOURLY_SEND_BUDGET = 45
+
+# A batch of structurally-identical templated emails (a nurture
+# sequence, school outreach) landing in a recipient's inbox provider
+# within the same second is a classic spam-pattern trigger on its own,
+# regardless of total hourly volume or what the content says - that's
+# what caused the "Mail contain spam content" bounces across a dozen
+# Franchise Brochure Request and School sequence emails sent in the
+# same run (Oct 2026). stagger_sequence_sends() spaces consecutive
+# sends within one scheduled job's loop apart in time, so the run looks
+# like what it is (automated but not a blast) to receiving providers,
+# without needing a different cron timeout or queue mechanism.
+SEQUENCE_SEND_STAGGER_SECONDS = 4
+
+
+def stagger_sequence_sends(is_first):
+    """Call once per item inside a due-sequence-processing loop, before
+    sending - e.g. `for i, name in enumerate(due_names): stagger_
+    sequence_sends(i == 0); _send_next_step(name)`. No-op on the first
+    item (nothing to space out from yet)."""
+    if not is_first:
+        time.sleep(SEQUENCE_SEND_STAGGER_SECONDS)
 
 # A bulk run (send_bulk_batch) never eats more than this much of the
 # hour's budget, so a weekly newsletter mid-send can never lock out a
