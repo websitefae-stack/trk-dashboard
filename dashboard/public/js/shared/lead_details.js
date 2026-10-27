@@ -580,9 +580,12 @@
     if (lead.contract_signed) {
       block.innerHTML = `
         <button type="button" class="dashboard-btn dashboard-btn-light" id="viewSignedContractBtn">View Signed Agreement</button>
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="downloadSignedContractBtn">Download PDF</button>
       `;
       const viewBtn = el("viewSignedContractBtn");
       if (viewBtn) viewBtn.addEventListener("click", viewSignedContract);
+      const downloadBtn = el("downloadSignedContractBtn");
+      if (downloadBtn) downloadBtn.addEventListener("click", downloadSignedContract);
       return;
     }
 
@@ -793,6 +796,42 @@
       if (modal) modal.classList.add("show");
     } catch (error) {
       window.alert(error.message || "Could not load the signed agreement.");
+    }
+  }
+
+  async function downloadSignedContract() {
+    const name = getValue("leadDocname");
+    if (!name) return;
+
+    const btn = el("downloadSignedContractBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Downloading..."; }
+
+    try {
+      const response = await fetch(`/api/method/${SHARED_API}.download_signed_contract_pdf`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Frappe-CSRF-Token": getCsrfToken()
+        },
+        body: JSON.stringify({ name })
+      });
+
+      if (!response.ok) throw new Error("Could not download the signed agreement.");
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "Franchise Agreement.pdf";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      window.alert(error.message || "Could not download the signed agreement.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Download PDF"; }
     }
   }
 
