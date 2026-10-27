@@ -327,6 +327,42 @@
     }
   }
 
+  async function downloadSignedContract() {
+    const name = getValue("rlDocname");
+    if (!name) return;
+
+    const btn = el("rlDownloadSignedContractBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Downloading..."; }
+
+    try {
+      const response = await fetch(`/api/method/${SHARED_API}.download_signed_contract_pdf`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Frappe-CSRF-Token": getCsrfToken()
+        },
+        body: JSON.stringify({ name })
+      });
+
+      if (!response.ok) throw new Error("Could not download the signed agreement.");
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "Franchise Agreement.pdf";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      window.alert(error.message || "Could not download the signed agreement.");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Download PDF"; }
+    }
+  }
+
   function linkRowHtml(inputId, copyBtnId, helpText) {
     return `
       <div id="${inputId}Result" style="flex-basis:100%; margin-top:8px; display:none;">
@@ -479,8 +515,12 @@
     if (!block) return;
 
     if (lead.contract_signed) {
-      block.innerHTML = `<button type="button" class="dashboard-btn dashboard-btn-light" id="rlViewSignedContractBtn">View Signed Agreement</button>`;
+      block.innerHTML = `
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="rlViewSignedContractBtn">View Signed Agreement</button>
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="rlDownloadSignedContractBtn">Download PDF</button>
+      `;
       el("rlViewSignedContractBtn")?.addEventListener("click", () => viewSignedDoc("Signed Franchise Agreement", `${SHARED_API}.get_signed_contract`));
+      el("rlDownloadSignedContractBtn")?.addEventListener("click", downloadSignedContract);
       return;
     }
 

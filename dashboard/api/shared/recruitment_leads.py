@@ -1185,6 +1185,31 @@ def get_signed_contract(name=None):
     }
 
 
+@frappe.whitelist()
+def download_signed_contract_pdf(name=None):
+    """
+    Franchisor-only counterpart to download_contract_pdf() (that one is
+    the franchisee's own download button on the public sign page,
+    token-based, guest-accessible) - same pairing as leads.py's own
+    download_signed_contract_pdf, ported here alongside the rest of this
+    module so the Recruitment Lead pipeline's "Download PDF" button has
+    something to call too.
+    """
+    name = coalesce_str("name", name)
+    doc = ensure_lead_access(name)
+
+    if not doc.get("contract_signed_snapshot"):
+        frappe.throw(_("This Franchise Agreement hasn't been signed yet."))
+
+    from frappe.utils.pdf import get_pdf
+
+    pdf_content = get_pdf(doc.get("contract_signed_snapshot"))
+
+    frappe.local.response.filename = f"Franchise Agreement - {doc.contact_name or doc.name}.pdf"
+    frappe.local.response.filecontent = pdf_content
+    frappe.local.response.type = "download"
+
+
 @frappe.whitelist(allow_guest=True)
 def get_contract_preview(token=None):
     token = coalesce_str("token", token)
