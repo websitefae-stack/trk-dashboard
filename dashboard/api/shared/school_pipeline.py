@@ -36,7 +36,7 @@ from werkzeug.utils import secure_filename
 from dashboard.api.shared.email_templates import _body_fieldname, _html_to_plain_text, plain_text_to_email_html, render_email, wrap_branded_email_html
 from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user
 from dashboard.api.shared.profile import ASHLEY_USER, OFFICE_USER
-from dashboard.api.shared.mail_throttle import send_email
+from dashboard.api.shared.mail_throttle import send_email, stagger_sequence_sends
 
 SCHOOL_DOCTYPE = "School"
 CONTACT_DOCTYPE = "School Contact"
@@ -1012,7 +1012,8 @@ def process_due_school_sequences():
         ignore_permissions=True,
     )
 
-    for name in due_names:
+    for index, name in enumerate(due_names):
+        stagger_sequence_sends(index == 0)
         _send_next_school_step(name)
 
 

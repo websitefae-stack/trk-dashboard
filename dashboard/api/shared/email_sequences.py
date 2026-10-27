@@ -23,7 +23,7 @@ from frappe import _
 
 from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, wrap_branded_email_html, _looks_like_html
 from dashboard.api.shared.profile import PUBLIC_SITE_URL
-from dashboard.api.shared.mail_throttle import send_email
+from dashboard.api.shared.mail_throttle import send_email, stagger_sequence_sends
 from dashboard.api.shared.franchise_brochure import BROCHURE_PAGE_PATH
 
 SEQUENCE_DOCTYPE = "Email Sequence"
@@ -206,7 +206,8 @@ def process_due_sequence_steps():
         pluck="name",
     )
 
-    for name in due_names:
+    for index, name in enumerate(due_names):
+        stagger_sequence_sends(index == 0)
         _send_next_step(name)
 
 
