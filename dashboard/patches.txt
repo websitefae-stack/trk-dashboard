@@ -210,3 +210,4 @@ dashboard.patches.diag_stirling_wellbeing_recent_responses
 dashboard.patches.add_safeguarding_training_onboarding_step
 dashboard.patches.add_legal_missing_since_fields
 dashboard.patches.run_legal_expiry_check_now
+dashboard.patches.diag_samantha_male_contact_merge
