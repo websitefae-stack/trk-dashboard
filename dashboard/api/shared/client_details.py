@@ -760,6 +760,56 @@ def link_existing_contact_to_client(client_name=None, contact_name=None, relatio
 
 
 @frappe.whitelist()
+def remove_contact_from_client(client_name=None, contact_name=None):
+    """
+    Removes the link between a Contact and a Client - deletes the
+    matching row from Client.client_contacts, not the Contact record
+    itself, since the same Contact can legitimately be linked to other
+    Clients too (or just needs re-adding correctly after being added by
+    mistake - see link_existing_contact_to_client just above). Ashley's
+    own need for this: a Contact ending up linked under the wrong name/
+    person after a Desk-side "Merge With" on duplicate Contacts, with no
+    way in the dashboard to detach it and link the correct one instead.
+    """
+    require_logged_in_user()
+    ensure_client_access(client_name)
+
+    client_name = (client_name or "").strip()
+    contact_name = (contact_name or "").strip()
+
+    if not client_name or not frappe.db.exists("Client", client_name):
+        frappe.throw(_("Client not found."))
+
+    if not contact_name:
+        frappe.throw(_("Contact not found."))
+
+    client = frappe.get_doc("Client", client_name)
+
+    remaining_rows = [
+        row for row in (client.get("client_contacts") or [])
+        if row.get("contact") != contact_name
+    ]
+
+    if len(remaining_rows) == len(client.get("client_contacts") or []):
+        frappe.throw(_("That contact isn't linked to this client."))
+
+    was_billing_contact = any(
+        row.get("contact") == contact_name and row.get("is_billing_contact")
+        for row in (client.get("client_contacts") or [])
+    )
+
+    client.set("client_contacts", remaining_rows)
+
+    if was_billing_contact:
+        client.billing_contact = ""
+
+    client.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": 1}
+
+
+@frappe.whitelist()
 def get_client_notes(client_name):
     require_logged_in_user()
     ensure_client_access(client_name)

@@ -362,6 +362,13 @@
                                 {% else %}
                                   —
                                 {% endif %}
+                                <button
+                                  type="button"
+                                  class="dashboard-link-btn remove-client-contact-btn"
+                                  style="color:#b42318;"
+                                  data-contact="{{ contact.contact }}"
+                                  data-contact-name="{{ contact.contact_name or '' }}"
+                                >Remove</button>
                               </td>
                             </tr>
                           {% endfor %}

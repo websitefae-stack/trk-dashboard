@@ -2292,6 +2292,40 @@
       });
     }
 
+  function initRemoveContactButtons() {
+    qsa(".remove-client-contact-btn").forEach(function (button) {
+      button.addEventListener("click", async function (event) {
+        event.preventDefault();
+
+        const contactName = button.dataset.contact || "";
+        if (!contactName) return;
+
+        const label = button.dataset.contactName || contactName;
+        if (!window.confirm("Remove " + label + " as a contact on this client? This won't delete the " +
+          "contact record itself, just unlink it from this client.")) {
+          return;
+        }
+
+        try {
+          button.disabled = true;
+          button.textContent = "Removing...";
+
+          await apiPost("remove_contact_from_client", {
+            client_name: getClientName(),
+            contact_name: contactName
+          });
+
+          showSuccess("Contact removed");
+          window.location.reload();
+        } catch (error) {
+          showError(error.message || "Could not remove this contact.");
+          button.disabled = false;
+          button.textContent = "Remove";
+        }
+      });
+    });
+  }
+
   function initFileUpload() {
     const input = el("clientFileUploadInput");
     if (!input) return;
@@ -2358,6 +2392,7 @@
     initChangeRequest();
     initExistingContactModal();
     initBillingContactButtons();
+    initRemoveContactButtons();
     initTherapyLocationModal();
     initSendEmailModal();
     initClientReports();
