@@ -11,7 +11,7 @@
       <div class="dashboard-page-header">
         <div>
           <h1 class="dashboard-page-title">Podcasts</h1>
-          <p class="dashboard-page-subtitle">One place for every episode - title, show notes, status, and the Spotify/YouTube/Listeners Lounge links once each exists. Coaches can see this list too, so everyone knows what's been covered and what's next.</p>
+          <p class="dashboard-page-subtitle">One place for every episode - title, show notes, status, and the Spotify/YouTube links once each exists. Coaches can see this list too, so everyone knows what's been covered and what's next.</p>
         </div>
       </div>
 
@@ -28,33 +28,37 @@
             <input type="text" class="dashboard-input" id="episodeTitle" placeholder="e.g. Supporting Your Child Through Exam Stress">
           </div>
 
-          <div class="dashboard-detail-field">
-            <label for="episodeSeason">Season #</label>
-            <input type="number" class="dashboard-input" id="episodeSeason" min="1">
-          </div>
+          <div class="dashboard-detail-field dashboard-detail-field-full">
+            <div class="dashboard-detail-grid dashboard-detail-grid-5">
+              <div class="dashboard-detail-field">
+                <label for="episodeSeason">Season #</label>
+                <input type="number" class="dashboard-input" id="episodeSeason" min="1">
+              </div>
 
-          <div class="dashboard-detail-field">
-            <label for="episodeNumber">Episode #</label>
-            <input type="number" class="dashboard-input" id="episodeNumber" min="1">
-          </div>
+              <div class="dashboard-detail-field">
+                <label for="episodeNumber">Episode #</label>
+                <input type="number" class="dashboard-input" id="episodeNumber" min="1">
+              </div>
 
-          <div class="dashboard-detail-field">
-            <label for="episodeGuest">Guest (if any)</label>
-            <input type="text" class="dashboard-input" id="episodeGuest">
-          </div>
+              <div class="dashboard-detail-field">
+                <label for="episodeStatus">Status</label>
+                <select class="dashboard-select" id="episodeStatus">
+                  <option value="Published" selected>Published</option>
+                  <option value="Recorded">Recorded</option>
+                  <option value="Planned">Planned</option>
+                </select>
+              </div>
 
-          <div class="dashboard-detail-field">
-            <label for="episodeStatus">Status</label>
-            <select class="dashboard-select" id="episodeStatus">
-              <option value="Planned">Planned</option>
-              <option value="Recorded">Recorded</option>
-              <option value="Published">Published</option>
-            </select>
-          </div>
+              <div class="dashboard-detail-field">
+                <label for="episodeAirDate">Air Date</label>
+                <input type="date" class="dashboard-input" id="episodeAirDate">
+              </div>
 
-          <div class="dashboard-detail-field">
-            <label for="episodeAirDate">Air Date</label>
-            <input type="date" class="dashboard-input" id="episodeAirDate">
+              <div class="dashboard-detail-field">
+                <label for="episodeGuest">Guest (if any)</label>
+                <input type="text" class="dashboard-input" id="episodeGuest">
+              </div>
+            </div>
           </div>
 
           <div class="dashboard-detail-field dashboard-detail-field-full">
@@ -68,8 +72,10 @@
           </div>
 
           <div class="dashboard-detail-field dashboard-detail-field-full">
-            <label for="episodeResources">Additional Resources (one per line)</label>
-            <textarea class="dashboard-input" id="episodeResources" rows="2"></textarea>
+            <label>Resources (transcript, worksheets, anything downloadable)</label>
+            <div id="episodeResourcesList"></div>
+            <input type="file" id="episodeResourcesFileInput" multiple style="display:none;">
+            <button type="button" class="dashboard-btn dashboard-btn-light" id="addEpisodeResourceBtn" style="margin-top:8px; align-self:flex-start;">Add File</button>
           </div>
 
           <div class="dashboard-detail-field dashboard-detail-field-full">
@@ -85,11 +91,6 @@
           <div class="dashboard-detail-field">
             <label for="episodeYoutube">YouTube Link</label>
             <input type="text" class="dashboard-input" id="episodeYoutube" placeholder="https://youtube.com/...">
-          </div>
-
-          <div class="dashboard-detail-field dashboard-detail-field-full">
-            <label for="episodeListenersLounge">Listeners Lounge Link</label>
-            <input type="text" class="dashboard-input" id="episodeListenersLounge" placeholder="Link to this episode's lesson once it's added">
           </div>
         </div>
 

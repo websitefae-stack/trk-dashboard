@@ -16,12 +16,11 @@
   "topics",
   "show_notes_section",
   "show_notes",
-  "additional_resources",
+  "resources",
   "planning_notes",
   "links_section",
   "spotify_url",
-  "youtube_url",
-  "listeners_lounge_url"
+  "youtube_url"
  ],
  "fields": [
   {
@@ -49,7 +48,7 @@
    "label": "Guest (if any)"
   },
   {
-   "default": "Planned",
+   "default": "Published",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -85,10 +84,11 @@
    "label": "Show Notes"
   },
   {
-   "description": "Any downloadables or extra links to mention alongside this episode (one per line).",
-   "fieldname": "additional_resources",
-   "fieldtype": "Small Text",
-   "label": "Additional Resources"
+   "description": "Downloadable files to go with this episode - the transcript, worksheets, anything else.",
+   "fieldname": "resources",
+   "fieldtype": "Table",
+   "label": "Resources",
+   "options": "Podcast Episode Resource"
   },
   {
    "description": "Private planning notes - not shown to coaches, just for your own reference (e.g. research notes before recording, ideas for a follow-up episode).",
@@ -110,12 +110,6 @@
    "fieldname": "youtube_url",
    "fieldtype": "Data",
    "label": "YouTube Link"
-  },
-  {
-   "description": "Link to this episode's lesson in the Listeners Lounge course, once it's been added there.",
-   "fieldname": "listeners_lounge_url",
-   "fieldtype": "Data",
-   "label": "Listeners Lounge Link"
   }
  ],
  "index_web_pages_for_search": 1,
