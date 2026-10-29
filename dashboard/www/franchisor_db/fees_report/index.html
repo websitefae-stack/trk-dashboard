@@ -16,8 +16,38 @@
       </div>
 
       <div class="dashboard-card">
-        <div style="font-size:13px; color:#839898; text-transform:uppercase; letter-spacing:0.04em;">Total Fees Paid (All Time)</div>
+        <div style="font-size:13px; color:#839898; text-transform:uppercase; letter-spacing:0.04em;">Total Fees Paid</div>
         <div id="feesGrandTotal" style="font-size:32px; font-weight:700; margin-top:4px;">-</div>
+      </div>
+
+      <div class="dashboard-card dashboard-filter-bar" style="margin-top:20px;">
+        <div class="dashboard-filter-field">
+          <label for="feesCoachFilter">Coach</label>
+          <select class="dashboard-select" id="feesCoachFilter">
+            <option value="">All Coaches</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="dashboard-card" id="feesSettingsForm" style="margin-top:20px;">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Settings - Fee Items</h2>
+        </div>
+        <p style="color:#839898; font-size:13px; margin-top:-8px;">Which Item on your invoices is the Franchise Fee, and which is the Marketing Fee - used to split automatic months below into the two. Until both are set, automatic months show as one combined "Fees Paid" total.</p>
+
+        <div class="dashboard-detail-grid dashboard-detail-grid-2">
+          <div class="dashboard-detail-field">
+            <label for="feesFranchiseItem">Franchise Fee Item</label>
+            <select class="dashboard-select" id="feesFranchiseItem"></select>
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="feesMarketingItem">Marketing Fee Item</label>
+            <select class="dashboard-select" id="feesMarketingItem"></select>
+          </div>
+        </div>
+
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="saveFeesSettingsBtn" style="margin-top:16px;">Save Settings</button>
       </div>
 
       <div class="dashboard-card" id="manualFeeForm" style="margin-top:20px;">

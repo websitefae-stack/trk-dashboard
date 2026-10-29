@@ -1,0 +1,49 @@
+{
+ "actions": [],
+ "creation": "2026-10-29 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "franchise_fee_item",
+  "marketing_fee_item"
+ ],
+ "fields": [
+  {
+   "description": "The Item used on invoices for a coach's Franchise Fee - used to split the Fees Paid report into Franchise Fee vs Marketing Fee totals.",
+   "fieldname": "franchise_fee_item",
+   "fieldtype": "Link",
+   "label": "Franchise Fee Item",
+   "options": "Item"
+  },
+  {
+   "description": "The Item used on invoices for a coach's Marketing Fee.",
+   "fieldname": "marketing_fee_item",
+   "fieldtype": "Link",
+   "label": "Marketing Fee Item",
+   "options": "Item"
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-10-29 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "Fees Report Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

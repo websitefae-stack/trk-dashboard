@@ -66,7 +66,7 @@
     return (
       '<div class="dashboard-card" data-fee-name="' + escapeHtml(row.name) + '" data-fee-month="' + escapeHtml(row.month) + '" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">' +
         '<div>' +
-          '<div style="font-weight:600;">' + escapeHtml(formatMonth(row.month)) + "</div>" +
+          '<div style="font-weight:600;">' + escapeHtml(formatMonth(row.month)) + (row.fee_type && row.fee_type !== "Fees Paid" ? " - " + escapeHtml(row.fee_type) : "") + "</div>" +
           (row.note ? '<div style="color:#839898; font-size:13px; margin-top:2px;">' + escapeHtml(row.note) + "</div>" : "") +
         "</div>" +
         '<div style="display:flex; align-items:center; gap:10px;">' +
@@ -157,8 +157,16 @@
     var list = el("feesReportList");
     if (!list) return;
 
+    var coachFilter = el("feesCoachFilter");
+    var selectedCoach = coachFilter ? coachFilter.value : "";
+
+    // Manual historical totals are business-wide, not per-coach - the
+    // add form only makes sense on the unfiltered "All Coaches" view.
+    var manualForm = el("manualFeeForm");
+    if (manualForm) manualForm.style.display = selectedCoach ? "none" : "";
+
     try {
-      var data = await apiPost(SHARED_API + ".get_fees_report", {});
+      var data = await apiPost(SHARED_API + ".get_fees_report", { coach: selectedCoach });
       var rows = Array.isArray(data.rows) ? data.rows : [];
 
       var totalEl = el("feesGrandTotal");
@@ -176,6 +184,72 @@
     } catch (error) {
       list.innerHTML = '<div class="dashboard-card"><div class="dashboard-empty">' + escapeHtml(error.message || "Could not load the fees report.") + "</div></div>";
     }
+  }
+
+  async function loadCoachFilter() {
+    var select = el("feesCoachFilter");
+    if (!select) return;
+
+    try {
+      var coaches = await apiPost(SHARED_API + ".get_fee_paying_coaches", {});
+      select.innerHTML = '<option value="">All Coaches</option>' + (Array.isArray(coaches) ? coaches : []).map(function (c) {
+        return '<option value="' + escapeHtml(c.name) + '">' + escapeHtml(c.coach_name || c.name) + "</option>";
+      }).join("");
+    } catch (error) {
+      select.innerHTML = '<option value="">All Coaches</option>';
+    }
+
+    select.addEventListener("change", loadReport);
+  }
+
+  async function loadItemOptions(selectEl, selectedValue) {
+    try {
+      var items = await apiPost("dashboard.api.shared.invoices.get_link_options", { doctype: "Item" });
+      items = Array.isArray(items) ? items : [];
+      selectEl.innerHTML = '<option value="">Not set</option>' + items.map(function (item) {
+        return '<option value="' + escapeHtml(item.name) + '">' + escapeHtml(item.label || item.name) + "</option>";
+      }).join("");
+      selectEl.value = selectedValue || "";
+    } catch (error) {
+      selectEl.innerHTML = '<option value="">Could not load items</option>';
+    }
+  }
+
+  async function loadFeesSettings() {
+    var franchiseSelect = el("feesFranchiseItem");
+    var marketingSelect = el("feesMarketingItem");
+    if (!franchiseSelect || !marketingSelect) return;
+
+    try {
+      var settings = await apiPost(SHARED_API + ".get_fees_report_settings", {});
+      await Promise.all([
+        loadItemOptions(franchiseSelect, settings.franchise_fee_item),
+        loadItemOptions(marketingSelect, settings.marketing_fee_item),
+      ]);
+    } catch (error) {
+      window.alert(error.message || "Could not load fee item settings.");
+    }
+  }
+
+  function initSettingsForm() {
+    var saveBtn = el("saveFeesSettingsBtn");
+    if (!saveBtn) return;
+
+    saveBtn.addEventListener("click", async function () {
+      saveBtn.disabled = true;
+      try {
+        await apiPost(SHARED_API + ".save_fees_report_settings", {
+          franchise_fee_item: el("feesFranchiseItem").value,
+          marketing_fee_item: el("feesMarketingItem").value,
+        });
+        await loadReport();
+        window.alert("Settings saved.");
+      } catch (error) {
+        window.alert(error.message || "Could not save settings.");
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
   }
 
   function initForm() {
@@ -218,11 +292,14 @@
     if (cancelBtn) cancelBtn.addEventListener("click", resetForm);
   }
 
-  function init() {
+  async function init() {
     if (!el("feesReportList")) return;
 
+    await loadCoachFilter();
+    loadFeesSettings();
     loadReport();
     initForm();
+    initSettingsForm();
   }
 
   if (document.readyState === "loading") {
