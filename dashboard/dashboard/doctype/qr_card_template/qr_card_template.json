@@ -1,0 +1,70 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-10-29 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "template_name",
+  "logo",
+  "corner_graphic",
+  "accent_color"
+ ],
+ "fields": [
+  {
+   "fieldname": "template_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "description": "Shown centred near the top of every QR card generated from this logo.",
+   "fieldname": "logo",
+   "fieldtype": "Attach Image",
+   "label": "Logo",
+   "reqd": 1
+  },
+  {
+   "description": "Optional decorative graphic shown in the bottom-right corner of the card (e.g. a transparent PNG). Leave blank for a plain card.",
+   "fieldname": "corner_graphic",
+   "fieldtype": "Attach Image",
+   "label": "Corner Graphic"
+  },
+  {
+   "default": "#0D5C63",
+   "description": "Used for the card's title text.",
+   "fieldname": "accent_color",
+   "fieldtype": "Color",
+   "label": "Accent Colour"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-29 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "QR Card Template",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "template_name",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}
