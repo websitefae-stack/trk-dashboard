@@ -22,7 +22,8 @@
   "brand_access_column",
   "brand_access_people",
   "brand_access_school",
-  "for_books"
+  "for_books",
+  "for_podcast"
  ],
  "fields": [
   {
@@ -125,10 +126,17 @@
   },
   {
    "default": "0",
-   "description": "Not tied to a brand - available regardless of which brand(s) the coach operates, unlike the four checkboxes above.",
+   "description": "Not tied to a brand - available regardless of which brand(s) the coach operates, unlike the four checkboxes above. Only available at all when this testimonial is attributed to Ashley - she's the author.",
    "fieldname": "for_books",
    "fieldtype": "Check",
    "label": "Books"
+  },
+  {
+   "default": "0",
+   "description": "Not tied to a brand - any coach can be a podcast guest/host, so unlike Books this isn't restricted to one person.",
+   "fieldname": "for_podcast",
+   "fieldtype": "Check",
+   "label": "Podcast"
   }
  ],
  "index_web_pages_for_search": 1,
