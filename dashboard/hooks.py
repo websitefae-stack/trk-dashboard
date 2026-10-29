@@ -442,5 +442,12 @@ scheduler_events = {
     # reopens their record - see refresh_all_client_ages_and_types().
     "daily": [
         "dashboard.api.shared.client_details.refresh_all_client_ages_and_types",
+        # Picks up any Practice Document whose Published Date has reached
+        # today - access/requirements were deliberately withheld and
+        # coaches not notified while it was still in the future (see
+        # practice_documents._publish_date_is_future()'s docstring), and
+        # nothing else re-checks a date sitting untouched in the database
+        # on its own.
+        "dashboard.api.shared.practice_documents.activate_due_practice_documents",
     ],
 }

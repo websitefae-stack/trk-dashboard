@@ -37,6 +37,7 @@
   "reacknowledgement_required",
   "requires_renewal",
   "renewal_frequency",
+  "coaches_notified",
   "completion_requirements_section",
   "required_action",
   "completion_days",
@@ -238,6 +239,15 @@
    "fieldtype": "Select",
    "label": "Renewal Frequency",
    "options": "No Renewal\nMonthly\nQuarterly\nEvery 6 Months\nAnnually\nEvery 2 Years\nEvery 3 Years"
+  },
+  {
+   "default": "0",
+   "description": "Set automatically once coaches have been notified (or deliberately not notified, for a backfilled document whose Published Date was already in the past) that this document is available - kept in sync by practice_documents.py, don't rely on editing it directly.",
+   "fieldname": "coaches_notified",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Coaches Notified",
+   "read_only": 1
   },
   {
    "depends_on": "eval:doc.document_purpose==\"Internal Compliance\" || doc.document_purpose==\"Both\"",
