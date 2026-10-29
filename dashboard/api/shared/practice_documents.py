@@ -264,11 +264,37 @@ def get_my_documents_by_type(view_as=None, viewer=None):
 		fields=[
 			"name", "document_title", "document_code", "document_version",
 			"document_type", "status", "mandatory", "due_date",
-			"assigned_date", "completed_on", "document_file",
+			"assigned_date", "completed_on", "document_file", "practice_document",
 		],
 		order_by="assigned_date desc",
 		ignore_permissions=True,
 	)
+
+	# A requirement row can exist for a document that's now future-dated -
+	# either created before published_date gating existed (see
+	# _publish_date_is_future's docstring), or because the date was
+	# edited back to the future after the row was already created
+	# (_sync_brand_document_requirements only re-evaluates brand/item
+	# access when it runs, never the date on a row that already exists).
+	# Filtered out here as a read-time safety net, same as
+	# _get_visible_resource_documents already does for resource
+	# documents, rather than trusting every creation path to have
+	# gated it correctly.
+	practice_document_names = {row.practice_document for row in rows if row.get("practice_document")}
+	published_dates = {}
+	if practice_document_names:
+		published_dates = {
+			pd.name: pd.published_date
+			for pd in frappe.get_all(
+				PRACTICE_DOCUMENT_DOCTYPE,
+				filters={"name": ["in", list(practice_document_names)]},
+				fields=["name", "published_date"],
+			)
+		}
+	rows = [
+		row for row in rows
+		if not _publish_date_is_future(published_dates.get(row.get("practice_document")))
+	]
 
 	types = _document_type_options()
 	documents = {document_type: [] for document_type in types}

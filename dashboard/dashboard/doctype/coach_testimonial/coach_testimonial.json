@@ -21,7 +21,8 @@
   "brand_access_teen",
   "brand_access_column",
   "brand_access_people",
-  "brand_access_school"
+  "brand_access_school",
+  "for_books"
  ],
  "fields": [
   {
@@ -92,7 +93,7 @@
   {
    "fieldname": "brand_section",
    "fieldtype": "Section Break",
-   "label": "Which Brand(s) Is This For"
+   "label": "Which Brand(s) / Category Is This For"
   },
   {
    "default": "0",
@@ -121,6 +122,13 @@
    "fieldname": "brand_access_school",
    "fieldtype": "Check",
    "label": "TRS"
+  },
+  {
+   "default": "0",
+   "description": "Not tied to a brand - available regardless of which brand(s) the coach operates, unlike the four checkboxes above.",
+   "fieldname": "for_books",
+   "fieldtype": "Check",
+   "label": "Books"
   }
  ],
  "index_web_pages_for_search": 1,

@@ -69,7 +69,11 @@
   function renderEpisodeCard(episode, canManage) {
     var statusClass = STATUS_BADGE_CLASS[episode.status] || "dashboard-badge";
     var titleBits = [];
-    if (episode.episode_number) titleBits.push("#" + escapeHtml(episode.episode_number));
+    if (episode.season_number && episode.episode_number) {
+      titleBits.push("S" + escapeHtml(episode.season_number) + "E" + escapeHtml(episode.episode_number));
+    } else if (episode.episode_number) {
+      titleBits.push("#" + escapeHtml(episode.episode_number));
+    }
     titleBits.push(escapeHtml(episode.episode_title));
 
     return (
@@ -164,6 +168,7 @@
   function resetForm() {
     el("episodeFormName").value = "";
     el("episodeTitle").value = "";
+    el("episodeSeason").value = "";
     el("episodeNumber").value = "";
     el("episodeGuest").value = "";
     el("episodeStatus").value = "Planned";
@@ -190,6 +195,7 @@
 
       el("episodeFormName").value = episode.name || "";
       el("episodeTitle").value = episode.episode_title || "";
+      el("episodeSeason").value = episode.season_number || "";
       el("episodeNumber").value = episode.episode_number || "";
       el("episodeGuest").value = episode.guest_name || "";
       el("episodeStatus").value = episode.status || "Planned";
@@ -233,6 +239,7 @@
         await apiPost(SHARED_API + ".save_podcast_episode", {
           name: el("episodeFormName").value || null,
           episode_title: title,
+          season_number: el("episodeSeason").value || null,
           episode_number: el("episodeNumber").value || null,
           guest_name: el("episodeGuest").value,
           status: el("episodeStatus").value,

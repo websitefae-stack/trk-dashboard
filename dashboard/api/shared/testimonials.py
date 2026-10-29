@@ -39,7 +39,7 @@ BRAND_FIELDS = {
 LIST_FIELDS = [
 	"name", "coach", "testimonial_date", "testimonial_type", "client_name", "is_anonymous",
 	"testimonial_text", "testimonial_file",
-	"brand_access_kid", "brand_access_teen", "brand_access_people", "brand_access_school",
+	"brand_access_kid", "brand_access_teen", "brand_access_people", "brand_access_school", "for_books",
 ]
 
 
@@ -225,6 +225,7 @@ def save_testimonial(
 	brand_access_teen=None,
 	brand_access_people=None,
 	brand_access_school=None,
+	for_books=None,
 ):
 	ensure_logged_in()
 
@@ -273,6 +274,9 @@ def save_testimonial(
 		"coach": coach,
 		"testimonial_date": testimonial_date or frappe.utils.nowdate(),
 		"testimonial_type": testimonial_type,
+		# Not brand-gated - every coach can tick this regardless of which
+		# brand(s) they operate, unlike the four checkboxes above.
+		"for_books": 1 if int(for_books or 0) else 0,
 		"client_name": "" if int(is_anonymous or 0) else (client_name or "").strip(),
 		"is_anonymous": 1 if int(is_anonymous or 0) else 0,
 		"testimonial_text": testimonial_text if testimonial_type == "Text" else "",

@@ -7,6 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "episode_title",
+  "season_number",
   "episode_number",
   "guest_name",
   "status",
@@ -29,6 +30,12 @@
    "in_list_view": 1,
    "label": "Episode Title",
    "reqd": 1
+  },
+  {
+   "fieldname": "season_number",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Season #"
   },
   {
    "fieldname": "episode_number",
