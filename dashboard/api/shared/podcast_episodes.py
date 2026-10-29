@@ -23,7 +23,7 @@ from dashboard.api.shared.permissions import ensure_logged_in, ensure_office_use
 DOCTYPE = "Podcast Episode"
 
 LIST_FIELDS = [
-	"name", "episode_title", "episode_number", "guest_name", "status", "air_date",
+	"name", "episode_title", "season_number", "episode_number", "guest_name", "status", "air_date",
 	"topics", "show_notes", "additional_resources",
 	"spotify_url", "youtube_url", "listeners_lounge_url",
 ]
@@ -43,7 +43,7 @@ def get_podcast_episodes():
 	return frappe.get_all(
 		DOCTYPE,
 		fields=LIST_FIELDS,
-		order_by="air_date desc, episode_number desc",
+		order_by="air_date desc, season_number desc, episode_number desc",
 		ignore_permissions=True,
 	)
 
@@ -63,6 +63,7 @@ def get_podcast_episode_for_edit(name=None):
 def save_podcast_episode(
 	name=None,
 	episode_title=None,
+	season_number=None,
 	episode_number=None,
 	guest_name=None,
 	status=None,
@@ -83,6 +84,7 @@ def save_podcast_episode(
 
 	values = {
 		"episode_title": episode_title,
+		"season_number": season_number or None,
 		"episode_number": episode_number or None,
 		"guest_name": (guest_name or "").strip(),
 		"status": status if status in ("Planned", "Recorded", "Published") else "Planned",
