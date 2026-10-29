@@ -134,7 +134,7 @@
             </div>
         </div>
 
-        <div class="dashboard-nav-group {% if active_page in ['documents', 'reports', 'links', 'email_templates'] %}is-open{% endif %}">
+        <div class="dashboard-nav-group {% if active_page in ['documents', 'reports', 'links', 'email_templates', 'reminders'] %}is-open{% endif %}">
             <button type="button" class="dashboard-nav-group-toggle">
                 <span class="dashboard-nav-icon">🧰</span>
                 <span>Tools</span>
@@ -154,6 +154,11 @@
                 <a href="/franchisor_db/links" class="{% if active_page == 'links' %}is-active{% endif %}">
                     <span class="dashboard-nav-icon">🔗</span>
                     <span>Links</span>
+                </a>
+
+                <a href="/franchisor_db/reminders" class="{% if active_page == 'reminders' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">⏰</span>
+                    <span>Reminders</span>
                 </a>
 
                 {% if frappe.session.user == "office@theresilienthub.co.uk" %}
