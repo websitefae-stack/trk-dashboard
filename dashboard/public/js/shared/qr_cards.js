@@ -5,9 +5,12 @@
  * from the same vendored qrcodejs library already used elsewhere in this
  * app (see utils.js's Dashboard.renderQrCodes for the Links/Your Logins
  * version), drawn onto a <canvas> alongside the rest of the card, then
- * exported as a PNG via canvas.toBlob(). Saved logos (QR Card Template)
- * are managed here too, so a brand's logo/corner graphic only has to be
- * uploaded once and is then just picked from a dropdown for every card.
+ * exported as a PNG via canvas.toBlob(). The finished card is uploaded
+ * and saved (QR Card, upserted by title) right after generating, so it
+ * can be re-downloaded later from the "Saved QR Cards" list without
+ * regenerating it. Saved logos (QR Card Template) are managed here too,
+ * so a brand's logo/corner graphic only has to be uploaded once and is
+ * then just picked from a dropdown for every card.
  */
 (function () {
   "use strict";
@@ -54,9 +57,9 @@
     return data.message || {};
   }
 
-  async function uploadFile(file) {
+  async function uploadFile(file, filename) {
     var formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", file, filename || undefined);
     formData.append("is_private", 0);
 
     var response = await fetch("/api/method/upload_file", {
@@ -210,13 +213,33 @@
 
     el("qrCardPreviewWrap").style.display = "";
 
+    var filenameBase = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "qr-card";
+
     var downloadBtn = el("downloadQrCardBtn");
     downloadBtn.style.display = "";
     downloadBtn.href = canvas.toDataURL("image/png");
-    downloadBtn.setAttribute(
-      "download",
-      (title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "qr-card") + ".png"
-    );
+    downloadBtn.setAttribute("download", filenameBase + ".png");
+
+    var statusEl = el("qrCardSaveStatus");
+    if (statusEl) statusEl.textContent = "Saving...";
+
+    try {
+      var blob = await new Promise(function (resolve) { canvas.toBlob(resolve, "image/png"); });
+      var imageUrl = await uploadFile(blob, filenameBase + ".png");
+
+      await apiPost(SHARED_API + ".save_qr_card", {
+        title: title,
+        url: url,
+        image: imageUrl,
+        qr_card_template: template.name,
+      });
+
+      if (statusEl) statusEl.textContent = "Saved - you can download it again below anytime.";
+      await loadSavedCards();
+    } catch (error) {
+      if (statusEl) statusEl.textContent = "";
+      throw new Error((error && error.message) || "The card was generated but could not be saved.");
+    }
   }
 
   function renderLogoSelect() {
@@ -269,6 +292,61 @@
         }
       });
     });
+  }
+
+  function renderSavedCardsList(cards) {
+    var list = el("savedQrCardsList");
+    if (!list) return;
+
+    if (!cards.length) {
+      list.innerHTML = '<div class="dashboard-empty">No saved cards yet - generate one above.</div>';
+      return;
+    }
+
+    list.innerHTML = cards.map(function (card) {
+      var filenameBase = (card.title || "qr-card").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "qr-card";
+      return (
+        '<div class="dashboard-doc-list-meta" data-card-name="' + escapeHtml(card.name) + '" style="display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px solid #eef3f3;">' +
+          '<img src="' + escapeHtml(card.image) + '" alt="" style="height:48px; width:48px; object-fit:cover; border-radius:6px; border:1px solid #e3ecec;">' +
+          '<div style="flex:1; min-width:0;">' +
+            '<div style="font-weight:600;">' + escapeHtml(card.title) + "</div>" +
+            '<div style="color:#839898; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(card.url) + "</div>" +
+          "</div>" +
+          '<a href="' + escapeHtml(card.image) + '" download="' + escapeHtml(filenameBase) + '.png" class="dashboard-btn dashboard-btn-light">Download</a>' +
+          '<button type="button" class="dashboard-btn dashboard-btn-grey dashboard-qr-card-delete">Delete</button>' +
+        "</div>"
+      );
+    }).join("");
+
+    list.querySelectorAll(".dashboard-qr-card-delete").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        var row = btn.closest("[data-card-name]");
+        var name = row && row.dataset.cardName;
+        if (!name) return;
+        if (!window.confirm("Delete this saved card?")) return;
+
+        btn.disabled = true;
+        try {
+          await apiPost(SHARED_API + ".delete_qr_card", { name: name });
+          await loadSavedCards();
+        } catch (error) {
+          window.alert(error.message || "Could not delete this card.");
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  async function loadSavedCards() {
+    var list = el("savedQrCardsList");
+    if (!list) return;
+
+    try {
+      var rows = await apiPost(SHARED_API + ".get_qr_cards", {});
+      renderSavedCardsList(Array.isArray(rows) ? rows : []);
+    } catch (error) {
+      list.innerHTML = '<div class="dashboard-empty">' + escapeHtml(error.message || "Could not load saved cards.") + "</div>";
+    }
   }
 
   async function loadTemplates() {
@@ -352,6 +430,7 @@
     if (!el("qrCardLogosList")) return;
 
     loadTemplates();
+    loadSavedCards();
     initAddLogoForm();
     initGenerate();
   }

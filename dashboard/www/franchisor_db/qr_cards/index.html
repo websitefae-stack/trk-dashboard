@@ -11,7 +11,7 @@
       <div class="dashboard-page-header">
         <div>
           <h1 class="dashboard-page-title">QR Codes</h1>
-          <p class="dashboard-page-subtitle">Generate a branded, downloadable QR code card for any link - pick a saved logo, give it a title and a URL.</p>
+          <p class="dashboard-page-subtitle">Generate a branded, downloadable QR code card for any link - pick a saved logo, give it a title and a URL. Every card you generate is saved automatically, so you can come back and download it again without regenerating it.</p>
         </div>
       </div>
 
@@ -37,14 +37,23 @@
           </div>
         </div>
 
-        <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
-          <button type="button" class="dashboard-btn dashboard-btn-primary" id="generateQrCardBtn">Generate</button>
+        <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; align-items:center;">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="generateQrCardBtn">Generate &amp; Save</button>
           <a href="#" class="dashboard-btn dashboard-btn-light" id="downloadQrCardBtn" download style="display:none;">Download PNG</a>
+          <span id="qrCardSaveStatus" style="color:#839898; font-size:13px;"></span>
         </div>
 
         <div id="qrCardPreviewWrap" style="margin-top:20px; display:none;">
           <canvas id="qrCardCanvas" width="1080" height="1920" style="width:100%; max-width:320px; border:1px solid #e3ecec; border-radius:8px; background:#fff;"></canvas>
         </div>
+      </div>
+
+      <div class="dashboard-card" id="savedQrCardsCard" style="margin-top:20px;">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Saved QR Cards</h2>
+        </div>
+
+        <div id="savedQrCardsList"></div>
       </div>
 
       <div class="dashboard-card" id="qrCardLogosCard" style="margin-top:20px;">
