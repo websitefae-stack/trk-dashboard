@@ -105,7 +105,8 @@
   }
 
   .dashboard-detail-grid-3,
-  .dashboard-detail-grid-4 {
+  .dashboard-detail-grid-4,
+  .dashboard-detail-grid-5 {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -248,7 +249,8 @@
 
   .dashboard-detail-grid-2,
   .dashboard-detail-grid-3,
-  .dashboard-detail-grid-4 {
+  .dashboard-detail-grid-4,
+  .dashboard-detail-grid-5 {
     grid-template-columns: 1fr;
   }
 

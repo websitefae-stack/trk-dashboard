@@ -112,6 +112,10 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.dashboard-detail-grid-5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .dashboard-detail-field {
   display: flex;
   flex-direction: column;
@@ -236,7 +240,8 @@
   .dashboard-detail-grid,
   .dashboard-detail-grid-2,
   .dashboard-detail-grid-3,
-  .dashboard-detail-grid-4 {
+  .dashboard-detail-grid-4,
+  .dashboard-detail-grid-5 {
     grid-template-columns: 1fr !important;
   }
 

@@ -1,11 +1,11 @@
 /**
  * "Podcasts" tool - a single shared list of every podcast episode
- * (title, status, show notes, topics, Spotify/YouTube/Listeners Lounge
- * links) so Ashley and coaches can see what's been covered and what's
- * planned next, instead of that living only in a Trello board. Shared
- * between franchisor_db (full add/edit/delete) and coach_db (read-only -
- * no #podcastEpisodeForm on that page, so the add/edit wiring below
- * simply never runs there).
+ * (title, status, show notes, topics, downloadable resources, and
+ * Spotify/YouTube links) so Ashley and coaches can see what's been
+ * covered and what's planned next, instead of that living only in a
+ * Trello board. Shared between franchisor_db (full add/edit/delete) and
+ * coach_db (read-only - no #podcastEpisodeForm on that page, so the
+ * add/edit wiring below simply never runs there).
  */
 (function () {
   "use strict";
@@ -25,6 +25,103 @@
     if (!container || showNotesEditor) return;
     container.innerHTML = Dashboard.richTextEditorHtml("What this episode covers…");
     showNotesEditor = Dashboard.wireRichTextEditor(container.querySelector(".dashboard-richtext"));
+  }
+
+  // Resources (transcript, worksheets, etc.) - an in-memory list of
+  // {label, file} the form is currently holding, uploaded one at a time
+  // via the same generic upload_file endpoint testimonials.js already
+  // uses for its own file field. Rebuilt from the episode's own
+  // resources on edit, cleared on resetForm.
+  var currentResources = [];
+
+  function renderResourcesList() {
+    var container = el("episodeResourcesList");
+    if (!container) return;
+
+    if (!currentResources.length) {
+      container.innerHTML = '<div style="color:#839898; font-size:13px;">No files added yet.</div>';
+      return;
+    }
+
+    container.innerHTML = currentResources.map(function (resource, index) {
+      return (
+        '<div style="display:flex; align-items:center; gap:8px; margin-top:6px;" data-resource-index="' + index + '">' +
+          '<input type="text" class="dashboard-input" data-resource-label placeholder="Label (e.g. Transcript)" value="' + escapeHtml(resource.label || "") + '" style="flex:1;">' +
+          '<a href="' + escapeHtml(resource.file) + '" target="_blank" rel="noopener noreferrer" style="font-size:12px; white-space:nowrap;">View file</a>' +
+          '<button type="button" class="dashboard-btn dashboard-btn-grey dashboard-resource-remove">Remove</button>' +
+        "</div>"
+      );
+    }).join("");
+
+    container.querySelectorAll("[data-resource-label]").forEach(function (input, index) {
+      input.addEventListener("input", function () {
+        currentResources[index].label = input.value;
+      });
+    });
+
+    container.querySelectorAll(".dashboard-resource-remove").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var row = btn.closest("[data-resource-index]");
+        var index = row ? Number(row.dataset.resourceIndex) : -1;
+        if (index < 0) return;
+        currentResources.splice(index, 1);
+        renderResourcesList();
+      });
+    });
+  }
+
+  async function uploadResourceFile(file) {
+    var formData = new FormData();
+    formData.append("file", file);
+    formData.append("is_private", 0);
+
+    var response = await fetch("/api/method/upload_file", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "X-Frappe-CSRF-Token": getCsrfToken() },
+      body: formData,
+    });
+
+    var data = await response.json();
+
+    if (!response.ok || data.exc) {
+      throw new Error(Dashboard.extractErrorMessage(data, "Could not upload the file."));
+    }
+
+    return data.message && data.message.file_url;
+  }
+
+  function initResourcesField() {
+    var addBtn = el("addEpisodeResourceBtn");
+    var fileInput = el("episodeResourcesFileInput");
+    if (!addBtn || !fileInput) return;
+
+    addBtn.addEventListener("click", function () {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener("change", async function () {
+      var files = Array.prototype.slice.call(fileInput.files || []);
+      fileInput.value = "";
+      if (!files.length) return;
+
+      addBtn.disabled = true;
+      try {
+        for (var i = 0; i < files.length; i++) {
+          var fileUrl = await uploadResourceFile(files[i]);
+          if (fileUrl) {
+            currentResources.push({ label: files[i].name, file: fileUrl });
+          }
+        }
+        renderResourcesList();
+      } catch (error) {
+        window.alert(error.message || "Could not upload one of the files.");
+      } finally {
+        addBtn.disabled = false;
+      }
+    });
+
+    renderResourcesList();
   }
 
   var STATUS_BADGE_CLASS = {
@@ -107,12 +204,18 @@
         "</div>" +
 
         (episode.show_notes ? '<div style="margin-top:10px;">' + episode.show_notes + "</div>" : "") +
-        (episode.additional_resources ? '<div style="margin-top:10px; white-space:pre-line; color:#5a6b6b;">' + escapeHtml(episode.additional_resources) + "</div>" : "") +
+
+        (episode.resources && episode.resources.length
+          ? '<div style="margin-top:10px;">' +
+              episode.resources.map(function (resource) {
+                return linkRow(resource.label || "Download", resource.file);
+              }).join("") +
+            "</div>"
+          : "") +
 
         '<div style="margin-top:10px;">' +
           linkRow("Spotify", episode.spotify_url) +
           linkRow("YouTube", episode.youtube_url) +
-          linkRow("Listeners Lounge", episode.listeners_lounge_url) +
         "</div>" +
 
         (canManage
@@ -185,15 +288,15 @@
     el("episodeSeason").value = "";
     el("episodeNumber").value = "";
     el("episodeGuest").value = "";
-    el("episodeStatus").value = "Planned";
+    el("episodeStatus").value = "Published";
     el("episodeAirDate").value = "";
     el("episodeTopics").value = "";
     if (showNotesEditor) showNotesEditor.setHtml("");
-    el("episodeResources").value = "";
+    currentResources = [];
+    renderResourcesList();
     el("episodePlanningNotes").value = "";
     el("episodeSpotify").value = "";
     el("episodeYoutube").value = "";
-    el("episodeListenersLounge").value = "";
 
     var heading = el("podcastFormHeading");
     if (heading) heading.textContent = "Add an Episode";
@@ -212,15 +315,17 @@
       el("episodeSeason").value = episode.season_number || "";
       el("episodeNumber").value = episode.episode_number || "";
       el("episodeGuest").value = episode.guest_name || "";
-      el("episodeStatus").value = episode.status || "Planned";
+      el("episodeStatus").value = episode.status || "Published";
       el("episodeAirDate").value = episode.air_date || "";
       el("episodeTopics").value = episode.topics || "";
       if (showNotesEditor) showNotesEditor.setHtml(episode.show_notes || "");
-      el("episodeResources").value = episode.additional_resources || "";
+      currentResources = (episode.resources || []).map(function (resource) {
+        return { label: resource.label || "", file: resource.file };
+      });
+      renderResourcesList();
       el("episodePlanningNotes").value = episode.planning_notes || "";
       el("episodeSpotify").value = episode.spotify_url || "";
       el("episodeYoutube").value = episode.youtube_url || "";
-      el("episodeListenersLounge").value = episode.listeners_lounge_url || "";
 
       var heading = el("podcastFormHeading");
       if (heading) heading.textContent = "Edit Episode";
@@ -260,11 +365,10 @@
           air_date: el("episodeAirDate").value || null,
           topics: el("episodeTopics").value,
           show_notes: showNotesEditor ? showNotesEditor.getHtml() : "",
-          additional_resources: el("episodeResources").value,
+          resources: currentResources,
           planning_notes: el("episodePlanningNotes").value,
           spotify_url: el("episodeSpotify").value,
           youtube_url: el("episodeYoutube").value,
-          listeners_lounge_url: el("episodeListenersLounge").value,
         });
 
         resetForm();
@@ -286,6 +390,7 @@
     if (!el("podcastEpisodesList")) return;
 
     initShowNotesEditor();
+    initResourcesField();
     loadEpisodes();
     initForm();
   }
