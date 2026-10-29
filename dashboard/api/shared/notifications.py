@@ -2116,12 +2116,23 @@ def _build_conversation_doc(
     if _field_exists(CONVERSATION_DOCTYPE, "reply_scope"):
         doc.reply_scope = reply_scope
 
+    # An Announcement office/Ashley sends out (typically to every coach -
+    # one conversation per recipient when reply_scope is Individual) is a
+    # one-way broadcast from the sender's own point of view - archived on
+    # their own copy immediately so it doesn't clutter their list with a
+    # card per recipient, exactly like every other notification they'd
+    # otherwise have to manually dismiss. The existing reply handling
+    # (reply_to_notification) already un-archives every OTHER recipient's
+    # row - including this one, the sender's own - the moment anyone
+    # actually replies, so a response still surfaces normally.
+    sender_archived = 1 if (notification_type == "Announcement" and _is_franchisor_user()) else 0
+
     doc.append("recipients", {
         "recipient_user": frappe.session.user,
         "recipient_role": _get_current_role(),
         "read": 1,
         "read_on": now_datetime(),
-        "archived": 0,
+        "archived": sender_archived,
         "muted": 0,
     })
 
