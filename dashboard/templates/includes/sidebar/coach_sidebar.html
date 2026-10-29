@@ -88,7 +88,7 @@
             </div>
         </div>
 
-        <div class="dashboard-nav-group {% if active_page in ['documents', 'reports', 'links'] %}is-open{% endif %}">
+        <div class="dashboard-nav-group {% if active_page in ['documents', 'reports', 'links', 'podcasts'] %}is-open{% endif %}">
             <button type="button" class="dashboard-nav-group-toggle">
                 <span class="dashboard-nav-icon">🧰</span>
                 <span>Tools</span>
@@ -108,6 +108,11 @@
                 <a href="/coach_db/links{{ coach_view_query or '' }}" class="{% if active_page == 'links' %}is-active{% endif %}">
                     <span class="dashboard-nav-icon">🔗</span>
                     <span>Links</span>
+                </a>
+
+                <a href="/coach_db/podcasts{{ coach_view_query or '' }}" class="{% if active_page == 'podcasts' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🎙️</span>
+                    <span>Podcasts</span>
                 </a>
             </div>
         </div>

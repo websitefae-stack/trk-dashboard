@@ -1,0 +1,276 @@
+/**
+ * "Podcasts" tool - a single shared list of every podcast episode
+ * (title, status, show notes, topics, Spotify/YouTube/Listeners Lounge
+ * links) so Ashley and coaches can see what's been covered and what's
+ * planned next, instead of that living only in a Trello board. Shared
+ * between franchisor_db (full add/edit/delete) and coach_db (read-only -
+ * no #podcastEpisodeForm on that page, so the add/edit wiring below
+ * simply never runs there).
+ */
+(function () {
+  "use strict";
+
+  var el = Dashboard.el;
+  var SHARED_API = "dashboard.api.shared.podcast_episodes";
+
+  var STATUS_BADGE_CLASS = {
+    Planned: "dashboard-badge",
+    Recorded: "dashboard-badge dashboard-status-onhold",
+    Published: "dashboard-badge dashboard-status-active",
+  };
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function getCsrfToken() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    return meta && meta.content ? meta.content : "";
+  }
+
+  async function apiPost(method, args) {
+    var response = await fetch("/api/method/" + method, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Frappe-CSRF-Token": getCsrfToken(),
+      },
+      body: JSON.stringify(args || {}),
+    });
+
+    var data = await response.json();
+
+    if (!response.ok || data.exc) {
+      throw new Error(Dashboard.extractErrorMessage(data, "There was a problem loading podcast episodes."));
+    }
+
+    return data.message || {};
+  }
+
+  function formatDate(value) {
+    if (!value) return "";
+    var parts = String(value).split("-");
+    if (parts.length !== 3) return value;
+    var date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    return date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  }
+
+  function linkRow(label, url) {
+    if (!url) return "";
+    return '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer" class="dashboard-btn dashboard-btn-light" style="margin-right:8px; margin-top:6px;">' + escapeHtml(label) + "</a>";
+  }
+
+  function renderEpisodeCard(episode, canManage) {
+    var statusClass = STATUS_BADGE_CLASS[episode.status] || "dashboard-badge";
+    var titleBits = [];
+    if (episode.episode_number) titleBits.push("#" + escapeHtml(episode.episode_number));
+    titleBits.push(escapeHtml(episode.episode_title));
+
+    return (
+      '<div class="dashboard-card" data-episode-name="' + escapeHtml(episode.name) + '" style="margin-bottom:12px;">' +
+        '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">' +
+          '<div>' +
+            '<div style="font-weight:600; font-size:16px;">' + titleBits.join(" - ") + "</div>" +
+            '<div class="dashboard-doc-list-meta" style="margin-top:4px;">' +
+              [
+                episode.air_date ? escapeHtml(formatDate(episode.air_date)) : "",
+                episode.guest_name ? "Guest: " + escapeHtml(episode.guest_name) : "",
+                episode.topics ? escapeHtml(episode.topics) : "",
+              ].filter(Boolean).join(" · ") +
+            "</div>" +
+          "</div>" +
+          '<span class="' + statusClass + '">' + escapeHtml(episode.status) + "</span>" +
+        "</div>" +
+
+        (episode.show_notes ? '<div style="margin-top:10px;">' + episode.show_notes + "</div>" : "") +
+        (episode.additional_resources ? '<div style="margin-top:10px; white-space:pre-line; color:#5a6b6b;">' + escapeHtml(episode.additional_resources) + "</div>" : "") +
+
+        '<div style="margin-top:10px;">' +
+          linkRow("Spotify", episode.spotify_url) +
+          linkRow("YouTube", episode.youtube_url) +
+          linkRow("Listeners Lounge", episode.listeners_lounge_url) +
+        "</div>" +
+
+        (canManage
+          ? '<div style="margin-top:10px; border-top:1px solid #eef3f3; padding-top:10px;">' +
+              '<button type="button" class="dashboard-btn dashboard-btn-grey dashboard-episode-edit">Edit</button> ' +
+              '<button type="button" class="dashboard-btn dashboard-btn-grey dashboard-episode-delete">Delete</button>' +
+            "</div>"
+          : "") +
+      "</div>"
+    );
+  }
+
+  function renderEpisodeList(episodes, canManage) {
+    var list = el("podcastEpisodesList");
+    if (!list) return;
+
+    if (!episodes.length) {
+      list.innerHTML = '<div class="dashboard-card"><div class="dashboard-empty">No podcast episodes yet.</div></div>';
+      return;
+    }
+
+    list.innerHTML = episodes.map(function (ep) { return renderEpisodeCard(ep, canManage); }).join("");
+
+    if (!canManage) return;
+
+    list.querySelectorAll(".dashboard-episode-edit").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var card = btn.closest("[data-episode-name]");
+        var name = card && card.dataset.episodeName;
+        if (name) loadEpisodeIntoForm(name);
+      });
+    });
+
+    list.querySelectorAll(".dashboard-episode-delete").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        var card = btn.closest("[data-episode-name]");
+        var name = card && card.dataset.episodeName;
+        if (!name) return;
+        if (!window.confirm("Delete this episode?")) return;
+
+        btn.disabled = true;
+        try {
+          await apiPost(SHARED_API + ".delete_podcast_episode", { name: name });
+          await loadEpisodes();
+        } catch (error) {
+          window.alert(error.message || "Could not delete this episode.");
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  async function loadEpisodes() {
+    var list = el("podcastEpisodesList");
+    if (!list) return;
+
+    var canManage = !!el("podcastEpisodeForm");
+
+    try {
+      var rows = await apiPost(SHARED_API + ".get_podcast_episodes", {});
+      renderEpisodeList(Array.isArray(rows) ? rows : [], canManage);
+    } catch (error) {
+      list.innerHTML = '<div class="dashboard-card"><div class="dashboard-empty">' + escapeHtml(error.message || "Could not load podcast episodes.") + "</div></div>";
+    }
+  }
+
+  function resetForm() {
+    el("episodeFormName").value = "";
+    el("episodeTitle").value = "";
+    el("episodeNumber").value = "";
+    el("episodeGuest").value = "";
+    el("episodeStatus").value = "Planned";
+    el("episodeAirDate").value = "";
+    el("episodeTopics").value = "";
+    el("episodeShowNotes").value = "";
+    el("episodeResources").value = "";
+    el("episodePlanningNotes").value = "";
+    el("episodeSpotify").value = "";
+    el("episodeYoutube").value = "";
+    el("episodeListenersLounge").value = "";
+
+    var heading = el("podcastFormHeading");
+    if (heading) heading.textContent = "Add an Episode";
+    var saveBtn = el("saveEpisodeBtn");
+    if (saveBtn) saveBtn.textContent = "Save Episode";
+    var cancelBtn = el("cancelEditEpisodeBtn");
+    if (cancelBtn) cancelBtn.style.display = "none";
+  }
+
+  async function loadEpisodeIntoForm(name) {
+    try {
+      var episode = await apiPost(SHARED_API + ".get_podcast_episode_for_edit", { name: name });
+
+      el("episodeFormName").value = episode.name || "";
+      el("episodeTitle").value = episode.episode_title || "";
+      el("episodeNumber").value = episode.episode_number || "";
+      el("episodeGuest").value = episode.guest_name || "";
+      el("episodeStatus").value = episode.status || "Planned";
+      el("episodeAirDate").value = episode.air_date || "";
+      el("episodeTopics").value = episode.topics || "";
+      el("episodeShowNotes").value = episode.show_notes || "";
+      el("episodeResources").value = episode.additional_resources || "";
+      el("episodePlanningNotes").value = episode.planning_notes || "";
+      el("episodeSpotify").value = episode.spotify_url || "";
+      el("episodeYoutube").value = episode.youtube_url || "";
+      el("episodeListenersLounge").value = episode.listeners_lounge_url || "";
+
+      var heading = el("podcastFormHeading");
+      if (heading) heading.textContent = "Edit Episode";
+      var saveBtn = el("saveEpisodeBtn");
+      if (saveBtn) saveBtn.textContent = "Update Episode";
+      var cancelBtn = el("cancelEditEpisodeBtn");
+      if (cancelBtn) cancelBtn.style.display = "";
+
+      var form = el("podcastEpisodeForm");
+      if (form) form.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (error) {
+      window.alert(error.message || "Could not load this episode.");
+    }
+  }
+
+  function initForm() {
+    var saveBtn = el("saveEpisodeBtn");
+    if (!saveBtn) return;
+
+    saveBtn.addEventListener("click", async function () {
+      var title = (el("episodeTitle").value || "").trim();
+      if (!title) {
+        window.alert("Please enter an episode title.");
+        return;
+      }
+
+      saveBtn.disabled = true;
+
+      try {
+        await apiPost(SHARED_API + ".save_podcast_episode", {
+          name: el("episodeFormName").value || null,
+          episode_title: title,
+          episode_number: el("episodeNumber").value || null,
+          guest_name: el("episodeGuest").value,
+          status: el("episodeStatus").value,
+          air_date: el("episodeAirDate").value || null,
+          topics: el("episodeTopics").value,
+          show_notes: el("episodeShowNotes").value,
+          additional_resources: el("episodeResources").value,
+          planning_notes: el("episodePlanningNotes").value,
+          spotify_url: el("episodeSpotify").value,
+          youtube_url: el("episodeYoutube").value,
+          listeners_lounge_url: el("episodeListenersLounge").value,
+        });
+
+        resetForm();
+        await loadEpisodes();
+      } catch (error) {
+        window.alert(error.message || "Could not save this episode.");
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+
+    var cancelBtn = el("cancelEditEpisodeBtn");
+    if (cancelBtn) {
+      cancelBtn.addEventListener("click", resetForm);
+    }
+  }
+
+  function init() {
+    if (!el("podcastEpisodesList")) return;
+
+    loadEpisodes();
+    initForm();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
