@@ -1,0 +1,102 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-10-29 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "note",
+  "user",
+  "column_break_1",
+  "remind_date",
+  "recurrence",
+  "active",
+  "last_fired_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Note"
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "User",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "remind_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Remind Date",
+   "reqd": 1
+  },
+  {
+   "default": "None",
+   "fieldname": "recurrence",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Repeats",
+   "options": "None\nWeekly\nMonthly\nYearly"
+  },
+  {
+   "default": "1",
+   "fieldname": "active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Active"
+  },
+  {
+   "description": "Set automatically the day this reminder's notification was last sent - kept in sync by reminders.py, don't rely on editing it directly. Stops a reminder firing more than once on its due date, and a recurring one's rolled-forward remind_date from being treated as due again until it genuinely is.",
+   "fieldname": "last_fired_on",
+   "fieldtype": "Date",
+   "hidden": 1,
+   "label": "Last Fired On",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-29 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "Dashboard Reminder",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "remind_date",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

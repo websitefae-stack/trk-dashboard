@@ -449,5 +449,8 @@ scheduler_events = {
         # nothing else re-checks a date sitting untouched in the database
         # on its own.
         "dashboard.api.shared.practice_documents.activate_due_practice_documents",
+        # Fires any personal Dashboard Reminder whose remind_date has
+        # arrived - see reminders.send_due_reminders().
+        "dashboard.api.shared.reminders.send_due_reminders",
     ],
 }
