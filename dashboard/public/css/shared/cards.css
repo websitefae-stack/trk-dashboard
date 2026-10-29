@@ -272,3 +272,19 @@
   display: inline-flex;
   font-size: 13px;
 }
+
+/* Testimonial text (testimonials.js) comes from a plain <textarea>, not
+   a rich text editor - pre-wrap preserves the line/paragraph breaks a
+   coach or franchisor actually typed instead of them collapsing into
+   one run-on paragraph, and the quote styling makes it read as a
+   testimonial rather than a plain content block. */
+.dashboard-testimonial-quote {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-left: 3px solid #c9dede;
+  background: #f6fafa;
+  border-radius: 0 8px 8px 0;
+  font-style: italic;
+  color: #3c4848;
+  white-space: pre-wrap;
+}

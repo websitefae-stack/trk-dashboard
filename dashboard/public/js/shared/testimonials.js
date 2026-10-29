@@ -111,7 +111,13 @@
     } else if (t.testimonial_type === "Video" && t.testimonial_file) {
       body = '<video src="' + escapeHtml(t.testimonial_file) + '" controls style="max-width:100%; max-height:320px; border-radius:8px; margin-top:10px;"></video>';
     } else if (t.testimonial_text) {
-      body = '<div style="margin-top:10px;">' + t.testimonial_text + "</div>";
+      // testimonial_text comes from a plain <textarea> (see the form
+      // below), not a rich text editor - escaped here and rendered with
+      // white-space:pre-wrap so line breaks the coach/franchisor typed
+      // are preserved instead of collapsing into one run-on paragraph,
+      // which is both the actual bug being fixed and (since this was
+      // previously injected as raw unescaped HTML) a stored-XSS fix.
+      body = '<div class="dashboard-testimonial-quote">' + escapeHtml(t.testimonial_text) + "</div>";
     }
 
     return (
