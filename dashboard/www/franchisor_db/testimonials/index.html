@@ -1,0 +1,89 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page" id="testimonialsPage">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Testimonials</h1>
+          <p class="dashboard-page-subtitle">Capture a client testimonial - text, a photo, or a video - the coach who received it, and which brand(s) it's for.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-card" id="testimonialForm">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title" id="testimonialFormHeading">Add a Testimonial</h2>
+        </div>
+
+        <input type="hidden" id="testimonialFormName">
+
+        <div class="dashboard-detail-grid dashboard-detail-grid-2">
+          <div class="dashboard-detail-field" id="testimonialCoachField">
+            <label for="testimonialCoachSelect">Coach</label>
+            <select class="dashboard-select" id="testimonialCoachSelect"></select>
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="testimonialDate">Date</label>
+            <input type="date" class="dashboard-input" id="testimonialDate">
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="testimonialType">Format</label>
+            <select class="dashboard-select" id="testimonialType">
+              <option value="Text">Text</option>
+              <option value="Photo">Photo</option>
+              <option value="Video">Video</option>
+            </select>
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="testimonialClientName">Name</label>
+            <input type="text" class="dashboard-input" id="testimonialClientName" placeholder="Leave blank if anonymous">
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label>
+              <input type="checkbox" id="testimonialAnonymous">
+              Anonymous
+            </label>
+          </div>
+
+          <div class="dashboard-detail-field dashboard-detail-field-full" id="testimonialTextWrap">
+            <label for="testimonialText">Testimonial Text</label>
+            <textarea class="dashboard-input" id="testimonialText" rows="4"></textarea>
+          </div>
+
+          <div class="dashboard-detail-field dashboard-detail-field-full" id="testimonialFileWrap" style="display:none;">
+            <label for="testimonialFile">Photo/Video File</label>
+            <input type="file" class="dashboard-input" id="testimonialFile" accept="image/*,video/*">
+            <div id="testimonialExistingFile"></div>
+          </div>
+
+          <div class="dashboard-detail-field dashboard-detail-field-full">
+            <label>Which Brand(s) Is This For</label>
+            <div style="display:flex; gap:18px; flex-wrap:wrap; margin-top:6px;">
+              <label id="testimonialBrandKidWrap"><input type="checkbox" id="testimonialBrandKid"> TRK</label>
+              <label id="testimonialBrandTeenWrap"><input type="checkbox" id="testimonialBrandTeen"> TRT</label>
+              <label id="testimonialBrandPeopleWrap"><input type="checkbox" id="testimonialBrandPeople"> TRP</label>
+              <label id="testimonialBrandSchoolWrap"><input type="checkbox" id="testimonialBrandSchool"> TRS</label>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:16px;">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveTestimonialBtn">Save Testimonial</button>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelEditTestimonialBtn" style="display:none;">Cancel</button>
+        </div>
+      </div>
+
+      <div id="testimonialsList" style="margin-top:20px;"></div>
+
+    </div>
+  </div>
+</div>
