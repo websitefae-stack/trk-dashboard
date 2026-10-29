@@ -44,7 +44,8 @@ BRAND_FIELDS = {
 LIST_FIELDS = [
 	"name", "coach", "testimonial_date", "testimonial_type", "client_name", "is_anonymous",
 	"testimonial_text", "testimonial_file",
-	"brand_access_kid", "brand_access_teen", "brand_access_people", "brand_access_school", "for_books",
+	"brand_access_kid", "brand_access_teen", "brand_access_people", "brand_access_school",
+	"for_books", "for_podcast",
 ]
 
 
@@ -251,6 +252,7 @@ def save_testimonial(
 	brand_access_people=None,
 	brand_access_school=None,
 	for_books=None,
+	for_podcast=None,
 ):
 	ensure_logged_in()
 
@@ -297,6 +299,9 @@ def save_testimonial(
 		"brand_access_people": 1 if int(brand_access_people or 0) else 0,
 		"brand_access_school": 1 if int(brand_access_school or 0) else 0,
 		"for_books": 1 if int(for_books or 0) else 0,
+		# Unrestricted - any coach can be a podcast guest/host, so unlike
+		# Books this is never cleaned/restricted in _clean_brand_values.
+		"for_podcast": 1 if int(for_podcast or 0) else 0,
 		"client_name": "" if int(is_anonymous or 0) else (client_name or "").strip(),
 		"is_anonymous": 1 if int(is_anonymous or 0) else 0,
 		"testimonial_text": testimonial_text if testimonial_type == "Text" else "",

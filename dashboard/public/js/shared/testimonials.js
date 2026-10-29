@@ -100,6 +100,7 @@
     if (t.brand_access_people) labels.push("TRP");
     if (t.brand_access_school) labels.push("TRS");
     if (t.for_books) labels.push("Books");
+    if (t.for_podcast) labels.push("Podcast");
     return labels.map(function (l) { return '<span class="dashboard-badge">' + l + "</span>"; }).join(" ");
   }
 
@@ -333,6 +334,8 @@
     });
     var booksInput = el("testimonialForBooks");
     if (booksInput) booksInput.checked = false;
+    var podcastInput = el("testimonialForPodcast");
+    if (podcastInput) podcastInput.checked = false;
 
     var coachSelect = el("testimonialCoachSelect");
     if (coachSelect) {
@@ -384,6 +387,7 @@
       if (el(BRAND_CHECKBOX_IDS.People)) el(BRAND_CHECKBOX_IDS.People).checked = !!t.brand_access_people;
       if (el(BRAND_CHECKBOX_IDS.School)) el(BRAND_CHECKBOX_IDS.School).checked = !!t.brand_access_school;
       if (el("testimonialForBooks")) el("testimonialForBooks").checked = !!t.for_books;
+      if (el("testimonialForPodcast")) el("testimonialForPodcast").checked = !!t.for_podcast;
 
       updateFormatFieldVisibility();
       updateAnonymousFieldState();
@@ -460,6 +464,7 @@
           brand_access_people: el(BRAND_CHECKBOX_IDS.People) && el(BRAND_CHECKBOX_IDS.People).checked ? 1 : 0,
           brand_access_school: el(BRAND_CHECKBOX_IDS.School) && el(BRAND_CHECKBOX_IDS.School).checked ? 1 : 0,
           for_books: el("testimonialForBooks") && el("testimonialForBooks").checked ? 1 : 0,
+          for_podcast: el("testimonialForPodcast") && el("testimonialForPodcast").checked ? 1 : 0,
         };
 
         if (fileUrl) payload.testimonial_file = fileUrl;
