@@ -196,7 +196,10 @@
       var coachLabelsByName = {};
 
       if (isFranchisorMode()) {
-        rows = await apiPost(SHARED_API + ".get_all_testimonials", {});
+        var filterSelect = el("testimonialFilterCoachSelect");
+        rows = await apiPost(SHARED_API + ".get_all_testimonials", {
+          coach: filterSelect ? filterSelect.value : "",
+        });
         var select = el("testimonialCoachSelect");
         if (select) {
           Array.prototype.forEach.call(select.options, function (opt) {
@@ -249,16 +252,44 @@
   }
 
   async function loadCoachOptions() {
-    var select = el("testimonialCoachSelect");
-    if (!select) return;
+    var addSelect = el("testimonialCoachSelect");
+    var filterSelect = el("testimonialFilterCoachSelect");
+    if (!addSelect && !filterSelect) return;
 
+    var coaches = [];
     try {
-      var coaches = await apiPost(SHARED_API + ".get_coach_options_for_testimonials", {});
-      select.innerHTML = '<option value="">Choose a coach...</option>' + (Array.isArray(coaches) ? coaches : []).map(function (c) {
-        return '<option value="' + escapeHtml(c.name) + '">' + escapeHtml(c.coach_name || c.name) + "</option>";
-      }).join("");
+      coaches = await apiPost(SHARED_API + ".get_coach_options_for_testimonials", {});
+      coaches = Array.isArray(coaches) ? coaches : [];
     } catch (error) {
-      select.innerHTML = '<option value="">Could not load coaches</option>';
+      coaches = [];
+    }
+
+    var coachOptionsHtml = coaches.map(function (c) {
+      return '<option value="' + escapeHtml(c.name) + '">' + escapeHtml(c.coach_name || c.name) + "</option>";
+    }).join("");
+
+    if (addSelect) {
+      addSelect.innerHTML = coaches.length
+        ? '<option value="">Choose a coach...</option>' + coachOptionsHtml
+        : '<option value="">Could not load coaches</option>';
+    }
+
+    if (filterSelect) {
+      filterSelect.innerHTML = coaches.length
+        ? '<option value="">All Coaches</option>' + coachOptionsHtml
+        : '<option value="">All Coaches</option>';
+
+      // Defaults to Ashley's own testimonials (she's a Coach too), same
+      // as what a coach would see on their own dashboard - falls back
+      // to "All Coaches" for an office login that isn't itself a Coach.
+      try {
+        var defaultCoach = await apiPost(SHARED_API + ".get_testimonial_filter_default", {});
+        filterSelect.value = defaultCoach || "";
+      } catch (error) {
+        filterSelect.value = "";
+      }
+
+      filterSelect.addEventListener("change", loadTestimonials);
     }
   }
 

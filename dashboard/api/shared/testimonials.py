@@ -158,7 +158,27 @@ def get_my_testimonials(view_as=None, viewer=None):
 
 
 @frappe.whitelist()
+def get_testimonial_filter_default():
+	"""
+	The franchisor's own Coach name, if the logged-in office/Ashley login
+	is also a Coach (Ashley is, which is exactly why she was previously
+	missing from the picker - see get_coach_options_for_testimonials).
+	The franchisor Testimonials page's filter defaults to this (her own
+	testimonials first, same as a coach would see), falling back to "all
+	coaches" for an office login that isn't itself a Coach.
+	"""
+	ensure_office_user()
+	return get_current_coach_name(optional=True) or ""
+
+
+@frappe.whitelist()
 def get_all_testimonials(coach=None):
+	"""
+	coach="" (or omitted) returns every coach's testimonials - the
+	Testimonials page itself never calls it that way by default (see
+	get_testimonial_filter_default), but a franchisor can explicitly pick
+	"All Coaches" in the filter to get this.
+	"""
 	ensure_office_user()
 
 	filters = {}
