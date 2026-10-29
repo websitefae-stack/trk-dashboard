@@ -1,0 +1,84 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page" id="qrCardsPage">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">QR Codes</h1>
+          <p class="dashboard-page-subtitle">Generate a branded, downloadable QR code card for any link - pick a saved logo, give it a title and a URL.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-card" id="qrCardGeneratorCard">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Generate a Card</h2>
+        </div>
+
+        <div class="dashboard-detail-grid dashboard-detail-grid-2">
+          <div class="dashboard-detail-field">
+            <label for="qrCardLogo">Logo</label>
+            <select class="dashboard-select" id="qrCardLogo"></select>
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="qrCardTitle">Title</label>
+            <input type="text" class="dashboard-input" id="qrCardTitle" placeholder="e.g. Get The Brochure">
+          </div>
+
+          <div class="dashboard-detail-field dashboard-detail-field-full">
+            <label for="qrCardUrl">Link</label>
+            <input type="text" class="dashboard-input" id="qrCardUrl" placeholder="https://www.theresilientacademy.co.uk/franchise">
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="generateQrCardBtn">Generate</button>
+          <a href="#" class="dashboard-btn dashboard-btn-light" id="downloadQrCardBtn" download style="display:none;">Download PNG</a>
+        </div>
+
+        <div id="qrCardPreviewWrap" style="margin-top:20px; display:none;">
+          <canvas id="qrCardCanvas" width="1080" height="1920" style="width:100%; max-width:320px; border:1px solid #e3ecec; border-radius:8px; background:#fff;"></canvas>
+        </div>
+      </div>
+
+      <div class="dashboard-card" id="qrCardLogosCard" style="margin-top:20px;">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Saved Logos</h2>
+        </div>
+
+        <div id="qrCardLogosList"></div>
+
+        <div class="dashboard-detail-grid dashboard-detail-grid-2" style="margin-top:16px;">
+          <div class="dashboard-detail-field">
+            <label for="newLogoName">Name</label>
+            <input type="text" class="dashboard-input" id="newLogoName" placeholder="e.g. The Resilient Kid Coach">
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="newLogoColor">Title Colour</label>
+            <input type="color" class="dashboard-input" id="newLogoColor" value="#0d5c63" style="height:42px; padding:4px;">
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="newLogoFile">Logo Image</label>
+            <input type="file" class="dashboard-input" id="newLogoFile" accept="image/*">
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="newLogoCornerFile">Corner Graphic (optional)</label>
+            <input type="file" class="dashboard-input" id="newLogoCornerFile" accept="image/*">
+          </div>
+        </div>
+
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="addLogoBtn" style="margin-top:12px;">Save Logo</button>
+      </div>
+
+    </div>
+  </div>
+</div>
