@@ -51,11 +51,11 @@ LIST_FIELDS = [
 
 def _get_coach_brands(coach_name):
 	"""
-	Mirrors webshop_purchase._get_coach_brands() - a coach with NO Coach
-	Brand Access rows at all is treated as unrestricted (every brand
-	available to tick), not as "access to nothing", since that child
-	table has historically been left empty for plenty of real, active
-	coaches. Only an EXPLICIT set of rows actually narrows the options.
+	The exact set of brands in this coach's own Coach Brand Access rows -
+	empty if there are none. Unlike webshop_purchase._get_coach_brands()
+	(which treats no rows as "unrestricted" for item-purchase access),
+	the caller here (_allowed_brands_for_coach) treats no rows as no
+	brands available to tick - see that function's own docstring for why.
 	"""
 	if not coach_name or not frappe.db.exists("DocType", "Coach Brand Access"):
 		return set()
@@ -98,11 +98,22 @@ def get_coach_options_for_testimonials():
 
 
 def _allowed_brands_for_coach(coach):
-	coach_brands = _get_coach_brands(coach)
-
-	if not coach_brands:
+	"""
+	Ashley is the franchisor, not a brand-restricted coach - she always
+	gets all four, regardless of what (if anything) her own Coach Brand
+	Access happens to list. Every other coach only ever sees the brands
+	actually in their own Coach Brand Access - deliberately NOT the
+	"no rows = unrestricted" fallback _get_coach_brands()'s own docstring
+	describes (that's the right default for webshop_purchase's item
+	access, where missing data shouldn't block a real purchase, but wrong
+	here: a testimonial with no coach-specific brand data shouldn't be
+	tickable as "every brand" - it should show none until that coach's
+	Brand Access is actually filled in).
+	"""
+	if coach == _get_ashley_coach_name():
 		return list(BRAND_FIELDS.values())
 
+	coach_brands = _get_coach_brands(coach)
 	return [value for value in BRAND_FIELDS.values() if value in coach_brands]
 
 
@@ -110,12 +121,12 @@ def _allowed_brands_for_coach(coach):
 def get_coach_brand_options(coach=None):
 	"""
 	Which brand checkboxes (and whether Books) should be available for a
-	given coach - every one of BRAND_FIELDS.values() if that coach has no
-	Coach Brand Access rows (unrestricted - see _get_coach_brands), or
-	only the ones actually in their Brand Access otherwise. Books is
-	never brand-restricted, but is its own, separate restriction: only
-	available at all when this coach IS Ashley (see ASHLEY_EMAIL) - she's
-	the one author, not something every coach can tick.
+	given coach - see _allowed_brands_for_coach() for Ashley's special
+	case and why a coach with no Brand Access rows gets none, not all.
+	Books is never brand-restricted, but is its own, separate
+	restriction: only available at all when this coach IS Ashley (see
+	ASHLEY_EMAIL) - she's the one author, not something every coach can
+	tick.
 	"""
 	ensure_logged_in()
 
