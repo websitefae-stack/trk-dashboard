@@ -1,0 +1,140 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-10-29 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "episode_title",
+  "episode_number",
+  "guest_name",
+  "status",
+  "column_break_1",
+  "air_date",
+  "topics",
+  "show_notes_section",
+  "show_notes",
+  "additional_resources",
+  "planning_notes",
+  "links_section",
+  "spotify_url",
+  "youtube_url",
+  "listeners_lounge_url"
+ ],
+ "fields": [
+  {
+   "fieldname": "episode_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Episode Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "episode_number",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Episode #"
+  },
+  {
+   "fieldname": "guest_name",
+   "fieldtype": "Data",
+   "label": "Guest (if any)"
+  },
+  {
+   "default": "Planned",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Planned\nRecorded\nPublished"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "air_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Air Date"
+  },
+  {
+   "description": "Comma-separated topics/keywords (e.g. anxiety, exam stress, parenting) - for finding this episode again later and for grouping it with related blog posts and resources.",
+   "fieldname": "topics",
+   "fieldtype": "Small Text",
+   "label": "Topics"
+  },
+  {
+   "fieldname": "show_notes_section",
+   "fieldtype": "Section Break",
+   "label": "Content"
+  },
+  {
+   "description": "What this episode actually covers - the same text you'd put as show notes on Spotify/YouTube/Listeners Lounge, entered once here.",
+   "fieldname": "show_notes",
+   "fieldtype": "Text Editor",
+   "label": "Show Notes"
+  },
+  {
+   "description": "Any downloadables or extra links to mention alongside this episode (one per line).",
+   "fieldname": "additional_resources",
+   "fieldtype": "Small Text",
+   "label": "Additional Resources"
+  },
+  {
+   "description": "Private planning notes - not shown to coaches, just for your own reference (e.g. research notes before recording, ideas for a follow-up episode).",
+   "fieldname": "planning_notes",
+   "fieldtype": "Small Text",
+   "label": "Planning Notes (Ashley only)"
+  },
+  {
+   "fieldname": "links_section",
+   "fieldtype": "Section Break",
+   "label": "Where To Find It"
+  },
+  {
+   "fieldname": "spotify_url",
+   "fieldtype": "Data",
+   "label": "Spotify Link"
+  },
+  {
+   "fieldname": "youtube_url",
+   "fieldtype": "Data",
+   "label": "YouTube Link"
+  },
+  {
+   "description": "Link to this episode's lesson in the Listeners Lounge course, once it's been added there.",
+   "fieldname": "listeners_lounge_url",
+   "fieldtype": "Data",
+   "label": "Listeners Lounge Link"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-29 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "Podcast Episode",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "air_date",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

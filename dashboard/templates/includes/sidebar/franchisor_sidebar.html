@@ -134,7 +134,7 @@
             </div>
         </div>
 
-        <div class="dashboard-nav-group {% if active_page in ['documents', 'reports', 'links', 'email_templates', 'reminders', 'qr_cards'] %}is-open{% endif %}">
+        <div class="dashboard-nav-group {% if active_page in ['documents', 'reports', 'links', 'email_templates', 'reminders', 'qr_cards', 'podcasts'] %}is-open{% endif %}">
             <button type="button" class="dashboard-nav-group-toggle">
                 <span class="dashboard-nav-icon">🧰</span>
                 <span>Tools</span>
@@ -164,6 +164,11 @@
                 <a href="/franchisor_db/qr_cards" class="{% if active_page == 'qr_cards' %}is-active{% endif %}">
                     <span class="dashboard-nav-icon">🔲</span>
                     <span>QR Codes</span>
+                </a>
+
+                <a href="/franchisor_db/podcasts" class="{% if active_page == 'podcasts' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🎙️</span>
+                    <span>Podcasts</span>
                 </a>
 
                 {% if frappe.session.user == "office@theresilienthub.co.uk" %}

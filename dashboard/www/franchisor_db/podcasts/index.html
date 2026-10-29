@@ -1,0 +1,101 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page" id="podcastsPage">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Podcasts</h1>
+          <p class="dashboard-page-subtitle">One place for every episode - title, show notes, status, and the Spotify/YouTube/Listeners Lounge links once each exists. Coaches can see this list too, so everyone knows what's been covered and what's next.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-card" id="podcastEpisodeForm">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title" id="podcastFormHeading">Add an Episode</h2>
+        </div>
+
+        <input type="hidden" id="episodeFormName">
+
+        <div class="dashboard-detail-grid dashboard-detail-grid-2">
+          <div class="dashboard-detail-field dashboard-detail-field-full">
+            <label for="episodeTitle">Episode Title</label>
+            <input type="text" class="dashboard-input" id="episodeTitle" placeholder="e.g. Supporting Your Child Through Exam Stress">
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="episodeNumber">Episode #</label>
+            <input type="number" class="dashboard-input" id="episodeNumber" min="1">
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="episodeGuest">Guest (if any)</label>
+            <input type="text" class="dashboard-input" id="episodeGuest">
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="episodeStatus">Status</label>
+            <select class="dashboard-select" id="episodeStatus">
+              <option value="Planned">Planned</option>
+              <option value="Recorded">Recorded</option>
+              <option value="Published">Published</option>
+            </select>
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="episodeAirDate">Air Date</label>
+            <input type="date" class="dashboard-input" id="episodeAirDate">
+          </div>
+
+          <div class="dashboard-detail-field dashboard-detail-field-full">
+            <label for="episodeTopics">Topics (comma-separated)</label>
+            <input type="text" class="dashboard-input" id="episodeTopics" placeholder="e.g. anxiety, exam stress, parenting">
+          </div>
+
+          <div class="dashboard-detail-field dashboard-detail-field-full">
+            <label for="episodeShowNotes">Show Notes</label>
+            <textarea class="dashboard-input" id="episodeShowNotes" rows="4" placeholder="What this episode covers - the same text you'd use on Spotify/YouTube/Listeners Lounge"></textarea>
+          </div>
+
+          <div class="dashboard-detail-field dashboard-detail-field-full">
+            <label for="episodeResources">Additional Resources (one per line)</label>
+            <textarea class="dashboard-input" id="episodeResources" rows="2"></textarea>
+          </div>
+
+          <div class="dashboard-detail-field dashboard-detail-field-full">
+            <label for="episodePlanningNotes">Planning Notes (not shown to coaches)</label>
+            <textarea class="dashboard-input" id="episodePlanningNotes" rows="2"></textarea>
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="episodeSpotify">Spotify Link</label>
+            <input type="text" class="dashboard-input" id="episodeSpotify" placeholder="https://open.spotify.com/...">
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="episodeYoutube">YouTube Link</label>
+            <input type="text" class="dashboard-input" id="episodeYoutube" placeholder="https://youtube.com/...">
+          </div>
+
+          <div class="dashboard-detail-field dashboard-detail-field-full">
+            <label for="episodeListenersLounge">Listeners Lounge Link</label>
+            <input type="text" class="dashboard-input" id="episodeListenersLounge" placeholder="Link to this episode's lesson once it's added">
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:16px;">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveEpisodeBtn">Save Episode</button>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelEditEpisodeBtn" style="display:none;">Cancel</button>
+        </div>
+      </div>
+
+      <div id="podcastEpisodesList" style="margin-top:20px;"></div>
+
+    </div>
+  </div>
+</div>
