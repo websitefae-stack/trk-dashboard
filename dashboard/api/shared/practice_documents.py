@@ -20,7 +20,7 @@ fields no longer exist to read.
 """
 
 import frappe
-from frappe.utils import now_datetime
+from frappe.utils import now_datetime, getdate, nowdate
 
 from dashboard.api.shared.permissions import ensure_logged_in, get_allowed_client_names, ensure_office_user, is_franchisor_user
 from dashboard.api.shared.notifications import create_trk_notification
@@ -120,6 +120,39 @@ def _document_type_options():
 	return [option.strip() for option in options.split("\n") if option.strip()]
 
 
+def _publish_date_is_future(published_date):
+	"""
+	True only when published_date is set AND still ahead of today - a
+	blank date has always meant "no date gating, show it the moment
+	status is Published" and must keep meaning that, or every Practice
+	Document created before this field was wired into anything would
+	suddenly vanish from coaches' Documents pages. Brand/Item Access
+	reconciliation (Coach Document Requirement creation, "Available to
+	Coaches" rows) and the coach-facing resource listing are both
+	deliberately skipped/hidden entirely while this is true, so nothing
+	is granted, shown, or notified before the date Ashley actually wants
+	the document to go live. activate_due_practice_documents() (the daily
+	scheduled job, see hooks.py) is what picks this back up once the date
+	arrives - nothing else re-checks a date sitting untouched in the
+	database on its own.
+	"""
+	return bool(published_date) and getdate(published_date) > getdate(nowdate())
+
+
+def _should_notify_for_publish_date(published_date):
+	"""
+	False only when published_date is already in the past relative to
+	today - a document entered late/backfilled with a historical
+	Published Date (the normal way of recording something that went live
+	before this system existed, or before whoever's loading it got
+	around to it) shouldn't blast every coach the moment it's saved.
+	True for a blank date or a date that is today, which covers both "no
+	date gating at all" and "this is genuinely going live right now" -
+	the case Ashley actually wants everyone informed about.
+	"""
+	return not published_date or getdate(published_date) >= getdate(nowdate())
+
+
 def _can_user_see_resource(document, user=None):
 	"""
 	document is a dict with at least resource_availability + name.
@@ -203,6 +236,7 @@ def _get_visible_resource_documents(user=None):
 		fields=[
 			"name", "document_title", "document_code", "version",
 			"document_type", "mandatory", "resource_availability", "document_file",
+			"published_date",
 		],
 		order_by="modified desc",
 		ignore_permissions=True,
@@ -213,7 +247,10 @@ def _get_visible_resource_documents(user=None):
 	for row in rows:
 		row["linked_items"] = linked_labels.get(row.name, [])
 
-	return [row for row in rows if _can_user_see_resource(row, user=user)]
+	return [
+		row for row in rows
+		if not _publish_date_is_future(row.get("published_date")) and _can_user_see_resource(row, user=user)
+	]
 
 
 @frappe.whitelist()
@@ -301,6 +338,9 @@ def _is_resource_reachable(source):
 	document that shows up on the list can always actually be opened.
 	"""
 	if source.status != "Published":
+		return False
+
+	if _publish_date_is_future(source.get("published_date")):
 		return False
 
 	return source.document_purpose in ("Client Resource", "Both") or source.document_type == "Workshop Resource"
@@ -801,6 +841,20 @@ def notify_requirement_assigned(doc, method=None):
 	if not notification_type:
 		return
 
+	# A requirement created for a backfilled Practice Document (one whose
+	# Published Date was already in the past the moment it was entered -
+	# see _should_notify_for_publish_date()) is a historical record being
+	# caught up, not something genuinely new - don't blast a notification
+	# for it. A blank or today's-date Published Date still notifies
+	# normally; this is the one place that distinction has to be made
+	# per-person rather than per-document, since each coach's requirement
+	# is its own insert and this hook is what fires on every one of them.
+	published_date = doc.practice_document and frappe.db.get_value(
+		PRACTICE_DOCUMENT_DOCTYPE, doc.practice_document, "published_date"
+	)
+	if not _should_notify_for_publish_date(published_date):
+		return
+
 	try:
 		create_trk_notification(
 			recipient_user=doc.user,
@@ -815,6 +869,57 @@ def notify_requirement_assigned(doc, method=None):
 		)
 	except Exception:
 		frappe.log_error(frappe.get_traceback(), "Document Assigned Notification Failed")
+
+
+def _notify_coaches_of_new_resource_document_if_due(doc):
+	"""
+	The resource-document (Client Resource/Workshop Resource) half of "all
+	coaches need to be informed if new documents are loaded" -
+	notify_requirement_assigned above already covers Internal Compliance/
+	Both via its own Coach Document Requirement insert, but a pure
+	resource document never gets one of those rows, so nothing was ever
+	notifying anyone about it before this.
+
+	Guarded by the coaches_notified flag so this only ever fires once per
+	document - every subsequent save (editing the title, re-ticking a
+	brand box, the daily catch-up job re-running the same resync) must
+	never notify again. Set regardless of whether a notification is
+	actually sent, so a backfilled (already-past Published Date)
+	document is marked handled without ever having notified for it.
+	"""
+	if doc.get("coaches_notified"):
+		return
+
+	if _should_notify_for_publish_date(doc.get("published_date")):
+		try:
+			_notify_coaches_of_new_resource_document(doc)
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), f"New Resource Document Notification Failed - {doc.name}")
+
+	frappe.db.set_value(PRACTICE_DOCUMENT_DOCTYPE, doc.name, "coaches_notified", 1, update_modified=False)
+
+
+def _notify_coaches_of_new_resource_document(doc):
+	if doc.resource_availability == "Selected Coaches":
+		user_logins = frappe.get_all(
+			PRACTICE_DOCUMENT_COACH_DOCTYPE,
+			filters={"parent": doc.name, "parenttype": PRACTICE_DOCUMENT_DOCTYPE},
+			pluck="user",
+		)
+	else:
+		user_logins = frappe.get_all("Coach", filters={"user": ["is", "set"]}, pluck="user")
+
+	for user in set(filter(None, user_logins)):
+		try:
+			create_trk_notification(
+				recipient_user=user,
+				notification_type="Announcement",
+				message=f"A new document is now available: {doc.document_title or doc.name}",
+				reference_doctype=PRACTICE_DOCUMENT_DOCTYPE,
+				reference_name=doc.name,
+			)
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), f"New Resource Document Notification Failed - {doc.name} - {user}")
 
 
 # Fields the user's own "Prepare coach document requirement" Server
@@ -1031,8 +1136,19 @@ def _resync_practice_document_brand_access(practice_document_name):
 	point status is Published and the requirements are created normally
 	- nothing is lost by waiting, only the guaranteed-failed attempts
 	while still drafting are skipped.
+
+	Also skipped entirely - access granted, requirements created, or not -
+	while published_date is still in the future: see
+	_publish_date_is_future()'s own docstring. activate_due_practice_
+	documents() (the daily scheduled job) re-runs this same function once
+	that date arrives, so nothing here needs to remember to come back to
+	it.
 	"""
 	doc = frappe.get_doc(PRACTICE_DOCUMENT_DOCTYPE, practice_document_name)
+
+	if _publish_date_is_future(doc.get("published_date")):
+		return
+
 	brand_values = _get_practice_document_brand_values(doc)
 	is_workshop_resource = doc.document_type == "Workshop Resource"
 
@@ -1042,6 +1158,9 @@ def _resync_practice_document_brand_access(practice_document_name):
 	if is_workshop_resource or doc.document_purpose in ("Client Resource", "Both"):
 		from dashboard.api.shared.item_access import _resync_practice_document_coaches
 		_resync_practice_document_coaches(practice_document_name)
+
+	if doc.status == "Published" and (is_workshop_resource or doc.document_purpose == "Client Resource"):
+		_notify_coaches_of_new_resource_document_if_due(doc)
 
 
 def sync_practice_document_brand_requirements(doc, method=None):
@@ -1063,6 +1182,40 @@ def sync_practice_document_brand_requirements(doc, method=None):
 		_resync_practice_document_brand_access(doc.name)
 	except Exception:
 		frappe.log_error(frappe.get_traceback(), f"Practice Document Brand Requirement Sync Failed - {doc.name}")
+
+
+def activate_due_practice_documents():
+	"""
+	Daily scheduled job (see hooks.py scheduler_events["daily"]) - nothing
+	re-checks a Practice Document just because its Published Date has
+	arrived; the Practice Document.on_update hook above only fires on an
+	actual save. A document saved with a future Published Date is
+	deliberately skipped entirely at that point (_publish_date_is_future,
+	called from _resync_practice_document_brand_access), so this is what
+	comes back once the calendar catches up: re-running the exact same
+	resync for every currently-Published document whose Published Date
+	has now arrived grants the access/requirements that were withheld and
+	fires the "new document" notification for the first time, since
+	_resync_practice_document_brand_access and
+	_notify_coaches_of_new_resource_document_if_due are both already
+	written to be safe to call repeatedly (a no-op for anything already
+	handled on a prior day).
+
+	Filters on published_date <= today rather than == today so a missed
+	scheduler run (deploy downtime, etc.) still catches up instead of
+	silently skipping that document forever.
+	"""
+	names = frappe.get_all(
+		PRACTICE_DOCUMENT_DOCTYPE,
+		filters={"status": "Published", "published_date": ["<=", nowdate()]},
+		pluck="name",
+	)
+
+	for name in names:
+		try:
+			_resync_practice_document_brand_access(name)
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), f"Practice Document Publish Date Activation Failed - {name}")
 
 
 def _get_practice_documents_needing_brand_resync(person_type, person_name, matching_fieldnames):
