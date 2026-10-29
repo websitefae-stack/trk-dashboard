@@ -1,39 +1,55 @@
 """
 A full, month-by-month history of franchise + marketing fees actually
-paid, from when the business started to today - the figures before
-1 November 2026 are typed in by hand (Franchise Fee Manual Total, one
-row per month, business-wide - no coach or fee-type breakdown, since
-that historical detail generally isn't available to backfill), and
-everything from that date on is pulled automatically from the same
-internal-invoice payments the franchisor dashboard's "Outstanding
-Internal Invoices" section already tracks (see
-dashboard._get_outstanding_internal_invoices for the sibling query this
-mirrors the exclusion logic of).
+paid by each coach, from when the business started to today - the
+figures before 1 November 2026 are typed in by hand, one row per
+(coach, month) - see save_manual_fee_total() - and everything from
+that date on is pulled automatically from the same internal-invoice
+payments the franchisor dashboard's "Outstanding Internal Invoices"
+section already tracks (see dashboard._get_outstanding_internal_invoices
+for the sibling query this mirrors the exclusion logic of).
 
 "Fees paid" here means actual cash received (Payment Entry.posting_date/
 paid_amount against a coach's own linked_client), not invoiced amounts -
 an invoice raised in one month and paid the next shows up in the month
 it was actually paid.
 
-Automatic rows can be filtered to one coach, and are split into
-Franchise Fee vs Marketing Fee - done by looking at the Sales Invoice
-backing each payment and working out what fraction of its grand_total
-those two configured Items (Fees Report Settings) made up, then
-allocating that same fraction of the payment itself. A payment is
-usually for a single-item invoice (100% one or the other), but this
-still holds up if an invoice ever mixes several fee items on one
-Sales Invoice. Falls back to one undifferentiated "Fees Paid" bucket
-per payment until both Items are configured.
+Every figure here - manual or automatic - is attributed to a specific
+fee-paying coach (which includes Ashley's own Coach record - she pays
+fees like any other franchisee), never to office/HQ. get_fees_report()
+lists month-by-month, filterable to one coach; get_fee_totals_by_coach()
+is the other shape of the same data - one row per coach, summed over an
+optional date range, for "how much has each coach paid"/"how much did
+everyone pay in August" style questions.
+
+Automatic rows are split into Franchise Fee vs Marketing Fee - done by
+looking at the Sales Invoice backing each payment and working out what
+fraction of its grand_total those two configured Items (Fees Report
+Settings) made up, then allocating that same fraction of the payment
+itself. A payment is usually for a single-item invoice (100% one or the
+other), but this still holds up if an invoice ever mixes several fee
+items on one Sales Invoice. Falls back to one undifferentiated "Fees
+Paid" bucket per payment until both Items are configured.
 """
 
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate, get_first_day
+from frappe.utils import flt, getdate, get_first_day, add_months
 
-from dashboard.api.shared.permissions import ensure_office_user
+from dashboard.api.shared.permissions import ensure_office_user, FRANCHISOR_USERS
 
 SETTINGS_DOCTYPE = "Fees Report Settings"
 MANUAL_DOCTYPE = "Franchise Fee Manual Total"
+COACH_DOCTYPE = "Coach"
+
+# Logins that must never be selectable as a "fee-paying coach" even if
+# they happen to have their own Coach record (office/HQ's calendar-sync
+# identity, e.g. "The Resilient Office") - Ashley's own login is
+# deliberately NOT in this set, since she pays fees like any other
+# franchisee and the coach picker needs to include her.
+NON_COACH_FRANCHISOR_LOGINS = {
+	email.lower() for email in FRANCHISOR_USERS
+	if email.lower() != "ashley@theresilientkid.co.uk"
+}
 
 # Automatic pulling from real payment data starts on this date - before
 # it, Ashley is backfilling the historical figures by hand (the
@@ -69,11 +85,11 @@ def save_fees_report_settings(franchise_fee_item=None, marketing_fee_item=None):
 
 
 def _get_linked_client_coach_map():
-	if not frappe.get_meta("Coach").has_field("linked_client"):
+	if not frappe.get_meta(COACH_DOCTYPE).has_field("linked_client"):
 		return {}
 
 	coach_rows = frappe.get_all(
-		"Coach",
+		COACH_DOCTYPE,
 		filters={"linked_client": ["is", "set"]},
 		fields=["name", "linked_client"],
 		limit_page_length=1000,
@@ -83,22 +99,38 @@ def _get_linked_client_coach_map():
 	return {row.linked_client: row.name for row in coach_rows if row.linked_client}
 
 
+def _coach_login_emails(coach_name):
+	meta = frappe.get_meta(COACH_DOCTYPE)
+	emails = set()
+	for fieldname in ("user", "coach_email"):
+		if meta.has_field(fieldname):
+			value = frappe.db.get_value(COACH_DOCTYPE, coach_name, fieldname)
+			if value:
+				emails.add(value.strip().lower())
+	return emails
+
+
 @frappe.whitelist()
-def get_fee_paying_coaches():
-	"""Every Coach with a linked_client (i.e. capable of having a fee
-	payment at all) - the franchisor filter's coach options."""
+def get_coach_options_for_fees():
+	"""
+	Every fee-paying coach - everyone except office/HQ's own Coach
+	record(s) (NON_COACH_FRANCHISOR_LOGINS), but including Ashley's own.
+	Used both for the manual-entry form's coach picker and the report
+	filters - deliberately the full list, not get_fee_paying_coaches()'s
+	linked_client-only subset, since a coach backfilling a historical
+	month may not have (or need) a linked_client/invoice at all.
+	"""
 	ensure_office_user()
 
-	coach_names = list(_get_linked_client_coach_map().values())
-	if not coach_names:
-		return []
-
-	return frappe.get_all(
-		"Coach",
-		filters={"name": ["in", coach_names]},
+	rows = frappe.get_all(
+		COACH_DOCTYPE,
 		fields=["name", "coach_name"],
 		order_by="coach_name asc",
+		limit_page_length=5000,
+		ignore_permissions=True,
 	)
+
+	return [row for row in rows if not (_coach_login_emails(row.name) & NON_COACH_FRANCHISOR_LOGINS)]
 
 
 def _get_fee_item_breakdown_per_invoice(invoice_names, franchise_item, marketing_item):
@@ -251,60 +283,85 @@ def _get_automatic_rows(coach_filter=None):
 	return rows
 
 
+def _get_manual_rows(coach_filter=None):
+	"""One row per (manual entry, fee type) - same shape as
+	_get_automatic_rows(), so both can be combined/aggregated the same
+	way. Skips the handful of legacy rows with no coach attached (see
+	the split_manual_fee_total patches) - those predate per-coach
+	tracking and were never attributable to one person."""
+	filters = {"period": ["<", AUTO_CUTOFF_DATE], "coach": ["is", "set"]}
+	if coach_filter:
+		filters["coach"] = coach_filter
+
+	manual_rows = frappe.get_all(
+		MANUAL_DOCTYPE,
+		filters=filters,
+		fields=["name", "coach", "period", "franchise_fee_amount", "marketing_fee_amount", "note"],
+		ignore_permissions=True,
+	)
+
+	rows = []
+	for row in manual_rows:
+		month_key = getdate(row.period).isoformat()
+		if flt(row.franchise_fee_amount, 2):
+			rows.append({
+				"month": month_key, "coach": row.coach, "fee_type": "Franchise Fee",
+				"amount": flt(row.franchise_fee_amount, 2), "name": row.name, "note": row.note or "",
+			})
+		if flt(row.marketing_fee_amount, 2):
+			rows.append({
+				"month": month_key, "coach": row.coach, "fee_type": "Marketing Fee",
+				"amount": flt(row.marketing_fee_amount, 2), "name": row.name, "note": row.note or "",
+			})
+
+	return rows
+
+
 @frappe.whitelist()
 def get_fees_report(coach=None):
 	ensure_office_user()
 
 	coach = (coach or "").strip()
 
+	rows = []
+
+	for row in _get_manual_rows(coach_filter=coach or None):
+		rows.append({
+			"month": row["month"],
+			"amount": row["amount"],
+			"source": "Manual",
+			"fee_type": row["fee_type"],
+			"coach": row["coach"],
+			"name": row["name"],
+			"note": row["note"],
+		})
+
 	monthly_totals = {}
 	for row in _get_automatic_rows(coach_filter=coach or None):
 		key = (row["month"], row["fee_type"])
 		monthly_totals[key] = monthly_totals.get(key, 0) + row["amount"]
 
-	rows = []
 	for (month_key, fee_type), amount in monthly_totals.items():
 		rows.append({
 			"month": month_key,
 			"amount": flt(amount, 2),
 			"source": "Dashboard",
 			"fee_type": fee_type,
+			"coach": coach or "",
 			"name": "",
 			"note": "",
 		})
 
-	# Manual historical entries are business-wide, not attributable to one
-	# coach - so they only show up in the "All Coaches" view. Split into
-	# the same Franchise Fee / Marketing Fee fee_types the automatic rows
-	# use (each its own row, Edit/Delete acts on the one shared record -
-	# see save_manual_fee_total/delete_manual_fee_total).
+	coach_labels = {}
 	if not coach:
-		manual_rows = frappe.get_all(
-			MANUAL_DOCTYPE,
-			filters={"period": ["<", AUTO_CUTOFF_DATE]},
-			fields=["name", "period", "franchise_fee_amount", "marketing_fee_amount", "note"],
-			ignore_permissions=True,
-		)
-		for row in manual_rows:
-			month_key = getdate(row.period).isoformat()
-			if flt(row.franchise_fee_amount, 2):
-				rows.append({
-					"month": month_key,
-					"amount": flt(row.franchise_fee_amount, 2),
-					"source": "Manual",
-					"fee_type": "Franchise Fee",
-					"name": row.name,
-					"note": row.note or "",
-				})
-			if flt(row.marketing_fee_amount, 2):
-				rows.append({
-					"month": month_key,
-					"amount": flt(row.marketing_fee_amount, 2),
-					"source": "Manual",
-					"fee_type": "Marketing Fee",
-					"name": row.name,
-					"note": row.note or "",
-				})
+		coach_names = {row["coach"] for row in rows if row.get("coach")}
+		if coach_names:
+			coach_labels = {
+				row.name: row.coach_name
+				for row in frappe.get_all(COACH_DOCTYPE, filters={"name": ["in", list(coach_names)]}, fields=["name", "coach_name"])
+			}
+	for row in rows:
+		row["coach_label"] = coach_labels.get(row.get("coach"), "")
 
 	rows.sort(key=lambda row: (row["month"], row["fee_type"]), reverse=True)
 
@@ -320,9 +377,84 @@ def get_fees_report(coach=None):
 	}
 
 
+def _month_bounds(from_month, to_month):
+	from_date = get_first_day(getdate(from_month)) if from_month else None
+	to_date_exclusive = add_months(get_first_day(getdate(to_month)), 1) if to_month else None
+	return from_date, to_date_exclusive
+
+
 @frappe.whitelist()
-def save_manual_fee_total(name=None, period=None, franchise_fee_amount=None, marketing_fee_amount=None, note=None):
+def get_fee_totals_by_coach(from_month=None, to_month=None):
+	"""
+	One row per coach - Franchise Fee / Marketing Fee / combined total,
+	summed across both manual and automatic data, over an optional date
+	range ("how much has each coach paid", "how much did everyone pay
+	in August" - from_month=to_month="2026-08-01"). No range at all
+	means all-time.
+	"""
 	ensure_office_user()
+
+	from_date, to_date_exclusive = _month_bounds(from_month, to_month)
+
+	def _in_range(month_key):
+		month_date = getdate(month_key)
+		if from_date and month_date < from_date:
+			return False
+		if to_date_exclusive and month_date >= to_date_exclusive:
+			return False
+		return True
+
+	all_rows = _get_manual_rows() + _get_automatic_rows()
+
+	totals = {}
+	for row in all_rows:
+		if not row.get("coach") or not _in_range(row["month"]):
+			continue
+		bucket = totals.setdefault(row["coach"], {"franchise_fee_total": 0.0, "marketing_fee_total": 0.0, "other_total": 0.0})
+		if row["fee_type"] == "Franchise Fee":
+			bucket["franchise_fee_total"] += row["amount"]
+		elif row["fee_type"] == "Marketing Fee":
+			bucket["marketing_fee_total"] += row["amount"]
+		else:
+			bucket["other_total"] += row["amount"]
+
+	if not totals:
+		return []
+
+	coach_labels = {
+		row.name: row.coach_name
+		for row in frappe.get_all(COACH_DOCTYPE, filters={"name": ["in", list(totals.keys())]}, fields=["name", "coach_name"])
+	}
+
+	results = []
+	for coach_name, bucket in totals.items():
+		franchise_total = flt(bucket["franchise_fee_total"], 2)
+		marketing_total = flt(bucket["marketing_fee_total"], 2)
+		other_total = flt(bucket["other_total"], 2)
+		results.append({
+			"coach": coach_name,
+			"coach_label": coach_labels.get(coach_name, coach_name),
+			"franchise_fee_total": franchise_total,
+			"marketing_fee_total": marketing_total,
+			"other_total": other_total,
+			"total": flt(franchise_total + marketing_total + other_total, 2),
+		})
+
+	results.sort(key=lambda row: row["coach_label"].lower())
+
+	return results
+
+
+@frappe.whitelist()
+def save_manual_fee_total(name=None, coach=None, period=None, franchise_fee_amount=None, marketing_fee_amount=None, note=None):
+	ensure_office_user()
+
+	coach = (coach or "").strip()
+	if not coach or not frappe.db.exists(COACH_DOCTYPE, coach):
+		frappe.throw(_("Please choose a coach."))
+
+	if _coach_login_emails(coach) & NON_COACH_FRANCHISOR_LOGINS:
+		frappe.throw(_("Office/HQ don't pay fees - please choose an actual coach."))
 
 	if not period:
 		frappe.throw(_("Please choose a month."))
@@ -342,6 +474,7 @@ def save_manual_fee_total(name=None, period=None, franchise_fee_amount=None, mar
 		frappe.throw(_("Amount cannot be negative."))
 
 	values = {
+		"coach": coach,
 		"period": period,
 		"franchise_fee_amount": franchise_fee_amount,
 		"marketing_fee_amount": marketing_fee_amount,
@@ -357,7 +490,7 @@ def save_manual_fee_total(name=None, period=None, franchise_fee_amount=None, mar
 		doc.update(values)
 		doc.save(ignore_permissions=True)
 	else:
-		existing = frappe.db.exists(MANUAL_DOCTYPE, {"period": period})
+		existing = frappe.db.exists(MANUAL_DOCTYPE, {"coach": coach, "period": period})
 		if existing:
 			doc = frappe.get_doc(MANUAL_DOCTYPE, existing)
 			doc.update(values)
@@ -381,6 +514,7 @@ def get_manual_fee_total(name=None):
 
 	return {
 		"name": doc.name,
+		"coach": doc.coach or "",
 		"period": doc.period,
 		"franchise_fee_amount": flt(doc.franchise_fee_amount, 2),
 		"marketing_fee_amount": flt(doc.marketing_fee_amount, 2),
