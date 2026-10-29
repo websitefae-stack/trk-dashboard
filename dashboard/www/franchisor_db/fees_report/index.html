@@ -1,0 +1,57 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page" id="feesReportPage">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Fees Paid</h1>
+          <p class="dashboard-page-subtitle">Franchise fees and marketing fees actually paid, month by month, since the business started. Months from 1 November 2026 onward are pulled automatically from the dashboard; anything before that is entered by hand below.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div style="font-size:13px; color:#839898; text-transform:uppercase; letter-spacing:0.04em;">Total Fees Paid (All Time)</div>
+        <div id="feesGrandTotal" style="font-size:32px; font-weight:700; margin-top:4px;">-</div>
+      </div>
+
+      <div class="dashboard-card" id="manualFeeForm" style="margin-top:20px;">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title" id="manualFeeFormHeading">Add a Historical Month</h2>
+        </div>
+
+        <input type="hidden" id="manualFeeName">
+
+        <div class="dashboard-detail-grid dashboard-detail-grid-2">
+          <div class="dashboard-detail-field">
+            <label for="manualFeeMonth">Month</label>
+            <input type="month" class="dashboard-input" id="manualFeeMonth" max="2026-10">
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="manualFeeAmount">Total Fees Paid (&pound;)</label>
+            <input type="number" class="dashboard-input" id="manualFeeAmount" min="0" step="0.01">
+          </div>
+
+          <div class="dashboard-detail-field dashboard-detail-field-full">
+            <label for="manualFeeNote">Note (optional)</label>
+            <input type="text" class="dashboard-input" id="manualFeeNote">
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:16px;">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveManualFeeBtn">Save Month</button>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelEditManualFeeBtn" style="display:none;">Cancel</button>
+        </div>
+      </div>
+
+      <div id="feesReportList" style="margin-top:20px;"></div>
+
+    </div>
+  </div>
+</div>
