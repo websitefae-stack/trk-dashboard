@@ -247,7 +247,7 @@
     if (!select) return;
 
     try {
-      var coaches = await apiPost("dashboard.api.shared.coaches.get_coaches", {});
+      var coaches = await apiPost(SHARED_API + ".get_coach_options_for_testimonials", {});
       select.innerHTML = '<option value="">Choose a coach...</option>' + (Array.isArray(coaches) ? coaches : []).map(function (c) {
         return '<option value="' + escapeHtml(c.name) + '">' + escapeHtml(c.coach_name || c.name) + "</option>";
       }).join("");
