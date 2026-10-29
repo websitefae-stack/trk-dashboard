@@ -7,8 +7,10 @@
  "engine": "InnoDB",
  "field_order": [
   "period",
-  "amount",
-  "note"
+  "franchise_fee_amount",
+  "marketing_fee_amount",
+  "note",
+  "amount"
  ],
  "fields": [
   {
@@ -21,16 +23,31 @@
    "unique": 1
   },
   {
-   "fieldname": "amount",
+   "default": "0",
+   "fieldname": "franchise_fee_amount",
    "fieldtype": "Currency",
    "in_list_view": 1,
-   "label": "Total Fees Paid",
-   "reqd": 1
+   "label": "Franchise Fee Paid"
+  },
+  {
+   "default": "0",
+   "fieldname": "marketing_fee_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Marketing Fee Paid"
   },
   {
    "fieldname": "note",
    "fieldtype": "Small Text",
    "label": "Note"
+  },
+  {
+   "description": "Deprecated - replaced by the Franchise Fee Paid / Marketing Fee Paid split above. Kept (not deleted) so no historical figure already entered here is ever lost; a one-off patch copies any old value into Franchise Fee Paid the first time this deploys. No longer read or written by the app.",
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "hidden": 1,
+   "label": "Total Fees Paid (old)",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,

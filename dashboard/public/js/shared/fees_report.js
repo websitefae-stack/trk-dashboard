@@ -96,7 +96,7 @@
       btn.addEventListener("click", function () {
         var card = btn.closest("[data-fee-name]");
         if (!card) return;
-        loadRowIntoForm(card.dataset.feeName, card.dataset.feeMonth, rows);
+        loadRowIntoForm(card.dataset.feeName);
       });
     });
 
@@ -119,30 +119,39 @@
     });
   }
 
-  function loadRowIntoForm(name, month, rows) {
-    var row = rows.find(function (r) { return r.name === name; });
-    if (!row) return;
+  async function loadRowIntoForm(name) {
+    try {
+      // Fetched by name (not read off the already-loaded rows) because a
+      // month with only one of the two amounts set shows as a single
+      // row here - Edit still needs to load BOTH fields into the form,
+      // which the row-level data alone can't give us.
+      var row = await apiPost(SHARED_API + ".get_manual_fee_total", { name: name });
 
-    el("manualFeeName").value = row.name;
-    el("manualFeeMonth").value = month.slice(0, 7);
-    el("manualFeeAmount").value = row.amount;
-    el("manualFeeNote").value = row.note || "";
+      el("manualFeeName").value = row.name;
+      el("manualFeeMonth").value = String(row.period).slice(0, 7);
+      el("manualFeeFranchiseAmount").value = row.franchise_fee_amount || "";
+      el("manualFeeMarketingAmount").value = row.marketing_fee_amount || "";
+      el("manualFeeNote").value = row.note || "";
 
-    var heading = el("manualFeeFormHeading");
-    if (heading) heading.textContent = "Edit " + formatMonth(month);
-    var saveBtn = el("saveManualFeeBtn");
-    if (saveBtn) saveBtn.textContent = "Update Month";
-    var cancelBtn = el("cancelEditManualFeeBtn");
-    if (cancelBtn) cancelBtn.style.display = "";
+      var heading = el("manualFeeFormHeading");
+      if (heading) heading.textContent = "Edit " + formatMonth(row.period);
+      var saveBtn = el("saveManualFeeBtn");
+      if (saveBtn) saveBtn.textContent = "Update Month";
+      var cancelBtn = el("cancelEditManualFeeBtn");
+      if (cancelBtn) cancelBtn.style.display = "";
 
-    var form = el("manualFeeForm");
-    if (form) form.scrollIntoView({ behavior: "smooth", block: "start" });
+      var form = el("manualFeeForm");
+      if (form) form.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (error) {
+      window.alert(error.message || "Could not load this month.");
+    }
   }
 
   function resetForm() {
     el("manualFeeName").value = "";
     el("manualFeeMonth").value = "";
-    el("manualFeeAmount").value = "";
+    el("manualFeeFranchiseAmount").value = "";
+    el("manualFeeMarketingAmount").value = "";
     el("manualFeeNote").value = "";
 
     var heading = el("manualFeeFormHeading");
@@ -258,14 +267,15 @@
 
     saveBtn.addEventListener("click", async function () {
       var month = el("manualFeeMonth").value;
-      var amount = el("manualFeeAmount").value;
+      var franchiseAmount = el("manualFeeFranchiseAmount").value;
+      var marketingAmount = el("manualFeeMarketingAmount").value;
 
       if (!month) {
         window.alert("Please choose a month.");
         return;
       }
-      if (amount === "" || Number(amount) < 0) {
-        window.alert("Please enter a valid amount.");
+      if ((franchiseAmount === "" || Number(franchiseAmount) < 0) || (marketingAmount === "" || Number(marketingAmount) < 0)) {
+        window.alert("Please enter a valid amount for both Franchise Fee and Marketing Fee (0 if there isn't one).");
         return;
       }
 
@@ -275,7 +285,8 @@
         await apiPost(SHARED_API + ".save_manual_fee_total", {
           name: el("manualFeeName").value || null,
           period: month + "-01",
-          amount: amount,
+          franchise_fee_amount: franchiseAmount,
+          marketing_fee_amount: marketingAmount,
           note: el("manualFeeNote").value,
         });
 

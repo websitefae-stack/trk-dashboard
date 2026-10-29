@@ -13,6 +13,20 @@
   var el = Dashboard.el;
   var SHARED_API = "dashboard.api.shared.podcast_episodes";
 
+  // Show Notes is real rich text (bullets, links) now, not a plain
+  // textarea - Dashboard.richTextEditorHtml()/wireRichTextEditor() are
+  // the same small editor already used for School Pipeline emails (see
+  // utils.js). Only one instance on this page, so a single module-level
+  // controller is enough - set up once in initShowNotesEditor().
+  var showNotesEditor = null;
+
+  function initShowNotesEditor() {
+    var container = el("episodeShowNotesRichtext");
+    if (!container || showNotesEditor) return;
+    container.innerHTML = Dashboard.richTextEditorHtml("What this episode covers…");
+    showNotesEditor = Dashboard.wireRichTextEditor(container.querySelector(".dashboard-richtext"));
+  }
+
   var STATUS_BADGE_CLASS = {
     Planned: "dashboard-badge",
     Recorded: "dashboard-badge dashboard-status-onhold",
@@ -174,7 +188,7 @@
     el("episodeStatus").value = "Planned";
     el("episodeAirDate").value = "";
     el("episodeTopics").value = "";
-    el("episodeShowNotes").value = "";
+    if (showNotesEditor) showNotesEditor.setHtml("");
     el("episodeResources").value = "";
     el("episodePlanningNotes").value = "";
     el("episodeSpotify").value = "";
@@ -201,7 +215,7 @@
       el("episodeStatus").value = episode.status || "Planned";
       el("episodeAirDate").value = episode.air_date || "";
       el("episodeTopics").value = episode.topics || "";
-      el("episodeShowNotes").value = episode.show_notes || "";
+      if (showNotesEditor) showNotesEditor.setHtml(episode.show_notes || "");
       el("episodeResources").value = episode.additional_resources || "";
       el("episodePlanningNotes").value = episode.planning_notes || "";
       el("episodeSpotify").value = episode.spotify_url || "";
@@ -245,7 +259,7 @@
           status: el("episodeStatus").value,
           air_date: el("episodeAirDate").value || null,
           topics: el("episodeTopics").value,
-          show_notes: el("episodeShowNotes").value,
+          show_notes: showNotesEditor ? showNotesEditor.getHtml() : "",
           additional_resources: el("episodeResources").value,
           planning_notes: el("episodePlanningNotes").value,
           spotify_url: el("episodeSpotify").value,
@@ -271,6 +285,7 @@
   function init() {
     if (!el("podcastEpisodesList")) return;
 
+    initShowNotesEditor();
     loadEpisodes();
     initForm();
   }

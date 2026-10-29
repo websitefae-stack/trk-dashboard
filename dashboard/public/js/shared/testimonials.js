@@ -221,7 +221,7 @@
     }
   }
 
-  function setBrandCheckboxAvailability(allowedBrands) {
+  function setBrandCheckboxAvailability(allowedBrands, booksAllowed) {
     Object.keys(BRAND_CHECKBOX_IDS).forEach(function (brand) {
       var wrap = el(BRAND_CHECKBOX_IDS[brand] + "Wrap");
       var input = el(BRAND_CHECKBOX_IDS[brand]);
@@ -230,25 +230,30 @@
       if (wrap) wrap.style.display = allowed ? "" : "none";
       if (input && !allowed) input.checked = false;
     });
+
+    var booksWrap = el("testimonialForBooksWrap");
+    var booksInput = el("testimonialForBooks");
+    if (booksWrap) booksWrap.style.display = booksAllowed ? "" : "none";
+    if (booksInput && !booksAllowed) booksInput.checked = false;
   }
 
   async function refreshBrandOptionsForCoach(coachName) {
     try {
-      var allowed = coachName
+      var result = coachName
         ? await apiPost(SHARED_API + ".get_coach_brand_options", { coach: coachName })
-        : [];
-      setBrandCheckboxAvailability(Array.isArray(allowed) ? allowed : []);
+        : { brands: [], books: false };
+      setBrandCheckboxAvailability(Array.isArray(result.brands) ? result.brands : [], !!result.books);
     } catch (error) {
-      setBrandCheckboxAvailability([]);
+      setBrandCheckboxAvailability([], false);
     }
   }
 
   async function refreshBrandOptionsForSelf() {
     try {
-      var allowed = await apiPost(SHARED_API + ".get_my_coach_brand_options", {});
-      setBrandCheckboxAvailability(Array.isArray(allowed) ? allowed : []);
+      var result = await apiPost(SHARED_API + ".get_my_coach_brand_options", {});
+      setBrandCheckboxAvailability(Array.isArray(result.brands) ? result.brands : [], !!result.books);
     } catch (error) {
-      setBrandCheckboxAvailability(Object.keys(BRAND_CHECKBOX_IDS));
+      setBrandCheckboxAvailability(Object.keys(BRAND_CHECKBOX_IDS), false);
     }
   }
 
@@ -332,7 +337,7 @@
     var coachSelect = el("testimonialCoachSelect");
     if (coachSelect) {
       coachSelect.value = "";
-      setBrandCheckboxAvailability([]);
+      setBrandCheckboxAvailability([], false);
     } else {
       refreshBrandOptionsForSelf();
     }
@@ -479,7 +484,7 @@
 
     if (isFranchisorMode()) {
       await loadCoachOptions();
-      setBrandCheckboxAvailability([]);
+      setBrandCheckboxAvailability([], false);
     } else {
       refreshBrandOptionsForSelf();
     }

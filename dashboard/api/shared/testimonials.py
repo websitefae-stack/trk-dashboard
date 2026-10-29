@@ -25,6 +25,11 @@ from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 DOCTYPE = "Coach Testimonial"
 COACH_DOCTYPE = "Coach"
 
+# Books is only ever Ashley's own - she's the author, and this only gets
+# used when marketing one of her books (rare). Same login FRANCHISOR_
+# USERS (permissions.py) already treats as Ashley's own.
+ASHLEY_EMAIL = "ashley@theresilientkid.co.uk"
+
 # doctype fieldname -> the Coach Brand Access value it corresponds to -
 # same mapping/convention as practice_documents.PRACTICE_DOCUMENT_BRAND_
 # FIELDS, just without the Franchise option (testimonials are always for
@@ -63,6 +68,13 @@ def _get_coach_brands(coach_name):
 	return {row for row in rows if row}
 
 
+def _get_ashley_coach_name():
+	name = frappe.db.get_value(COACH_DOCTYPE, {"user": ASHLEY_EMAIL}, "name")
+	if not name:
+		name = frappe.db.get_value(COACH_DOCTYPE, {"coach_email": ASHLEY_EMAIL}, "name")
+	return name or ""
+
+
 @frappe.whitelist()
 def get_coach_options_for_testimonials():
 	"""
@@ -84,20 +96,7 @@ def get_coach_options_for_testimonials():
 	)
 
 
-@frappe.whitelist()
-def get_coach_brand_options(coach=None):
-	"""
-	Which of the four brand checkboxes should be available for a given
-	coach - every one of BRAND_FIELDS.values() if that coach has no
-	Coach Brand Access rows (unrestricted - see _get_coach_brands), or
-	only the ones actually in their Brand Access otherwise.
-	"""
-	ensure_logged_in()
-
-	coach = (coach or "").strip()
-	if not coach or not frappe.db.exists(COACH_DOCTYPE, coach):
-		frappe.throw(_("Coach not found."))
-
+def _allowed_brands_for_coach(coach):
 	coach_brands = _get_coach_brands(coach)
 
 	if not coach_brands:
@@ -106,18 +105,44 @@ def get_coach_brand_options(coach=None):
 	return [value for value in BRAND_FIELDS.values() if value in coach_brands]
 
 
+@frappe.whitelist()
+def get_coach_brand_options(coach=None):
+	"""
+	Which brand checkboxes (and whether Books) should be available for a
+	given coach - every one of BRAND_FIELDS.values() if that coach has no
+	Coach Brand Access rows (unrestricted - see _get_coach_brands), or
+	only the ones actually in their Brand Access otherwise. Books is
+	never brand-restricted, but is its own, separate restriction: only
+	available at all when this coach IS Ashley (see ASHLEY_EMAIL) - she's
+	the one author, not something every coach can tick.
+	"""
+	ensure_logged_in()
+
+	coach = (coach or "").strip()
+	if not coach or not frappe.db.exists(COACH_DOCTYPE, coach):
+		frappe.throw(_("Coach not found."))
+
+	return {
+		"brands": _allowed_brands_for_coach(coach),
+		"books": coach == _get_ashley_coach_name(),
+	}
+
+
 def _clean_brand_values(doc_values, coach):
 	"""
-	Drops any ticked brand the coach isn't actually allowed - never
-	trusts the browser's own checkbox-hiding to be the only gate, since
-	this is a server call a coach could otherwise hit directly with any
-	brand ticked regardless of what the form showed them.
+	Drops any ticked brand (or Books) the coach isn't actually allowed -
+	never trusts the browser's own checkbox-hiding to be the only gate,
+	since this is a server call a coach could otherwise hit directly
+	with any box ticked regardless of what the form showed them.
 	"""
-	allowed = set(get_coach_brand_options(coach))
+	allowed_brands = set(_allowed_brands_for_coach(coach))
 
 	for fieldname, brand_value in BRAND_FIELDS.items():
-		if brand_value not in allowed:
+		if brand_value not in allowed_brands:
 			doc_values[fieldname] = 0
+
+	if coach != _get_ashley_coach_name():
+		doc_values["for_books"] = 0
 
 	return doc_values
 
@@ -263,25 +288,24 @@ def save_testimonial(
 	if testimonial_type != "Text" and not testimonial_file and not existing_file:
 		frappe.throw(_("Please upload a {0} file.").format(testimonial_type.lower()))
 
-	values = _clean_brand_values({
+	values = {
+		"coach": coach,
+		"testimonial_date": testimonial_date or frappe.utils.nowdate(),
+		"testimonial_type": testimonial_type,
 		"brand_access_kid": 1 if int(brand_access_kid or 0) else 0,
 		"brand_access_teen": 1 if int(brand_access_teen or 0) else 0,
 		"brand_access_people": 1 if int(brand_access_people or 0) else 0,
 		"brand_access_school": 1 if int(brand_access_school or 0) else 0,
-	}, coach)
-
-	values.update({
-		"coach": coach,
-		"testimonial_date": testimonial_date or frappe.utils.nowdate(),
-		"testimonial_type": testimonial_type,
-		# Not brand-gated - every coach can tick this regardless of which
-		# brand(s) they operate, unlike the four checkboxes above.
 		"for_books": 1 if int(for_books or 0) else 0,
 		"client_name": "" if int(is_anonymous or 0) else (client_name or "").strip(),
 		"is_anonymous": 1 if int(is_anonymous or 0) else 0,
 		"testimonial_text": testimonial_text if testimonial_type == "Text" else "",
 		"testimonial_file": (testimonial_file or existing_file) if testimonial_type != "Text" else "",
-	})
+	}
+	# Drops any ticked brand/Books this coach isn't actually allowed -
+	# done last, after every other value is already in the dict, so
+	# nothing set above can get silently re-applied over the top of it.
+	values = _clean_brand_values(values, coach)
 
 	if existing_doc:
 		existing_doc.update(values)
