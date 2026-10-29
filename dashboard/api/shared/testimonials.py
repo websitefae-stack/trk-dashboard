@@ -64,6 +64,27 @@ def _get_coach_brands(coach_name):
 
 
 @frappe.whitelist()
+def get_coach_options_for_testimonials():
+	"""
+	Every Coach, for the franchisor's own coach picker on this page -
+	deliberately NOT coaches.get_coaches(), which excludes the logged-in
+	user's own Coach record (built for the Coaches list page, where
+	Ashley shouldn't see herself as a row there). Ashley is also a Coach
+	record, so that same exclusion was hiding her from this picker -
+	she's exactly the kind of person who'd receive a testimonial too.
+	"""
+	ensure_office_user()
+
+	return frappe.get_all(
+		COACH_DOCTYPE,
+		fields=["name", "coach_name"],
+		order_by="coach_name asc",
+		limit_page_length=5000,
+		ignore_permissions=True,
+	)
+
+
+@frappe.whitelist()
 def get_coach_brand_options(coach=None):
 	"""
 	Which of the four brand checkboxes should be available for a given
