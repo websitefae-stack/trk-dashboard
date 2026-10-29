@@ -273,25 +273,38 @@ def get_fees_report(coach=None):
 			"note": "",
 		})
 
-	# Manual historical entries are a single, business-wide figure - not
-	# attributable to one coach or split by fee type - so they only show
-	# up in the "All Coaches" view.
+	# Manual historical entries are business-wide, not attributable to one
+	# coach - so they only show up in the "All Coaches" view. Split into
+	# the same Franchise Fee / Marketing Fee fee_types the automatic rows
+	# use (each its own row, Edit/Delete acts on the one shared record -
+	# see save_manual_fee_total/delete_manual_fee_total).
 	if not coach:
 		manual_rows = frappe.get_all(
 			MANUAL_DOCTYPE,
 			filters={"period": ["<", AUTO_CUTOFF_DATE]},
-			fields=["name", "period", "amount", "note"],
+			fields=["name", "period", "franchise_fee_amount", "marketing_fee_amount", "note"],
 			ignore_permissions=True,
 		)
 		for row in manual_rows:
-			rows.append({
-				"month": getdate(row.period).isoformat(),
-				"amount": flt(row.amount, 2),
-				"source": "Manual",
-				"fee_type": "Fees Paid",
-				"name": row.name,
-				"note": row.note or "",
-			})
+			month_key = getdate(row.period).isoformat()
+			if flt(row.franchise_fee_amount, 2):
+				rows.append({
+					"month": month_key,
+					"amount": flt(row.franchise_fee_amount, 2),
+					"source": "Manual",
+					"fee_type": "Franchise Fee",
+					"name": row.name,
+					"note": row.note or "",
+				})
+			if flt(row.marketing_fee_amount, 2):
+				rows.append({
+					"month": month_key,
+					"amount": flt(row.marketing_fee_amount, 2),
+					"source": "Manual",
+					"fee_type": "Marketing Fee",
+					"name": row.name,
+					"note": row.note or "",
+				})
 
 	rows.sort(key=lambda row: (row["month"], row["fee_type"]), reverse=True)
 
@@ -308,7 +321,7 @@ def get_fees_report(coach=None):
 
 
 @frappe.whitelist()
-def save_manual_fee_total(name=None, period=None, amount=None, note=None):
+def save_manual_fee_total(name=None, period=None, franchise_fee_amount=None, marketing_fee_amount=None, note=None):
 	ensure_office_user()
 
 	if not period:
@@ -323,9 +336,17 @@ def save_manual_fee_total(name=None, period=None, amount=None, note=None):
 			)
 		)
 
-	amount = flt(amount, 2)
-	if amount < 0:
+	franchise_fee_amount = flt(franchise_fee_amount, 2)
+	marketing_fee_amount = flt(marketing_fee_amount, 2)
+	if franchise_fee_amount < 0 or marketing_fee_amount < 0:
 		frappe.throw(_("Amount cannot be negative."))
+
+	values = {
+		"period": period,
+		"franchise_fee_amount": franchise_fee_amount,
+		"marketing_fee_amount": marketing_fee_amount,
+		"note": note or "",
+	}
 
 	name = (name or "").strip()
 
@@ -333,27 +354,38 @@ def save_manual_fee_total(name=None, period=None, amount=None, note=None):
 		if not frappe.db.exists(MANUAL_DOCTYPE, name):
 			frappe.throw(_("Entry not found."))
 		doc = frappe.get_doc(MANUAL_DOCTYPE, name)
-		doc.period = period
-		doc.amount = amount
-		doc.note = note or ""
+		doc.update(values)
 		doc.save(ignore_permissions=True)
 	else:
 		existing = frappe.db.exists(MANUAL_DOCTYPE, {"period": period})
 		if existing:
 			doc = frappe.get_doc(MANUAL_DOCTYPE, existing)
-			doc.amount = amount
-			doc.note = note or ""
+			doc.update(values)
 			doc.save(ignore_permissions=True)
 		else:
-			doc = frappe.get_doc({
-				"doctype": MANUAL_DOCTYPE,
-				"period": period,
-				"amount": amount,
-				"note": note or "",
-			})
+			doc = frappe.get_doc({"doctype": MANUAL_DOCTYPE, **values})
 			doc.insert(ignore_permissions=True)
 
 	return {"name": doc.name}
+
+
+@frappe.whitelist()
+def get_manual_fee_total(name=None):
+	ensure_office_user()
+
+	name = (name or "").strip()
+	if not name or not frappe.db.exists(MANUAL_DOCTYPE, name):
+		frappe.throw(_("Entry not found."))
+
+	doc = frappe.get_doc(MANUAL_DOCTYPE, name)
+
+	return {
+		"name": doc.name,
+		"period": doc.period,
+		"franchise_fee_amount": flt(doc.franchise_fee_amount, 2),
+		"marketing_fee_amount": flt(doc.marketing_fee_amount, 2),
+		"note": doc.note or "",
+	}
 
 
 @frappe.whitelist()

@@ -79,7 +79,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Document Type",
-   "options": "Policy\nProcedure\nGuidance\nPractice Manual\nForm\nTemplate\nAgreement\nTraining\nWorkshop Resource\nOther",
+   "options": "Policy\nProcedure\nGuidance\nPractice Manual\nForm\nTemplate\nAgreement\nTraining\nWorkshop Resource\nCase Studies\nOther",
    "reqd": 1
   },
   {

@@ -11,7 +11,7 @@
       <div class="dashboard-page-header">
         <div>
           <h1 class="dashboard-page-title">Fees Paid</h1>
-          <p class="dashboard-page-subtitle">Franchise fees and marketing fees actually paid, month by month, since the business started. Months from 1 November 2026 onward are pulled automatically from the dashboard; anything before that is entered by hand below.</p>
+          <p class="dashboard-page-subtitle">Franchise fees and marketing fees actually paid, month by month, since the business started - entered by hand below, split into the two. Months from 1 November 2026 onward will be pulled automatically from the dashboard instead.</p>
         </div>
       </div>
 
@@ -64,8 +64,13 @@
           </div>
 
           <div class="dashboard-detail-field">
-            <label for="manualFeeAmount">Total Fees Paid (&pound;)</label>
-            <input type="number" class="dashboard-input" id="manualFeeAmount" min="0" step="0.01">
+            <label for="manualFeeFranchiseAmount">Franchise Fee Paid (&pound;)</label>
+            <input type="number" class="dashboard-input" id="manualFeeFranchiseAmount" min="0" step="0.01">
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="manualFeeMarketingAmount">Marketing Fee Paid (&pound;)</label>
+            <input type="number" class="dashboard-input" id="manualFeeMarketingAmount" min="0" step="0.01">
           </div>
 
           <div class="dashboard-detail-field dashboard-detail-field-full">
