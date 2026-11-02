@@ -217,3 +217,4 @@ dashboard.patches.split_manual_fee_total_into_franchise_and_marketing
 dashboard.patches.run_legal_expiry_check_now_v2
 dashboard.patches.add_coach_training_day_completed_field
 dashboard.patches.add_lms_course_original_price_field
+dashboard.patches.add_item_bonus_digital_file_fields

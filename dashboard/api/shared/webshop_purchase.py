@@ -1424,6 +1424,54 @@ def _as_system_administrator():
         frappe.set_user(previous_user)
 
 
+def _append_bonus_digital_files(digital_files, items):
+	"""
+	A limited-quantity bonus (Item.custom_bonus_digital_file/
+	custom_bonus_label/custom_bonus_limit - e.g. the first 20 buyers of
+	a course also get a free PDF) - appended to the same digital_files
+	list the regular custom_digital_file download already builds, so it
+	shows up the same way in the order confirmation email.
+
+	"First N" is counted live against actual submitted Sales Invoice
+	Item rows for this item_code (docstatus mirrors the parent on a
+	child table) rather than a separately-maintained counter field -
+	simpler, and can't drift out of sync with reality. Called after the
+	invoice this purchase created has already been submitted, so that
+	row is itself included in the count - i.e. this is the buyer's own
+	position in the queue, 1-indexed.
+	"""
+	if not frappe.get_meta("Item").has_field("custom_bonus_digital_file"):
+		return
+
+	seen_item_codes = set()
+
+	for line in items:
+		if line.item_code in seen_item_codes:
+			continue
+		seen_item_codes.add(line.item_code)
+
+		bonus = frappe.db.get_value(
+			"Item",
+			line.item_code,
+			["custom_bonus_digital_file", "custom_bonus_label", "custom_bonus_limit"],
+			as_dict=True,
+		)
+
+		if not bonus or not bonus.custom_bonus_digital_file or not bonus.custom_bonus_limit:
+			continue
+
+		paid_order_count = frappe.db.count(
+			"Sales Invoice Item",
+			filters={"item_code": line.item_code, "docstatus": 1},
+		)
+
+		if paid_order_count > bonus.custom_bonus_limit:
+			continue
+
+		label = (bonus.custom_bonus_label or "").strip() or f"{line.item_name} - Bonus"
+		digital_files.append({"item_name": label, "url": bonus.custom_bonus_digital_file})
+
+
 def _fulfil_checkout_session(session):
     stripe_session_id = session.get("id")
 
@@ -1608,6 +1656,8 @@ def _fulfil_checkout_session(session):
                 file_url = frappe.db.get_value("Item", line.item_code, "custom_digital_file")
                 if file_url:
                     digital_files.append({"item_name": line.item_name, "url": file_url})
+
+        _append_bonus_digital_files(digital_files, checkout.items)
 
         try:
             _send_order_confirmation_emails(

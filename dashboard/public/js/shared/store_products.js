@@ -15,6 +15,7 @@
   let lmsCourses = [];
   let uploadedImageUrl = "";
   let uploadedDigitalFileUrl = "";
+  let uploadedBonusFileUrl = "";
   // Each row is {url} for an already-uploaded photo or {file} for one
   // picked but not yet uploaded - both render as a thumbnail, only
   // {file} rows get uploaded (turning into {url}) at save time.
@@ -386,6 +387,10 @@
     el("storeProductDigitalFileWrap").style.display = el("storeProductIsDigital").checked ? "" : "none";
   }
 
+  function updateBonusFieldVisibility() {
+    el("storeProductBonusWrap").style.display = el("storeProductHasBonus").checked ? "" : "none";
+  }
+
   function updateUnlocksCourseFieldVisibility() {
     el("storeProductUnlocksCourseWrap").style.display = el("storeProductUnlocksCourseEnabled").checked ? "" : "none";
   }
@@ -465,6 +470,7 @@
   async function openModal(product) {
     uploadedImageUrl = product ? product.image || "" : "";
     uploadedDigitalFileUrl = product ? product.digital_file || "" : "";
+    uploadedBonusFileUrl = product ? product.bonus_digital_file || "" : "";
 
     galleryItems = [];
     renderGalleryList();
@@ -521,6 +527,20 @@
       digitalLink.style.display = "none";
     }
     el("storeProductDigitalFileInput").value = "";
+
+    el("storeProductHasBonus").checked = !!(product && product.bonus_digital_file);
+    el("storeProductBonusLabel").value = product ? product.bonus_label || "" : "";
+    el("storeProductBonusLimit").value = product && product.bonus_limit ? product.bonus_limit : "";
+    updateBonusFieldVisibility();
+
+    const bonusLink = el("storeProductBonusFileLink");
+    if (uploadedBonusFileUrl) {
+      bonusLink.href = uploadedBonusFileUrl;
+      bonusLink.style.display = "";
+    } else {
+      bonusLink.style.display = "none";
+    }
+    el("storeProductBonusFileInput").value = "";
 
     const preview = el("storeProductImagePreview");
     if (uploadedImageUrl) {
@@ -786,6 +806,18 @@
           uploadedDigitalFileUrl = "";
         }
 
+        const hasBonus = el("storeProductHasBonus").checked;
+
+        if (hasBonus) {
+          const bonusFile = el("storeProductBonusFileInput").files[0];
+          if (bonusFile) {
+            const uploaded = await uploadFile(bonusFile, true);
+            uploadedBonusFileUrl = uploaded.file_url || uploadedBonusFileUrl;
+          }
+        } else {
+          uploadedBonusFileUrl = "";
+        }
+
         const payload = {
           item_name: itemName,
           sku: el("storeProductSku").value,
@@ -817,6 +849,9 @@
           payload.stock_qty = el("storeProductStockQty").value || 0;
           payload.digital_file = isDigital ? uploadedDigitalFileUrl : "";
           payload.unlocks_course = unlocksCourseEnabled ? el("storeProductUnlocksCourse").value : "";
+          payload.bonus_digital_file = hasBonus ? uploadedBonusFileUrl : "";
+          payload.bonus_label = hasBonus ? el("storeProductBonusLabel").value : "";
+          payload.bonus_limit = hasBonus ? (el("storeProductBonusLimit").value || 0) : 0;
         }
 
         if (itemCode) {
@@ -1428,6 +1463,7 @@
     el("storeProductUnlimited").addEventListener("change", updateStockFieldVisibility);
     el("storeProductHasVariations").addEventListener("change", updateVariationsVisibility);
     el("storeProductIsDigital").addEventListener("change", updateDigitalFieldVisibility);
+    el("storeProductHasBonus").addEventListener("change", updateBonusFieldVisibility);
     el("storeProductUnlocksCourseEnabled").addEventListener("change", updateUnlocksCourseFieldVisibility);
     el("storeProductPersonalizationEnabled").addEventListener("change", updatePersonalizationFieldVisibility);
     el("generateVariantsBtn").addEventListener("click", generateVariants);
