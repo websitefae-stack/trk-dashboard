@@ -120,11 +120,8 @@
     var totalEl = el("feesGrandTotal");
     if (!totalEl) return;
 
-    var coachFilter = el("feesCoachFilter");
-    var selectedCoach = coachFilter ? coachFilter.value : "";
-
     try {
-      var data = await apiPost(SHARED_API + ".get_fees_report", { coach: selectedCoach });
+      var data = await apiPost(SHARED_API + ".get_fees_report", {});
       totalEl.textContent = formatCurrency(data.grand_total);
 
       var monthInput = el("manualFeeMonth");
@@ -137,22 +134,6 @@
     } catch (error) {
       totalEl.textContent = "-";
     }
-  }
-
-  async function loadCoachFilter() {
-    var select = el("feesCoachFilter");
-    if (!select) return;
-
-    try {
-      var coaches = await apiPost(SHARED_API + ".get_coach_options_for_fees", {});
-      select.innerHTML = '<option value="">All Coaches</option>' + (Array.isArray(coaches) ? coaches : []).map(function (c) {
-        return '<option value="' + escapeHtml(c.name) + '">' + escapeHtml(c.coach_name || c.name) + "</option>";
-      }).join("");
-    } catch (error) {
-      select.innerHTML = '<option value="">All Coaches</option>';
-    }
-
-    select.addEventListener("change", loadReport);
   }
 
   async function loadManualCoachOptions() {
@@ -482,7 +463,6 @@
     if (!el("feesGrandTotal")) return;
 
     resetForm();
-    await loadCoachFilter();
     loadManualCoachOptions();
     loadRunReportCoachOptions();
     loadReport();
