@@ -564,10 +564,17 @@ def _ensure_course_item(course_name):
     had its price cleared) is disabled rather than deleted, in case
     someone already has it in an in-progress cart/checkout.
     """
+    course_meta = frappe.get_meta("LMS Course")
+    course_fields = ["title", "paid_course", "course_price", "image"]
+    bonus_fields = ["custom_bonus_digital_file", "custom_bonus_label", "custom_bonus_limit"]
+    for fieldname in bonus_fields:
+        if course_meta.has_field(fieldname):
+            course_fields.append(fieldname)
+
     course = frappe.db.get_value(
         "LMS Course",
         course_name,
-        ["title", "paid_course", "course_price", "image"],
+        course_fields,
         as_dict=True,
     )
 
@@ -586,6 +593,19 @@ def _ensure_course_item(course_name):
     company = _store_company()
     item_meta = frappe.get_meta("Item")
 
+    # The course's own bonus fields (set in Desk on LMS Course, same
+    # place as course_price/custom_original_price) are the source of
+    # truth - copied down to the backing Item's matching custom_bonus_*
+    # fields here, same as price/title/image already are, so webshop_
+    # purchase.py's existing delivery logic (which only ever reads the
+    # Item) picks them up with no changes needed there. A course field
+    # left blank clears the Item's copy too, so un-setting a bonus in
+    # Desk actually turns it off rather than leaving a stale value.
+    bonus_updates = {}
+    for fieldname in bonus_fields:
+        if item_meta.has_field(fieldname) and fieldname in course:
+            bonus_updates[fieldname] = course.get(fieldname) or ("" if fieldname != "custom_bonus_limit" else 0)
+
     if already_exists:
         updates = {
             "item_name": course.title or item_code,
@@ -595,6 +615,7 @@ def _ensure_course_item(course_name):
         }
         if course.image and item_meta.has_field("image"):
             updates["image"] = course.image
+        updates.update(bonus_updates)
         frappe.db.set_value("Item", item_code, updates)
         _sync_item_default_row_raw(item_code, company)
     else:
@@ -610,6 +631,9 @@ def _ensure_course_item(course_name):
 
         if course.image and item_meta.has_field("image"):
             item.image = course.image
+
+        for fieldname, value in bonus_updates.items():
+            item.set(fieldname, value)
 
         _ensure_item_default_row(item, company)
 
