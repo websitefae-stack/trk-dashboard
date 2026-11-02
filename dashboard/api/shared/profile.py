@@ -62,6 +62,8 @@ ROLE_PROFILE_CONFIG = {
             "dbs_update_service": "dbs_update_services",
             "insurance": "insurance",
             "indemnity": "indemnity",
+            "identification": "identification",
+            "safeguarding_certificate": "safeguarding_certificate",
         },
     },
     "franchisor": {
@@ -112,6 +114,8 @@ ROLE_PROFILE_CONFIG = {
             "dbs_update_service": "dbs_update_services",
             "insurance": "insurance",
             "indemnity": "indemnity",
+            "identification": "identification",
+            "safeguarding_certificate": "safeguarding_certificate",
         },
     },
     "session_worker": {
@@ -184,6 +188,16 @@ LEGAL_RECORD_CONFIG = {
         "label": "ICO Certificate",
         "number_field": "indemnity_number",
         "file_field": "indemnity_file",
+    },
+    "identification": {
+        "label": "Identification",
+        "number_field": "id_number",
+        "file_field": "identification_file",
+    },
+    "safeguarding_certificate": {
+        "label": "Safeguarding Certificate",
+        "number_field": "certificate_number",
+        "file_field": "safeguarding_certificate_file",
     },
 }
 
@@ -528,6 +542,16 @@ def get_profile_context(role):
         ) or [],
         "insurance_rows": profile_doc.get(config["legal_parentfields"]["insurance"]) or [],
         "indemnity_rows": profile_doc.get(config["legal_parentfields"]["indemnity"]) or [],
+        # Coach/Ashley only (session_worker's legal_parentfields has no
+        # entry for these - Session Worker has no underlying fields at
+        # all for them) - see profile_body.html's own profile_role gate
+        # on the add buttons/sections themselves.
+        "identification_rows": (
+            profile_doc.get(config["legal_parentfields"]["identification"]) or []
+        ) if "identification" in config["legal_parentfields"] else [],
+        "safeguarding_certificate_rows": (
+            profile_doc.get(config["legal_parentfields"]["safeguarding_certificate"]) or []
+        ) if "safeguarding_certificate" in config["legal_parentfields"] else [],
         "recognitions": get_coach_recognitions(profile_doc.name),
     }
 

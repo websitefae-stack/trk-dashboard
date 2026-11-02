@@ -69,10 +69,15 @@ jinja = {
 # add_coach_recognition_field needs the Coach Recognition child doctype
 # to already exist for the same reason (Custom Field on Coach, fieldtype
 # Table, options "Coach Recognition").
+#
+# add_coach_identification_and_safeguarding_fields needs its own two new
+# child doctypes (Coach Identification, Coach Safeguarding Certificate)
+# to already exist for the same reason.
 after_migrate = [
     "dashboard.patches.create_store_manager_for_rachel_v2.execute",
     "dashboard.patches.add_item_gallery_field.execute",
     "dashboard.patches.add_coach_recognition_field.execute",
+    "dashboard.patches.add_coach_identification_and_safeguarding_fields.execute",
 ]
 
 # Keep appointments Private (Frappe's own permission model then restricts
