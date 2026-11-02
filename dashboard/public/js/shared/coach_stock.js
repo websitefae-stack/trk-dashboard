@@ -189,6 +189,7 @@
           <td>${escapeHtml(counts["Not Given - Other Reason"] || 0)}</td>
           <td>${escapeHtml(counts["Not Recorded"] || 0)}</td>
           <td>${escapeHtml(stockText)}</td>
+          <td><button type="button" class="dashboard-btn dashboard-btn-light" data-view-coach-stock="${escapeHtml(row.coach)}">View</button></td>
         </tr>
       `;
     }
@@ -199,29 +200,150 @@
         const rows = await apiPost(`${STOCK_API}.get_pack_compliance_report`, {});
         bodyEl.innerHTML = rows.length
           ? rows.map(complianceRowHtml).join("")
-          : `<tr><td colspan="6" class="dashboard-empty">No coach has a Kid/Teen client yet.</td></tr>`;
+          : `<tr><td colspan="7" class="dashboard-empty">No coach has a Kid/Teen client yet.</td></tr>`;
       } catch (error) {
-        bodyEl.innerHTML = `<tr><td colspan="6" class="dashboard-empty">${escapeHtml(error.message || "Could not load the report.")}</td></tr>`;
+        bodyEl.innerHTML = `<tr><td colspan="7" class="dashboard-empty">${escapeHtml(error.message || "Could not load the report.")}</td></tr>`;
       }
     }
 
+    // Per-coach drill-down behind each row's View button - current
+    // balances plus the two histories behind them (who they've actually
+    // given a pack to, and every stock order that topped them up).
+    function coachStockDetailRow(cells) {
+      return `<tr>${cells.map(function (cell) { return `<td>${cell}</td>`; }).join("")}</tr>`;
+    }
+
+    async function openCoachStockDetail(coach) {
+      const modal = el("coachStockDetailModal");
+      const titleEl = el("coachStockDetailTitle");
+      const balancesBody = el("coachStockDetailBalancesBody");
+      const givenBody = el("coachStockDetailGivenBody");
+      const ordersBody = el("coachStockDetailOrdersBody");
+
+      if (titleEl) titleEl.textContent = "Loading…";
+      if (balancesBody) balancesBody.innerHTML = `<tr><td colspan="2" class="dashboard-empty">Loading…</td></tr>`;
+      if (givenBody) givenBody.innerHTML = `<tr><td colspan="3" class="dashboard-empty">Loading…</td></tr>`;
+      if (ordersBody) ordersBody.innerHTML = `<tr><td colspan="4" class="dashboard-empty">Loading…</td></tr>`;
+      modal?.classList.add("is-open");
+
+      try {
+        const detail = await apiPost(`${STOCK_API}.get_coach_stock_detail`, { coach: coach });
+
+        if (titleEl) titleEl.textContent = `${detail.coach_name || coach} - Stock Detail`;
+
+        if (balancesBody) {
+          balancesBody.innerHTML = (detail.balances || []).length
+            ? detail.balances.map(function (b) {
+                return coachStockDetailRow([escapeHtml(b.item_name), escapeHtml(b.balance)]);
+              }).join("")
+            : `<tr><td colspan="2" class="dashboard-empty">No stock movements recorded yet.</td></tr>`;
+        }
+
+        if (givenBody) {
+          givenBody.innerHTML = (detail.given_to || []).length
+            ? detail.given_to.map(function (g) {
+                return coachStockDetailRow([escapeHtml(g.client_name), escapeHtml(g.item_name), escapeHtml(g.date)]);
+              }).join("")
+            : `<tr><td colspan="3" class="dashboard-empty">No packs given out yet.</td></tr>`;
+        }
+
+        if (ordersBody) {
+          ordersBody.innerHTML = (detail.orders || []).length
+            ? detail.orders.map(function (o) {
+                const orderLink = o.sales_invoice
+                  ? `<a href="${getDashboardBasePath()}/invoice_details?name=${encodeURIComponent(o.sales_invoice)}">${escapeHtml(o.sales_invoice)}</a>`
+                  : "—";
+                return coachStockDetailRow([escapeHtml(o.item_name), escapeHtml(o.quantity), orderLink, escapeHtml(o.date)]);
+              }).join("")
+            : `<tr><td colspan="4" class="dashboard-empty">No stock orders recorded yet.</td></tr>`;
+        }
+      } catch (error) {
+        if (titleEl) titleEl.textContent = "Stock Detail";
+        if (balancesBody) balancesBody.innerHTML = `<tr><td colspan="2" class="dashboard-empty">${escapeHtml(error.message || "Could not load this coach's stock detail.")}</td></tr>`;
+        if (givenBody) givenBody.innerHTML = "";
+        if (ordersBody) ordersBody.innerHTML = "";
+      }
+    }
+
+    function getDashboardBasePath() {
+      return (window.location.pathname || "").startsWith("/franchisor_db") ? "/franchisor_db" : "/coach_db";
+    }
+
+    el("stockComplianceTableBody")?.addEventListener("click", function (event) {
+      const button = event.target.closest("[data-view-coach-stock]");
+      if (!button) return;
+      openCoachStockDetail(button.dataset.viewCoachStock);
+    });
+
+    el("closeCoachStockDetailModal")?.addEventListener("click", function () {
+      el("coachStockDetailModal")?.classList.remove("is-open");
+    });
+
+    el("coachStockDetailModal")?.addEventListener("click", function (event) {
+      if (event.target === el("coachStockDetailModal")) {
+        el("coachStockDetailModal").classList.remove("is-open");
+      }
+    });
+
     // Stock Take - the whole coach roster crossed with every pack Item
-    // in one editable grid, confirmed live as the preferred way to do a
-    // real stock take over the one-coach/one-item Adjust Stock modal.
+    // in one grid, confirmed live as the preferred way to do a real
+    // stock take over the one-coach/one-item Adjust Stock modal. Reads
+    // read-only by default (stockTakeEditing=false) - a franchisor
+    // clicking into Edit is the deliberate step before any number can
+    // actually change, rather than every cell always being a live input.
     let stockTakeItems = [];
+    let stockTakeCoaches = [];
+    let stockTakeEditing = false;
 
     function stockTakeInputId(coach, itemCode) {
       return `stockTake__${coach}__${itemCode}`;
     }
 
+    function setStockTakeEditing(editing) {
+      stockTakeEditing = editing;
+      const editBtn = el("editStockTakeBtn");
+      const cancelBtn = el("cancelStockTakeBtn");
+      const saveBtn = el("saveStockTakeBtn");
+      if (editBtn) editBtn.style.display = editing ? "none" : "";
+      if (cancelBtn) cancelBtn.style.display = editing ? "" : "none";
+      if (saveBtn) saveBtn.style.display = editing ? "" : "none";
+      renderStockTakeBody();
+    }
+
+    function renderStockTakeBody() {
+      const bodyEl = el("stockTakeTableBody");
+      if (!bodyEl) return;
+
+      if (!stockTakeCoaches.length) {
+        bodyEl.innerHTML = `<tr><td colspan="${1 + stockTakeItems.length}" class="dashboard-empty">No coaches found.</td></tr>`;
+        return;
+      }
+
+      if (!stockTakeItems.length) {
+        bodyEl.innerHTML = `<tr><td class="dashboard-empty">No Kid Pack/Teen Pack Item set up yet - nothing to count.</td></tr>`;
+        return;
+      }
+
+      bodyEl.innerHTML = stockTakeCoaches.map(function (row) {
+        const cells = stockTakeItems.map(function (item) {
+          const value = (row.balances || {})[item.item_code] || 0;
+          if (!stockTakeEditing) {
+            return `<td>${escapeHtml(value)}</td>`;
+          }
+          return `<td><input type="number" min="0" class="dashboard-input" id="${escapeHtml(stockTakeInputId(row.coach, item.item_code))}" data-stock-take-coach="${escapeHtml(row.coach)}" data-stock-take-item="${escapeHtml(item.item_code)}" data-original-value="${escapeHtml(value)}" value="${escapeHtml(value)}" style="width:90px;"></td>`;
+        }).join("");
+        return `<tr><td>${escapeHtml(row.coach_name)}</td>${cells}</tr>`;
+      }).join("");
+    }
+
     async function loadStockTake() {
       const headEl = el("stockTakeTableHead");
       const bodyEl = el("stockTakeTableBody");
-      const columnCount = 1 + stockTakeItems.length;
 
       try {
         const data = await apiPost(`${STOCK_API}.get_coach_stock_take_rows`, {});
         stockTakeItems = data.items || [];
+        stockTakeCoaches = data.coaches || [];
 
         if (headEl) {
           headEl.innerHTML = "<th>Coach</th>" + stockTakeItems.map(function (item) {
@@ -229,27 +351,9 @@
           }).join("");
         }
 
-        if (!bodyEl) return;
-
-        if (!data.coaches || !data.coaches.length) {
-          bodyEl.innerHTML = `<tr><td colspan="${1 + stockTakeItems.length}" class="dashboard-empty">No coaches found.</td></tr>`;
-          return;
-        }
-
-        if (!stockTakeItems.length) {
-          bodyEl.innerHTML = `<tr><td class="dashboard-empty">No Kid Pack/Teen Pack Item set up yet - nothing to count.</td></tr>`;
-          return;
-        }
-
-        bodyEl.innerHTML = data.coaches.map(function (row) {
-          const cells = stockTakeItems.map(function (item) {
-            const value = (row.balances || {})[item.item_code] || 0;
-            return `<td><input type="number" min="0" class="dashboard-input" id="${escapeHtml(stockTakeInputId(row.coach, item.item_code))}" data-stock-take-coach="${escapeHtml(row.coach)}" data-stock-take-item="${escapeHtml(item.item_code)}" data-original-value="${escapeHtml(value)}" value="${escapeHtml(value)}" style="width:90px;"></td>`;
-          }).join("");
-          return `<tr><td>${escapeHtml(row.coach_name)}</td>${cells}</tr>`;
-        }).join("");
+        renderStockTakeBody();
       } catch (error) {
-        if (bodyEl) bodyEl.innerHTML = `<tr><td colspan="${columnCount}" class="dashboard-empty">${escapeHtml(error.message || "Could not load the stock take.")}</td></tr>`;
+        if (bodyEl) bodyEl.innerHTML = `<tr><td colspan="${1 + stockTakeItems.length}" class="dashboard-empty">${escapeHtml(error.message || "Could not load the stock take.")}</td></tr>`;
       }
     }
 
@@ -271,6 +375,7 @@
 
       if (!updates.length) {
         if (messageEl) { messageEl.textContent = "Nothing's changed."; messageEl.style.color = ""; }
+        setStockTakeEditing(false);
         return;
       }
 
@@ -283,6 +388,7 @@
           messageEl.textContent = `Saved - ${result.updated} ${result.updated === 1 ? "count" : "counts"} updated.`;
           messageEl.style.color = "#007274";
         }
+        setStockTakeEditing(false);
         await loadStockTake();
         await loadComplianceReport();
       } catch (error) {
@@ -292,6 +398,12 @@
       }
     }
 
+    el("editStockTakeBtn")?.addEventListener("click", function () {
+      setStockTakeEditing(true);
+    });
+    el("cancelStockTakeBtn")?.addEventListener("click", function () {
+      setStockTakeEditing(false);
+    });
     el("saveStockTakeBtn")?.addEventListener("click", saveStockTake);
 
     async function ensureAdjustmentOptionsLoaded() {
