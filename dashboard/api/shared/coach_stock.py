@@ -128,22 +128,19 @@ def _balance_for_item(coach, item):
 @frappe.whitelist()
 def get_pack_item_options():
     """Franchisor-only - the Item choices for a manual stock adjustment.
-    Kid Pack/Teen Pack by item_name, OR (for future extensibility -
-    additional workbook SKUs this build deliberately doesn't wire up
-    anywhere else, but shouldn't need a code change just to appear
-    here) any Item flagged custom_store_enabled. Doesn't auto-create Kid
-    Pack/Teen Pack if either is missing from this site - this just
-    comes back without them, and the franchisor-facing page says so
-    rather than erroring."""
+    Kid Pack/Teen Pack by item_name ONLY - staff stock is just those two,
+    full stop (previously this also pulled in every custom_store_enabled
+    Item "for future extensibility", which meant every physical store
+    product showed up here too, not just the two packs). Doesn't
+    auto-create Kid Pack/Teen Pack if either is missing from this site -
+    this just comes back without them, and the franchisor-facing page
+    says so rather than erroring."""
     if not is_franchisor_user():
         frappe.throw(_("Only the franchisor can manage stock."), frappe.PermissionError)
 
     rows = frappe.get_all(
         "Item",
-        or_filters=[
-            ["item_name", "in", list(PACK_ITEM_NAMES)],
-            ["custom_store_enabled", "=", 1],
-        ],
+        filters={"item_name": ["in", list(PACK_ITEM_NAMES)]},
         fields=["name", "item_name"],
         order_by="item_name asc",
         limit_page_length=0,
