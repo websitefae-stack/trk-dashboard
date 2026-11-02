@@ -431,20 +431,64 @@
 
   var latestTransactionRows = [];
 
+  // One line per (coach, month) with Franchise Fee and Marketing Fee as
+  // their own columns, instead of two separate rows (one per fee type)
+  // - the raw get_fees_report() rows are split that way for the tabs
+  // above, but shown side by side like this a Manual entry's two
+  // amounts are just one line again, same as the Add a Historical Month
+  // form that created them. Anything that's neither (an automatic
+  // payment before the Fee Items are configured) folds into Total only.
+  function buildTransactionRows(rows) {
+    var byKey = {};
+    var order = [];
+
+    rows.forEach(function (row) {
+      var key = row.name ? "manual:" + row.name : row.source + "|" + row.month + "|" + (row.coach || "");
+      if (!byKey[key]) {
+        byKey[key] = {
+          month: row.month,
+          coach_label: row.coach_label,
+          source: row.source,
+          franchise_fee_total: 0,
+          marketing_fee_total: 0,
+          other_total: 0,
+        };
+        order.push(key);
+      }
+      var bucket = byKey[key];
+      if (row.fee_type === "Franchise Fee") {
+        bucket.franchise_fee_total += row.amount;
+      } else if (row.fee_type === "Marketing Fee") {
+        bucket.marketing_fee_total += row.amount;
+      } else {
+        bucket.other_total += row.amount;
+      }
+    });
+
+    return order.map(function (key) {
+      var row = byKey[key];
+      row.total = row.franchise_fee_total + row.marketing_fee_total + row.other_total;
+      return row;
+    });
+  }
+
   function renderTransactions(rows, coachLabel) {
     var wrap = el("feesReportTransactionsWrap");
     var container = el("feesReportTransactions");
     if (!wrap || !container) return;
 
-    latestTransactionRows = rows.map(function (row) {
+    var withLabels = rows.map(function (row) {
       return {
         month: row.month,
         coach_label: row.coach_label || coachLabel || "",
         fee_type: row.fee_type,
         source: row.source,
         amount: row.amount,
+        name: row.name,
       };
     });
+
+    latestTransactionRows = buildTransactionRows(withLabels);
 
     wrap.style.display = latestTransactionRows.length ? "" : "none";
 
@@ -455,16 +499,17 @@
 
     container.innerHTML =
       '<table class="dashboard-table"><thead><tr>' +
-        "<th>Month</th><th>Coach</th><th>Fee Type</th><th>Source</th><th>Amount</th>" +
+        "<th>Month</th><th>Coach</th><th>Franchise Fee</th><th>Marketing Fee</th><th>Total</th><th>Source</th>" +
       "</tr></thead><tbody>" +
       latestTransactionRows.map(function (row) {
         return (
           "<tr>" +
             "<td>" + escapeHtml(formatMonth(row.month)) + "</td>" +
             "<td>" + escapeHtml(row.coach_label) + "</td>" +
-            "<td>" + escapeHtml(row.fee_type) + "</td>" +
+            "<td>" + formatCurrency(row.franchise_fee_total) + "</td>" +
+            "<td>" + formatCurrency(row.marketing_fee_total) + "</td>" +
+            "<td style=\"font-weight:700;\">" + formatCurrency(row.total) + "</td>" +
             "<td>" + escapeHtml(row.source) + "</td>" +
-            "<td>" + formatCurrency(row.amount) + "</td>" +
           "</tr>"
         );
       }).join("") +
@@ -479,14 +524,15 @@
   function downloadTransactionsCsv() {
     if (!latestTransactionRows.length) return;
 
-    var lines = [["Month", "Coach", "Fee Type", "Source", "Amount"].join(",")];
+    var lines = [["Month", "Coach", "Franchise Fee", "Marketing Fee", "Total", "Source"].join(",")];
     latestTransactionRows.forEach(function (row) {
       lines.push([
         csvCell(formatMonth(row.month)),
         csvCell(row.coach_label),
-        csvCell(row.fee_type),
+        csvCell(Number(row.franchise_fee_total || 0).toFixed(2)),
+        csvCell(Number(row.marketing_fee_total || 0).toFixed(2)),
+        csvCell(Number(row.total || 0).toFixed(2)),
         csvCell(row.source),
-        csvCell(Number(row.amount || 0).toFixed(2)),
       ].join(","));
     });
 
