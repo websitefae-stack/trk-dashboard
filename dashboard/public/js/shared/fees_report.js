@@ -1,12 +1,15 @@
 /**
- * "Fees Paid" page (franchisor_db/fees_report) - a month-by-month
- * history of franchise + marketing fees actually paid, combining
- * Ashley's own hand-entered historical totals (before 1 November 2026)
- * with figures pulled automatically from real payment data from that
- * date on (dashboard.api.shared.fees_report.get_fees_report). The add/
- * edit form only ever touches the manual (pre-cutoff) rows - an
- * automatic row has no Edit/Delete, since it's a live reflection of
- * actual payments, not something to hand-adjust here.
+ * "Fees Paid" page (franchisor_db/fees_report) - franchise + marketing
+ * fees actually paid, combining Ashley's own hand-entered historical
+ * totals (before 1 November 2026) with figures pulled automatically
+ * from real payment data from that date on
+ * (dashboard.api.shared.fees_report.get_fees_report). The add/edit form
+ * only ever touches the manual (pre-cutoff) rows - an automatic row has
+ * no Edit/Delete, since it's a live reflection of actual payments, not
+ * something to hand-adjust here. "Run a Report" is the one place that
+ * shows the actual data (totals + transaction list, both filterable by
+ * coach and date range) - Edit/Delete for a Manual entry lives in its
+ * Transactions table.
  */
 (function () {
   "use strict";
@@ -59,129 +62,6 @@
     return date.toLocaleDateString(undefined, { month: "long", year: "numeric" });
   }
 
-  function renderRow(row, showCoach) {
-    var isManual = row.source === "Manual";
-    var badgeClass = isManual ? "dashboard-badge" : "dashboard-badge dashboard-status-active";
-
-    return (
-      '<div class="dashboard-card" data-fee-name="' + escapeHtml(row.name) + '" data-fee-month="' + escapeHtml(row.month) + '" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">' +
-        '<div>' +
-          '<div style="font-weight:600;">' + escapeHtml(formatMonth(row.month)) + "</div>" +
-          (showCoach && row.coach_label ? '<div style="color:#536666; font-size:13px; margin-top:2px;">' + escapeHtml(row.coach_label) + "</div>" : "") +
-          (row.note ? '<div style="color:#839898; font-size:13px; margin-top:2px;">' + escapeHtml(row.note) + "</div>" : "") +
-        "</div>" +
-        '<div style="display:flex; align-items:center; gap:10px;">' +
-          '<span class="' + badgeClass + '">' + escapeHtml(row.source) + "</span>" +
-          '<div style="font-weight:700; font-size:16px; min-width:110px; text-align:right;">' + formatCurrency(row.amount) + "</div>" +
-          (isManual
-            ? '<button type="button" class="dashboard-btn dashboard-btn-grey dashboard-fee-edit">Edit</button>' +
-              '<button type="button" class="dashboard-btn dashboard-btn-grey dashboard-fee-delete">Delete</button>'
-            : "") +
-        "</div>" +
-      "</div>"
-    );
-  }
-
-  // Which of the 3 tabs above the main list is active - Franchise Fee/
-  // Marketing Fee just filter the already-loaded rows by fee_type;
-  // Total Fee merges a (coach, month) pair's Franchise + Marketing rows
-  // back into one combined amount (for a Manual entry that's literally
-  // the same underlying record - see buildTotalRows()).
-  var activeFeeTab = "Franchise Fee";
-  var latestRows = [];
-
-  function buildTotalRows(rows) {
-    var byKey = {};
-    var order = [];
-
-    rows.forEach(function (row) {
-      var key = row.name ? "manual:" + row.name : row.source + "|" + row.month + "|" + (row.coach || "");
-      if (!byKey[key]) {
-        byKey[key] = {
-          month: row.month,
-          amount: 0,
-          source: row.source,
-          fee_type: "Total Fee",
-          coach: row.coach,
-          coach_label: row.coach_label,
-          name: row.name,
-          note: row.note,
-        };
-        order.push(key);
-      }
-      byKey[key].amount += row.amount;
-    });
-
-    return order.map(function (key) { return byKey[key]; });
-  }
-
-  function renderActiveTab() {
-    var coachFilter = el("feesCoachFilter");
-    var selectedCoach = coachFilter ? coachFilter.value : "";
-
-    var rows;
-    if (activeFeeTab === "Total Fee") {
-      rows = buildTotalRows(latestRows);
-    } else {
-      rows = latestRows.filter(function (row) { return row.fee_type === activeFeeTab; });
-    }
-
-    renderList(rows, !selectedCoach);
-  }
-
-  function initFeeTabs() {
-    var tabsWrap = el("feesListTabs");
-    if (!tabsWrap) return;
-
-    tabsWrap.querySelectorAll(".dashboard-tab-btn[data-fee-tab]").forEach(function (button) {
-      button.addEventListener("click", function () {
-        tabsWrap.querySelectorAll(".dashboard-tab-btn").forEach(function (btn) {
-          btn.classList.toggle("is-active", btn === button);
-        });
-        activeFeeTab = button.dataset.feeTab;
-        renderActiveTab();
-      });
-    });
-  }
-
-  function renderList(rows, showCoach) {
-    var list = el("feesReportList");
-    if (!list) return;
-
-    if (!rows.length) {
-      list.innerHTML = '<div class="dashboard-card"><div class="dashboard-empty">No fees recorded yet.</div></div>';
-      return;
-    }
-
-    list.innerHTML = rows.map(function (row) { return renderRow(row, showCoach); }).join("");
-
-    list.querySelectorAll(".dashboard-fee-edit").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        var card = btn.closest("[data-fee-name]");
-        if (!card) return;
-        loadRowIntoForm(card.dataset.feeName);
-      });
-    });
-
-    list.querySelectorAll(".dashboard-fee-delete").forEach(function (btn) {
-      btn.addEventListener("click", async function () {
-        var card = btn.closest("[data-fee-name]");
-        var name = card && card.dataset.feeName;
-        if (!name) return;
-        if (!window.confirm("Delete this month's entry?")) return;
-
-        btn.disabled = true;
-        try {
-          await apiPost(SHARED_API + ".delete_manual_fee_total", { name: name });
-          await loadReport();
-        } catch (error) {
-          window.alert(error.message || "Could not delete this entry.");
-          btn.disabled = false;
-        }
-      });
-    });
-  }
-
   async function loadRowIntoForm(name) {
     try {
       // Fetched by name (not read off the already-loaded rows) because a
@@ -211,10 +91,19 @@
     }
   }
 
+  // Ashley raises the invoice on the 1st of the month for the month
+  // that just ended, so the month she's about to enter a figure for is
+  // almost always last month, not the current one.
+  function lastMonthValue() {
+    var now = new Date();
+    var date = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
+  }
+
   function resetForm() {
     el("manualFeeName").value = "";
     el("manualFeeCoach").value = "";
-    el("manualFeeMonth").value = "";
+    el("manualFeeMonth").value = lastMonthValue();
     el("manualFeeFranchiseAmount").value = "";
     el("manualFeeMarketingAmount").value = "";
     el("manualFeeNote").value = "";
@@ -228,20 +117,15 @@
   }
 
   async function loadReport() {
-    var list = el("feesReportList");
-    if (!list) return;
+    var totalEl = el("feesGrandTotal");
+    if (!totalEl) return;
 
     var coachFilter = el("feesCoachFilter");
     var selectedCoach = coachFilter ? coachFilter.value : "";
 
     try {
       var data = await apiPost(SHARED_API + ".get_fees_report", { coach: selectedCoach });
-      latestRows = Array.isArray(data.rows) ? data.rows : [];
-
-      var totalEl = el("feesGrandTotal");
-      if (totalEl) totalEl.textContent = formatCurrency(data.grand_total);
-
-      renderActiveTab();
+      totalEl.textContent = formatCurrency(data.grand_total);
 
       var monthInput = el("manualFeeMonth");
       if (monthInput && data.auto_cutoff_date) {
@@ -251,7 +135,7 @@
         monthInput.max = lastManualMonth.getFullYear() + "-" + String(lastManualMonth.getMonth() + 1).padStart(2, "0");
       }
     } catch (error) {
-      list.innerHTML = '<div class="dashboard-card"><div class="dashboard-empty">' + escapeHtml(error.message || "Could not load the fees report.") + "</div></div>";
+      totalEl.textContent = "-";
     }
   }
 
@@ -283,56 +167,6 @@
     } catch (error) {
       select.innerHTML = '<option value="">Could not load coaches</option>';
     }
-  }
-
-  async function loadItemOptions(selectEl, selectedValue) {
-    try {
-      var items = await apiPost("dashboard.api.shared.invoices.get_link_options", { doctype: "Item" });
-      items = Array.isArray(items) ? items : [];
-      selectEl.innerHTML = '<option value="">Not set</option>' + items.map(function (item) {
-        return '<option value="' + escapeHtml(item.name) + '">' + escapeHtml(item.label || item.name) + "</option>";
-      }).join("");
-      selectEl.value = selectedValue || "";
-    } catch (error) {
-      selectEl.innerHTML = '<option value="">Could not load items</option>';
-    }
-  }
-
-  async function loadFeesSettings() {
-    var franchiseSelect = el("feesFranchiseItem");
-    var marketingSelect = el("feesMarketingItem");
-    if (!franchiseSelect || !marketingSelect) return;
-
-    try {
-      var settings = await apiPost(SHARED_API + ".get_fees_report_settings", {});
-      await Promise.all([
-        loadItemOptions(franchiseSelect, settings.franchise_fee_item),
-        loadItemOptions(marketingSelect, settings.marketing_fee_item),
-      ]);
-    } catch (error) {
-      window.alert(error.message || "Could not load fee item settings.");
-    }
-  }
-
-  function initSettingsForm() {
-    var saveBtn = el("saveFeesSettingsBtn");
-    if (!saveBtn) return;
-
-    saveBtn.addEventListener("click", async function () {
-      saveBtn.disabled = true;
-      try {
-        await apiPost(SHARED_API + ".save_fees_report_settings", {
-          franchise_fee_item: el("feesFranchiseItem").value,
-          marketing_fee_item: el("feesMarketingItem").value,
-        });
-        await loadReport();
-        window.alert("Settings saved.");
-      } catch (error) {
-        window.alert(error.message || "Could not save settings.");
-      } finally {
-        saveBtn.disabled = false;
-      }
-    });
   }
 
   function initForm() {
@@ -372,6 +206,7 @@
 
         resetForm();
         await loadReport();
+        await runReport();
       } catch (error) {
         window.alert(error.message || "Could not save this month.");
       } finally {
@@ -433,11 +268,11 @@
 
   // One line per (coach, month) with Franchise Fee and Marketing Fee as
   // their own columns, instead of two separate rows (one per fee type)
-  // - the raw get_fees_report() rows are split that way for the tabs
-  // above, but shown side by side like this a Manual entry's two
-  // amounts are just one line again, same as the Add a Historical Month
-  // form that created them. Anything that's neither (an automatic
-  // payment before the Fee Items are configured) folds into Total only.
+  // - the raw get_fees_report() rows are split that way internally, but
+  // shown side by side like this a Manual entry's two amounts are just
+  // one line again, same as the Add a Historical Month form that
+  // created them. Anything that's neither (an automatic payment before
+  // the Fee Items are configured) folds into Total only.
   function buildTransactionRows(rows) {
     var byKey = {};
     var order = [];
@@ -449,6 +284,7 @@
           month: row.month,
           coach_label: row.coach_label,
           source: row.source,
+          name: row.name || "",
           franchise_fee_total: 0,
           marketing_fee_total: 0,
           other_total: 0,
@@ -499,21 +335,53 @@
 
     container.innerHTML =
       '<table class="dashboard-table"><thead><tr>' +
-        "<th>Month</th><th>Coach</th><th>Franchise Fee</th><th>Marketing Fee</th><th>Total</th><th>Source</th>" +
+        "<th>Month</th><th>Coach</th><th>Franchise Fee</th><th>Marketing Fee</th><th>Total</th><th>Source</th><th></th>" +
       "</tr></thead><tbody>" +
       latestTransactionRows.map(function (row) {
         return (
-          "<tr>" +
+          '<tr data-txn-name="' + escapeHtml(row.name) + '">' +
             "<td>" + escapeHtml(formatMonth(row.month)) + "</td>" +
             "<td>" + escapeHtml(row.coach_label) + "</td>" +
             "<td>" + formatCurrency(row.franchise_fee_total) + "</td>" +
             "<td>" + formatCurrency(row.marketing_fee_total) + "</td>" +
             "<td style=\"font-weight:700;\">" + formatCurrency(row.total) + "</td>" +
             "<td>" + escapeHtml(row.source) + "</td>" +
+            "<td style=\"white-space:nowrap;\">" +
+              (row.source === "Manual"
+                ? '<button type="button" class="dashboard-btn dashboard-btn-grey dashboard-txn-edit">Edit</button> ' +
+                  '<button type="button" class="dashboard-btn dashboard-btn-grey dashboard-txn-delete">Delete</button>'
+                : "") +
+            "</td>" +
           "</tr>"
         );
       }).join("") +
       "</tbody></table>";
+
+    container.querySelectorAll(".dashboard-txn-edit").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var row = btn.closest("[data-txn-name]");
+        if (row && row.dataset.txnName) loadRowIntoForm(row.dataset.txnName);
+      });
+    });
+
+    container.querySelectorAll(".dashboard-txn-delete").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        var row = btn.closest("[data-txn-name]");
+        var name = row && row.dataset.txnName;
+        if (!name) return;
+        if (!window.confirm("Delete this entry?")) return;
+
+        btn.disabled = true;
+        try {
+          await apiPost(SHARED_API + ".delete_manual_fee_total", { name: name });
+          await loadReport();
+          await runReport();
+        } catch (error) {
+          window.alert(error.message || "Could not delete this entry.");
+          btn.disabled = false;
+        }
+      });
+    });
   }
 
   function csvCell(value) {
@@ -561,33 +429,46 @@
     }
   }
 
+  // Last-run report args/coach label, kept so an Edit or Delete made
+  // from the Transactions table below can silently re-run the same
+  // report afterward - a no-op if nothing's been run yet.
+  var lastRunArgs = null;
+  var lastRunCoachLabel = "";
+
+  async function runReport() {
+    if (!lastRunArgs) return;
+
+    try {
+      var totals = await apiPost(SHARED_API + ".get_fee_totals_by_coach", lastRunArgs);
+      renderReportSummary(lastRunArgs.coach, Array.isArray(totals) ? totals : []);
+
+      var reportData = await apiPost(SHARED_API + ".get_fees_report", lastRunArgs);
+      renderTransactions(Array.isArray(reportData.rows) ? reportData.rows : [], lastRunArgs.coach ? lastRunCoachLabel : "");
+    } catch (error) {
+      var summary = el("feesReportSummary");
+      if (summary) summary.innerHTML = '<div class="dashboard-empty">' + escapeHtml(error.message || "Could not run this report.") + "</div>";
+    }
+  }
+
   function initRunReport() {
     var runBtn = el("runFeesReportBtn");
     if (!runBtn) return;
 
     runBtn.addEventListener("click", async function () {
       var coachSelect = el("feesRunReportCoach");
-      var coach = coachSelect.value;
-      var coachLabel = coachSelect.options[coachSelect.selectedIndex] ? coachSelect.options[coachSelect.selectedIndex].text : "";
+      lastRunCoachLabel = coachSelect.options[coachSelect.selectedIndex] ? coachSelect.options[coachSelect.selectedIndex].text : "";
       var fromMonth = el("feesRunReportFrom").value;
       var toMonth = el("feesRunReportTo").value;
 
-      var args = {
-        coach: coach,
+      lastRunArgs = {
+        coach: coachSelect.value,
         from_month: fromMonth ? fromMonth + "-01" : null,
         to_month: toMonth ? toMonth + "-01" : null,
       };
 
       runBtn.disabled = true;
       try {
-        var totals = await apiPost(SHARED_API + ".get_fee_totals_by_coach", args);
-        renderReportSummary(coach, Array.isArray(totals) ? totals : []);
-
-        var reportData = await apiPost(SHARED_API + ".get_fees_report", args);
-        renderTransactions(Array.isArray(reportData.rows) ? reportData.rows : [], coach ? coachLabel : "");
-      } catch (error) {
-        var summary = el("feesReportSummary");
-        if (summary) summary.innerHTML = '<div class="dashboard-empty">' + escapeHtml(error.message || "Could not run this report.") + "</div>";
+        await runReport();
       } finally {
         runBtn.disabled = false;
       }
@@ -598,16 +479,14 @@
   }
 
   async function init() {
-    if (!el("feesReportList")) return;
+    if (!el("feesGrandTotal")) return;
 
+    resetForm();
     await loadCoachFilter();
     loadManualCoachOptions();
     loadRunReportCoachOptions();
-    loadFeesSettings();
-    initFeeTabs();
     loadReport();
     initForm();
-    initSettingsForm();
     initRunReport();
   }
 
