@@ -234,15 +234,23 @@ def _process_invoice(invoice_name):
         )
         return
 
+    from dashboard.api.shared.webshop_purchase import _ensure_portal_access
+    from dashboard.api.shared.portal_access import _ensure_user_account
+
+    # Must happen BEFORE _enrol_in_courses - LMS Enrollment.member links
+    # to the LMS "Member" record frappe_lms creates alongside a new User,
+    # so enrolling before that User exists throws LinkValidationError
+    # ("Could not find Member: ...") for any first-time buyer with no
+    # portal account yet (confirmed live - ACC-SINV-2026-00467). The
+    # Stripe webshop flow (webshop_purchase.py) already gets this order
+    # right - this just matches it.
+    _ensure_user_account(email, full_name)
+
     newly_enrolled = _enrol_in_courses(email, courses)
     if not newly_enrolled:
         return
 
-    from dashboard.api.shared.webshop_purchase import _ensure_portal_access
-    from dashboard.api.shared.portal_access import _ensure_user_account
-
     _ensure_portal_access(client_name, contact_name, email)
-    _ensure_user_account(email, full_name)
 
     _send_course_access_email(email, full_name, newly_enrolled, "Sales Invoice", invoice.name)
 
