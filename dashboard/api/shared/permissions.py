@@ -589,8 +589,19 @@ def _latest_dated_row(rows, number_field):
 # hardcoded 30s.
 MISSING_DOCUMENT_GRACE_DAYS = 30
 
+# Coach-only (not Session Worker, which has no Training Day concept) -
+# once a coach has actually been through Training Day
+# (Coach.training_day_completed_on - see onboarding._stamp_training_day_
+# completed), the grace period for a missing legal document is 60 days,
+# not 30 - these are documents normally sorted out that day, so a coach
+# gets longer once it's actually possible for them to have them. Before
+# Training Day, there's no grace period at all: see get_expired_legal_
+# items/_due_soon_items's own "not done yet" early-exit, not this
+# constant.
+COACH_MISSING_DOCUMENT_GRACE_DAYS = 60
 
-def _missing_item_if_grace_period_over(label, missing_since, today):
+
+def _missing_item_if_grace_period_over(label, missing_since, today, grace_days=MISSING_DOCUMENT_GRACE_DAYS):
     if not missing_since:
         return None
 
@@ -599,10 +610,34 @@ def _missing_item_if_grace_period_over(label, missing_since, today):
     except Exception:
         return None
 
-    if (today - missing_since_date).days >= MISSING_DOCUMENT_GRACE_DAYS:
+    if (today - missing_since_date).days >= grace_days:
         return {"label": label, "number": "", "expiry_date": None, "missing": True}
 
     return None
+
+
+def _effective_missing_since(missing_since, training_day_completed_on):
+    """
+    The later of the two, as a date - a coach's grace period for a
+    missing document never starts counting before Training Day, even
+    if missing_since was itself stamped earlier (e.g. the daily check
+    ran once before Training Day happened). Session Worker never has a
+    training_day_completed_on to pass in here, so this is just
+    missing_since unchanged for that type.
+    """
+    dates = []
+    if missing_since:
+        try:
+            dates.append(frappe.utils.getdate(missing_since))
+        except Exception:
+            pass
+    if training_day_completed_on:
+        try:
+            dates.append(frappe.utils.getdate(training_day_completed_on))
+        except Exception:
+            pass
+
+    return max(dates) if dates else None
 
 
 def get_expired_legal_items(doc, dashboard_type):
@@ -621,16 +656,30 @@ def get_expired_legal_items(doc, dashboard_type):
     than provided and now lapsed) used to never show up here at all -
     _latest_dated_row returns None for an empty table, so dbs_family_best/
     best below was simply skipped. Ashley's rule: that should still block
-    access, just with a 30-day grace period from whenever it's first
-    noticed missing. legal_expiry_reminders.send_legal_expiry_reminders
-    (run daily, plus once immediately on deploy) is what actually stamps
-    dbs_missing_since/insurance_missing_since/ico_missing_since - this
-    function only ever reads them, never writes, since it runs on every
-    page load and a 30-day grace period doesn't need write-on-every-
-    page-load precision.
+    access, just with a grace period from whenever it's first noticed
+    missing. legal_expiry_reminders.send_legal_expiry_reminders (run
+    daily, plus once immediately on deploy) is what actually stamps
+    dbs_missing_since/insurance_missing_since/ico_missing_since/etc -
+    this function only ever reads them, never writes, since it runs on
+    every page load and a 30/60-day grace period doesn't need write-on-
+    every-page-load precision.
+
+    Coach-only: the grace period doesn't start counting at all until
+    the coach has actually been through Training Day (Coach.training_
+    day_completed_on - see onboarding._stamp_training_day_completed),
+    and runs 60 days (COACH_MISSING_DOCUMENT_GRACE_DAYS) rather than 30
+    once it does, counted from whichever is later: Training Day, or
+    whenever a document was first noticed missing. Ashley's rule - a
+    coach who hasn't had the chance to actually be given/sort these
+    documents yet (normally done that day) shouldn't already be on a
+    lockout clock for them. Session Worker has no Training Day concept
+    at all, so keeps the plain 30-day-from-missing_since behaviour.
     """
     expired = []
     today = frappe.utils.getdate(frappe.utils.today())
+
+    training_day_completed_on = None
+    grace_days = MISSING_DOCUMENT_GRACE_DAYS
 
     if dashboard_type == "coach":
         dbs_update_field = "dbs_update_services"
@@ -643,6 +692,18 @@ def get_expired_legal_items(doc, dashboard_type):
             ("Identification", "identification", "id_number", "identification_missing_since"),
             ("Safeguarding Certificate", "safeguarding_certificate", "certificate_number", "safeguarding_certificate_missing_since"),
         ]
+
+        training_day_completed_on = doc.get("training_day_completed_on")
+        if not training_day_completed_on:
+            # Hasn't been through Training Day yet - every missing-
+            # document check below is skipped entirely (not merely
+            # delayed), regardless of how long ago it was first
+            # noticed missing. An already-expired (as opposed to
+            # missing) document is unaffected - that's a real document
+            # that's genuinely lapsed, nothing to do with Training Day.
+            return expired
+
+        grace_days = COACH_MISSING_DOCUMENT_GRACE_DAYS
     elif dashboard_type == "session_worker":
         dbs_update_field = "dbs_update_service"
         plain_tables = [
@@ -672,7 +733,8 @@ def get_expired_legal_items(doc, dashboard_type):
                 "expiry_date": dbs_family_best["expiry_date"],
             })
     else:
-        missing_item = _missing_item_if_grace_period_over("DBS", doc.get("dbs_missing_since"), today)
+        effective_missing_since = _effective_missing_since(doc.get("dbs_missing_since"), training_day_completed_on)
+        missing_item = _missing_item_if_grace_period_over("DBS", effective_missing_since, today, grace_days=grace_days)
         if missing_item:
             expired.append(missing_item)
 
@@ -700,7 +762,8 @@ def get_expired_legal_items(doc, dashboard_type):
                 })
 
         if not has_dated_row:
-            missing_item = _missing_item_if_grace_period_over(label, doc.get(missing_since_field), today)
+            effective_missing_since = _effective_missing_since(doc.get(missing_since_field), training_day_completed_on)
+            missing_item = _missing_item_if_grace_period_over(label, effective_missing_since, today, grace_days=grace_days)
             if missing_item:
                 expired.append(missing_item)
 

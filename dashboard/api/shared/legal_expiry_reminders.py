@@ -8,20 +8,25 @@ whichever date actually matters for compliance:
 - A document that's on file but expiring soon - counts down to its own
   expiry_date, same as before.
 - A document that's not on file at all - counts down to the end of its
-  30-day grace period instead (see permissions.MISSING_DOCUMENT_GRACE_
-  DAYS/get_expired_legal_items), starting from the day this job first
-  notices it's missing and stamps dbs_missing_since/insurance_missing_
-  since/ico_missing_since (see patches/add_legal_missing_since_fields.py)
-  - a brand new "this document hasn't been provided" notification fires
-  that same day, functioning as the "30 days" reminder for that case.
+  grace period instead (see permissions.MISSING_DOCUMENT_GRACE_DAYS/
+  COACH_MISSING_DOCUMENT_GRACE_DAYS/get_expired_legal_items), starting
+  from the day this job first notices it's missing and stamps dbs_
+  missing_since/insurance_missing_since/ico_missing_since/etc (see
+  patches/add_legal_missing_since_fields.py) - a brand new "this
+  document hasn't been provided" notification fires that same day,
+  functioning as the first reminder for that case. For a coach, that
+  grace period doesn't start at all until Training Day (see _due_soon_
+  items's own docstring), and is 60 days rather than 30 once it does.
 
 Both paths reuse the exact same "which row is the one that counts"
 resolution permissions.get_expired_legal_items itself uses
 (permissions._latest_dated_row / the combined DBS + DBS Update Service
 rule), so a reminder's countdown always tracks the same date that would
 actually lock the person out - never a stale/superseded row, and never
-a different 30-day number than the one enforce_legal_compliance
-actually enforces (both read permissions.MISSING_DOCUMENT_GRACE_DAYS).
+a different grace-period number than the one enforce_legal_compliance
+actually enforces (both read permissions.MISSING_DOCUMENT_GRACE_DAYS/
+COACH_MISSING_DOCUMENT_GRACE_DAYS and permissions._effective_missing_
+since).
 
 Session Workers are included deliberately (Ashley confirmed) - they
 have the exact same DBS/Insurance/ICO Certificate fields and the exact
@@ -53,7 +58,12 @@ import frappe
 
 from dashboard.api.shared.item_access import _get_coach_login
 from dashboard.api.shared.notifications import create_trk_notification, OFFICE_USER
-from dashboard.api.shared.permissions import MISSING_DOCUMENT_GRACE_DAYS, _latest_dated_row
+from dashboard.api.shared.permissions import (
+    MISSING_DOCUMENT_GRACE_DAYS,
+    COACH_MISSING_DOCUMENT_GRACE_DAYS,
+    _effective_missing_since,
+    _latest_dated_row,
+)
 from dashboard.api.shared.practice_documents import _get_session_worker_login
 
 THRESHOLD_DAYS = (30, 7, 1)
@@ -114,7 +124,33 @@ def _sync_missing_since(doctype, name, doc, missing_since_field, is_missing, tod
 
 
 def _due_soon_items(doctype, name, doc, config, today):
+    """
+    Coach-only: a missing document's countdown doesn't start at all
+    until the coach has actually been through Training Day (Coach.
+    training_day_completed_on - see onboarding._stamp_training_day_
+    completed), and runs 60 days instead of 30 once it does, counted
+    from whichever is later: Training Day, or whenever first noticed
+    missing - same rule, same reasoning, as permissions.
+    get_expired_legal_items. _sync_missing_since still runs either way
+    (harmless bookkeeping - the 60-day countdown below takes the later
+    of the two dates regardless of when missing_since itself was
+    stamped), it's only the reminder emitted from it that's skipped
+    pre-Training-Day. An already-on-file document's own expiry
+    countdown (the `if best/dbs_family_best:` branches) is never
+    gated - that's a real document, nothing to do with Training Day.
+    """
     due = []
+
+    training_day_completed_on = None
+    grace_days = MISSING_DOCUMENT_GRACE_DAYS
+    skip_missing_reminders = False
+
+    if doctype == "Coach":
+        training_day_completed_on = doc.get("training_day_completed_on")
+        if training_day_completed_on:
+            grace_days = COACH_MISSING_DOCUMENT_GRACE_DAYS
+        else:
+            skip_missing_reminders = True
 
     dbs_best = _latest_dated_row(doc.get("dbs"), "dbs_number")
     update_best = _latest_dated_row(doc.get(config["dbs_update_field"]), "dbs_number")
@@ -131,9 +167,11 @@ def _due_soon_items(doctype, name, doc, config, today):
             due.append(("DBS", False, dbs_family_best["expiry_date"], days_until))
     else:
         missing_since = _sync_missing_since(doctype, name, doc, "dbs_missing_since", True, today)
-        days_until = MISSING_DOCUMENT_GRACE_DAYS - (today - missing_since).days
-        if days_until in THRESHOLD_DAYS:
-            due.append(("DBS", True, None, days_until))
+        if not skip_missing_reminders:
+            effective_since = _effective_missing_since(missing_since, training_day_completed_on)
+            days_until = grace_days - (today - effective_since).days
+            if days_until in THRESHOLD_DAYS:
+                due.append(("DBS", True, None, days_until))
 
     for label, table_field, number_field, missing_since_field in config["plain_tables"]:
         best = _latest_dated_row(doc.get(table_field), number_field)
@@ -145,9 +183,11 @@ def _due_soon_items(doctype, name, doc, config, today):
                 due.append((label, False, best["expiry_date"], days_until))
         else:
             missing_since = _sync_missing_since(doctype, name, doc, missing_since_field, True, today)
-            days_until = MISSING_DOCUMENT_GRACE_DAYS - (today - missing_since).days
-            if days_until in THRESHOLD_DAYS:
-                due.append((label, True, None, days_until))
+            if not skip_missing_reminders:
+                effective_since = _effective_missing_since(missing_since, training_day_completed_on)
+                days_until = grace_days - (today - effective_since).days
+                if days_until in THRESHOLD_DAYS:
+                    due.append((label, True, None, days_until))
 
     return due
 

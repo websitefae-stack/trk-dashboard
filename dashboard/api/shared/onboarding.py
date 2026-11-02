@@ -22,6 +22,14 @@ from frappe.utils import now_datetime
 from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user, get_current_coach_name
 from dashboard.api.shared.utils import coalesce_str
 
+# The one HQ-owned step that gates the start of the legal-document
+# compliance clock - see _stamp_training_day_completed below. Exact
+# text seeded by seed_onboarding_steps.py/restructure_onboarding_
+# journey_v3.py (TRAINING_DAY_NAME_MATCH there - same string, kept as
+# its own constant here rather than imported since patches are never
+# meant to be imported from).
+TRAINING_DAY_STEP_NAME = "Training Day - curriculum, Resilient Kid Values, Resilient Kid Framework, Photoshoot"
+
 COACH_ONBOARDING_STEP_DOCTYPE = "Coach Onboarding Step"
 # Deliberately NOT "Onboarding Step" - that name collides with a doctype
 # Frappe's own core framework already ships (used for ERPNext's built-in
@@ -767,6 +775,31 @@ def _insert_dynamic_stage(stages, dynamic_stage, after_stage_number):
     stages.insert(insert_at, dynamic_stage)
 
 
+def _stamp_training_day_completed(row):
+    """
+    Sets the coach's Coach.training_day_completed_on the first time
+    their Training Day step is actually marked Done - this is what
+    legal-document compliance (permissions.get_expired_legal_items,
+    legal_expiry_reminders.py) waits for before starting any missing-
+    document grace period at all, per Ashley's rule: a coach who
+    hasn't been through Training Day yet shouldn't have a 30/60-day
+    clock already ticking on documents that are normally sorted out
+    that day. Never overwrites an already-set date.
+    """
+    if row.step_name != TRAINING_DAY_STEP_NAME or not row.coach:
+        return
+
+    if not frappe.get_meta("Coach").has_field("training_day_completed_on"):
+        return
+
+    if frappe.db.get_value("Coach", row.coach, "training_day_completed_on"):
+        return
+
+    frappe.db.set_value(
+        "Coach", row.coach, "training_day_completed_on", frappe.utils.today(), update_modified=False
+    )
+
+
 @frappe.whitelist()
 def mark_step_done(step_name=None, coach=None):
     """
@@ -807,6 +840,7 @@ def mark_step_done(step_name=None, coach=None):
 
     row.status = "Done"
     row.save(ignore_permissions=True)
+    _stamp_training_day_completed(row)
     frappe.db.commit()
 
     return {"ok": True, "status": row.status}
@@ -837,6 +871,8 @@ def mark_step_done_for_coach(step_name=None, status=None):
     row = frappe.get_doc(COACH_ONBOARDING_STEP_DOCTYPE, step_name)
     row.status = status
     row.save(ignore_permissions=True)
+    if status == "Done":
+        _stamp_training_day_completed(row)
     frappe.db.commit()
 
     return {"ok": True, "status": row.status}
