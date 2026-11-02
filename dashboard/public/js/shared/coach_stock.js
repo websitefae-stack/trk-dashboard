@@ -505,8 +505,95 @@
       });
     }
 
+    // HQ Stock - a simple, read-first list of what's held at HQ itself
+    // (Item.custom_stock_qty, the same field Manage Store -> Stock Take
+    // manages via its own fuller recount workflow). Same closed-by-
+    // default/Edit-to-change pattern as the Stock Take grid above, but
+    // this is Ashley's own quick "I gave one of these away" nudge, not
+    // a formal recount - saving here only ever touches custom_stock_qty.
+    let hqStockItems = [];
+    let hqStockEditing = false;
+
+    function setHqStockEditing(editing) {
+      hqStockEditing = editing;
+      const editBtn = el("editHqStockBtn");
+      const cancelBtn = el("cancelHqStockBtn");
+      const saveBtn = el("saveHqStockBtn");
+      if (editBtn) editBtn.style.display = editing ? "none" : "";
+      if (cancelBtn) cancelBtn.style.display = editing ? "" : "none";
+      if (saveBtn) saveBtn.style.display = editing ? "" : "none";
+      renderHqStockBody();
+    }
+
+    function renderHqStockBody() {
+      const bodyEl = el("hqStockTableBody");
+      if (!bodyEl) return;
+
+      if (!hqStockItems.length) {
+        bodyEl.innerHTML = `<tr><td colspan="2" class="dashboard-empty">No tracked stock items yet - set one up in Manage Store.</td></tr>`;
+        return;
+      }
+
+      bodyEl.innerHTML = hqStockItems.map(function (item) {
+        if (!hqStockEditing) {
+          return `<tr><td>${escapeHtml(item.item_name)}</td><td>${escapeHtml(item.stock_qty)}</td></tr>`;
+        }
+        return `<tr><td>${escapeHtml(item.item_name)}</td><td><input type="number" min="0" class="dashboard-input" data-hq-stock-item="${escapeHtml(item.item_code)}" data-original-value="${escapeHtml(item.stock_qty)}" value="${escapeHtml(item.stock_qty)}" style="width:90px;"></td></tr>`;
+      }).join("");
+    }
+
+    async function loadHqStock() {
+      const bodyEl = el("hqStockTableBody");
+      try {
+        hqStockItems = await apiPost(`${STOCK_API}.get_hq_stock_overview`, {});
+        renderHqStockBody();
+      } catch (error) {
+        if (bodyEl) bodyEl.innerHTML = `<tr><td colspan="2" class="dashboard-empty">${escapeHtml(error.message || "Could not load HQ stock.")}</td></tr>`;
+      }
+    }
+
+    async function saveHqStock() {
+      const saveBtn = el("saveHqStockBtn");
+      const messageEl = el("hqStockMessage");
+
+      const updates = [];
+      document.querySelectorAll("#hqStockTableBody [data-hq-stock-item]").forEach(function (input) {
+        const original = input.dataset.originalValue;
+        if (input.value === original || input.value === "") return;
+        updates.push({ item_code: input.dataset.hqStockItem, stock_qty: parseInt(input.value, 10) || 0 });
+      });
+
+      if (!updates.length) {
+        if (messageEl) { messageEl.textContent = "Nothing's changed."; messageEl.style.color = ""; }
+        setHqStockEditing(false);
+        return;
+      }
+
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving..."; }
+      if (messageEl) messageEl.textContent = "";
+
+      try {
+        const result = await apiPost(`${STOCK_API}.update_hq_stock_quantities`, { updates: JSON.stringify(updates) });
+        if (messageEl) {
+          messageEl.textContent = `Saved - ${result.updated} ${result.updated === 1 ? "item" : "items"} updated.`;
+          messageEl.style.color = "#007274";
+        }
+        setHqStockEditing(false);
+        await loadHqStock();
+      } catch (error) {
+        if (messageEl) { messageEl.textContent = error.message || "Could not save."; messageEl.style.color = "#C01C3E"; }
+      } finally {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save"; }
+      }
+    }
+
+    el("editHqStockBtn")?.addEventListener("click", function () { setHqStockEditing(true); });
+    el("cancelHqStockBtn")?.addEventListener("click", function () { setHqStockEditing(false); });
+    el("saveHqStockBtn")?.addEventListener("click", saveHqStock);
+
     loadComplianceReport();
     loadStockTake();
+    loadHqStock();
   }
 
   function init() {

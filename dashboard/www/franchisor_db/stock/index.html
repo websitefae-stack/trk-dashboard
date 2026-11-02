@@ -64,6 +64,27 @@
         </div>
       </div>
 
+      <div class="dashboard-card" style="margin-top:20px;">
+        <div class="dashboard-table-header">
+          <div>
+            <div class="dashboard-table-title">HQ Stock</div>
+            <p class="dashboard-page-subtitle" style="margin:4px 0 0;">What's currently held at HQ - click Edit to update a count after giving something away from your own stock. "Always Available" items aren't tracked, so they don't appear here.</p>
+          </div>
+          <div>
+            <button type="button" class="dashboard-btn dashboard-btn-light" id="editHqStockBtn">Edit</button>
+            <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelHqStockBtn" style="display:none;">Cancel</button>
+            <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveHqStockBtn" style="display:none;">Save</button>
+          </div>
+        </div>
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table dashboard-table-compact">
+            <thead><tr><th>Item</th><th>Quantity</th></tr></thead>
+            <tbody id="hqStockTableBody"><tr><td colspan="2" class="dashboard-empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="dashboard-help" id="hqStockMessage" style="margin-top:10px;"></div>
+      </div>
+
     </div>
   </div>
 </div>
