@@ -1,7 +1,9 @@
 """
 Daily reminders to coaches and session workers about their DBS (or DBS
-Update Service), Insurance, and ICO Certificate - at 30 days, 7 days
-and 1 day before whichever date actually matters for compliance:
+Update Service), Insurance, and ICO Certificate - plus, for coaches
+only (Ashley included, since she's also a Coach record), Identification
+and Safeguarding Certificate - at 30 days, 7 days and 1 day before
+whichever date actually matters for compliance:
 
 - A document that's on file but expiring soon - counts down to its own
   expiry_date, same as before.
@@ -22,10 +24,12 @@ a different 30-day number than the one enforce_legal_compliance
 actually enforces (both read permissions.MISSING_DOCUMENT_GRACE_DAYS).
 
 Session Workers are included deliberately (Ashley confirmed) - they
-have the exact same three fields and the exact same lockout risk, just
-under slightly different DBS-Update-Service fieldnames (dbs_missing_
-since/insurance_missing_since/ico_missing_since are the same name on
-both doctypes - see _DASHBOARD_CONFIG below).
+have the exact same DBS/Insurance/ICO Certificate fields and the exact
+same lockout risk (just not Identification/Safeguarding Certificate,
+which Session Worker has no fields for at all), under slightly
+different DBS-Update-Service fieldnames (dbs_missing_since/insurance_
+missing_since/ico_missing_since are the same name on both doctypes -
+see _DASHBOARD_CONFIG below).
 
 Runs once a day (see hooks.py's "0 10 * * *" cron entry, the same slot
 this app's other predictable-hour notification jobs use), plus once
@@ -54,26 +58,37 @@ from dashboard.api.shared.practice_documents import _get_session_worker_login
 
 THRESHOLD_DAYS = (30, 7, 1)
 
+_COMMON_PLAIN_TABLES = [
+    ("Insurance", "insurance", "insurance_number", "insurance_missing_since"),
+    ("ICO Certificate", "indemnity", "indemnity_number", "ico_missing_since"),
+]
+
+# Identification/Safeguarding Certificate are coach-only (Ashley
+# included, since she's also a Coach record) - Session Worker has no
+# underlying fields for either, so it keeps just the two common ones.
+_COACH_ONLY_PLAIN_TABLES = [
+    ("Identification", "identification", "id_number", "identification_missing_since"),
+    ("Safeguarding Certificate", "safeguarding_certificate", "certificate_number", "safeguarding_certificate_missing_since"),
+]
+
 _DASHBOARD_CONFIG = {
     "coach": {
         "doctype": "Coach",
         "dbs_update_field": "dbs_update_services",
         "login_resolver": _get_coach_login,
+        # (label, child table fieldname, number fieldname, missing-since
+        # fieldname) - same fieldname set covers both DBS-family
+        # (handled separately below, since it spans two tables) and
+        # every plain table.
+        "plain_tables": _COMMON_PLAIN_TABLES + _COACH_ONLY_PLAIN_TABLES,
     },
     "session_worker": {
         "doctype": "Session Worker",
         "dbs_update_field": "dbs_update_service",
         "login_resolver": _get_session_worker_login,
+        "plain_tables": _COMMON_PLAIN_TABLES,
     },
 }
-
-# (label, child table fieldname, number fieldname, missing-since fieldname)
-# - same fieldname set covers both DBS-family (handled separately below,
-# since it spans two tables) and the two plain tables.
-_PLAIN_TABLES = [
-    ("Insurance", "insurance", "insurance_number", "insurance_missing_since"),
-    ("ICO Certificate", "indemnity", "indemnity_number", "ico_missing_since"),
-]
 
 
 def _sync_missing_since(doctype, name, doc, missing_since_field, is_missing, today):
@@ -120,7 +135,7 @@ def _due_soon_items(doctype, name, doc, config, today):
         if days_until in THRESHOLD_DAYS:
             due.append(("DBS", True, None, days_until))
 
-    for label, table_field, number_field, missing_since_field in _PLAIN_TABLES:
+    for label, table_field, number_field, missing_since_field in config["plain_tables"]:
         best = _latest_dated_row(doc.get(table_field), number_field)
 
         if best:

@@ -340,6 +340,10 @@
             <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="dbs_update_service">Add Update Service</button>
             <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="insurance">Add Insurance</button>
             <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="indemnity">Add ICO Certificate</button>
+            {% if profile_role in ["coach", "franchisor"] %}
+              <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="identification">Add Identification</button>
+              <button type="button" class="dashboard-btn dashboard-btn-light legal-toggle-btn" data-target-type="safeguarding_certificate">Add Safeguarding Certificate</button>
+            {% endif %}
           </div>
 
           {% set legal_sections = [
@@ -393,6 +397,35 @@
               "colspan": 5
             }
           ] %}
+
+          {% if profile_role in ["coach", "franchisor"] %}
+            {% set legal_sections = legal_sections + [
+              {
+                "type": "identification",
+                "title": "Identification",
+                "number_label": "ID Number (Passport or Driving Licence)",
+                "file_label": "ID File",
+                "file_name": "identification_file",
+                "rows": identification_rows,
+                "number_field": "id_number",
+                "file_field": "identification_file",
+                "empty": "No Identification records found.",
+                "colspan": 5
+              },
+              {
+                "type": "safeguarding_certificate",
+                "title": "Safeguarding Certificate",
+                "number_label": "Certificate Number",
+                "file_label": "Certificate File",
+                "file_name": "safeguarding_certificate_file",
+                "rows": safeguarding_certificate_rows,
+                "number_field": "certificate_number",
+                "file_field": "safeguarding_certificate_file",
+                "empty": "No Safeguarding Certificate records found.",
+                "colspan": 5
+              }
+            ] %}
+          {% endif %}
 
           {% for section in legal_sections %}
             <div class="dashboard-detail-section legal-add-section" style="margin-bottom:20px; display:none;" {% if session_worker_is_view_mode %}data-view-readonly="1"{% endif %}>

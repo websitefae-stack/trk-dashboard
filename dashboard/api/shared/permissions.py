@@ -637,6 +637,11 @@ def get_expired_legal_items(doc, dashboard_type):
         plain_tables = [
             ("Insurance", "insurance", "insurance_number", "insurance_missing_since"),
             ("ICO Certificate", "indemnity", "indemnity_number", "ico_missing_since"),
+            # Coach-only (Ashley included, since she's also a Coach
+            # record) - Session Worker has no underlying fields for
+            # either of these, so they're never checked for that type.
+            ("Identification", "identification", "id_number", "identification_missing_since"),
+            ("Safeguarding Certificate", "safeguarding_certificate", "certificate_number", "safeguarding_certificate_missing_since"),
         ]
     elif dashboard_type == "session_worker":
         dbs_update_field = "dbs_update_service"
