@@ -790,6 +790,7 @@ def get_store_products(search=None):
             "custom_digital_file", "custom_unlocks_lms_course", "custom_short_description", "custom_sku",
             "custom_personalization_enabled", "custom_personalization_label", "custom_logo_choice_enabled",
             "custom_item_visibility", "custom_coach_price", "custom_weight", "custom_weight_unit",
+            "custom_bonus_digital_file", "custom_bonus_label", "custom_bonus_limit",
         ]
         if item_meta.has_field(f)
     ]
@@ -867,6 +868,9 @@ def get_store_products(search=None):
             "brands": {fieldname: bool(item.get(fieldname)) for fieldname in brand_fieldnames},
             "digital_file": item.get("custom_digital_file") or "",
             "unlocks_course": item.get("custom_unlocks_lms_course") or "",
+            "bonus_digital_file": item.get("custom_bonus_digital_file") or "",
+            "bonus_label": item.get("custom_bonus_label") or "",
+            "bonus_limit": item.get("custom_bonus_limit") or 0,
             "sku": item.get("custom_sku") or "",
             "personalization_enabled": bool(item.get("custom_personalization_enabled")),
             "personalization_label": item.get("custom_personalization_label") or "",
@@ -883,7 +887,8 @@ def create_store_product(item_name=None, description=None, short_description=Non
                           stock_qty=None, unlimited_stock=None, brands=None, image=None,
                           digital_file=None, unlocks_course=None, sku=None, gallery_images=None,
                           personalization_enabled=None, personalization_label=None, logo_choice_enabled=None,
-                          visibility=None, coach_price=None, weight=None, weight_unit=None):
+                          visibility=None, coach_price=None, weight=None, weight_unit=None,
+                          bonus_digital_file=None, bonus_label=None, bonus_limit=None):
     """
     An Item with this exact name can already exist without being a store
     product yet - e.g. something tracked elsewhere in the system
@@ -957,6 +962,15 @@ def create_store_product(item_name=None, description=None, short_description=Non
         if unlocks_course and item_meta.has_field("custom_unlocks_lms_course"):
             updates["custom_unlocks_lms_course"] = unlocks_course
 
+        if bonus_digital_file is not None and item_meta.has_field("custom_bonus_digital_file"):
+            updates["custom_bonus_digital_file"] = bonus_digital_file
+
+        if bonus_label is not None and item_meta.has_field("custom_bonus_label"):
+            updates["custom_bonus_label"] = bonus_label.strip()
+
+        if bonus_limit is not None and item_meta.has_field("custom_bonus_limit"):
+            updates["custom_bonus_limit"] = _to_int(bonus_limit)
+
         parsed_brands = _parse_brands(brands)
         for fieldname in BRAND_FIELDNAMES:
             if item_meta.has_field(fieldname):
@@ -1012,6 +1026,15 @@ def create_store_product(item_name=None, description=None, short_description=Non
     if unlocks_course and _item_meta_has_field("custom_unlocks_lms_course"):
         item.custom_unlocks_lms_course = unlocks_course
 
+    if bonus_digital_file and _item_meta_has_field("custom_bonus_digital_file"):
+        item.custom_bonus_digital_file = bonus_digital_file
+
+    if bonus_label and _item_meta_has_field("custom_bonus_label"):
+        item.custom_bonus_label = bonus_label.strip()
+
+    if bonus_limit and _item_meta_has_field("custom_bonus_limit"):
+        item.custom_bonus_limit = _to_int(bonus_limit)
+
     parsed_brands = _parse_brands(brands)
     for fieldname in BRAND_FIELDNAMES:
         if _item_meta_has_field(fieldname):
@@ -1040,7 +1063,8 @@ def update_store_product(item_code=None, item_name=None, description=None, short
                           item_group=None, price=None, stock_qty=None, unlimited_stock=None, brands=None,
                           disabled=None, image=None, digital_file=None, unlocks_course=None, sku=None,
                           gallery_images=None, personalization_enabled=None, personalization_label=None,
-                          logo_choice_enabled=None, visibility=None, coach_price=None, weight=None, weight_unit=None):
+                          logo_choice_enabled=None, visibility=None, coach_price=None, weight=None, weight_unit=None,
+                          bonus_digital_file=None, bonus_label=None, bonus_limit=None):
     """
     Writes straight to the database (frappe.db.set_value + direct child-
     row management) rather than loading the Item as a Document and
@@ -1112,6 +1136,15 @@ def update_store_product(item_code=None, item_name=None, description=None, short
 
     if unlocks_course is not None and item_meta.has_field("custom_unlocks_lms_course"):
         updates["custom_unlocks_lms_course"] = unlocks_course
+
+    if bonus_digital_file is not None and item_meta.has_field("custom_bonus_digital_file"):
+        updates["custom_bonus_digital_file"] = bonus_digital_file
+
+    if bonus_label is not None and item_meta.has_field("custom_bonus_label"):
+        updates["custom_bonus_label"] = bonus_label.strip()
+
+    if bonus_limit is not None and item_meta.has_field("custom_bonus_limit"):
+        updates["custom_bonus_limit"] = _to_int(bonus_limit)
 
     parsed_brands = _parse_brands(brands)
     for fieldname in BRAND_FIELDNAMES:

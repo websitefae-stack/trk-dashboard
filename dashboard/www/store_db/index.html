@@ -231,6 +231,28 @@
           </select>
           <p class="dashboard-help">Buying this product automatically enrols the buyer in the selected course.</p>
         </div>
+
+        <div style="margin:14px 0 10px;">
+          <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
+            <input type="checkbox" id="storeProductHasBonus">
+            Give the first few buyers a bonus download
+          </label>
+        </div>
+
+        <div id="storeProductBonusWrap" style="display:none;">
+          <label for="storeProductBonusFileInput">Bonus File</label>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <a id="storeProductBonusFileLink" href="#" target="_blank" style="display:none;">Current file</a>
+            <input type="file" id="storeProductBonusFileInput">
+          </div>
+
+          <label for="storeProductBonusLabel" style="margin-top:10px;">Bonus Label</label>
+          <input type="text" id="storeProductBonusLabel" class="dashboard-input" placeholder="e.g. Ashley's Book (PDF)">
+
+          <label for="storeProductBonusLimit" style="margin-top:10px;">Bonus Limit</label>
+          <input type="number" id="storeProductBonusLimit" class="dashboard-input" min="1" step="1" placeholder="e.g. 20">
+          <p class="dashboard-help">The first this many buyers (in purchase order) also get this file in their order confirmation email - after that, buyers just get the usual confirmation with no bonus.</p>
+        </div>
       </div>
 
       <div id="storeVariationsFields" style="display:none;">
