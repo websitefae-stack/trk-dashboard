@@ -66,7 +66,7 @@
     return (
       '<div class="dashboard-card" data-fee-name="' + escapeHtml(row.name) + '" data-fee-month="' + escapeHtml(row.month) + '" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">' +
         '<div>' +
-          '<div style="font-weight:600;">' + escapeHtml(formatMonth(row.month)) + (row.fee_type && row.fee_type !== "Fees Paid" ? " - " + escapeHtml(row.fee_type) : "") + "</div>" +
+          '<div style="font-weight:600;">' + escapeHtml(formatMonth(row.month)) + "</div>" +
           (showCoach && row.coach_label ? '<div style="color:#536666; font-size:13px; margin-top:2px;">' + escapeHtml(row.coach_label) + "</div>" : "") +
           (row.note ? '<div style="color:#839898; font-size:13px; margin-top:2px;">' + escapeHtml(row.note) + "</div>" : "") +
         "</div>" +
@@ -80,6 +80,68 @@
         "</div>" +
       "</div>"
     );
+  }
+
+  // Which of the 3 tabs above the main list is active - Franchise Fee/
+  // Marketing Fee just filter the already-loaded rows by fee_type;
+  // Total Fee merges a (coach, month) pair's Franchise + Marketing rows
+  // back into one combined amount (for a Manual entry that's literally
+  // the same underlying record - see buildTotalRows()).
+  var activeFeeTab = "Franchise Fee";
+  var latestRows = [];
+
+  function buildTotalRows(rows) {
+    var byKey = {};
+    var order = [];
+
+    rows.forEach(function (row) {
+      var key = row.name ? "manual:" + row.name : row.source + "|" + row.month + "|" + (row.coach || "");
+      if (!byKey[key]) {
+        byKey[key] = {
+          month: row.month,
+          amount: 0,
+          source: row.source,
+          fee_type: "Total Fee",
+          coach: row.coach,
+          coach_label: row.coach_label,
+          name: row.name,
+          note: row.note,
+        };
+        order.push(key);
+      }
+      byKey[key].amount += row.amount;
+    });
+
+    return order.map(function (key) { return byKey[key]; });
+  }
+
+  function renderActiveTab() {
+    var coachFilter = el("feesCoachFilter");
+    var selectedCoach = coachFilter ? coachFilter.value : "";
+
+    var rows;
+    if (activeFeeTab === "Total Fee") {
+      rows = buildTotalRows(latestRows);
+    } else {
+      rows = latestRows.filter(function (row) { return row.fee_type === activeFeeTab; });
+    }
+
+    renderList(rows, !selectedCoach);
+  }
+
+  function initFeeTabs() {
+    var tabsWrap = el("feesListTabs");
+    if (!tabsWrap) return;
+
+    tabsWrap.querySelectorAll(".dashboard-tab-btn[data-fee-tab]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        tabsWrap.querySelectorAll(".dashboard-tab-btn").forEach(function (btn) {
+          btn.classList.toggle("is-active", btn === button);
+        });
+        activeFeeTab = button.dataset.feeTab;
+        renderActiveTab();
+      });
+    });
   }
 
   function renderList(rows, showCoach) {
@@ -174,12 +236,12 @@
 
     try {
       var data = await apiPost(SHARED_API + ".get_fees_report", { coach: selectedCoach });
-      var rows = Array.isArray(data.rows) ? data.rows : [];
+      latestRows = Array.isArray(data.rows) ? data.rows : [];
 
       var totalEl = el("feesGrandTotal");
       if (totalEl) totalEl.textContent = formatCurrency(data.grand_total);
 
-      renderList(rows, !selectedCoach);
+      renderActiveTab();
 
       var monthInput = el("manualFeeMonth");
       if (monthInput && data.auto_cutoff_date) {
@@ -321,54 +383,172 @@
     if (cancelBtn) cancelBtn.addEventListener("click", resetForm);
   }
 
-  function renderByCoachResults(rows) {
-    var container = el("feesByCoachResults");
+  function statTile(label, amount) {
+    return (
+      '<div>' +
+        '<div style="font-size:12px; text-transform:uppercase; letter-spacing:0.04em; color:#839898;">' + escapeHtml(label) + "</div>" +
+        '<div style="font-size:24px; font-weight:700;">' + formatCurrency(amount) + "</div>" +
+      "</div>"
+    );
+  }
+
+  function renderReportSummary(selectedCoach, totals) {
+    var container = el("feesReportSummary");
     if (!container) return;
 
-    if (!rows.length) {
-      container.innerHTML = '<div class="dashboard-empty">No fees recorded for this period.</div>';
+    if (!selectedCoach) {
+      if (!totals.length) {
+        container.innerHTML = '<div class="dashboard-empty">No fees recorded for this period.</div>';
+        return;
+      }
+
+      container.innerHTML =
+        '<table class="dashboard-table"><thead><tr>' +
+          "<th>Coach</th><th>Franchise Fee</th><th>Marketing Fee</th><th>Total</th>" +
+        "</tr></thead><tbody>" +
+        totals.map(function (row) {
+          return (
+            "<tr>" +
+              "<td>" + escapeHtml(row.coach_label) + "</td>" +
+              "<td>" + formatCurrency(row.franchise_fee_total) + "</td>" +
+              "<td>" + formatCurrency(row.marketing_fee_total) + "</td>" +
+              "<td style=\"font-weight:700;\">" + formatCurrency(row.total) + "</td>" +
+            "</tr>"
+          );
+        }).join("") +
+        "</tbody></table>";
+      return;
+    }
+
+    var row = totals[0] || { franchise_fee_total: 0, marketing_fee_total: 0, total: 0 };
+    container.innerHTML =
+      '<div style="display:flex; gap:28px; flex-wrap:wrap;">' +
+        statTile("Franchise Fee", row.franchise_fee_total) +
+        statTile("Marketing Fee", row.marketing_fee_total) +
+        statTile("Total", row.total) +
+      "</div>";
+  }
+
+  var latestTransactionRows = [];
+
+  function renderTransactions(rows, coachLabel) {
+    var wrap = el("feesReportTransactionsWrap");
+    var container = el("feesReportTransactions");
+    if (!wrap || !container) return;
+
+    latestTransactionRows = rows.map(function (row) {
+      return {
+        month: row.month,
+        coach_label: row.coach_label || coachLabel || "",
+        fee_type: row.fee_type,
+        source: row.source,
+        amount: row.amount,
+      };
+    });
+
+    wrap.style.display = latestTransactionRows.length ? "" : "none";
+
+    if (!latestTransactionRows.length) {
+      container.innerHTML = '<div class="dashboard-empty">No transactions for this period.</div>';
       return;
     }
 
     container.innerHTML =
       '<table class="dashboard-table"><thead><tr>' +
-        "<th>Coach</th><th>Franchise Fee</th><th>Marketing Fee</th><th>Total</th>" +
+        "<th>Month</th><th>Coach</th><th>Fee Type</th><th>Source</th><th>Amount</th>" +
       "</tr></thead><tbody>" +
-      rows.map(function (row) {
+      latestTransactionRows.map(function (row) {
         return (
           "<tr>" +
+            "<td>" + escapeHtml(formatMonth(row.month)) + "</td>" +
             "<td>" + escapeHtml(row.coach_label) + "</td>" +
-            "<td>" + formatCurrency(row.franchise_fee_total) + "</td>" +
-            "<td>" + formatCurrency(row.marketing_fee_total) + "</td>" +
-            "<td style=\"font-weight:700;\">" + formatCurrency(row.total) + "</td>" +
+            "<td>" + escapeHtml(row.fee_type) + "</td>" +
+            "<td>" + escapeHtml(row.source) + "</td>" +
+            "<td>" + formatCurrency(row.amount) + "</td>" +
           "</tr>"
         );
       }).join("") +
       "</tbody></table>";
   }
 
-  function initByCoachReport() {
-    var runBtn = el("runFeesByCoachBtn");
+  function csvCell(value) {
+    var str = String(value == null ? "" : value);
+    return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+  }
+
+  function downloadTransactionsCsv() {
+    if (!latestTransactionRows.length) return;
+
+    var lines = [["Month", "Coach", "Fee Type", "Source", "Amount"].join(",")];
+    latestTransactionRows.forEach(function (row) {
+      lines.push([
+        csvCell(formatMonth(row.month)),
+        csvCell(row.coach_label),
+        csvCell(row.fee_type),
+        csvCell(row.source),
+        csvCell(Number(row.amount || 0).toFixed(2)),
+      ].join(","));
+    });
+
+    var blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = "fees-report.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  async function loadRunReportCoachOptions() {
+    var select = el("feesRunReportCoach");
+    if (!select) return;
+
+    try {
+      var coaches = await apiPost(SHARED_API + ".get_coach_options_for_fees", {});
+      select.innerHTML = '<option value="">All Coaches</option>' + (Array.isArray(coaches) ? coaches : []).map(function (c) {
+        return '<option value="' + escapeHtml(c.name) + '">' + escapeHtml(c.coach_name || c.name) + "</option>";
+      }).join("");
+    } catch (error) {
+      select.innerHTML = '<option value="">All Coaches</option>';
+    }
+  }
+
+  function initRunReport() {
+    var runBtn = el("runFeesReportBtn");
     if (!runBtn) return;
 
     runBtn.addEventListener("click", async function () {
-      var fromMonth = el("feesByCoachFrom").value;
-      var toMonth = el("feesByCoachTo").value;
+      var coachSelect = el("feesRunReportCoach");
+      var coach = coachSelect.value;
+      var coachLabel = coachSelect.options[coachSelect.selectedIndex] ? coachSelect.options[coachSelect.selectedIndex].text : "";
+      var fromMonth = el("feesRunReportFrom").value;
+      var toMonth = el("feesRunReportTo").value;
+
+      var args = {
+        coach: coach,
+        from_month: fromMonth ? fromMonth + "-01" : null,
+        to_month: toMonth ? toMonth + "-01" : null,
+      };
 
       runBtn.disabled = true;
       try {
-        var rows = await apiPost(SHARED_API + ".get_fee_totals_by_coach", {
-          from_month: fromMonth ? fromMonth + "-01" : null,
-          to_month: toMonth ? toMonth + "-01" : null,
-        });
-        renderByCoachResults(Array.isArray(rows) ? rows : []);
+        var totals = await apiPost(SHARED_API + ".get_fee_totals_by_coach", args);
+        renderReportSummary(coach, Array.isArray(totals) ? totals : []);
+
+        var reportData = await apiPost(SHARED_API + ".get_fees_report", args);
+        renderTransactions(Array.isArray(reportData.rows) ? reportData.rows : [], coach ? coachLabel : "");
       } catch (error) {
-        var container = el("feesByCoachResults");
-        if (container) container.innerHTML = '<div class="dashboard-empty">' + escapeHtml(error.message || "Could not load this report.") + "</div>";
+        var summary = el("feesReportSummary");
+        if (summary) summary.innerHTML = '<div class="dashboard-empty">' + escapeHtml(error.message || "Could not run this report.") + "</div>";
       } finally {
         runBtn.disabled = false;
       }
     });
+
+    var downloadBtn = el("downloadFeesReportBtn");
+    if (downloadBtn) downloadBtn.addEventListener("click", downloadTransactionsCsv);
   }
 
   async function init() {
@@ -376,11 +556,13 @@
 
     await loadCoachFilter();
     loadManualCoachOptions();
+    loadRunReportCoachOptions();
     loadFeesSettings();
+    initFeeTabs();
     loadReport();
     initForm();
     initSettingsForm();
-    initByCoachReport();
+    initRunReport();
   }
 
   if (document.readyState === "loading") {

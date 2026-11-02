@@ -317,15 +317,33 @@ def _get_manual_rows(coach_filter=None):
 	return rows
 
 
+def _month_bounds(from_month, to_month):
+	from_date = get_first_day(getdate(from_month)) if from_month else None
+	to_date_exclusive = add_months(get_first_day(getdate(to_month)), 1) if to_month else None
+	return from_date, to_date_exclusive
+
+
+def _month_in_range(month_key, from_date, to_date_exclusive):
+	month_date = getdate(month_key)
+	if from_date and month_date < from_date:
+		return False
+	if to_date_exclusive and month_date >= to_date_exclusive:
+		return False
+	return True
+
+
 @frappe.whitelist()
-def get_fees_report(coach=None):
+def get_fees_report(coach=None, from_month=None, to_month=None):
 	ensure_office_user()
 
 	coach = (coach or "").strip()
+	from_date, to_date_exclusive = _month_bounds(from_month, to_month)
 
 	rows = []
 
 	for row in _get_manual_rows(coach_filter=coach or None):
+		if not _month_in_range(row["month"], from_date, to_date_exclusive):
+			continue
 		rows.append({
 			"month": row["month"],
 			"amount": row["amount"],
@@ -338,6 +356,8 @@ def get_fees_report(coach=None):
 
 	monthly_totals = {}
 	for row in _get_automatic_rows(coach_filter=coach or None):
+		if not _month_in_range(row["month"], from_date, to_date_exclusive):
+			continue
 		key = (row["month"], row["fee_type"])
 		monthly_totals[key] = monthly_totals.get(key, 0) + row["amount"]
 
@@ -377,38 +397,27 @@ def get_fees_report(coach=None):
 	}
 
 
-def _month_bounds(from_month, to_month):
-	from_date = get_first_day(getdate(from_month)) if from_month else None
-	to_date_exclusive = add_months(get_first_day(getdate(to_month)), 1) if to_month else None
-	return from_date, to_date_exclusive
-
-
 @frappe.whitelist()
-def get_fee_totals_by_coach(from_month=None, to_month=None):
+def get_fee_totals_by_coach(from_month=None, to_month=None, coach=None):
 	"""
-	One row per coach - Franchise Fee / Marketing Fee / combined total,
-	summed across both manual and automatic data, over an optional date
-	range ("how much has each coach paid", "how much did everyone pay
-	in August" - from_month=to_month="2026-08-01"). No range at all
-	means all-time.
+	Franchise Fee / Marketing Fee / combined total, summed across both
+	manual and automatic data, over an optional date range ("how much
+	has each coach paid", "how much did everyone pay in August" -
+	from_month=to_month="2026-08-01"). No range at all means all-time.
+	coach="" (default) returns one row per coach (every coach with any
+	fees in range); a specific coach returns just that coach's own row
+	(a list of 0 or 1 entries, so the caller doesn't need two shapes).
 	"""
 	ensure_office_user()
 
+	coach = (coach or "").strip()
 	from_date, to_date_exclusive = _month_bounds(from_month, to_month)
 
-	def _in_range(month_key):
-		month_date = getdate(month_key)
-		if from_date and month_date < from_date:
-			return False
-		if to_date_exclusive and month_date >= to_date_exclusive:
-			return False
-		return True
-
-	all_rows = _get_manual_rows() + _get_automatic_rows()
+	all_rows = _get_manual_rows(coach_filter=coach or None) + _get_automatic_rows(coach_filter=coach or None)
 
 	totals = {}
 	for row in all_rows:
-		if not row.get("coach") or not _in_range(row["month"]):
+		if not row.get("coach") or not _month_in_range(row["month"], from_date, to_date_exclusive):
 			continue
 		bucket = totals.setdefault(row["coach"], {"franchise_fee_total": 0.0, "marketing_fee_total": 0.0, "other_total": 0.0})
 		if row["fee_type"] == "Franchise Fee":
