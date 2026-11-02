@@ -1470,6 +1470,27 @@ def _append_bonus_digital_files(digital_files, items):
 
 		label = (bonus.custom_bonus_label or "").strip() or f"{line.item_name} - Bonus"
 		digital_files.append({"item_name": label, "url": bonus.custom_bonus_digital_file})
+		_record_bonus_given(line.item_code, paid_order_count)
+
+
+def _record_bonus_given(item_code, position):
+	"""
+	Mirrors resilient_domains' course_signup.py own write to LMS Course.
+	custom_bonus_given_count - a paid purchase of a course's backing Item
+	grants the same bonus a free signup would, so its own queue position
+	needs to land on that same field for Desk to show one accurate
+	"given out" count regardless of which path a buyer came through. A
+	bonus on a plain (non-course) Item has no LMS Course to show this on,
+	so this is a no-op for it.
+	"""
+	if not frappe.get_meta("LMS Course").has_field("custom_bonus_given_count"):
+		return
+
+	course = frappe.db.get_value("Item", item_code, "custom_unlocks_lms_course")
+	if not course:
+		return
+
+	frappe.db.set_value("LMS Course", course, "custom_bonus_given_count", position)
 
 
 def _fulfil_checkout_session(session):

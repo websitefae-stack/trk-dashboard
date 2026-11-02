@@ -219,3 +219,4 @@ dashboard.patches.add_coach_training_day_completed_field
 dashboard.patches.add_lms_course_original_price_field
 dashboard.patches.add_item_bonus_digital_file_fields
 dashboard.patches.add_lms_course_bonus_fields
+dashboard.patches.add_lms_course_bonus_given_count_field
