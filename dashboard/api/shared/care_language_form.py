@@ -13,7 +13,21 @@ language they picked most often is their top one. A tie is broken by
 preferring the earlier language in LANGUAGE_LABELS' own order (Kind Words
 first) - deterministic rather than arbitrary, and rare in practice with
 16 questions to spread across only 5 languages.
+
+get_care_language_pupils() below also lives here (rather than the
+generic form_reports.py) since it's specific to this one form's own
+grouping concept - every pupil's name next to their top language,
+grouped by language, for actually sorting pupils into groups, rather
+than just the aggregate percentage breakdown the generic chart view
+(form_reports.get_form_charts) gives.
 """
+
+import frappe
+
+from dashboard.api.shared.permissions import ensure_logged_in
+from dashboard.api.shared.form_reports import _form_date_range_filters
+
+DOCTYPE = "Care Language Response"
 
 LANGUAGE_LABELS = {
     "A": "Kind Words",
@@ -115,3 +129,43 @@ def compute_care_language_score(doc, method=None):
 
     top_letter = max(LANGUAGE_LABELS.keys(), key=lambda letter: counts[letter])
     doc.top_care_language = LANGUAGE_LABELS[top_letter]
+
+
+@frappe.whitelist()
+def get_care_language_pupils(from_date=None, to_date=None):
+    """
+    Every response's pupil name + year group, grouped by top_care_
+    language (Kind Words/Time Together/Helping Hands/Little Surprises/
+    High Fives, in that fixed order) - one row per response, same as
+    the generic Summary view's own per-submission listing, since this
+    form captures a free-text name with no link back to a Client and so
+    has no reliable way to dedupe one child who's done the quiz twice
+    under slightly different spellings.
+    """
+    ensure_logged_in()
+
+    if not frappe.db.exists("DocType", DOCTYPE):
+        return []
+
+    filters = _form_date_range_filters(from_date, to_date)
+
+    rows = frappe.get_all(
+        DOCTYPE,
+        filters=filters,
+        fields=["pupil_name", "year_group", "top_care_language"],
+        order_by="pupil_name asc",
+        limit_page_length=0,
+        ignore_permissions=True,
+    )
+
+    groups = {label: [] for label in LANGUAGE_LABELS.values()}
+    for row in rows:
+        language = row.top_care_language or ""
+        if language not in groups:
+            continue
+        groups[language].append({"pupil_name": row.pupil_name or "", "year_group": row.year_group or ""})
+
+    return [
+        {"language": language, "pupils": groups[language]}
+        for language in LANGUAGE_LABELS.values()
+    ]

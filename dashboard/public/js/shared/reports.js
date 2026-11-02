@@ -657,6 +657,13 @@
 
   var formModuleState = { rows: [], questionRows: [], chartQuestions: [], mode: "charts" };
 
+  // Shown as an extra section under the chart grid, only for this one
+  // form - every pupil's name next to their top care language, grouped
+  // for actually sorting pupils into groups (e.g. a "Kind Words" group),
+  // rather than just the aggregate percentage breakdown the charts
+  // themselves give.
+  var CARE_LANGUAGE_DOCTYPE = "Care Language Response";
+
   // Fixed-order categorical palette (light mode) - validated for CVD-safe
   // adjacent contrast. Assigned by slot index within each chart, never by
   // rank/sort order, so the same answer option keeps the same color across
@@ -748,10 +755,14 @@
     toggleDisplayEl("formModuleSummaryResults", false);
     toggleDisplayEl("formModuleChartsResults", false);
     toggleDisplayEl("formModuleQuestionResults", false);
+    toggleDisplayEl("careLanguagePupilsWrap", false);
     toggleDisplayEl("exportFormModuleReportBtn", false);
 
     var chartsWrap = el("formModuleChartsResults");
     if (chartsWrap) chartsWrap.innerHTML = "";
+
+    var pupilsWrap = el("careLanguagePupilsResults");
+    if (pupilsWrap) pupilsWrap.innerHTML = "";
 
     var questionList = el("formModuleQuestionAnswerList");
     if (questionList) questionList.innerHTML = "";
@@ -947,6 +958,32 @@
     }).join("");
   }
 
+  function renderCareLanguagePupilGroups(groups) {
+    var wrap = el("careLanguagePupilsResults");
+    if (!wrap) return;
+
+    var nonEmptyGroups = (groups || []).filter(function (group) { return (group.pupils || []).length > 0; });
+
+    if (!nonEmptyGroups.length) {
+      wrap.innerHTML = '<div class="dashboard-empty">No submissions found.</div>';
+      return;
+    }
+
+    wrap.innerHTML = nonEmptyGroups.map(function (group) {
+      var pupilRows = group.pupils.map(function (pupil) {
+        return '<li>' + escapeHtml(pupil.pupil_name || "—")
+          + (pupil.year_group ? ' <span style="color:#839898;">(' + escapeHtml(pupil.year_group) + ')</span>' : "")
+          + '</li>';
+      }).join("");
+
+      return '<div class="form-chart-card">'
+        + '<div class="form-chart-title">' + escapeHtml(group.language) + '</div>'
+        + '<div class="form-chart-subtitle">' + group.pupils.length + (group.pupils.length === 1 ? " pupil" : " pupils") + '</div>'
+        + '<ul class="form-chart-answer-list">' + pupilRows + '</ul>'
+        + '</div>';
+    }).join("");
+  }
+
   function renderFormModuleQuestionAnswers(data) {
     var heading = el("formModuleQuestionColumnHead");
     var list = el("formModuleQuestionAnswerList");
@@ -1074,6 +1111,15 @@
           if (chartsEmpty) chartsEmpty.style.display = "none";
           toggleDisplayEl("formModuleChartsResults", true);
           renderFormModuleCharts(chartsData);
+
+          if (doctype === CARE_LANGUAGE_DOCTYPE) {
+            var pupilGroups = await callApi("dashboard.api.shared.care_language_form.get_care_language_pupils", {
+              from_date: (el("formModuleFromDate") || {}).value || "",
+              to_date: (el("formModuleToDate") || {}).value || ""
+            });
+            toggleDisplayEl("careLanguagePupilsWrap", true);
+            renderCareLanguagePupilGroups(pupilGroups);
+          }
         }
       }
     } catch (error) {
