@@ -573,6 +573,86 @@ def get_coach_stock_detail(coach=None):
     }
 
 
+@frappe.whitelist()
+def get_hq_stock_overview():
+    """Franchisor-only - a simple, read-first list of HQ's own physical
+    stock (Item.custom_stock_qty - see store_stock.py's own docstring:
+    the franchisor's single company-warehouse number, auto-decremented
+    on every sale) for the bottom of this page, so Ashley can see at a
+    glance what she's got without going into Manage Store. "Always
+    Available" items (custom_unlimited_stock) are left out entirely -
+    per Chantelle, there's nothing to track for those.
+
+    Deliberately NOT routed through store_products.stock_take_update() -
+    that's a separate, fuller recount workflow (product picker, always
+    clears unlimited_stock) for a periodic proper stock take. This is
+    just the quick number Ashley nudges herself when she gives something
+    away from HQ's own stock - see update_hq_stock_quantities below,
+    which only ever touches custom_stock_qty."""
+    if not is_franchisor_user():
+        frappe.throw(_("Only the franchisor can view this."), frappe.PermissionError)
+
+    item_meta = frappe.get_meta("Item")
+    if not item_meta.has_field("custom_stock_qty") or not item_meta.has_field("custom_store_enabled"):
+        return []
+
+    rows = frappe.get_all(
+        "Item",
+        filters={
+            "custom_store_enabled": 1,
+            "custom_unlimited_stock": 0,
+            "disabled": 0,
+            "has_variants": 0,
+        },
+        fields=["name", "item_name", "custom_stock_qty"],
+        order_by="item_name asc",
+        limit_page_length=0,
+    )
+
+    return [
+        {"item_code": row.name, "item_name": row.item_name or row.name, "stock_qty": row.custom_stock_qty or 0}
+        for row in rows
+    ]
+
+
+@frappe.whitelist()
+def update_hq_stock_quantities(updates=None):
+    """Bulk save for get_hq_stock_overview()'s own list - ONLY ever
+    touches custom_stock_qty, never custom_unlimited_stock (unlike
+    store_products.stock_take_update(), which always clears it) - this
+    is Ashley's own quick "I just gave one of these away" adjustment,
+    not a formal recount."""
+    if not is_franchisor_user():
+        frappe.throw(_("Only the franchisor can update stock."), frappe.PermissionError)
+
+    updates = _parse_json_list(updates)
+    if not updates:
+        frappe.throw(_("Nothing to save."))
+
+    item_meta = frappe.get_meta("Item")
+    if not item_meta.has_field("custom_stock_qty"):
+        return {"ok": True, "updated": 0}
+
+    updated = 0
+    for row in updates:
+        item_code = (row.get("item_code") or "").strip()
+        stock_qty = row.get("stock_qty")
+
+        if not item_code or stock_qty in (None, "") or not frappe.db.exists("Item", item_code):
+            continue
+
+        try:
+            stock_qty = max(0, int(stock_qty))
+        except (TypeError, ValueError):
+            continue
+
+        frappe.db.set_value("Item", item_code, "custom_stock_qty", stock_qty)
+        updated += 1
+
+    frappe.db.commit()
+    return {"ok": True, "updated": updated}
+
+
 def record_coach_stock_received_on_submit(doc, method=None):
     """Second Sales Invoice on_submit hook (wired in hooks.py alongside
     store_stock.decrement_stock_on_submit, which is a different concern
