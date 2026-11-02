@@ -506,6 +506,73 @@ def get_pack_compliance_report():
     return results
 
 
+@frappe.whitelist()
+def get_coach_stock_detail(coach=None):
+    """Drill-down behind the Stock page's per-coach "View" button -
+    current balances, every client this coach actually gave a pack to
+    (record_pack_handover's "Given" outcome - the client-profile "tick"),
+    and every stock order (a Coach Store purchase - record_coach_stock_
+    received_on_submit) that topped them back up. Same Coach Stock
+    Movement ledger get_coach_stock_balances already sums; this just
+    surfaces the two histories behind that number instead of only the
+    total."""
+    coach = _resolve_coach_for_call(coach)
+
+    rows = frappe.get_all(
+        MOVEMENT_DOCTYPE,
+        filters={"coach": coach, "movement_type": ["in", ("Given to Client", "Received (Order)")]},
+        fields=["item", "movement_type", "quantity_change", "reference_client", "reference_sales_invoice", "creation"],
+        order_by="creation desc",
+        limit_page_length=0,
+    )
+
+    item_codes = {row.item for row in rows if row.item}
+    item_names = {}
+    if item_codes:
+        item_names = {
+            row.name: row.item_name or row.name
+            for row in frappe.get_all("Item", filters={"name": ["in", list(item_codes)]}, fields=["name", "item_name"])
+        }
+
+    client_names = {row.reference_client for row in rows if row.reference_client}
+    client_labels = {}
+    if client_names:
+        client_labels = {
+            row.name: row.full_name or row.name
+            for row in frappe.get_all(
+                "Client", filters={"name": ["in", list(client_names)]}, fields=["name", "full_name"]
+            )
+        }
+
+    given_to = []
+    orders = []
+    for row in rows:
+        item_name = item_names.get(row.item, row.item)
+        date = frappe.utils.get_datetime(row.creation).strftime("%d %b %Y") if row.creation else ""
+
+        if row.movement_type == "Given to Client":
+            given_to.append({
+                "item_name": item_name,
+                "client": row.reference_client,
+                "client_name": client_labels.get(row.reference_client, row.reference_client),
+                "date": date,
+            })
+        else:
+            orders.append({
+                "item_name": item_name,
+                "quantity": row.quantity_change,
+                "sales_invoice": row.reference_sales_invoice,
+                "date": date,
+            })
+
+    return {
+        "coach_name": _coach_label_from_name(coach),
+        "balances": get_coach_stock_balances(coach=coach),
+        "given_to": given_to,
+        "orders": orders,
+    }
+
+
 def record_coach_stock_received_on_submit(doc, method=None):
     """Second Sales Invoice on_submit hook (wired in hooks.py alongside
     store_stock.decrement_stock_on_submit, which is a different concern
