@@ -60,6 +60,8 @@ def get_context(context):
         context.dbs_update_service_rows = coach.get("dbs_update_services") or []
         context.insurance_rows = coach.get("insurance") or []
         context.indemnity_rows = coach.get("indemnity") or []
+        context.identification_rows = coach.get("identification") or []
+        context.safeguarding_certificate_rows = coach.get("safeguarding_certificate") or []
         context.recognitions = get_coach_recognitions(coach.name)
 
         context.has_secret_key = coach_has_secret_key(coach.name)
@@ -85,6 +87,8 @@ def get_context(context):
         context.dbs_update_service_rows = profile_context["dbs_update_service_rows"]
         context.insurance_rows = profile_context["insurance_rows"]
         context.indemnity_rows = profile_context["indemnity_rows"]
+        context.identification_rows = profile_context["identification_rows"]
+        context.safeguarding_certificate_rows = profile_context["safeguarding_certificate_rows"]
         context.recognitions = profile_context["recognitions"]
 
         context.has_secret_key = coach_has_secret_key(coach.name)
