@@ -821,6 +821,49 @@ def save_contact_for_scope(scope, docname=None, data=None):
         
         client.save(ignore_permissions=True)
 
+    # The Contact Details page (where this almost always actually gets
+    # called from) never tells this endpoint which Client to refresh -
+    # only the explicit "link this contact to this client" action above
+    # does that, via linked_client. But every Client whose client_contacts
+    # already links to this Contact keeps its OWN cached contact_name/
+    # email_id/phone on that Client Contact Link row (so the Client's own
+    # file can show it without a join back to Contact) - without this,
+    # renaming a Contact here left every linked Client file still showing
+    # the name/email/phone as they were before the edit. Deliberately
+    # only refreshes those three display fields, not relationship_type/
+    # is_billing_contact/customer - this is a display sync for the edit
+    # just made, not a re-run of the explicit link action above.
+    other_client_names = set(frappe.get_all(
+        "Client Contact Link",
+        filters={"contact": contact.name, "parenttype": "Client"},
+        pluck="parent",
+    ))
+    other_client_names.discard(linked_client)
+
+    new_contact_name = contact_display_name(contact)
+    new_email = contact.get("email_id") or ""
+    new_phone = contact.get("mobile_no") or ""
+
+    for other_client_name in other_client_names:
+        if not frappe.db.exists("Client", other_client_name):
+            continue
+
+        other_client = frappe.get_doc("Client", other_client_name)
+        changed = False
+
+        for row in other_client.get("client_contacts") or []:
+            if row.get("contact") != contact.name:
+                continue
+
+            if row.get("contact_name") != new_contact_name or row.get("email_id") != new_email or row.get("phone") != new_phone:
+                row.contact_name = new_contact_name
+                row.email_id = new_email
+                row.phone = new_phone
+                changed = True
+
+        if changed:
+            other_client.save(ignore_permissions=True)
+
     frappe.db.commit()
 
     return {
