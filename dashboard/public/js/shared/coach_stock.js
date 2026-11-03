@@ -189,7 +189,6 @@
           <td>${escapeHtml(counts["Not Given - Other Reason"] || 0)}</td>
           <td>${escapeHtml(counts["Not Recorded"] || 0)}</td>
           <td>${escapeHtml(stockText)}</td>
-          <td><button type="button" class="dashboard-btn dashboard-btn-light" data-view-coach-stock="${escapeHtml(row.coach)}">View</button></td>
         </tr>
       `;
     }
@@ -200,9 +199,9 @@
         const rows = await apiPost(`${STOCK_API}.get_pack_compliance_report`, {});
         bodyEl.innerHTML = rows.length
           ? rows.map(complianceRowHtml).join("")
-          : `<tr><td colspan="7" class="dashboard-empty">No coach has a Kid/Teen client yet.</td></tr>`;
+          : `<tr><td colspan="6" class="dashboard-empty">No coach has a Kid/Teen client yet.</td></tr>`;
       } catch (error) {
-        bodyEl.innerHTML = `<tr><td colspan="7" class="dashboard-empty">${escapeHtml(error.message || "Could not load the report.")}</td></tr>`;
+        bodyEl.innerHTML = `<tr><td colspan="6" class="dashboard-empty">${escapeHtml(error.message || "Could not load the report.")}</td></tr>`;
       }
     }
 
@@ -269,7 +268,7 @@
       return (window.location.pathname || "").startsWith("/franchisor_db") ? "/franchisor_db" : "/coach_db";
     }
 
-    el("stockComplianceTableBody")?.addEventListener("click", function (event) {
+    el("stockTakeTableBody")?.addEventListener("click", function (event) {
       const button = event.target.closest("[data-view-coach-stock]");
       if (!button) return;
       openCoachStockDetail(button.dataset.viewCoachStock);
@@ -315,7 +314,7 @@
       if (!bodyEl) return;
 
       if (!stockTakeCoaches.length) {
-        bodyEl.innerHTML = `<tr><td colspan="${1 + stockTakeItems.length}" class="dashboard-empty">No coaches found.</td></tr>`;
+        bodyEl.innerHTML = `<tr><td colspan="${2 + stockTakeItems.length}" class="dashboard-empty">No coaches found.</td></tr>`;
         return;
       }
 
@@ -332,7 +331,7 @@
           }
           return `<td><input type="number" min="0" class="dashboard-input" id="${escapeHtml(stockTakeInputId(row.coach, item.item_code))}" data-stock-take-coach="${escapeHtml(row.coach)}" data-stock-take-item="${escapeHtml(item.item_code)}" data-original-value="${escapeHtml(value)}" value="${escapeHtml(value)}" style="width:90px;"></td>`;
         }).join("");
-        return `<tr><td>${escapeHtml(row.coach_name)}</td>${cells}</tr>`;
+        return `<tr><td>${escapeHtml(row.coach_name)}</td><td><button type="button" class="dashboard-btn dashboard-btn-light" data-view-coach-stock="${escapeHtml(row.coach)}">View</button></td>${cells}</tr>`;
       }).join("");
     }
 
@@ -346,14 +345,14 @@
         stockTakeCoaches = data.coaches || [];
 
         if (headEl) {
-          headEl.innerHTML = "<th>Coach</th>" + stockTakeItems.map(function (item) {
+          headEl.innerHTML = "<th>Coach</th><th></th>" + stockTakeItems.map(function (item) {
             return `<th>${escapeHtml(item.item_name)}</th>`;
           }).join("");
         }
 
         renderStockTakeBody();
       } catch (error) {
-        if (bodyEl) bodyEl.innerHTML = `<tr><td colspan="${1 + stockTakeItems.length}" class="dashboard-empty">${escapeHtml(error.message || "Could not load the stock take.")}</td></tr>`;
+        if (bodyEl) bodyEl.innerHTML = `<tr><td colspan="${2 + stockTakeItems.length}" class="dashboard-empty">${escapeHtml(error.message || "Could not load the stock take.")}</td></tr>`;
       }
     }
 
@@ -536,9 +535,9 @@
 
       bodyEl.innerHTML = hqStockItems.map(function (item) {
         if (!hqStockEditing) {
-          return `<tr><td>${escapeHtml(item.item_name)}</td><td>${escapeHtml(item.stock_qty)}</td></tr>`;
+          return `<tr><td>${escapeHtml(item.item_name)}</td><td style="text-align:left;">${escapeHtml(item.stock_qty)}</td></tr>`;
         }
-        return `<tr><td>${escapeHtml(item.item_name)}</td><td><input type="number" min="0" class="dashboard-input" data-hq-stock-item="${escapeHtml(item.item_code)}" data-original-value="${escapeHtml(item.stock_qty)}" value="${escapeHtml(item.stock_qty)}" style="width:90px;"></td></tr>`;
+        return `<tr><td>${escapeHtml(item.item_name)}</td><td style="text-align:left;"><input type="number" min="0" class="dashboard-input" data-hq-stock-item="${escapeHtml(item.item_code)}" data-original-value="${escapeHtml(item.stock_qty)}" value="${escapeHtml(item.stock_qty)}" style="width:90px;"></td></tr>`;
       }).join("");
     }
 
