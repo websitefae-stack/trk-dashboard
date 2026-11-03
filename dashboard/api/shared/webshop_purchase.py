@@ -933,6 +933,16 @@ def create_coach_store_order(items=None, delivery_method=None):
     if invoice.meta.has_field("custom_delivery_method"):
         invoice.custom_delivery_method = delivery_method
 
+    # The coach's own dedicated Client record (Coach.custom_own_client),
+    # when one's been set up for them - see make_sales_invoice_custom_
+    # client_optional.py's own docstring for why custom_client is never
+    # required: a coach with nothing linked here still places this order
+    # exactly as before, just with custom_client left blank.
+    if invoice.meta.has_field("custom_client") and frappe.get_meta("Coach").has_field("custom_own_client"):
+        own_client = frappe.db.get_value("Coach", coach.get("name"), "custom_own_client")
+        if own_client:
+            invoice.custom_client = own_client
+
     price_list = None
     order_lines = []
     total_shippable_grams = 0
