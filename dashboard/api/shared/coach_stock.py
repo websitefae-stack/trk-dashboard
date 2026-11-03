@@ -573,55 +573,90 @@ def get_coach_stock_detail(coach=None):
     }
 
 
+HQ_STOCK_ITEM_DOCTYPE = "HQ Stock Item"
+
+
 @frappe.whitelist()
 def get_hq_stock_overview():
-    """Franchisor-only - a simple, read-first list of HQ's own physical
-    stock (Item.custom_stock_qty - see store_stock.py's own docstring:
-    the franchisor's single company-warehouse number, auto-decremented
-    on every sale) for the bottom of this page, so Ashley can see at a
-    glance what she's got without going into Manage Store. "Always
-    Available" items (custom_unlimited_stock) are left out entirely -
-    per Chantelle, there's nothing to track for those.
+    """Franchisor-only - a simple, read-first list of what Ashley has at
+    HQ, for the bottom of this page, so she can see at a glance what
+    she's got without going into Manage Store. Two sources, merged into
+    one alphabetical list (row_type tells the frontend which one a row
+    came from, for update_hq_stock_quantities below):
 
-    Deliberately NOT routed through store_products.stock_take_update() -
-    that's a separate, fuller recount workflow (product picker, always
-    clears unlimited_stock) for a periodic proper stock take. This is
-    just the quick number Ashley nudges herself when she gives something
-    away from HQ's own stock - see update_hq_stock_quantities below,
-    which only ever touches custom_stock_qty."""
+    - "item" rows: real Store Items (Item.custom_stock_qty - see
+      store_stock.py's own docstring: the franchisor's single
+      company-warehouse number, auto-decremented on every sale).
+      "Always Available" items (custom_unlimited_stock) are left out -
+      per Chantelle, there's nothing to track for those.
+    - "manual" rows: HQ Stock Item - her own plain physical-count list,
+      deliberately NOT tied to any Item/Store product at all. Most of
+      what's on her own stock-tracker spreadsheet (pens, bracelets,
+      bags, hoodies, sensory pods, ...) was never meant to become a
+      real purchasable product just to be counted here - see
+      create_hq_stock_item_doctype.py's own docstring.
+
+    Neither source is routed through store_products.stock_take_update()
+    - that's a separate, fuller recount workflow (product picker,
+    always clears unlimited_stock) for a periodic proper stock take.
+    This is just the quick number Ashley nudges herself when she gives
+    something away from her own stock."""
     if not is_franchisor_user():
         frappe.throw(_("Only the franchisor can view this."), frappe.PermissionError)
 
+    rows = []
+
     item_meta = frappe.get_meta("Item")
-    if not item_meta.has_field("custom_stock_qty") or not item_meta.has_field("custom_store_enabled"):
-        return []
+    if item_meta.has_field("custom_stock_qty") and item_meta.has_field("custom_store_enabled"):
+        item_rows = frappe.get_all(
+            "Item",
+            filters={
+                "custom_store_enabled": 1,
+                "custom_unlimited_stock": 0,
+                "disabled": 0,
+                "has_variants": 0,
+            },
+            fields=["name", "item_name", "custom_stock_qty"],
+            limit_page_length=0,
+        )
+        rows.extend(
+            {
+                "row_type": "item",
+                "key": row.name,
+                "item_name": row.item_name or row.name,
+                "stock_qty": row.custom_stock_qty or 0,
+            }
+            for row in item_rows
+        )
 
-    rows = frappe.get_all(
-        "Item",
-        filters={
-            "custom_store_enabled": 1,
-            "custom_unlimited_stock": 0,
-            "disabled": 0,
-            "has_variants": 0,
-        },
-        fields=["name", "item_name", "custom_stock_qty"],
-        order_by="item_name asc",
-        limit_page_length=0,
-    )
+    if frappe.db.exists("DocType", HQ_STOCK_ITEM_DOCTYPE):
+        manual_rows = frappe.get_all(
+            HQ_STOCK_ITEM_DOCTYPE,
+            fields=["name", "item_name", "stock_qty"],
+            limit_page_length=0,
+        )
+        rows.extend(
+            {
+                "row_type": "manual",
+                "key": row.name,
+                "item_name": row.item_name or row.name,
+                "stock_qty": row.stock_qty or 0,
+            }
+            for row in manual_rows
+        )
 
-    return [
-        {"item_code": row.name, "item_name": row.item_name or row.name, "stock_qty": row.custom_stock_qty or 0}
-        for row in rows
-    ]
+    rows.sort(key=lambda row: (row["item_name"] or "").lower())
+    return rows
 
 
 @frappe.whitelist()
 def update_hq_stock_quantities(updates=None):
-    """Bulk save for get_hq_stock_overview()'s own list - ONLY ever
-    touches custom_stock_qty, never custom_unlimited_stock (unlike
-    store_products.stock_take_update(), which always clears it) - this
-    is Ashley's own quick "I just gave one of these away" adjustment,
-    not a formal recount."""
+    """Bulk save for get_hq_stock_overview()'s own list - dispatches each
+    row by its own row_type (see that function's docstring) to either
+    Item.custom_stock_qty (never custom_unlimited_stock, unlike
+    store_products.stock_take_update(), which always clears it) or HQ
+    Stock Item.stock_qty. This is Ashley's own quick "I just gave one of
+    these away" adjustment, not a formal recount."""
     if not is_franchisor_user():
         frappe.throw(_("Only the franchisor can update stock."), frappe.PermissionError)
 
@@ -630,15 +665,16 @@ def update_hq_stock_quantities(updates=None):
         frappe.throw(_("Nothing to save."))
 
     item_meta = frappe.get_meta("Item")
-    if not item_meta.has_field("custom_stock_qty"):
-        return {"ok": True, "updated": 0}
+    item_stock_qty_available = item_meta.has_field("custom_stock_qty")
+    manual_available = frappe.db.exists("DocType", HQ_STOCK_ITEM_DOCTYPE)
 
     updated = 0
     for row in updates:
-        item_code = (row.get("item_code") or "").strip()
+        row_type = (row.get("row_type") or "item").strip()
+        key = (row.get("key") or "").strip()
         stock_qty = row.get("stock_qty")
 
-        if not item_code or stock_qty in (None, "") or not frappe.db.exists("Item", item_code):
+        if not key or stock_qty in (None, ""):
             continue
 
         try:
@@ -646,8 +682,16 @@ def update_hq_stock_quantities(updates=None):
         except (TypeError, ValueError):
             continue
 
-        frappe.db.set_value("Item", item_code, "custom_stock_qty", stock_qty)
-        updated += 1
+        if row_type == "manual":
+            if not manual_available or not frappe.db.exists(HQ_STOCK_ITEM_DOCTYPE, key):
+                continue
+            frappe.db.set_value(HQ_STOCK_ITEM_DOCTYPE, key, "stock_qty", stock_qty)
+            updated += 1
+        else:
+            if not item_stock_qty_available or not frappe.db.exists("Item", key):
+                continue
+            frappe.db.set_value("Item", key, "custom_stock_qty", stock_qty)
+            updated += 1
 
     frappe.db.commit()
     return {"ok": True, "updated": updated}
