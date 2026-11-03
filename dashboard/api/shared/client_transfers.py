@@ -626,6 +626,113 @@ def _backfill_transfer_fees_for_paid_invoices():
     return {"checked": len(pending_transfers), "invoiced": invoiced}
 
 
+@frappe.whitelist()
+def explain_transfer_fee_status(transfer=None, client_name=None):
+    """
+    Franchisor-only diagnostic, read-only - says exactly why a given
+    Client Transfer Agreement's fee invoice hasn't been raised yet (or
+    confirms it has), rather than leaving "nothing happened" to guess at.
+    Pass either `transfer` (the agreement's own record name) directly, or
+    `client_name` to search for it first, same substring match as
+    find_client_leads - if that matches more than one transfer, returns
+    the list so the right one can be re-run via `transfer` instead.
+    """
+    ensure_office_user()
+
+    transfer = coalesce_str("transfer", transfer)
+    client_name = coalesce_str("client_name", client_name)
+
+    if not transfer:
+        if not client_name:
+            frappe.throw(_("Provide either transfer or client_name."))
+
+        matches = frappe.get_all(
+            TRANSFER_DOCTYPE,
+            filters={"client_name": ["like", f"%{client_name}%"]},
+            fields=["name", "client_name", "transferring_coach", "receiving_coach", "status", "invoice"],
+        )
+        if not matches:
+            frappe.throw(_("No Client Transfer Agreement found matching \"{0}\".").format(client_name))
+        if len(matches) > 1:
+            return {"matches": matches}
+        transfer = matches[0]["name"]
+
+    if not frappe.db.exists(TRANSFER_DOCTYPE, transfer):
+        frappe.throw(_("Transfer agreement not found."))
+
+    doc = frappe.get_doc(TRANSFER_DOCTYPE, transfer)
+
+    result = {
+        "transfer": doc.name,
+        "client_name": doc.client_name,
+        "transferring_coach": _coach_label(doc.transferring_coach),
+        "receiving_coach": _coach_label(doc.receiving_coach),
+        "status": doc.status,
+        "invoice": doc.invoice or None,
+    }
+
+    if doc.invoice:
+        result["explanation"] = "Fee invoice already raised - {0}.".format(doc.invoice)
+        return result
+
+    if doc.status != STATUS_COMPLETED:
+        result["explanation"] = (
+            "Transfer agreement is not yet Completed (currently {0}) - every signature is needed before any "
+            "fee can be invoiced."
+        ).format(doc.status)
+        return result
+
+    converted_client = _transferred_client_for(doc)
+    if not converted_client:
+        result["explanation"] = (
+            "The linked Client Lead ({0}) hasn't converted to a Client yet (or has no converted_client "
+            "recorded on it) - there's no actual Client record yet for {1}'s invoices to this person to match "
+            "against."
+        ).format(doc.client_lead, result["receiving_coach"])
+        return result
+
+    result["converted_client"] = converted_client
+
+    candidate_invoices = frappe.get_all(
+        "Sales Invoice",
+        filters={"custom_client": converted_client, "custom_created_by_coach": doc.receiving_coach, "docstatus": 1},
+        fields=["name", "outstanding_amount", "grand_total", "status"],
+        order_by="posting_date asc, creation asc",
+    )
+
+    if not candidate_invoices:
+        result["explanation"] = (
+            "No submitted invoice from {0} to this client ({1}) yet - either {0} hasn't invoiced them, or the "
+            "invoice exists but isn't tagged as created by {0} (custom_created_by_coach), which this match "
+            "depends on."
+        ).format(result["receiving_coach"], converted_client)
+        return result
+
+    result["candidate_invoices"] = [
+        {"name": row.name, "outstanding_amount": row.outstanding_amount, "grand_total": row.grand_total, "status": row.status}
+        for row in candidate_invoices
+    ]
+
+    paid = [
+        row for row in candidate_invoices
+        if payment_utils.get_outstanding_amount_for_payment(row.outstanding_amount, row.grand_total, row.name) <= 0.01
+    ]
+
+    if not paid:
+        result["explanation"] = (
+            "{0} has {1} submitted invoice(s) to this client, but none are fully paid yet - the fee will be "
+            "invoiced automatically the moment one is."
+        ).format(result["receiving_coach"], len(candidate_invoices))
+        return result
+
+    result["explanation"] = (
+        "{0} is fully paid - this should already have raised the fee invoice automatically. Call "
+        "backfill_transfer_fees_for_paid_invoices to retry it now, or check the Error Log for "
+        "'Transfer Fee Invoice Failed On Payment - {1}' to see why it failed."
+    ).format(paid[0].name, doc.name)
+    return result
+
+
 # =====================================================
 # API
 # =====================================================
