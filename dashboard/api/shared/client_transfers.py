@@ -612,7 +612,39 @@ def _find_qualifying_paid_invoice(client_name, coach_name):
     return None
 
 
+def _clear_stale_transfer_invoice_references():
+    """
+    A transfer's own invoice field can go stale if the Sales Invoice it
+    pointed to was later deleted (e.g. manual cleanup in Desk) - confirmed
+    live: 2 of 3 "Leo" transfer fee invoices no longer existed, even
+    though their Client Transfer Agreement still listed them, which
+    permanently blocked those transfers from ever being reconsidered -
+    both the backfill below and the payment hook treat invoice != ""
+    as "already done" and never re-check it. Clears invoice back to
+    blank on any transfer whose referenced Sales Invoice is gone, so the
+    backfill picks it up as pending again right after.
+    """
+    rows = frappe.get_all(
+        TRANSFER_DOCTYPE,
+        filters={"invoice": ["is", "set"]},
+        fields=["name", "invoice"],
+    )
+
+    cleared = []
+    for row in rows:
+        if row.invoice and not frappe.db.exists("Sales Invoice", row.invoice):
+            frappe.db.set_value(TRANSFER_DOCTYPE, row.name, "invoice", None, update_modified=False)
+            cleared.append({"transfer": row.name, "stale_invoice": row.invoice})
+
+    if cleared:
+        frappe.db.commit()
+
+    return cleared
+
+
 def _backfill_transfer_fees_for_paid_invoices():
+    cleared_stale = _clear_stale_transfer_invoice_references()
+
     pending_transfers = frappe.get_all(
         TRANSFER_DOCTYPE,
         filters={"status": STATUS_COMPLETED, "invoice": ["in", ["", None]]},
@@ -634,7 +666,7 @@ def _backfill_transfer_fees_for_paid_invoices():
         if _maybe_invoice_transfer_fee(transfer, paid_invoice_name, reason="backfill"):
             invoiced.append(transfer.name)
 
-    return {"checked": len(pending_transfers), "invoiced": invoiced}
+    return {"checked": len(pending_transfers), "invoiced": invoiced, "cleared_stale_invoice_references": cleared_stale}
 
 
 @frappe.whitelist()
@@ -660,6 +692,10 @@ def link_transfer_to_client(transfer=None, client=None):
         frappe.throw(_("Client not found."))
 
     doc = frappe.get_doc(TRANSFER_DOCTYPE, transfer)
+
+    if doc.invoice and not frappe.db.exists("Sales Invoice", doc.invoice):
+        doc.invoice = None
+
     doc.resolved_client = client
     doc.append("activity", _log_row(f"Linked to Client {client} by {get_fullname(frappe.session.user) or frappe.session.user} (its Client Lead never converted normally)"))
     doc.save(ignore_permissions=True)
@@ -715,14 +751,24 @@ def explain_transfer_fee_status(transfer=None, client_name=None):
 
     doc = frappe.get_doc(TRANSFER_DOCTYPE, transfer)
 
+    invoice_is_stale = bool(doc.invoice) and not frappe.db.exists("Sales Invoice", doc.invoice)
+
     result = {
         "transfer": doc.name,
         "client_name": doc.client_name,
         "transferring_coach": _coach_label(doc.transferring_coach),
         "receiving_coach": _coach_label(doc.receiving_coach),
         "status": doc.status,
-        "invoice": doc.invoice or None,
+        "invoice": None if invoice_is_stale else (doc.invoice or None),
     }
+
+    if invoice_is_stale:
+        result["explanation"] = (
+            "This transfer's own invoice field points at {0}, but that Sales Invoice no longer exists (likely "
+            "deleted) - call backfill_transfer_fees_for_paid_invoices to clear the stale reference and "
+            "reconsider this transfer."
+        ).format(doc.invoice)
+        return result
 
     if doc.invoice:
         result["explanation"] = "Fee invoice already raised - {0}.".format(doc.invoice)
