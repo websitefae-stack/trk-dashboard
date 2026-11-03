@@ -535,9 +535,9 @@
 
       bodyEl.innerHTML = hqStockItems.map(function (item) {
         if (!hqStockEditing) {
-          return `<tr><td>${escapeHtml(item.item_name)}</td><td style="text-align:left;">${escapeHtml(item.stock_qty)}</td></tr>`;
+          return `<tr><td style="text-align:left;">${escapeHtml(item.item_name)}</td><td style="text-align:left;">${escapeHtml(item.stock_qty)}</td></tr>`;
         }
-        return `<tr><td>${escapeHtml(item.item_name)}</td><td style="text-align:left;"><input type="number" min="0" class="dashboard-input" data-hq-stock-item="${escapeHtml(item.item_code)}" data-original-value="${escapeHtml(item.stock_qty)}" value="${escapeHtml(item.stock_qty)}" style="width:90px;"></td></tr>`;
+        return `<tr><td style="text-align:left;">${escapeHtml(item.item_name)}</td><td style="text-align:left;"><input type="number" min="0" class="dashboard-input" data-hq-stock-item="${escapeHtml(item.item_code)}" data-original-value="${escapeHtml(item.stock_qty)}" value="${escapeHtml(item.stock_qty)}" style="width:90px;"></td></tr>`;
       }).join("");
     }
 

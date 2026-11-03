@@ -2396,9 +2396,26 @@ def create_trk_notification(
     session_worker=None,
     client=None,
     event=None,
+    from_user=None,
 ):
+    """
+    from_user: who this notification is "from", for the conversational
+    "see it if you sent it" visibility (_get_notification_log_or_filters/
+    _current_user_can_see_conversation) - defaults to frappe.session.user,
+    right for an actual person-to-person message, but wrong for a system
+    notification a user's own unrelated action merely triggered (e.g. a
+    coach placing a Coach Store order fires one copy per franchisor
+    admin - stamping those "from" the coach made all of them show up in
+    the COACH's own notification list too, confirmed live:
+    webshop_purchase._notify_coach_store_order looping over
+    FRANCHISOR_USERS). Pass an explicit from_user (e.g. the recipient
+    themselves) for exactly this kind of system-triggered, one-way
+    notification.
+    """
     if not recipient_user:
         return None
+
+    from_user = from_user or frappe.session.user
 
     if not frappe.db.exists("User", recipient_user):
         # Whatever resolved this recipient (a Coach's linked user/
@@ -2429,8 +2446,10 @@ def create_trk_notification(
         doc.status = "Open"
         doc.priority = priority or "Normal"
         doc.message = message or ""
-        doc.created_by_user = frappe.session.user if frappe.session.user != "Guest" else "Administrator"
-        doc.created_by_role = _get_current_role() if frappe.session.user != "Guest" else "Admin"
+        doc.created_by_user = from_user if from_user != "Guest" else "Administrator"
+        doc.created_by_role = (
+            _get_recipient_role(from_user) or "Admin" if from_user != "Guest" else "Admin"
+        )
 
         if _field_exists(CONVERSATION_DOCTYPE, "linked_client"):
             doc.linked_client = client or (reference_name if reference_doctype == "Client" else "")
@@ -2475,7 +2494,7 @@ def create_trk_notification(
         doc_data["for_user"] = recipient_user
 
     if _field_exists(NOTIFICATION_DOCTYPE, "from_user"):
-        doc_data["from_user"] = frappe.session.user
+        doc_data["from_user"] = from_user
 
     # See the matching note in _send_legacy_notification() above - "type"
     # is Frappe's own fixed classification, not a freeform label.

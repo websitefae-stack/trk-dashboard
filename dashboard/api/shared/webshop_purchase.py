@@ -855,11 +855,24 @@ def _send_coach_order_confirmation_email(invoice, coach_email, coach_display_nam
         f"{settings.company}"
     )
 
-    cc = [settings.office_notification_email] if settings.office_notification_email else []
+    # office_notification_email is a single free-text field that can
+    # (and does, here - "ashley@..., store@...") hold more than one
+    # address comma/semicolon-separated - passing the whole string as one
+    # cc entry makes smtplib treat it as a single malformed address and
+    # reject the whole send ("Bad recipient address syntax"), confirmed
+    # live in the Email Queue for this exact order. Same fix already
+    # applied in _send_order_confirmation_emails below - this call site
+    # just never got it.
+    cc = set()
+    if settings.office_notification_email:
+        for address in re.split(r"[,;]", settings.office_notification_email):
+            address = address.strip()
+            if address:
+                cc.add(address)
 
     send_email(
         recipients=[coach_email],
-        cc=cc,
+        cc=list(cc),
         subject=f"Coach Store order confirmation - {invoice.name}",
         message=plain_text_to_email_html(message),
         # Every Coach Store order is a merch sale - always The Resilient
@@ -1070,6 +1083,14 @@ def _notify_coach_store_order(invoice, coach, coach_email, coach_display_name, d
                 priority="High",
                 reference_doctype="Sales Invoice",
                 reference_name=invoice.name,
+                # Not "from" the coach - this is a system notification
+                # their order merely triggered, not a message they sent.
+                # Defaulting from_user to frappe.session.user (the
+                # coach's own session) made every admin's copy ALSO
+                # match the coach's own "see it if you sent it" filter,
+                # so a coach placing one order saw their own confirmation
+                # plus all 3 franchisor-admin copies - confirmed live.
+                from_user=admin_user,
             )
         except Exception:
             frappe.log_error(frappe.get_traceback(), f"Coach Store Order Notification (Franchisor) Failed - {invoice.name}")
