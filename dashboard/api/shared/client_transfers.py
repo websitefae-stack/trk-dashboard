@@ -446,12 +446,21 @@ def _create_transfer_fee_invoice(transfer):
 
 def _transferred_client_for(transfer):
     """
-    The real Client record this transfer is about, once the lead behind
-    it has actually converted - None if it hasn't (yet), which simply
-    means there's nothing to invoice against yet (see
-    _process_invoice_transfer_fee / _maybe_invoice_transfer_fee below,
-    both of which treat that as "not qualifying yet", not an error).
+    The real Client record this transfer is about. resolved_client (set
+    by link_transfer_to_client below) always wins when present - it
+    exists specifically for a transfer whose Client Lead never went
+    through the normal conversion flow (a pre-existing client, or
+    paperwork backfilled after the fact - confirmed live: Client Lead
+    bvm9nd1qnq, a transfer for an existing client, has no converted_client
+    at all despite the transfer itself being genuinely Completed and the
+    receiving coach already invoicing them). Falls back to the Client
+    Lead's own conversion otherwise. None means there's nothing to
+    invoice against yet - see _process_invoice_transfer_fee /
+    _maybe_invoice_transfer_fee below, both of which treat that as "not
+    qualifying yet", not an error.
     """
+    if transfer.get("resolved_client"):
+        return transfer.get("resolved_client")
     if not transfer.client_lead:
         return None
     return frappe.db.get_value(LEAD_DOCTYPE, transfer.client_lead, "converted_client")
@@ -582,6 +591,27 @@ def backfill_transfer_fees_for_paid_invoices():
     return _backfill_transfer_fees_for_paid_invoices()
 
 
+def _find_qualifying_paid_invoice(client_name, coach_name):
+    """The earliest submitted invoice from coach_name to client_name
+    that's fully paid - shared by the backfill and link_transfer_to_client
+    below, both of which need to answer "has this already happened"."""
+    candidate_invoices = frappe.get_all(
+        "Sales Invoice",
+        filters={"custom_client": client_name, "custom_created_by_coach": coach_name, "docstatus": 1},
+        fields=["name", "outstanding_amount", "grand_total"],
+        order_by="posting_date asc, creation asc",
+    )
+
+    for candidate in candidate_invoices:
+        outstanding = payment_utils.get_outstanding_amount_for_payment(
+            candidate.outstanding_amount, candidate.grand_total, candidate.name
+        )
+        if outstanding <= 0.01:
+            return candidate.name
+
+    return None
+
+
 def _backfill_transfer_fees_for_paid_invoices():
     pending_transfers = frappe.get_all(
         TRANSFER_DOCTYPE,
@@ -597,26 +627,7 @@ def _backfill_transfer_fees_for_paid_invoices():
         if not client_name:
             continue
 
-        candidate_invoices = frappe.get_all(
-            "Sales Invoice",
-            filters={
-                "custom_client": client_name,
-                "custom_created_by_coach": transfer.receiving_coach,
-                "docstatus": 1,
-            },
-            fields=["name", "outstanding_amount", "grand_total"],
-            order_by="posting_date asc, creation asc",
-        )
-
-        paid_invoice_name = None
-        for candidate in candidate_invoices:
-            outstanding = payment_utils.get_outstanding_amount_for_payment(
-                candidate.outstanding_amount, candidate.grand_total, candidate.name
-            )
-            if outstanding <= 0.01:
-                paid_invoice_name = candidate.name
-                break
-
+        paid_invoice_name = _find_qualifying_paid_invoice(client_name, transfer.receiving_coach)
         if not paid_invoice_name:
             continue
 
@@ -624,6 +635,48 @@ def _backfill_transfer_fees_for_paid_invoices():
             invoiced.append(transfer.name)
 
     return {"checked": len(pending_transfers), "invoiced": invoiced}
+
+
+@frappe.whitelist()
+def link_transfer_to_client(transfer=None, client=None):
+    """
+    Franchisor-only: sets resolved_client on a Completed transfer whose
+    Client Lead never converted normally (see _transferred_client_for's
+    own docstring) - confirmed live via explain_transfer_fee_status as
+    the actual blocker for at least one real transfer (a transfer for an
+    existing client, not one that came through the Lead pipeline).
+    Immediately checks for an already-qualifying paid invoice and raises
+    the fee invoice right away if one exists, same as the backfill does,
+    rather than waiting for the next payment.
+    """
+    ensure_office_user()
+
+    transfer = coalesce_str("transfer", transfer)
+    client = coalesce_str("client", client)
+
+    if not transfer or not frappe.db.exists(TRANSFER_DOCTYPE, transfer):
+        frappe.throw(_("Transfer agreement not found."))
+    if not client or not frappe.db.exists("Client", client):
+        frappe.throw(_("Client not found."))
+
+    doc = frappe.get_doc(TRANSFER_DOCTYPE, transfer)
+    doc.resolved_client = client
+    doc.append("activity", _log_row(f"Linked to Client {client} by {get_fullname(frappe.session.user) or frappe.session.user} (its Client Lead never converted normally)"))
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    if doc.invoice:
+        return {"ok": True, "resolved_client": client, "invoiced": False, "note": "Fee invoice already existed."}
+
+    if doc.status != STATUS_COMPLETED:
+        return {"ok": True, "resolved_client": client, "invoiced": False, "note": "Transfer isn't Completed yet - nothing to invoice until it is."}
+
+    paid_invoice_name = _find_qualifying_paid_invoice(client, doc.receiving_coach)
+    if not paid_invoice_name:
+        return {"ok": True, "resolved_client": client, "invoiced": False, "note": "No fully-paid invoice from the receiving coach to this client yet."}
+
+    invoiced = _maybe_invoice_transfer_fee(doc, paid_invoice_name, reason="linked to client by hand")
+    return {"ok": True, "resolved_client": client, "invoiced": invoiced, "invoice": doc.invoice or None}
 
 
 @frappe.whitelist()
@@ -687,7 +740,9 @@ def explain_transfer_fee_status(transfer=None, client_name=None):
         result["explanation"] = (
             "The linked Client Lead ({0}) hasn't converted to a Client yet (or has no converted_client "
             "recorded on it) - there's no actual Client record yet for {1}'s invoices to this person to match "
-            "against."
+            "against. If this is actually an existing client (the Lead never went through the normal "
+            "conversion flow), call link_transfer_to_client with this transfer's name and the real Client "
+            "record to fix it."
         ).format(doc.client_lead, result["receiving_coach"])
         return result
 

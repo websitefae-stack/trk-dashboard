@@ -9,6 +9,7 @@
   "status",
   "client_lead",
   "client_name",
+  "resolved_client",
   "column_break_1",
   "transferring_coach",
   "receiving_coach",
@@ -64,6 +65,13 @@
    "fieldtype": "Data",
    "label": "Client Name",
    "read_only": 1
+  },
+  {
+   "description": "Usually resolved automatically from the linked Client Lead's own conversion (once it has one). Only needs setting by hand for a transfer whose Client Lead never went through the normal conversion flow - a pre-existing client, or paperwork backfilled after the fact - so the fee invoice has something to match the receiving coach's payment against.",
+   "fieldname": "resolved_client",
+   "fieldtype": "Link",
+   "label": "Resolved Client (override)",
+   "options": "Client"
   },
   {
    "fieldname": "column_break_1",
