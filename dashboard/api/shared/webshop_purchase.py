@@ -928,6 +928,16 @@ def create_coach_store_order(items=None, delivery_method=None):
     invoice.posting_date = nowdate()
     invoice.due_date = nowdate()
 
+    if invoice.meta.has_field("disable_rounded_total"):
+        # Same site-wide "round off" settings invoices.py already works
+        # around (see its own identical block): left on, a £3.50 order
+        # rounds to a whole £4 total, which then makes outstanding_amount
+        # wrong too - confirmed live, a Coach Store order showing a
+        # negative "Paid Amount" despite nothing being paid.
+        invoice.disable_rounded_total = 1
+        invoice.rounding_adjustment = 0
+        invoice.base_rounding_adjustment = 0
+
     if invoice.meta.has_field("custom_coach"):
         invoice.custom_coach = coach.get("name")
     if invoice.meta.has_field("custom_delivery_method"):
@@ -1243,7 +1253,11 @@ def _ensure_portal_access(client_name, contact_name, email):
 
     row = client_doc.append(CLIENT_CONTACT_LINK_PARENTFIELD, {})
     row.contact = contact_name
-    row.contact_name = contact_first_name or email
+    # Never the raw email - contact_name is validated as a Frappe "Name"
+    # field (letters/spaces only), and an email's "@" fails that outright
+    # (confirmed live: InvalidNameError on client_doc.save() for anyone
+    # with no first name on file - e.g. mshaw1280@hotmail.co.uk).
+    row.contact_name = contact_first_name or "Customer"
     row.email_id = email
     row.is_primary_contact = 1
     row.portal_access_enabled = 1
@@ -1608,6 +1622,16 @@ def _fulfil_checkout_session(session):
         invoice.company = settings.company
         invoice.posting_date = nowdate()
         invoice.due_date = nowdate()
+
+        if invoice.meta.has_field("disable_rounded_total"):
+            # Same site-wide "round off" workaround as create_coach_
+            # store_order above and invoices.py's own identical block -
+            # this invoice's outstanding_amount has to track the exact
+            # amount Stripe actually charged, never rounded to a whole
+            # pound.
+            invoice.disable_rounded_total = 1
+            invoice.rounding_adjustment = 0
+            invoice.base_rounding_adjustment = 0
 
         if invoice.meta.has_field("custom_online_client"):
             invoice.custom_online_client = online_client_name
