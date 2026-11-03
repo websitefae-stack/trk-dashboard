@@ -221,3 +221,4 @@ dashboard.patches.add_item_bonus_digital_file_fields
 dashboard.patches.add_lms_course_bonus_fields
 dashboard.patches.add_lms_course_bonus_given_count_field
 dashboard.patches.backfill_course_unlock_for_acc_sinv_2026_00467
+dashboard.patches.make_sales_invoice_custom_client_optional
