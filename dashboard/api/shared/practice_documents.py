@@ -19,6 +19,8 @@ create requirements off those fields needs removing too, since those
 fields no longer exist to read.
 """
 
+import re
+
 import frappe
 from frappe.utils import now_datetime, getdate, nowdate
 
@@ -253,6 +255,15 @@ def _get_visible_resource_documents(user=None):
 	]
 
 
+def _natural_sort_key(text):
+    """"Case study 2" before "Case study 10" - plain string sort puts
+    digit-named documents in ASCII order (1, 10, 11, ..., 2, 3), not the
+    numeric order a person reading the list expects. Splits off runs of
+    digits and compares those as ints instead."""
+    text = (text or "").lower()
+    return [int(chunk) if chunk.isdigit() else chunk for chunk in re.split(r"(\d+)", text)]
+
+
 @frappe.whitelist()
 def get_my_documents_by_type(view_as=None, viewer=None):
 	ensure_logged_in()
@@ -312,7 +323,7 @@ def get_my_documents_by_type(view_as=None, viewer=None):
 		documents[key].append(row)
 
 	for key in documents:
-		documents[key].sort(key=lambda row: (row.get("document_title") or "").lower())
+		documents[key].sort(key=lambda row: _natural_sort_key(row.get("document_title")))
 
 	return {"types": types, "documents": documents}
 
@@ -354,6 +365,9 @@ def get_all_documents_for_franchisor():
 		row["linked_items"] = linked_labels.get(row.name, [])
 		key = row.document_type if row.document_type in documents else "Other"
 		documents[key].append(row)
+
+	for key in documents:
+		documents[key].sort(key=lambda row: _natural_sort_key(row.get("document_title")))
 
 	return {"types": types, "documents": documents}
 
