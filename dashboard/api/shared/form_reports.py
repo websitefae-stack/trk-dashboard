@@ -505,6 +505,18 @@ def _chart_bucket_for_field(df, doctype, filters):
         return "list", values
 
     counts = {}
+    if df.fieldtype == "Select":
+        # Every declared option starts at 0, not just whichever ones
+        # actually got picked - a Select with a real option nobody chose
+        # this period (e.g. "Top Care Language" when 22 responses happen
+        # to land on the other four) silently vanishing from the chart
+        # read as the chart being broken, not as "zero people" - which
+        # is itself a real, useful answer worth showing.
+        for option in (df.options or "").split("\n"):
+            option = option.strip()
+            if option:
+                counts[option] = 0
+
     for value in values:
         counts[value] = counts.get(value, 0) + 1
 
