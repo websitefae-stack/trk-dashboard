@@ -333,6 +333,56 @@ FORM_REPORT_URL_OVERRIDES = {
     STIRLING_WELLBEING_DOCTYPE: "/reports?tab=stirling_comparison",
 }
 
+# Care Language Response's 5 *_score Int fields (kind_words_score, etc -
+# see create_care_languages_quiz_form.py) naturally get the generic
+# average/min/max "summary" treatment any plain number gets - but an
+# average of "how many of the 16 questions picked this language" reads
+# as an arbitrary number, not what it actually looks like at a glance:
+# "how many people chose this". That's exactly what top_care_language's
+# own chart below it already counts - this just mirrors that same count
+# onto each language's own card instead of its raw average. Keyed by
+# label (matches both the score field's own label and the top_care_
+# language option it corresponds to - see LANGUAGE_LABELS).
+CARE_LANGUAGE_DOCTYPE = "Care Language Response"
+CARE_LANGUAGE_TOP_LANGUAGE_FIELDNAME = "top_care_language"
+CARE_LANGUAGE_SCORE_LABELS = (
+    "Kind Words", "Time Together", "Helping Hands", "Little Surprises", "High Fives",
+)
+
+
+def _care_language_top_counts(filters):
+    rows = frappe.get_all(
+        CARE_LANGUAGE_DOCTYPE,
+        filters=filters,
+        fields=[CARE_LANGUAGE_TOP_LANGUAGE_FIELDNAME],
+        limit_page_length=0,
+        ignore_permissions=True,
+    )
+
+    counts = {label: 0 for label in CARE_LANGUAGE_SCORE_LABELS}
+    for row in rows:
+        language = row.get(CARE_LANGUAGE_TOP_LANGUAGE_FIELDNAME)
+        if language in counts:
+            counts[language] += 1
+    return counts
+
+
+def _apply_care_language_count_overrides(doctype, questions, filters):
+    if doctype != CARE_LANGUAGE_DOCTYPE:
+        return
+
+    top_counts = _care_language_top_counts(filters)
+
+    for question in questions:
+        if question["label"] not in CARE_LANGUAGE_SCORE_LABELS or question["kind"] != "summary":
+            continue
+
+        question["kind"] = "count"
+        question["summary"] = None
+        question["data"] = None
+        question["answers"] = None
+        question["count"] = {"value": top_counts.get(question["label"], 0)}
+
 
 def _form_field_value(row, df):
     value = row.get(df.fieldname)
@@ -583,7 +633,10 @@ def get_form_charts(doctype=None, from_date=None, to_date=None):
             "data": payload if kind == "chart" else None,
             "answers": payload if kind == "list" else None,
             "summary": payload if kind == "summary" else None,
+            "count": None,
         })
+
+    _apply_care_language_count_overrides(doctype, questions, filters)
 
     return {"total_submissions": total_submissions, "questions": questions}
 
