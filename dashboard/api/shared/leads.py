@@ -20,7 +20,6 @@ from dashboard.api.shared.appointment_types import creates_client_on_conversion
 from dashboard.api.shared.email_templates import render_email, plain_text_to_email_html, parse_email_list, INTAKE_INVITE_TEMPLATE, PODCAST_INVITE_TEMPLATE
 from dashboard.api.shared.mail_throttle import send_email
 from dashboard.api.shared.item_access import _get_coach_login
-from dashboard.api.shared.client_transfers import invoice_pending_transfer_fees_for_lead
 
 
 INTAKE_ROUTE = "client-intake"
@@ -4420,8 +4419,6 @@ def convert_lead_to_client(name=None):
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 
-    invoice_pending_transfer_fees_for_lead(doc.name)
-
     return {"ok": True, "client": client.name, "contact": contact.name}
 
 
@@ -4559,7 +4556,5 @@ def link_lead_to_existing_client(name=None, client=None, contact=None, field_cho
     doc.status = "Converted"
     doc.save(ignore_permissions=True)
     frappe.db.commit()
-
-    invoice_pending_transfer_fees_for_lead(doc.name)
 
     return {"ok": True, "client": client, "contact": contact}

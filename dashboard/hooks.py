@@ -337,7 +337,14 @@ doc_events = {
     # both funnel through a real, submitted core Payment Entry either way.
     # See course_unlock_on_payment.py's module docstring.
     "Payment Entry": {
-        "on_submit": "dashboard.api.shared.course_unlock_on_payment.unlock_courses_on_payment",
+        "on_submit": [
+            "dashboard.api.shared.course_unlock_on_payment.unlock_courses_on_payment",
+            # Raises the SJ-to-Emily client transfer fee invoice the
+            # moment the receiving coach's own first invoice to the
+            # transferred client is paid in full - see client_transfers.py's
+            # invoice_transfer_fee_on_client_payment docstring.
+            "dashboard.api.shared.client_transfers.invoice_transfer_fee_on_client_payment",
+        ],
     },
     # Catches an enrolment created any other way (a coach/office member
     # adding someone to a course by hand in Desk, or via Frappe LMS's own
