@@ -917,9 +917,23 @@
       + '</div>';
   }
 
+  // A plain total (e.g. Care Languages' "how many people chose this")
+  // rather than an average/min/max - 0 is a real, valid answer here, so
+  // this never treats it as "no data" the way renderFormChartSummary's
+  // own !summary.count check would.
+  function renderFormChartCount(count) {
+    var value = count && typeof count.value === "number" ? count.value : 0;
+
+    return '<div class="form-chart-summary">'
+      + '<div class="form-chart-summary-average">' + value + '</div>'
+      + '<div class="form-chart-summary-range">' + value + (value === 1 ? ' pupil chose this' : ' pupils chose this') + '</div>'
+      + '</div>';
+  }
+
   function formChartSubtitle(kind) {
     if (kind === "chart") return "Answer breakdown";
     if (kind === "summary") return "Average score";
+    if (kind === "count") return "Total who chose this";
     return "Individual answers";
   }
 
@@ -946,6 +960,8 @@
         body = useBars ? renderFormChartBars(chartData, question) : renderFormChartPie(chartData, question);
       } else if (question.kind === "summary") {
         body = renderFormChartSummary(question.summary);
+      } else if (question.kind === "count") {
+        body = renderFormChartCount(question.count);
       } else {
         body = renderFormChartAnswerList(question.answers);
       }
