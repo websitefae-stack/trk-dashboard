@@ -457,14 +457,25 @@ def _create_transfer_fee_invoice(transfer):
     if naming_series_field and naming_series_field.options:
         invoice.naming_series = naming_series_field.options.split("\n")[0].strip()
 
-    row = invoice.append("items", {})
-    row.item_code = item_code
-    row.item_name = TRANSFER_FEE_ITEM_CODE
-    row.description = "Client transfer fee - {0} transferred from {1} to {2}".format(
+    # "Bill To" only ever shows the receiving coach's own name (it's a
+    # coach-to-coach fee, not a real Client invoice) - the transferred
+    # child's own name has to live somewhere else on the invoice itself
+    # for this to be traceable later, not buried in a line item nobody
+    # opens. Put it in the item's own display name (shows up wherever
+    # item rows are listed, not just inside this one invoice) and in
+    # remarks (shows on the invoice itself/its print, independent of the
+    # items table), on top of the existing line description below.
+    transfer_summary = "{0} transferred from {1} to {2}".format(
         transfer.client_name,
         _coach_label(transfer.transferring_coach),
         _coach_label(transfer.receiving_coach),
     )
+    invoice.remarks = "Client transfer fee - {0}".format(transfer_summary)
+
+    row = invoice.append("items", {})
+    row.item_code = item_code
+    row.item_name = "{0} - {1}".format(TRANSFER_FEE_ITEM_CODE, transfer.client_name)
+    row.description = "Client transfer fee - {0}".format(transfer_summary)
     row.qty = 1
     row.uom = "Nos"
     row.stock_uom = "Nos"
