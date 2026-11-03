@@ -2,10 +2,11 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime, get_url, get_fullname, flt
 
-from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user, get_current_coach_name
+from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user, ensure_office_user, get_current_coach_name
 from dashboard.api.shared.utils import coalesce_str, coalesce_raw
 from dashboard.api.shared.notifications import create_trk_notification, FRANCHISOR_USERS, ASHLEY_USER
 from dashboard.api.shared.item_access import _get_coach_login, DEFAULT_PRICE_LIST, SERVICE_ITEM_GROUP
+from dashboard.api.shared import payment_utils
 
 
 LEAD_DOCTYPE = "Client Lead"
@@ -216,14 +217,14 @@ def _notify_transfer_completed(transfer):
 
 
 def _notify_transfer_fee_invoice_failed(transfer):
-    """Invoicing at conversion time is best-effort (see
-    invoice_pending_transfer_fees_for_lead) - this is the safety net that
-    replaces the old "block signing until it works" behaviour, since a
-    billing problem now surfaces long after signing, on a conversion the
-    transferring coach isn't necessarily even part of."""
+    """Invoicing on the client's payment is best-effort (see
+    _process_invoice_transfer_fee / _maybe_invoice_transfer_fee) - this is
+    the safety net that replaces the old "block signing until it works"
+    behaviour, since a billing problem now surfaces long after signing,
+    on a payment the transferring coach isn't necessarily even part of."""
     message = (
         "The £{0} client transfer fee for {1} ({2} to {3}) couldn't be "
-        "invoiced automatically now the lead has converted - check {2}'s "
+        "invoiced automatically now the client has paid {3} - check {2}'s "
         "Coach record (company/bank account) and invoice it manually."
     ).format(
         transfer.transfer_fee_amount or DEFAULT_TRANSFER_FEE,
@@ -443,45 +444,186 @@ def _create_transfer_fee_invoice(transfer):
     return invoice.name
 
 
-def invoice_pending_transfer_fees_for_lead(lead_name):
+def _transferred_client_for(transfer):
     """
-    Called once a Client Lead actually becomes a Client - leads.py's
-    convert_lead_to_client() and link_lead_to_existing_client() both call
-    this right after marking the lead Converted. The transfer fee is only
-    ever invoiced here, never when the transfer agreement itself
-    completes (sign_transfer) - a lead can sit around for a long time
-    after a transfer completes, or even go Declined and later be
-    reactivated, before actually converting, and the fee must only ever
-    be billed once that conversion genuinely happens.
+    The real Client record this transfer is about, once the lead behind
+    it has actually converted - None if it hasn't (yet), which simply
+    means there's nothing to invoice against yet (see
+    _process_invoice_transfer_fee / _maybe_invoice_transfer_fee below,
+    both of which treat that as "not qualifying yet", not an error).
+    """
+    if not transfer.client_lead:
+        return None
+    return frappe.db.get_value(LEAD_DOCTYPE, transfer.client_lead, "converted_client")
 
-    Best-effort per transfer: a billing problem (e.g. the transferring
-    coach's Coach record missing a bank account) must never block the
-    conversion itself, since conversion can happen long after signing and
-    isn't necessarily done by anyone involved in the transfer - the
-    franchisor is notified instead so it doesn't go unnoticed.
+
+def _maybe_invoice_transfer_fee(transfer, paid_invoice_name, reason):
     """
-    transfers = frappe.get_all(
+    Shared by both trigger paths below - actually raises the fee invoice
+    once a qualifying paid invoice has been found, best-effort (a billing
+    problem, e.g. the transferring coach's Coach record missing a bank
+    account, must never block the payment that triggered this - the
+    franchisor is notified instead so it doesn't go unnoticed)."""
+    try:
+        transfer.invoice = _create_transfer_fee_invoice(transfer)
+        transfer.append("activity", _log_row(
+            f"Transfer fee invoice {transfer.invoice} created ({paid_invoice_name} paid in full by the client at "
+            f"{_coach_label(transfer.receiving_coach)}{' - ' + reason if reason else ''})"
+        ))
+        transfer.save(ignore_permissions=True)
+        frappe.db.commit()
+        return True
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Transfer Fee Invoice Failed On Payment - {transfer.name}")
+        _notify_transfer_fee_invoice_failed(transfer)
+        return False
+
+
+def _process_invoice_transfer_fee(invoice_name):
+    """
+    Payment Entry.on_submit hook target (see hooks.py) - mirrors course_
+    unlock_on_payment.py's own pattern exactly: fires for every route an
+    invoice can be marked paid (the dashboard's own "mark paid" button or
+    a Payment Entry made directly in Desk), deferred into a background
+    job so a billing problem here can never block the payment itself
+    from recording.
+
+    The SJ-to-Emily transfer fee is deliberately tied to THIS - Emily's
+    own invoice to the transferred client actually being paid in full -
+    never to the lead converting or the transfer agreement completing on
+    their own (see sign_transfer()'s own comment). Per Ashley: Emily
+    shouldn't owe SJ anything until the client has actually paid Emily.
+    """
+    if not frappe.db.exists("Sales Invoice", invoice_name):
+        return
+
+    invoice = frappe.db.get_value(
+        "Sales Invoice", invoice_name,
+        ["custom_client", "custom_created_by_coach", "docstatus", "outstanding_amount", "grand_total"],
+        as_dict=True,
+    )
+    if not invoice or invoice.docstatus != 1:
+        return
+    if not invoice.custom_client or not invoice.custom_created_by_coach:
+        return
+
+    outstanding = payment_utils.get_outstanding_amount_for_payment(
+        invoice.outstanding_amount, invoice.grand_total, invoice_name
+    )
+    if outstanding > 0.01:
+        return
+
+    pending_transfers = frappe.get_all(
         TRANSFER_DOCTYPE,
-        filters={"client_lead": lead_name, "status": STATUS_COMPLETED},
-        fields=["name", "invoice"],
+        filters={
+            "status": STATUS_COMPLETED,
+            "receiving_coach": invoice.custom_created_by_coach,
+            "invoice": ["in", ["", None]],
+        },
+        fields=["name"],
     )
 
-    for row in transfers:
-        if row.invoice:
+    for row in pending_transfers:
+        transfer = frappe.get_doc(TRANSFER_DOCTYPE, row.name)
+        if _transferred_client_for(transfer) != invoice.custom_client:
             continue
 
+        # Only one transfer should ever match a given (client, receiving
+        # coach) pair - a second, later transfer of the same client back
+        # to the same coach is vanishingly unlikely, but stop at the
+        # first match regardless rather than invoicing twice for one
+        # payment.
+        _maybe_invoice_transfer_fee(transfer, invoice_name, reason=None)
+        break
+
+
+def invoice_transfer_fee_on_client_payment(doc, method=None):
+    try:
+        _invoice_transfer_fee_on_client_payment(doc)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Transfer Fee On Payment Failed - {doc.name}")
+
+
+def _invoice_transfer_fee_on_client_payment(doc):
+    if doc.payment_type != "Receive":
+        return
+
+    for reference in doc.references or []:
+        if reference.reference_doctype != "Sales Invoice" or not reference.reference_name:
+            continue
+
+        frappe.enqueue(
+            "dashboard.api.shared.client_transfers.process_invoice_transfer_fee",
+            queue="short",
+            enqueue_after_commit=True,
+            invoice_name=reference.reference_name,
+        )
+
+
+def process_invoice_transfer_fee(invoice_name):
+    try:
+        _process_invoice_transfer_fee(invoice_name)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Transfer Fee On Payment Failed - {invoice_name}")
+
+
+@frappe.whitelist()
+def backfill_transfer_fees_for_paid_invoices():
+    """
+    Franchisor-triggerable, safe to re-run any time - for every Completed
+    transfer with no fee invoice yet, checks whether the receiving coach
+    already has an invoice to the transferred client that's fully paid
+    (e.g. paid before this payment-triggered automation existed, or
+    missed because the hook failed for some other reason) and raises the
+    fee invoice for any that qualify. Already-invoiced transfers are
+    skipped, so this is safe to run as often as needed.
+    """
+    ensure_office_user()
+    return _backfill_transfer_fees_for_paid_invoices()
+
+
+def _backfill_transfer_fees_for_paid_invoices():
+    pending_transfers = frappe.get_all(
+        TRANSFER_DOCTYPE,
+        filters={"status": STATUS_COMPLETED, "invoice": ["in", ["", None]]},
+        fields=["name"],
+    )
+
+    invoiced = []
+    for row in pending_transfers:
         transfer = frappe.get_doc(TRANSFER_DOCTYPE, row.name)
 
-        try:
-            transfer.invoice = _create_transfer_fee_invoice(transfer)
-            transfer.append("activity", _log_row(
-                f"Transfer fee invoice {transfer.invoice} created (lead converted to client)"
-            ))
-            transfer.save(ignore_permissions=True)
-            frappe.db.commit()
-        except Exception:
-            frappe.log_error(frappe.get_traceback(), f"Transfer Fee Invoice Failed On Conversion - {row.name}")
-            _notify_transfer_fee_invoice_failed(transfer)
+        client_name = _transferred_client_for(transfer)
+        if not client_name:
+            continue
+
+        candidate_invoices = frappe.get_all(
+            "Sales Invoice",
+            filters={
+                "custom_client": client_name,
+                "custom_created_by_coach": transfer.receiving_coach,
+                "docstatus": 1,
+            },
+            fields=["name", "outstanding_amount", "grand_total"],
+            order_by="posting_date asc, creation asc",
+        )
+
+        paid_invoice_name = None
+        for candidate in candidate_invoices:
+            outstanding = payment_utils.get_outstanding_amount_for_payment(
+                candidate.outstanding_amount, candidate.grand_total, candidate.name
+            )
+            if outstanding <= 0.01:
+                paid_invoice_name = candidate.name
+                break
+
+        if not paid_invoice_name:
+            continue
+
+        if _maybe_invoice_transfer_fee(transfer, paid_invoice_name, reason="backfill"):
+            invoiced.append(transfer.name)
+
+    return {"checked": len(pending_transfers), "invoiced": invoiced}
 
 
 # =====================================================
@@ -628,8 +770,12 @@ def backfill_client_transfer(
     invoice-related reads it). On completion, Client Lead.coach is set to
     receiving_coach same as any transfer - a no-op here since it's
     already that value - and the transfer fee invoice is raised
-    automatically at that point via the existing Converted-lead path in
-    sign_transfer(), with no separate invoicing step needed here.
+    automatically, same as any transfer, once the receiving coach's own
+    first invoice to this client is paid in full (see
+    invoice_transfer_fee_on_client_payment). If that's already happened
+    in the past (this is backfilled paperwork for a transfer that took
+    effect a while ago), run backfill_transfer_fees_for_paid_invoices
+    afterwards to catch it up.
 
     `lead` identifies the Client Lead directly if known; otherwise
     `client_name` is matched (case-insensitive substring) against
@@ -833,13 +979,15 @@ def sign_transfer(name=None, signature=None):
     transfer.status = new_status
 
     if new_status == STATUS_COMPLETED:
-        # The transfer fee is deliberately NOT invoiced here - only once
-        # this lead actually converts to a Client (see
-        # invoice_pending_transfer_fees_for_lead) is money actually owed;
-        # a completed transfer whose lead never converts should never
-        # have generated a fee at all.
+        # The transfer fee is deliberately NOT invoiced here, and never on
+        # the lead converting to a Client either - per Ashley, Emily
+        # shouldn't owe SJ anything until the client has actually paid
+        # Emily. See invoice_transfer_fee_on_client_payment (Payment
+        # Entry.on_submit hook, hooks.py): it's raised automatically the
+        # moment the receiving coach's own first invoice to this client
+        # is paid in full.
         transfer.append("activity", _log_row(
-            "Transfer completed - fee will be invoiced once the lead converts to a client"
+            "Transfer completed - fee will be invoiced once the client's first invoice at the new coach is paid in full"
         ))
 
     transfer.save(ignore_permissions=True)
@@ -851,14 +999,6 @@ def sign_transfer(name=None, signature=None):
         lead_doc.active_transfer = None
         lead_doc.save(ignore_permissions=True)
         frappe.db.commit()
-
-        if lead_doc.status == "Converted":
-            # This lead already became a Client before this transfer
-            # finished signing - the fee is owed right now, since
-            # leads.py only calls invoice_pending_transfer_fees_for_lead
-            # at the moment of conversion, which has already passed and
-            # won't happen again for this lead.
-            invoice_pending_transfer_fees_for_lead(lead_doc.name)
 
         _notify_transfer_completed(transfer)
     else:
