@@ -216,6 +216,46 @@ def _notify_transfer_completed(transfer):
             frappe.log_error(frappe.get_traceback(), f"Transfer Notification Failed - {transfer.name}")
 
 
+def _notify_transfer_fee_invoiced(transfer):
+    """
+    Fired whenever _maybe_invoice_transfer_fee actually raises the fee
+    invoice (live payment, backfill, or a manual link_transfer_to_client)
+    - previously nothing told either coach this had happened at all,
+    which Ashley flagged: the transferring coach (who the fee is owed
+    to) needs to know to expect payment, and the receiving coach (who
+    the invoice is billed to) needs to know they now owe it.
+    """
+    amount = transfer.transfer_fee_amount or DEFAULT_TRANSFER_FEE
+    transferring_label = _coach_label(transfer.transferring_coach)
+    receiving_label = _coach_label(transfer.receiving_coach)
+
+    recipients = (
+        (transfer.transferring_coach, "You're owed a £{0} client transfer fee from {1} for {2} ({3}) - keep an eye out for payment.".format(
+            amount, receiving_label, transfer.client_name, transfer.invoice,
+        )),
+        (transfer.receiving_coach, "You've been invoiced £{0} for the client transfer fee for {1} - please pay {2} to {3}.".format(
+            amount, transfer.client_name, transfer.invoice, transferring_label,
+        )),
+    )
+
+    for coach_name, message in recipients:
+        coach_user = _get_coach_login(coach_name)
+        if not coach_user:
+            continue
+
+        try:
+            create_trk_notification(
+                recipient_user=coach_user,
+                notification_type="Task",
+                message=message,
+                reference_doctype="Sales Invoice",
+                reference_name=transfer.invoice,
+                coach=coach_name,
+            )
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"Transfer Notification Failed - {transfer.name}")
+
+
 def _notify_transfer_fee_invoice_failed(transfer):
     """Invoicing on the client's payment is best-effort (see
     _process_invoice_transfer_fee / _maybe_invoice_transfer_fee) - this is
@@ -481,6 +521,7 @@ def _maybe_invoice_transfer_fee(transfer, paid_invoice_name, reason):
         ))
         transfer.save(ignore_permissions=True)
         frappe.db.commit()
+        _notify_transfer_fee_invoiced(transfer)
         return True
     except Exception:
         frappe.log_error(frappe.get_traceback(), f"Transfer Fee Invoice Failed On Payment - {transfer.name}")
