@@ -529,7 +529,7 @@
       if (!bodyEl) return;
 
       if (!hqStockItems.length) {
-        bodyEl.innerHTML = `<tr><td colspan="2" class="dashboard-empty">No tracked stock items yet - set one up in Manage Store.</td></tr>`;
+        bodyEl.innerHTML = `<tr><td colspan="2" class="dashboard-empty">No tracked stock items yet.</td></tr>`;
         return;
       }
 
@@ -537,7 +537,7 @@
         if (!hqStockEditing) {
           return `<tr><td style="text-align:left;">${escapeHtml(item.item_name)}</td><td style="text-align:left;">${escapeHtml(item.stock_qty)}</td></tr>`;
         }
-        return `<tr><td style="text-align:left;">${escapeHtml(item.item_name)}</td><td style="text-align:left;"><input type="number" min="0" class="dashboard-input" data-hq-stock-item="${escapeHtml(item.item_code)}" data-original-value="${escapeHtml(item.stock_qty)}" value="${escapeHtml(item.stock_qty)}" style="width:90px;"></td></tr>`;
+        return `<tr><td style="text-align:left;">${escapeHtml(item.item_name)}</td><td style="text-align:left;"><input type="number" min="0" class="dashboard-input" data-hq-stock-row-type="${escapeHtml(item.row_type)}" data-hq-stock-key="${escapeHtml(item.key)}" data-original-value="${escapeHtml(item.stock_qty)}" value="${escapeHtml(item.stock_qty)}" style="width:90px;"></td></tr>`;
       }).join("");
     }
 
@@ -556,10 +556,14 @@
       const messageEl = el("hqStockMessage");
 
       const updates = [];
-      document.querySelectorAll("#hqStockTableBody [data-hq-stock-item]").forEach(function (input) {
+      document.querySelectorAll("#hqStockTableBody [data-hq-stock-key]").forEach(function (input) {
         const original = input.dataset.originalValue;
         if (input.value === original || input.value === "") return;
-        updates.push({ item_code: input.dataset.hqStockItem, stock_qty: parseInt(input.value, 10) || 0 });
+        updates.push({
+          row_type: input.dataset.hqStockRowType,
+          key: input.dataset.hqStockKey,
+          stock_qty: parseInt(input.value, 10) || 0,
+        });
       });
 
       if (!updates.length) {
