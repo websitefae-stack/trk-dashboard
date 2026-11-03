@@ -311,6 +311,9 @@ def get_my_documents_by_type(view_as=None, viewer=None):
 		key = row.document_type if row.document_type in documents else "Other"
 		documents[key].append(row)
 
+	for key in documents:
+		documents[key].sort(key=lambda row: (row.get("document_title") or "").lower())
+
 	return {"types": types, "documents": documents}
 
 
