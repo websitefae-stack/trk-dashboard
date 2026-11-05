@@ -1245,6 +1245,125 @@ def _resync_practice_document_brand_access(practice_document_name):
 	_notify_franchisor_of_new_practice_document_if_due(doc)
 
 
+@frappe.whitelist()
+def explain_practice_document_notification_status(practice_document=None):
+	"""
+	Franchisor-only diagnostic, read-only - walks the same checks
+	_resync_practice_document_brand_access does and says exactly why a
+	given Practice Document's brand access ticks didn't produce any Coach
+	Document Requirements (and so no coach notification), rather than
+	leaving "nothing happened" to guess at. Mirrors client_transfers.py's
+	own explain_transfer_fee_status.
+	"""
+	if not is_franchisor_user():
+		frappe.throw("You do not have permission to do this.", frappe.PermissionError)
+
+	practice_document = (practice_document or "").strip()
+	if not practice_document or not frappe.db.exists(PRACTICE_DOCUMENT_DOCTYPE, practice_document):
+		frappe.throw("Practice Document not found.")
+
+	doc = frappe.get_doc(PRACTICE_DOCUMENT_DOCTYPE, practice_document)
+
+	ticked_brands = sorted(_get_practice_document_brand_values(doc))
+	is_workshop_resource = doc.document_type == "Workshop Resource"
+
+	result = {
+		"practice_document": doc.name,
+		"document_title": doc.document_title,
+		"status": doc.status,
+		"document_purpose": doc.document_purpose,
+		"document_type": doc.document_type,
+		"published_date": str(doc.get("published_date") or ""),
+		"ticked_brands": ticked_brands,
+		"coaches_notified": bool(doc.get("coaches_notified")),
+		"franchisor_notified": bool(doc.get("franchisor_notified")),
+	}
+
+	if doc.status != "Published":
+		result["explanation"] = (
+			"Status is \"{0}\", not Published - Coach Document Requirements are deliberately never created for "
+			"a Draft (its own Before Insert Server Script rejects them), so nothing is created or notified "
+			"until this is set to Published."
+		).format(doc.status)
+		return result
+
+	if _publish_date_is_future(doc.get("published_date")):
+		result["explanation"] = (
+			"Published Date ({0}) is still in the future - access/requirements/notification are all withheld "
+			"until that date arrives (the daily catch-up job picks it up then)."
+		).format(result["published_date"])
+		return result
+
+	if is_workshop_resource:
+		result["explanation"] = (
+			"Document Type is Workshop Resource - this is always treated as a resource document (Available to "
+			"Coaches), never a Coach Document Requirement, regardless of Document Purpose or brand ticks. See "
+			"coaches_notified above for whether the resource notification fired."
+		)
+		return result
+
+	if doc.document_purpose not in ("Internal Compliance", "Both"):
+		result["explanation"] = (
+			"Document Purpose is \"{0}\" - only Internal Compliance or Both create Coach Document Requirements "
+			"(what actually notifies a coach for a non-resource document). Client Resource alone only affects "
+			"resource visibility/notification, tracked separately via coaches_notified above."
+		).format(doc.document_purpose or "(not set)")
+		return result
+
+	if not ticked_brands:
+		result["explanation"] = "No Brand Access boxes are ticked on this document, so no coach matches by brand at all."
+		return result
+
+	brand_coach_names = _get_coach_names_with_brand_access(set(ticked_brands))
+	result["coaches_with_matching_brand_access"] = len(brand_coach_names)
+
+	item_access_gate = _get_item_access_gated_coach_names(doc.name)
+	if item_access_gate is not None:
+		result["linked_items_restrict_to_item_access"] = True
+		gated_coach_names = brand_coach_names & item_access_gate
+		result["coaches_after_item_access_gate"] = len(gated_coach_names)
+		if not gated_coach_names:
+			result["explanation"] = (
+				"This document has Linked Items set, which narrows Brand-Based Access down to only coaches who "
+				"also have Item Access to one of those items - {0} coach(es) matched by brand, but 0 remained "
+				"after that narrowing, which is why no Coach Document Requirements were created. Remove the "
+				"Linked Items (if they weren't meant to restrict this document) or grant the relevant coaches "
+				"Item Access."
+			).format(len(brand_coach_names))
+			return result
+		target_coach_names = gated_coach_names
+	else:
+		result["linked_items_restrict_to_item_access"] = False
+		target_coach_names = brand_coach_names
+
+	if not target_coach_names:
+		result["explanation"] = "No coach currently has Brand Access matching {0}.".format(", ".join(ticked_brands))
+		return result
+
+	existing_requirements = frappe.get_all(
+		COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
+		filters={"practice_document": doc.name, "person_type": "Coach"},
+		fields=["coach"],
+	)
+	result["existing_coach_document_requirements"] = len(existing_requirements)
+
+	if not existing_requirements:
+		result["explanation"] = (
+			"{0} coach(es) should have a Coach Document Requirement for this document but none exist yet - "
+			"this looks like the sync genuinely hasn't run. Re-saving the document (even with no changes) "
+			"re-triggers it; check the Error Log for \"Brand Document Requirement Sync Failed - {1}\" for why "
+			"it may have failed silently."
+		).format(len(target_coach_names), doc.name)
+		return result
+
+	result["explanation"] = (
+		"{0} Coach Document Requirement(s) exist for {1} matching coach(es) - each one's own insert should "
+		"have notified that coach directly. If a coach still says they weren't notified, check their own "
+		"notification list/Coach Brand Access rather than this document."
+	).format(len(existing_requirements), len(target_coach_names))
+	return result
+
+
 def sync_practice_document_brand_requirements(doc, method=None):
 	"""
 	Practice Document.on_update hook - ticking or unticking one of the
