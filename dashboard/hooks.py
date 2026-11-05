@@ -267,9 +267,17 @@ doc_events = {
     # "Show In Dashboard Reports" / "Also Show To Coaches" on the Web Form
     # itself (custom fields, see the add_web_form_report_visibility_fields
     # patch) drive Reports-section visibility automatically - see
-    # form_reports.sync_web_form_report_visibility.
+    # form_reports.sync_web_form_report_visibility. Registered on both
+    # events (not just on_update) after a form patch's own doc.insert()
+    # was confirmed live to sometimes leave a brand new Web Form without
+    # its Form Visibility Rule ever created, requiring a manual repair
+    # call (see form_reports.retry_create_teacher_session_feedback_form)
+    # - Ashley doesn't want to have to do that for every new form. The
+    # sync function is a plain upsert, so firing twice on the same
+    # insert (once for each event) is harmless.
     "Web Form": {
         "on_update": "dashboard.api.shared.form_reports.sync_web_form_report_visibility",
+        "after_insert": "dashboard.api.shared.form_reports.sync_web_form_report_visibility",
     },
     # Frappe Blog is a separate app too, same story as LMS Certificate
     # above - Custom Hero Image (see add_blog_post_hero_image_field
