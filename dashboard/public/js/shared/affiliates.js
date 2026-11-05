@@ -80,46 +80,67 @@
     );
   }
 
-  function renderCatalogSection(title, rows) {
-    if (!rows.length) return "";
+  function renderCatalogSection(rows) {
+    if (!rows.length) return '<div class="dashboard-empty">Nothing here yet.</div>';
 
     return (
-      '<div style="margin-top:16px;"><h3 style="margin:0 0 8px;">' + escapeHtml(title) + "</h3>" +
       '<table class="dashboard-table"><thead><tr>' +
         "<th>Name</th><th>Enabled</th><th>Commission Type</th><th>Percent (%)</th><th>Flat Amount (&pound;)</th>" +
       "</tr></thead><tbody>" +
       rows.map(renderCatalogRow).join("") +
-      "</tbody></table></div>"
+      "</tbody></table>"
     );
   }
 
-  async function loadCatalogTable() {
-    var container = el("affiliateCatalogTable");
-    showCatalogError("");
-
-    var catalog;
-    try {
-      catalog = await apiPost(API + ".get_affiliate_commission_catalog", {});
-    } catch (error) {
-      container.innerHTML = '<div class="dashboard-empty">Could not load the catalog.</div>';
-      return;
-    }
-
-    if (!catalog.items.length && !catalog.courses.length) {
-      container.innerHTML = '<div class="dashboard-empty">No store items or courses found.</div>';
-      return;
-    }
-
-    container.innerHTML =
-      renderCatalogSection("Store Items", catalog.items) +
-      renderCatalogSection("Courses", catalog.courses);
-
+  function wireCatalogTypeToggles(container) {
     Array.prototype.slice.call(container.querySelectorAll(".js-affiliate-catalog-type")).forEach(function (select) {
       select.addEventListener("change", function () {
         var row = select.closest("tr");
         var isPercent = select.value === "Percentage";
         row.querySelector(".js-affiliate-catalog-percent").style.display = isPercent ? "" : "none";
         row.querySelector(".js-affiliate-catalog-flat").style.display = isPercent ? "none" : "";
+      });
+    });
+  }
+
+  async function loadCatalogTable() {
+    var itemsContainer = el("affiliateCatalogItemsTable");
+    var coursesContainer = el("affiliateCatalogCoursesTable");
+    showCatalogError("");
+
+    var catalog;
+    try {
+      catalog = await apiPost(API + ".get_affiliate_commission_catalog", {});
+    } catch (error) {
+      itemsContainer.innerHTML = '<div class="dashboard-empty">Could not load the catalog.</div>';
+      coursesContainer.innerHTML = "";
+      return;
+    }
+
+    itemsContainer.innerHTML = renderCatalogSection(catalog.items);
+    coursesContainer.innerHTML = renderCatalogSection(catalog.courses);
+
+    wireCatalogTypeToggles(itemsContainer);
+    wireCatalogTypeToggles(coursesContainer);
+  }
+
+  function initCatalogTabs() {
+    var tabsWrap = el("affiliateCatalogTabs");
+    if (!tabsWrap) return;
+
+    tabsWrap.querySelectorAll(".dashboard-tab-btn[data-tab-target]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        tabsWrap.querySelectorAll(".dashboard-tab-btn").forEach(function (btn) {
+          btn.classList.toggle("is-active", btn === button);
+        });
+
+        ["affiliateCatalogItemsPanel", "affiliateCatalogCoursesPanel"].forEach(function (panelId) {
+          var panel = el(panelId);
+          if (!panel) return;
+          var isActive = panelId === button.dataset.tabTarget;
+          panel.classList.toggle("is-active", isActive);
+          panel.style.display = isActive ? "block" : "none";
+        });
       });
     });
   }
@@ -131,7 +152,7 @@
     saveBtn.addEventListener("click", async function () {
       showCatalogError("");
 
-      var rows = Array.prototype.slice.call(document.querySelectorAll("#affiliateCatalogTable tr[data-row-id]")).map(function (tr) {
+      var rows = Array.prototype.slice.call(document.querySelectorAll("#affiliateCatalogItemsTable tr[data-row-id], #affiliateCatalogCoursesTable tr[data-row-id]")).map(function (tr) {
         return {
           type: tr.dataset.type,
           code: tr.dataset.code,
@@ -416,7 +437,54 @@
       });
     }
 
+    await loadMyAffiliateProductLinks();
     await loadMyAffiliateSales();
+  }
+
+  async function loadMyAffiliateProductLinks() {
+    var container = el("coachAffiliateProductLinksTable");
+    if (!container) return;
+
+    var links;
+    try {
+      links = await apiPost(API + ".get_my_affiliate_product_links", {});
+    } catch (error) {
+      container.innerHTML = '<div class="dashboard-empty">Could not load your links.</div>';
+      return;
+    }
+
+    if (!links.length) {
+      container.innerHTML = '<div class="dashboard-empty">No products or courses have a commission set up yet.</div>';
+      return;
+    }
+
+    container.innerHTML = links.map(function (row, index) {
+      var inputId = "coachAffiliateProductLink" + index;
+      return (
+        '<div class="dashboard-detail-field" style="margin-top:' + (index ? "12px" : "0") + ';">' +
+          "<label for=\"" + inputId + "\">" + escapeHtml(row.label) + "</label>" +
+          '<div style="display:flex; gap:10px; flex-wrap:wrap;">' +
+            '<input type="text" class="dashboard-input" id="' + inputId + '" readonly style="flex:1; min-width:260px;" value="' + escapeHtml(row.link) + '">' +
+            '<button type="button" class="dashboard-btn dashboard-btn-light js-copy-affiliate-product-link" data-target="' + inputId + '">Copy Link</button>' +
+          "</div>" +
+        "</div>"
+      );
+    }).join("");
+
+    Array.prototype.slice.call(container.querySelectorAll(".js-copy-affiliate-product-link")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        var input = el(button.dataset.target);
+        if (!input || !input.value) return;
+        input.select();
+        try {
+          navigator.clipboard.writeText(input.value);
+          button.textContent = "Copied!";
+          setTimeout(function () { button.textContent = "Copy Link"; }, 1500);
+        } catch (error) {
+          document.execCommand("copy");
+        }
+      });
+    });
   }
 
   async function loadMyAffiliateSales() {
@@ -465,6 +533,7 @@
 
   function init() {
     if (el("affiliatesPage")) {
+      initCatalogTabs();
       initCatalogSave();
       initCommissionsFilters();
 
