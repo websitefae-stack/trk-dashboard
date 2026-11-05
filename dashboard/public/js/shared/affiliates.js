@@ -124,6 +124,32 @@
     wireCatalogTypeToggles(coursesContainer);
   }
 
+  var catalogLoaded = false;
+
+  function initCatalogToggle() {
+    var toggleBtn = el("toggleAffiliateCatalogBtn");
+    var editArea = el("affiliateCatalogEditArea");
+    if (!toggleBtn || !editArea) return;
+
+    toggleBtn.addEventListener("click", async function () {
+      var showing = editArea.style.display !== "none";
+
+      if (showing) {
+        editArea.style.display = "none";
+        toggleBtn.textContent = "Edit Products/Courses";
+        return;
+      }
+
+      editArea.style.display = "block";
+      toggleBtn.textContent = "Hide";
+
+      if (!catalogLoaded) {
+        catalogLoaded = true;
+        await loadCatalogTable();
+      }
+    });
+  }
+
   function initCatalogTabs() {
     var tabsWrap = el("affiliateCatalogTabs");
     if (!tabsWrap) return;
@@ -533,11 +559,11 @@
 
   function init() {
     if (el("affiliatesPage")) {
+      initCatalogToggle();
       initCatalogTabs();
       initCatalogSave();
       initCommissionsFilters();
 
-      loadCatalogTable();
       loadCoachPerformanceTable();
       loadCoachFilterOptions();
       loadCommissionsTable();
