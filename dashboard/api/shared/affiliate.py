@@ -23,6 +23,7 @@ so it's never considered here.
 import random
 import re
 import string
+from urllib.parse import quote
 
 import frappe
 from frappe import _
@@ -127,6 +128,39 @@ def get_my_affiliate_summary():
     }
 
 
+@frappe.whitelist()
+def get_my_affiliate_product_links():
+    """
+    Coach-only - one link per enabled Affiliate Product Setting,
+    pointing straight at that specific item/course's own public page
+    (not just the generic store-wide link get_my_affiliate_link gives)
+    - so a coach can share "buy this exact course" rather than only
+    "browse the whole store", still carrying their own code.
+    """
+    coach_name = get_current_coach_name(optional=False)
+    code = _ensure_affiliate_code(coach_name)
+
+    settings = frappe.get_all(
+        AFFILIATE_SETTING_DOCTYPE,
+        filters={"enabled": 1},
+        fields=["item", "course"],
+    )
+
+    links = []
+    for setting in settings:
+        if setting.item:
+            label = frappe.db.get_value("Item", setting.item, "item_name") or setting.item
+            link = "{0}/buy?item={1}&aff={2}".format(PUBLIC_SITE_URL, quote(setting.item), quote(code))
+        else:
+            label = frappe.db.get_value("LMS Course", setting.course, "title") or setting.course
+            link = "{0}/trh-course-detail?slug={1}&aff={2}".format(PUBLIC_SITE_URL, quote(setting.course), quote(code))
+
+        links.append({"label": label, "link": link})
+
+    links.sort(key=lambda row: row["label"].lower())
+    return links
+
+
 @frappe.whitelist(allow_guest=True)
 def record_affiliate_click(code=None):
     """
@@ -213,9 +247,19 @@ def get_affiliate_commission_catalog():
             "commission_percent": setting.commission_percent, "commission_flat_amount": setting.commission_flat_amount,
         }
 
+    # custom_store_enabled - same flag store_products.get_store_products()
+    # filters on - is what actually distinguishes a real Store product
+    # from a Service (bookable coaching sessions etc, never something a
+    # shared link sells to the public) - plain disabled=0 pulled in
+    # every service Item too, which Ashley doesn't want listed here at
+    # all.
+    item_filters = {"disabled": 0, "variant_of": ["in", ["", None]]}
+    if frappe.get_meta("Item").has_field("custom_store_enabled"):
+        item_filters["custom_store_enabled"] = 1
+
     items = frappe.get_all(
         "Item",
-        filters={"disabled": 0, "variant_of": ["in", ["", None]]},
+        filters=item_filters,
         fields=["name", "item_name", "has_variants"],
         order_by="item_name asc",
     )
