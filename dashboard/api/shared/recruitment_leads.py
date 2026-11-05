@@ -1702,6 +1702,9 @@ def get_session_worker_setup_url(name=None):
     return {"url": get_url(f"/app/session-worker/new?{query}" if query else "/app/session-worker/new")}
 
 
+PLAIN_TEXT_FIELDTYPES = {"Data", "Small Text", "Text", "Long Text"}
+
+
 def _first_settable_session_worker_field(candidates):
     """Session Worker's own actual field names aren't reliably known even
     within this codebase (see session_workers.py's own SESSION_WORKER_
@@ -1709,10 +1712,30 @@ def _first_settable_session_worker_field(candidates):
     of it) - this picks the first candidate that genuinely exists on the
     live doctype, skipping "name" itself (get_existing_fields always
     includes it as a last-resort read fallback, but it's the record's
-    autoname, never something to set directly before insert)."""
+    autoname, never something to set directly before insert).
+
+    Also skips anything that isn't a plain text-ish fieldtype - confirmed
+    live that one of the email candidates on this site is actually a Link
+    (to Email Account), not free text, so setting a typed-in address
+    straight onto it threw Frappe's own "Could not find Email: ..." Link-
+    validation error instead of creating the record. Falls through to the
+    next candidate instead (e.g. email_id after email), and ultimately
+    returns None rather than guess wrong - better to create the Session
+    Worker without that one value than fail outright, since there's
+    nothing here that can tell a Link's real target doctype apart from a
+    coincidentally-named text field without risking exactly this."""
+    meta = frappe.get_meta(SESSION_WORKER_DOCTYPE)
+
     for fieldname in get_existing_fields(SESSION_WORKER_DOCTYPE, candidates):
-        if fieldname != "name":
-            return fieldname
+        if fieldname == "name":
+            continue
+
+        field = meta.get_field(fieldname)
+        if field and field.fieldtype not in PLAIN_TEXT_FIELDTYPES:
+            continue
+
+        return fieldname
+
     return None
 
 
