@@ -18,21 +18,28 @@
       <div class="dashboard-card">
         <div class="dashboard-detail-section-head" style="display:flex; justify-content:space-between; align-items:center;">
           <h2 class="dashboard-detail-section-title">Commission Settings</h2>
-          <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveAffiliateCatalogBtn">Save Changes</button>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="toggleAffiliateCatalogBtn">Edit Products/Courses</button>
         </div>
-        <p style="color:#839898; font-size:13px; margin-top:-8px;">Every store product and course is listed below - tick one on and set an amount to start earning commission on it. Unticking turns it back off without losing its history.</p>
-        <div id="affiliateCatalogError" style="display:none; margin:8px 0; color:#C0392B; font-size:14px;"></div>
+        <p style="color:#839898; font-size:13px; margin-top:-8px;">Tick a product or course on and set an amount to start earning commission on it - unticking turns it back off without losing its history.</p>
 
-        <div class="dashboard-tabs" id="affiliateCatalogTabs" role="tablist">
-          <button type="button" class="dashboard-tab-btn is-active" data-tab-target="affiliateCatalogItemsPanel">Products</button>
-          <button type="button" class="dashboard-tab-btn" data-tab-target="affiliateCatalogCoursesPanel">Courses</button>
-        </div>
+        <div id="affiliateCatalogEditArea" style="display:none;">
+          <div id="affiliateCatalogError" style="display:none; margin:8px 0; color:#C0392B; font-size:14px;"></div>
 
-        <div class="dashboard-tab-panel is-active" id="affiliateCatalogItemsPanel" style="display:block;">
-          <div id="affiliateCatalogItemsTable">Loading...</div>
-        </div>
-        <div class="dashboard-tab-panel" id="affiliateCatalogCoursesPanel" style="display:none;">
-          <div id="affiliateCatalogCoursesTable">Loading...</div>
+          <div class="dashboard-tabs" id="affiliateCatalogTabs" role="tablist">
+            <button type="button" class="dashboard-tab-btn is-active" data-tab-target="affiliateCatalogItemsPanel">Products</button>
+            <button type="button" class="dashboard-tab-btn" data-tab-target="affiliateCatalogCoursesPanel">Courses</button>
+          </div>
+
+          <div class="dashboard-tab-panel is-active" id="affiliateCatalogItemsPanel" style="display:block;">
+            <div id="affiliateCatalogItemsTable">Loading...</div>
+          </div>
+          <div class="dashboard-tab-panel" id="affiliateCatalogCoursesPanel" style="display:none;">
+            <div id="affiliateCatalogCoursesTable">Loading...</div>
+          </div>
+
+          <div style="margin-top:16px; text-align:right;">
+            <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveAffiliateCatalogBtn">Save Changes</button>
+          </div>
         </div>
       </div>
 
