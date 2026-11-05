@@ -78,7 +78,8 @@ def _doctype_fields():
          "label": "What was the most valuable thing your pupils learnt from the session?"},
         {"fieldname": "q7_observed_changes", "fieldtype": "Small Text",
          "label": "Did you notice any changes in pupils' confidence, understanding, emotional awareness or "
-                  "willingness to participate? Please share any examples."},
+                  "willingness to participate?",
+         "description": "Please share any examples."},
         {"fieldname": "q8_tools_continued_use", "fieldtype": "Small Text",
          "label": "Which tools or strategies do you think pupils will continue to use in the classroom or beyond?"},
 
