@@ -179,125 +179,122 @@ def resolve_affiliate_coach(affiliate_code):
 # =====================================================
 
 @frappe.whitelist()
-def get_affiliate_product_settings():
+def get_affiliate_commission_catalog():
+    """
+    Franchisor-only - every eligible Item (not disabled, not itself a
+    variant - a variant template is the one to set, see
+    AffiliateProductSetting.validate) and every Course, each annotated
+    with its existing Affiliate Product Setting if it has one. Replaces
+    the earlier search-as-you-type picker - confirmed live that
+    selecting a datalist suggestion doesn't reliably commit the exact
+    expected value in every browser, which kept throwing "Pick a
+    course/item from the list" even on a real selection. Listing
+    everything up front removes the need to match a typed string
+    against anything at all.
+    """
     ensure_office_user()
 
-    rows = frappe.get_all(
+    existing_settings = frappe.get_all(
         AFFILIATE_SETTING_DOCTYPE,
         fields=["name", "item", "course", "enabled", "commission_type", "commission_percent", "commission_flat_amount"],
-        order_by="modified desc",
     )
+    settings_by_item = {row.item: row for row in existing_settings if row.item}
+    settings_by_course = {row.course: row for row in existing_settings if row.course}
 
-    for row in rows:
-        if row.item:
-            row["label"] = frappe.db.get_value("Item", row.item, "item_name") or row.item
-        elif row.course:
-            row["label"] = frappe.db.get_value("LMS Course", row.course, "title") or row.course
-        else:
-            row["label"] = row.name
+    def _setting_fields(setting):
+        if not setting:
+            return {
+                "setting_name": None, "enabled": 0, "commission_type": "Percentage",
+                "commission_percent": 0, "commission_flat_amount": 0,
+            }
+        return {
+            "setting_name": setting.name, "enabled": setting.enabled,
+            "commission_type": setting.commission_type,
+            "commission_percent": setting.commission_percent, "commission_flat_amount": setting.commission_flat_amount,
+        }
 
-    return rows
+    items = frappe.get_all(
+        "Item",
+        filters={"disabled": 0, "variant_of": ["in", ["", None]]},
+        fields=["name", "item_name", "has_variants"],
+        order_by="item_name asc",
+    )
+    item_rows = []
+    for item in items:
+        row = {"type": "item", "code": item.name, "label": item.item_name + (" (has variants)" if item.has_variants else "")}
+        row.update(_setting_fields(settings_by_item.get(item.name)))
+        item_rows.append(row)
+
+    course_rows = []
+    if frappe.db.exists("DocType", "LMS Course"):
+        courses = frappe.get_all("LMS Course", fields=["name", "title"], order_by="title asc")
+        for course in courses:
+            row = {"type": "course", "code": course.name, "label": course.title}
+            row.update(_setting_fields(settings_by_course.get(course.name)))
+            course_rows.append(row)
+
+    return {"items": item_rows, "courses": course_rows}
 
 
 @frappe.whitelist()
-def search_affiliate_items(query=None):
-    """Franchisor-only item picker for the Affiliate Settings form -
-    deliberately excludes variants (has_variants items are the ones to
-    pick; a variant itself can never carry its own setting, see
-    AffiliateProductSetting.validate)."""
+def save_affiliate_commission_catalog(rows=None):
+    """
+    Franchisor-only - bulk save from the catalog list (ticked/enabled +
+    an amount per row, no separate add-new form). Only ever writes a row
+    that's either enabled or already has a real setting to update/turn
+    off - a row left blank and unticked across the whole catalog (most
+    of it, realistically) never creates an empty Affiliate Product
+    Setting just because it was listed.
+    """
     ensure_office_user()
 
-    query = coalesce_str("query", query)
-    filters = {"disabled": 0, "variant_of": ["in", ["", None]]}
-    if query:
-        filters["item_name"] = ["like", f"%{query}%"]
+    rows = coalesce_raw("rows", rows)
+    if isinstance(rows, str):
+        import json
+        rows = json.loads(rows)
 
-    return frappe.get_all(
-        "Item", filters=filters, fields=["name", "item_name", "has_variants"],
-        order_by="item_name asc", limit_page_length=20,
-    )
+    updated = 0
 
+    for row in rows or []:
+        row_type = (row.get("type") or "").strip()
+        code = (row.get("code") or "").strip()
+        enabled = 1 if row.get("enabled") else 0
+        commission_type = (row.get("commission_type") or "Percentage").strip()
+        commission_percent = flt(row.get("commission_percent") or 0)
+        commission_flat_amount = flt(row.get("commission_flat_amount") or 0)
 
-@frappe.whitelist()
-def search_affiliate_courses(query=None):
-    """Franchisor-only course picker for the Affiliate Settings form."""
-    ensure_office_user()
+        if row_type not in ("item", "course") or not code:
+            continue
 
-    if not frappe.db.exists("DocType", "LMS Course"):
-        return []
+        has_amount = (commission_type == "Percentage" and commission_percent > 0) or (
+            commission_type == "Flat Amount" and commission_flat_amount > 0
+        )
 
-    query = coalesce_str("query", query)
-    filters = {}
-    if query:
-        filters["title"] = ["like", f"%{query}%"]
+        filters = {"item": code} if row_type == "item" else {"course": code}
+        existing_name = frappe.db.exists(AFFILIATE_SETTING_DOCTYPE, filters)
 
-    return frappe.get_all(
-        "LMS Course", filters=filters, fields=["name", "title"],
-        order_by="title asc", limit_page_length=20,
-    )
+        if not existing_name and not (enabled and has_amount):
+            # Nothing on file for this one, and nothing meaningful was
+            # entered - skip rather than create a disabled, zero-amount
+            # row for every untouched item/course in the catalog.
+            continue
 
+        doc = frappe.get_doc(AFFILIATE_SETTING_DOCTYPE, existing_name) if existing_name else frappe.new_doc(AFFILIATE_SETTING_DOCTYPE)
+        doc.item = code if row_type == "item" else None
+        doc.course = code if row_type == "course" else None
+        doc.commission_type = commission_type
+        doc.commission_percent = commission_percent
+        doc.commission_flat_amount = commission_flat_amount
+        # Ticking it on with no amount set isn't meaningful (nothing to
+        # pay out) - don't let the franchisor accidentally "enable" a
+        # row that still earns nothing.
+        doc.enabled = 1 if (enabled and has_amount) else 0
+        doc.save(ignore_permissions=True)
+        updated += 1
 
-@frappe.whitelist()
-def save_affiliate_product_setting(name=None, item=None, course=None, commission_type=None, commission_percent=None, commission_flat_amount=None, enabled=1):
-    ensure_office_user()
-
-    name = coalesce_str("name", name)
-    item = coalesce_str("item", item)
-    course = coalesce_str("course", course)
-    commission_type = coalesce_str("commission_type", commission_type) or "Percentage"
-
-    if bool(item) == bool(course):
-        frappe.throw(_("Choose exactly one Item or Course."))
-
-    if item:
-        if not frappe.db.exists("Item", item):
-            frappe.throw(_("Item not found."))
-        # A variant template (has_variants=1) is deliberately allowed
-        # here - that's the whole point, setting it once covers every
-        # variant (see _affiliate_setting_for_item's own fallback).
-        existing = frappe.db.exists(AFFILIATE_SETTING_DOCTYPE, {"item": item, "name": ["!=", name or ""]})
-        if existing:
-            frappe.throw(_("{0} already has an affiliate setting.").format(item))
-    else:
-        if not frappe.db.exists("LMS Course", course):
-            frappe.throw(_("Course not found."))
-        existing = frappe.db.exists(AFFILIATE_SETTING_DOCTYPE, {"course": course, "name": ["!=", name or ""]})
-        if existing:
-            frappe.throw(_("{0} already has an affiliate setting.").format(course))
-
-    doc = frappe.get_doc(AFFILIATE_SETTING_DOCTYPE, name) if name and frappe.db.exists(AFFILIATE_SETTING_DOCTYPE, name) else frappe.new_doc(AFFILIATE_SETTING_DOCTYPE)
-
-    doc.item = item or None
-    doc.course = course or None
-    doc.commission_type = commission_type
-    doc.commission_percent = flt(coalesce_raw("commission_percent", commission_percent))
-    doc.commission_flat_amount = flt(coalesce_raw("commission_flat_amount", commission_flat_amount))
-    doc.enabled = 1 if int(coalesce_raw("enabled", enabled) or 0) else 0
-
-    doc.save(ignore_permissions=True)
     frappe.db.commit()
 
-    return {"ok": True, "name": doc.name}
-
-
-@frappe.whitelist()
-def delete_affiliate_product_setting(name=None):
-    ensure_office_user()
-
-    name = coalesce_str("name", name)
-    if not name or not frappe.db.exists(AFFILIATE_SETTING_DOCTYPE, name):
-        frappe.throw(_("Affiliate setting not found."))
-
-    if frappe.db.exists(AFFILIATE_COMMISSION_DOCTYPE, {"affiliate_setting": name}):
-        frappe.throw(_(
-            "This setting already has commissions recorded against it - disable it instead of deleting, so "
-            "the history stays intact."
-        ))
-
-    frappe.delete_doc(AFFILIATE_SETTING_DOCTYPE, name, ignore_permissions=True)
-    frappe.db.commit()
-
-    return {"ok": True}
+    return {"ok": True, "updated": updated}
 
 
 # =====================================================
@@ -432,13 +429,30 @@ def get_coach_options_for_affiliates():
     return frappe.get_all("Coach", fields=["name", "coach_name"], order_by="coach_name asc")
 
 
+def _commission_date_filters(from_date, to_date):
+    if from_date and to_date:
+        return {"creation": ["between", [from_date, to_date + " 23:59:59"]]}
+    if from_date:
+        return {"creation": [">=", from_date]}
+    if to_date:
+        return {"creation": ["<=", to_date + " 23:59:59"]}
+    return {}
+
+
 @frappe.whitelist()
-def get_affiliate_coach_performance():
+def get_affiliate_coach_performance(from_date=None, to_date=None):
     """Franchisor-only - one row per coach who has ever had a click or a
     commission, for the Affiliates page's own "who's actually driving
     sales" summary (link clicks are otherwise invisible anywhere in the
-    per-sale Commissions table below)."""
+    per-sale Commissions table below). from_date/to_date filter the
+    sale figures only (sale_count/pending_total/paid_total) by when
+    each commission was earned - click_count is always the coach's
+    all-time total, since clicks are only ever kept as a running count,
+    not individually dated."""
     ensure_office_user()
+
+    from_date = coalesce_str("from_date", from_date)
+    to_date = coalesce_str("to_date", to_date)
 
     coaches = frappe.get_all(
         "Coach", filters={"affiliate_code": ["is", "set"]},
@@ -446,7 +460,9 @@ def get_affiliate_coach_performance():
     )
 
     commission_rows = frappe.get_all(
-        AFFILIATE_COMMISSION_DOCTYPE, fields=["coach", "status", "commission_amount"],
+        AFFILIATE_COMMISSION_DOCTYPE,
+        filters=_commission_date_filters(from_date, to_date),
+        fields=["coach", "status", "commission_amount"],
     )
     by_coach = {}
     for row in commission_rows:
@@ -547,13 +563,15 @@ def get_my_affiliate_commissions():
 
 
 @frappe.whitelist()
-def get_affiliate_commissions(coach=None, status=None):
+def get_affiliate_commissions(coach=None, status=None, from_date=None, to_date=None):
     ensure_office_user()
 
-    filters = {}
     coach = coalesce_str("coach", coach)
     status = coalesce_str("status", status)
+    from_date = coalesce_str("from_date", from_date)
+    to_date = coalesce_str("to_date", to_date)
 
+    filters = _commission_date_filters(from_date, to_date)
     if coach:
         filters["coach"] = coach
     if status:
@@ -567,7 +585,7 @@ def get_affiliate_commissions(coach=None, status=None):
             "commission_rate_snapshot", "commission_amount", "client_full_name",
             "client_email", "status", "paid_on", "creation",
         ],
-        order_by="creation desc",
+        order_by="coach asc, creation desc",
     )
 
     for row in rows:
