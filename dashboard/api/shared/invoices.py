@@ -1596,6 +1596,17 @@ def get_link_options(doctype, txt=None, limit_page_length=200):
     if doctype == "Item":
         item_filters = [["name", "like", f"%{txt}%"]] if txt else []
 
+        # Store products (custom_store_enabled=1 - same flag store_products.
+        # get_store_products() itself filters on) are sold only through the
+        # Store/checkout flow, never picked by hand onto an invoice - with
+        # every product also listed here, the one Service item someone
+        # actually wants (e.g. a coaching session) got buried. Confirmed
+        # live this clutter was a problem for Ashley raising an invoice
+        # manually too, not just coaches - excluded for everyone, not
+        # scoped by role like the rest of this branch.
+        if frappe.get_meta("Item").has_field("custom_store_enabled"):
+            item_filters.append(["custom_store_enabled", "!=", 1])
+
         # A coach can only offer items whose Item Defaults (Stock > Item >
         # Defaults tab) list their own company - if their company isn't
         # linked to a given service there at all, it must never show up as
