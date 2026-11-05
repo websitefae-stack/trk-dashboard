@@ -26,10 +26,11 @@ import string
 
 import frappe
 from frappe import _
-from frappe.utils import flt, nowdate, get_url
+from frappe.utils import flt, nowdate
 
 from dashboard.api.shared.permissions import ensure_office_user, get_current_coach_name
 from dashboard.api.shared.utils import coalesce_str, coalesce_raw
+from dashboard.api.shared.profile import PUBLIC_SITE_URL
 
 AFFILIATE_SETTING_DOCTYPE = "Affiliate Product Setting"
 AFFILIATE_COMMISSION_DOCTYPE = "Affiliate Commission"
@@ -80,7 +81,14 @@ def _ensure_affiliate_code(coach_name):
 
 
 def _affiliate_link(code):
-    return get_url("/trh-store?aff={0}".format(code))
+    # Deliberately NOT frappe.utils.get_url() - this code runs on the
+    # dashboard's own site, a different host entirely from the public
+    # store (/trh-store lives on resilient_domains' site), so get_url()
+    # built a link back to the dashboard's own internal hostname instead
+    # of a real, shareable public URL (confirmed live). PUBLIC_SITE_URL
+    # is the same hardcoded public hostname every other coach/client-
+    # facing link in this app already uses (see profile.py).
+    return "{0}/trh-store?aff={1}".format(PUBLIC_SITE_URL, code)
 
 
 @frappe.whitelist()
@@ -95,8 +103,8 @@ def get_my_affiliate_link():
 
 @frappe.whitelist()
 def get_my_affiliate_summary():
-    """Coach-only - their own link plus running commission totals, for
-    the coach dashboard's own affiliate section."""
+    """Coach-only - their own link plus running commission/click totals,
+    for the coach dashboard's own affiliate section."""
     coach_name = get_current_coach_name(optional=False)
     code = _ensure_affiliate_code(coach_name)
 
@@ -115,7 +123,40 @@ def get_my_affiliate_summary():
         "pending_total": pending_total,
         "paid_total": paid_total,
         "sale_count": len(rows),
+        "click_count": frappe.db.get_value("Coach", coach_name, "affiliate_click_count") or 0,
     }
+
+
+@frappe.whitelist(allow_guest=True)
+def record_affiliate_click(code=None):
+    """
+    Called once from resilient_domains' cart.js, the moment a genuine
+    ?aff=<code> is actually found in the URL (not on every subsequent
+    page view while it's just sitting in localStorage) - a simple
+    running count per coach, for "how many clicks did my link get"
+    rather than full click-by-click logging. Guest-accessible like the
+    rest of the public checkout surface; silently does nothing for an
+    unknown/mistyped code rather than throwing, same as
+    resolve_affiliate_coach.
+    """
+    code = (code or "").strip()
+    if not code:
+        return {"ok": True}
+
+    coach_name = frappe.db.get_value("Coach", {"affiliate_code": code}, "name")
+    if not coach_name:
+        return {"ok": True}
+
+    # A single atomic UPDATE rather than read-then-write - two clicks
+    # landing in the same instant must never both read the same stale
+    # count and silently lose one increment.
+    frappe.db.sql(
+        "UPDATE `tabCoach` SET affiliate_click_count = IFNULL(affiliate_click_count, 0) + 1 WHERE name = %s",
+        (coach_name,),
+    )
+    frappe.db.commit()
+
+    return {"ok": True}
 
 
 def resolve_affiliate_coach(affiliate_code):
@@ -389,6 +430,120 @@ def get_coach_options_for_affiliates():
     ensure_office_user()
 
     return frappe.get_all("Coach", fields=["name", "coach_name"], order_by="coach_name asc")
+
+
+@frappe.whitelist()
+def get_affiliate_coach_performance():
+    """Franchisor-only - one row per coach who has ever had a click or a
+    commission, for the Affiliates page's own "who's actually driving
+    sales" summary (link clicks are otherwise invisible anywhere in the
+    per-sale Commissions table below)."""
+    ensure_office_user()
+
+    coaches = frappe.get_all(
+        "Coach", filters={"affiliate_code": ["is", "set"]},
+        fields=["name", "coach_name", "affiliate_click_count"],
+    )
+
+    commission_rows = frappe.get_all(
+        AFFILIATE_COMMISSION_DOCTYPE, fields=["coach", "status", "commission_amount"],
+    )
+    by_coach = {}
+    for row in commission_rows:
+        bucket = by_coach.setdefault(row.coach, {"sale_count": 0, "pending_total": 0, "paid_total": 0})
+        bucket["sale_count"] += 1
+        if row.status == "Pending":
+            bucket["pending_total"] += flt(row.commission_amount)
+        else:
+            bucket["paid_total"] += flt(row.commission_amount)
+
+    results = []
+    for coach in coaches:
+        bucket = by_coach.get(coach.name, {"sale_count": 0, "pending_total": 0, "paid_total": 0})
+        if not coach.affiliate_click_count and not bucket["sale_count"]:
+            continue
+        results.append({
+            "coach": coach.name,
+            "coach_label": coach.coach_name or coach.name,
+            "click_count": coach.affiliate_click_count or 0,
+            "sale_count": bucket["sale_count"],
+            "pending_total": bucket["pending_total"],
+            "paid_total": bucket["paid_total"],
+        })
+
+    results.sort(key=lambda r: r["click_count"], reverse=True)
+    return results
+
+
+def _get_affiliate_sale_items(commission_name, restrict_to_coach=None):
+    if not commission_name or not frappe.db.exists(AFFILIATE_COMMISSION_DOCTYPE, commission_name):
+        frappe.throw(_("Commission record not found."))
+
+    commission = frappe.get_doc(AFFILIATE_COMMISSION_DOCTYPE, commission_name)
+
+    if restrict_to_coach and commission.coach != restrict_to_coach:
+        frappe.throw(_("You do not have permission to view this."), frappe.PermissionError)
+
+    if not commission.sales_invoice or not frappe.db.exists("Sales Invoice", commission.sales_invoice):
+        return {"items": [], "grand_total": 0}
+
+    items = frappe.get_all(
+        "Sales Invoice Item",
+        filters={"parent": commission.sales_invoice},
+        fields=["item_code", "item_name", "qty", "rate", "amount"],
+        order_by="idx asc",
+    )
+    grand_total = frappe.db.get_value("Sales Invoice", commission.sales_invoice, "grand_total") or 0
+
+    return {"items": items, "grand_total": grand_total}
+
+
+@frappe.whitelist()
+def get_affiliate_sale_items(commission=None):
+    """Franchisor-only - every line on the sale this commission came
+    from (not just the commissioned line), so "what did this person
+    buy" is answerable without going into Desk."""
+    ensure_office_user()
+
+    commission = coalesce_str("commission", commission)
+    return _get_affiliate_sale_items(commission)
+
+
+@frappe.whitelist()
+def get_my_affiliate_sale_items(commission=None):
+    """Coach-only, and only for their own commission - same shape as
+    get_affiliate_sale_items, for the coach dashboard's own drill-down."""
+    coach_name = get_current_coach_name(optional=False)
+
+    commission = coalesce_str("commission", commission)
+    return _get_affiliate_sale_items(commission, restrict_to_coach=coach_name)
+
+
+@frappe.whitelist()
+def get_my_affiliate_commissions():
+    """Coach-only - their own sale list (customer, price, commission),
+    for the coach dashboard's own affiliate section."""
+    coach_name = get_current_coach_name(optional=False)
+
+    rows = frappe.get_all(
+        AFFILIATE_COMMISSION_DOCTYPE,
+        filters={"coach": coach_name},
+        fields=[
+            "name", "item", "course", "sale_amount", "commission_rate_snapshot",
+            "commission_amount", "client_full_name", "client_email", "status", "creation",
+        ],
+        order_by="creation desc",
+    )
+
+    for row in rows:
+        if row.item:
+            row["product_label"] = frappe.db.get_value("Item", row.item, "item_name") or row.item
+        elif row.course:
+            row["product_label"] = frappe.db.get_value("LMS Course", row.course, "title") or row.course
+        else:
+            row["product_label"] = ""
+
+    return rows
 
 
 @frappe.whitelist()

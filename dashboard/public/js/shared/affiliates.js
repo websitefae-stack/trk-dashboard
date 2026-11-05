@@ -264,8 +264,106 @@
   }
 
   // =====================================================
+  // SHARED: expandable "what did they actually buy" row
+  // =====================================================
+
+  var expandedSaleRows = {};
+
+  function renderSaleDetailRow(colspan, items, grandTotal) {
+    if (!items || !items.length) {
+      return '<tr class="js-affiliate-sale-detail-row"><td colspan="' + colspan + '" style="background:#F2F8F8; padding:12px 16px;">Could not find this order\'s items.</td></tr>';
+    }
+
+    var lines = items.map(function (item) {
+      return (
+        '<div style="display:flex; justify-content:space-between; gap:12px;">' +
+          "<span>" + escapeHtml(item.item_name) + " &times; " + Number(item.qty) + "</span>" +
+          "<span>" + formatCurrency(item.amount) + "</span>" +
+        "</div>"
+      );
+    }).join("");
+
+    return (
+      '<tr class="js-affiliate-sale-detail-row"><td colspan="' + colspan + '" style="background:#F2F8F8; padding:12px 16px;">' +
+        '<div style="font-size:13px; color:#839898; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Whole Order</div>' +
+        lines +
+        '<div style="display:flex; justify-content:space-between; gap:12px; font-weight:700; margin-top:6px; padding-top:6px; border-top:1px solid #D9E6E6;">' +
+          "<span>Order Total</span><span>" + formatCurrency(grandTotal) + "</span>" +
+        "</div>" +
+      "</td></tr>"
+    );
+  }
+
+  // isMine: use the coach's own restricted endpoint (coach_db/affiliate)
+  // rather than the franchisor one (franchisor_db/affiliates) - same
+  // shape, different permission check server-side.
+  async function toggleSaleDetail(row, commissionName, colspan, isMine) {
+    var existing = row.nextElementSibling;
+    if (existing && existing.classList && existing.classList.contains("js-affiliate-sale-detail-row")) {
+      existing.remove();
+      delete expandedSaleRows[commissionName];
+      return;
+    }
+
+    Object.keys(expandedSaleRows).forEach(function (name) {
+      var openRow = document.querySelector('[data-sale-detail-for="' + name + '"]');
+      if (openRow) openRow.remove();
+    });
+    expandedSaleRows = {};
+
+    var method = isMine ? ".get_my_affiliate_sale_items" : ".get_affiliate_sale_items";
+    var payload = isMine ? { commission: commissionName } : { commission: commissionName };
+
+    try {
+      var result = await apiPost(API + method, payload);
+      var detailHtml = renderSaleDetailRow(colspan, result.items, result.grand_total);
+      row.insertAdjacentHTML("afterend", detailHtml);
+      var inserted = row.nextElementSibling;
+      if (inserted) inserted.setAttribute("data-sale-detail-for", commissionName);
+      expandedSaleRows[commissionName] = true;
+    } catch (error) {
+      window.alert(error.message || "Could not load this order's items.");
+    }
+  }
+
+  // =====================================================
   // COMMISSIONS
   // =====================================================
+
+  async function loadCoachPerformanceTable() {
+    var container = el("affiliateCoachPerformanceTable");
+    if (!container) return;
+
+    var rows;
+    try {
+      rows = await apiPost(API + ".get_affiliate_coach_performance", {});
+    } catch (error) {
+      container.innerHTML = '<div class="dashboard-empty">Could not load coach performance.</div>';
+      return;
+    }
+
+    if (!rows.length) {
+      container.innerHTML = '<div class="dashboard-empty">No affiliate link activity yet.</div>';
+      return;
+    }
+
+    container.innerHTML =
+      '<table class="dashboard-table"><thead><tr>' +
+        "<th>Coach</th><th>Clicks</th><th>Sales</th><th>Pending</th><th>Paid</th>" +
+      "</tr></thead><tbody>" +
+      rows.map(function (row) {
+        return (
+          "<tr>" +
+            "<td>" + escapeHtml(row.coach_label) + "</td>" +
+            "<td>" + Number(row.click_count) + "</td>" +
+            "<td>" + Number(row.sale_count) + "</td>" +
+            "<td>" + formatCurrency(row.pending_total) + "</td>" +
+            "<td>" + formatCurrency(row.paid_total) + "</td>" +
+          "</tr>"
+        );
+      }).join("") +
+      "</tbody></table>";
+  }
 
   async function loadCoachFilterOptions() {
     var select = el("affiliateCommissionCoach");
@@ -307,17 +405,19 @@
       return;
     }
 
+    var colspan = 8;
+
     container.innerHTML =
       '<table class="dashboard-table"><thead><tr>' +
         "<th></th><th>Coach</th><th>Product</th><th>Customer</th><th>Sale</th><th>Rate</th><th>Commission</th><th>Status</th>" +
       "</tr></thead><tbody>" +
       rows.map(function (row) {
         return (
-          "<tr>" +
+          '<tr class="js-affiliate-commission-row" data-commission="' + escapeHtml(row.name) + '" style="cursor:pointer;" title="Click to see what they bought">' +
             '<td>' + (row.status === "Pending" ? '<input type="checkbox" class="js-affiliate-commission-check" value="' + escapeHtml(row.name) + '">' : "") + "</td>" +
             "<td>" + escapeHtml(row.coach_label) + "</td>" +
             "<td>" + escapeHtml(row.product_label) + "</td>" +
-            "<td>" + escapeHtml(row.client_full_name || "") + "</td>" +
+            "<td>" + escapeHtml(row.client_full_name || "") + (row.client_email ? '<br><span style="color:#839898; font-size:12px;">' + escapeHtml(row.client_email) + "</span>" : "") + "</td>" +
             "<td>" + formatCurrency(row.sale_amount) + "</td>" +
             "<td>" + escapeHtml(row.commission_rate_snapshot || "") + "</td>" +
             "<td style=\"font-weight:700;\">" + formatCurrency(row.commission_amount) + "</td>" +
@@ -326,6 +426,13 @@
         );
       }).join("") +
       "</tbody></table>";
+
+    Array.prototype.slice.call(container.querySelectorAll(".js-affiliate-commission-row")).forEach(function (row) {
+      row.addEventListener("click", function (event) {
+        if (event.target.closest(".js-affiliate-commission-check")) return;
+        toggleSaleDetail(row, row.dataset.commission, colspan, false);
+      });
+    });
   }
 
   function initCommissionsFilters() {
@@ -364,6 +471,8 @@
       el("coachAffiliatePendingTotal").textContent = formatCurrency(summary.pending_total);
       el("coachAffiliatePaidTotal").textContent = formatCurrency(summary.paid_total);
       el("coachAffiliateSaleCount").textContent = String(summary.sale_count || 0);
+      var clicksEl = el("coachAffiliateClickCount");
+      if (clicksEl) clicksEl.textContent = String(summary.click_count || 0);
     } catch (error) {
       linkInput.value = "";
       linkInput.placeholder = "Could not load your link.";
@@ -383,6 +492,52 @@
         }
       });
     }
+
+    await loadMyAffiliateSales();
+  }
+
+  async function loadMyAffiliateSales() {
+    var container = el("coachAffiliateSalesTable");
+    if (!container) return;
+
+    var rows;
+    try {
+      rows = await apiPost(API + ".get_my_affiliate_commissions", {});
+    } catch (error) {
+      container.innerHTML = '<div class="dashboard-empty">Could not load your sales.</div>';
+      return;
+    }
+
+    if (!rows.length) {
+      container.innerHTML = '<div class="dashboard-empty">No sales through your link yet.</div>';
+      return;
+    }
+
+    var colspan = 6;
+
+    container.innerHTML =
+      '<table class="dashboard-table"><thead><tr>' +
+        "<th>Product</th><th>Customer</th><th>Sale Price</th><th>Rate</th><th>Commission</th><th>Status</th>" +
+      "</tr></thead><tbody>" +
+      rows.map(function (row) {
+        return (
+          '<tr class="js-affiliate-commission-row" data-commission="' + escapeHtml(row.name) + '" style="cursor:pointer;" title="Click to see what they bought">' +
+            "<td>" + escapeHtml(row.product_label) + "</td>" +
+            "<td>" + escapeHtml(row.client_full_name || "") + (row.client_email ? '<br><span style="color:#839898; font-size:12px;">' + escapeHtml(row.client_email) + "</span>" : "") + "</td>" +
+            "<td>" + formatCurrency(row.sale_amount) + "</td>" +
+            "<td>" + escapeHtml(row.commission_rate_snapshot || "") + "</td>" +
+            "<td style=\"font-weight:700;\">" + formatCurrency(row.commission_amount) + "</td>" +
+            "<td>" + escapeHtml(row.status) + "</td>" +
+          "</tr>"
+        );
+      }).join("") +
+      "</tbody></table>";
+
+    Array.prototype.slice.call(container.querySelectorAll(".js-affiliate-commission-row")).forEach(function (row) {
+      row.addEventListener("click", function () {
+        toggleSaleDetail(row, row.dataset.commission, colspan, true);
+      });
+    });
   }
 
   function init() {
@@ -393,6 +548,7 @@
       applicableCommissionFields();
 
       loadSettingsTable();
+      loadCoachPerformanceTable();
       loadCoachFilterOptions();
       loadCommissionsTable();
     }
