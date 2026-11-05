@@ -240,3 +240,4 @@ dashboard.patches.add_coach_affiliate_code_field
 dashboard.patches.add_coach_affiliate_click_count_field
 dashboard.patches.disable_affiliate_settings_on_course_backing_items
 dashboard.patches.create_parent_workshop_signup_form
+dashboard.patches.create_teacher_session_feedback_form
