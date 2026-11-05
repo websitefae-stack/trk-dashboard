@@ -1174,6 +1174,77 @@ def retry_create_sessional_worker_reference_form():
     }
 
 
+def _retry_form_patch(module_path, doctype_name, web_form_route):
+    """
+    Shared by the retry endpoints below - re-runs a form patch's own
+    idempotent _create_doctype/_create_web_form (safe to call again,
+    whether or not they already ran), then ALSO force-reconciles the
+    Web Form's Reports/Links visibility itself by calling sync_web_form_
+    report_visibility directly on it.
+
+    That last step matters even when the DocType and Web Form already
+    exist: sync_web_form_report_visibility only ever runs as Web Form's
+    own on_update hook (see hooks.py), and confirmed live - a form
+    created going missing from the franchisor's own Links page even
+    though both records exist - that it's possible for a doc.insert()
+    during a patch to not leave the Form Visibility Rule it depends on
+    in the state it should be in. Calling it explicitly here, now that
+    the Web Form is known to actually exist, closes that gap regardless
+    of whether the DocType/Web Form half needed recreating at all.
+    """
+    import importlib
+    patch_module = importlib.import_module(module_path)
+
+    try:
+        patch_module._create_doctype()
+        patch_module._create_web_form()
+
+        web_form = frappe.db.exists("Web Form", {"route": web_form_route})
+        if web_form:
+            sync_web_form_report_visibility(frappe.get_doc("Web Form", web_form))
+    except Exception:
+        return {"ok": False, "error": frappe.get_traceback()}
+
+    return {
+        "ok": True,
+        "doctype_exists": bool(frappe.db.exists("DocType", doctype_name)),
+        "web_form_exists": bool(frappe.db.exists("Web Form", {"route": web_form_route})),
+        "visibility_rule": frappe.db.get_value("Form Visibility Rule", doctype_name, "visibility") if frappe.db.exists("DocType", "Form Visibility Rule") else None,
+    }
+
+
+@frappe.whitelist()
+def retry_create_teacher_session_feedback_form():
+    """One-off diagnostic/repair for create_teacher_session_feedback_form -
+    see retry_create_sessional_worker_reference_form's own docstring for
+    why a patch can leave a form invisible under Links even after it
+    technically "ran"."""
+    ensure_logged_in()
+    if not is_franchisor_user():
+        frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+    return _retry_form_patch(
+        "dashboard.patches.create_teacher_session_feedback_form",
+        "Teacher Session Feedback Response",
+        "teacher-session-feedback",
+    )
+
+
+@frappe.whitelist()
+def retry_create_parent_workshop_signup_form():
+    """One-off diagnostic/repair for create_parent_workshop_signup_form -
+    same purpose as retry_create_teacher_session_feedback_form."""
+    ensure_logged_in()
+    if not is_franchisor_user():
+        frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+    return _retry_form_patch(
+        "dashboard.patches.create_parent_workshop_signup_form",
+        "Parent Workshop Signup",
+        "parent-workshop-signup",
+    )
+
+
 def _client_display_name(client_name):
     if not client_name:
         return ""
