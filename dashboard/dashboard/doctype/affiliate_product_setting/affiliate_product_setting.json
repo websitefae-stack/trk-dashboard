@@ -1,0 +1,100 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-11-05 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "item",
+  "course",
+  "column_break_1",
+  "enabled",
+  "commission_section",
+  "commission_type",
+  "commission_percent",
+  "commission_flat_amount"
+ ],
+ "fields": [
+  {
+   "description": "Leave blank if this setting is for a Course instead. Set it on a variant template (e.g. a hoodie with size/colour options) and every variant uses it automatically - never set it on an individual variant directly.",
+   "fieldname": "item",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item",
+   "options": "Item"
+  },
+  {
+   "description": "Leave blank if this setting is for a Item instead.",
+   "fieldname": "course",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Course",
+   "options": "LMS Course"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "commission_section",
+   "fieldtype": "Section Break",
+   "label": "Commission"
+  },
+  {
+   "default": "Percentage",
+   "fieldname": "commission_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Commission Type",
+   "options": "Percentage\nFlat Amount",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.commission_type==\"Percentage\"",
+   "fieldname": "commission_percent",
+   "fieldtype": "Percent",
+   "label": "Commission Percent"
+  },
+  {
+   "depends_on": "eval:doc.commission_type==\"Flat Amount\"",
+   "fieldname": "commission_flat_amount",
+   "fieldtype": "Currency",
+   "label": "Commission Flat Amount (per sale)"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-05 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "Affiliate Product Setting",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
