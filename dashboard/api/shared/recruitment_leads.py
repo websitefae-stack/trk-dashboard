@@ -30,6 +30,13 @@ from dashboard.api.shared.email_templates import plain_text_to_email_html, parse
 from dashboard.api.shared.mail_throttle import send_email
 from dashboard.api.shared.item_access import _get_coach_login
 from dashboard.api.shared.clients import get_coach_label
+from dashboard.api.shared.session_workers import (
+    SESSION_WORKER_DOCTYPE,
+    SESSION_WORKER_LABEL_FIELDS,
+    SESSION_WORKER_EMAIL_FIELDS,
+    SESSION_WORKER_MOBILE_FIELDS,
+    get_existing_fields,
+)
 
 RECRUITMENT_LEAD_DOCTYPE = "Recruitment Lead"
 
@@ -1693,6 +1700,81 @@ def get_session_worker_setup_url(name=None):
     query = "&".join(f"{key}={quote(str(value))}" for key, value in params.items() if value)
 
     return {"url": get_url(f"/app/session-worker/new?{query}" if query else "/app/session-worker/new")}
+
+
+def _first_settable_session_worker_field(candidates):
+    """Session Worker's own actual field names aren't reliably known even
+    within this codebase (see session_workers.py's own SESSION_WORKER_
+    LABEL_FIELDS/EMAIL_FIELDS/MOBILE_FIELDS - written defensively because
+    of it) - this picks the first candidate that genuinely exists on the
+    live doctype, skipping "name" itself (get_existing_fields always
+    includes it as a last-resort read fallback, but it's the record's
+    autoname, never something to set directly before insert)."""
+    for fieldname in get_existing_fields(SESSION_WORKER_DOCTYPE, candidates):
+        if fieldname != "name":
+            return fieldname
+    return None
+
+
+@frappe.whitelist()
+def create_session_worker_from_lead(name=None, email=None):
+    """
+    Franchisor-only: one-click conversion of a Session Worker lead into a
+    real Session Worker record, replacing the old two-step "open a
+    pre-filled Desk form, then come back and paste the new record's name
+    in" flow (get_session_worker_setup_url/set_session_worker_link,
+    still kept for anyone who prefers raising it in Desk directly).
+
+    Always asks for an email rather than defaulting to the lead's own
+    contact_email - Ashley creates a dedicated company email address for
+    every session worker herself, so the applicant's personal email on
+    the lead is never the right one to carry over automatically.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    name = coalesce_str("name", name)
+    email = coalesce_str("email", email).strip()
+    doc = ensure_lead_access(name)
+
+    if doc.lead_type != "Session Worker":
+        frappe.throw(_("This lead isn't a Session Worker."))
+
+    if doc.converted_session_worker:
+        return {"ok": True, "session_worker": doc.converted_session_worker}
+
+    if not email:
+        frappe.throw(_("Enter the email address to set up for this Session Worker."))
+
+    full_name = (
+        f"{doc.get('franchisee_intake_first_name') or ''} {doc.get('franchisee_intake_last_name') or ''}".strip()
+        or doc.contact_name or ""
+    )
+    mobile = doc.get("franchisee_intake_phone") or doc.contact_mobile or ""
+
+    sw = frappe.new_doc(SESSION_WORKER_DOCTYPE)
+
+    name_field = _first_settable_session_worker_field(SESSION_WORKER_LABEL_FIELDS)
+    if name_field and full_name:
+        sw.set(name_field, full_name)
+
+    email_field = _first_settable_session_worker_field(SESSION_WORKER_EMAIL_FIELDS)
+    if email_field:
+        sw.set(email_field, email)
+
+    mobile_field = _first_settable_session_worker_field(SESSION_WORKER_MOBILE_FIELDS)
+    if mobile_field and mobile:
+        sw.set(mobile_field, mobile)
+
+    sw.insert(ignore_permissions=True)
+
+    doc.converted_session_worker = sw.name
+    doc.sw_setup_done = 1
+    doc.sw_setup_date = frappe.utils.today()
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True, "session_worker": sw.name}
 
 
 @frappe.whitelist()

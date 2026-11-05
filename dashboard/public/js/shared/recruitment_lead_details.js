@@ -1078,27 +1078,50 @@
     }
 
     block.innerHTML = `
-      <button type="button" class="dashboard-btn dashboard-btn-primary" id="rlOpenSessionWorkerSetupBtn">Open New Session Worker Form</button>
-      <div style="display:flex; gap:8px; align-items:center; flex-basis:100%; margin-top:8px;">
-        <input type="text" id="rlSessionWorkerLinkInput" class="dashboard-input" placeholder="Session Worker record name, once created" style="flex:1;">
-        <button type="button" class="dashboard-btn dashboard-btn-secondary" id="rlSaveSessionWorkerLinkBtn">Save</button>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; flex-basis:100%;">
+        <input type="email" id="rlSessionWorkerEmailInput" class="dashboard-input" placeholder="Email address to set up for them" style="flex:1; min-width:220px;">
+        <button type="button" class="dashboard-btn dashboard-btn-primary" id="rlCreateSessionWorkerBtn">Create Session Worker</button>
       </div>
       <div id="rlSessionWorkerSetupStatus" class="dashboard-help" style="flex-basis:100%;"></div>
+      <div style="flex-basis:100%; margin-top:10px;">
+        <a href="#" id="rlLinkExistingSessionWorkerToggle" class="dashboard-help" style="text-decoration:underline;">Already created one in Desk? Link it here instead</a>
+        <div id="rlLinkExistingSessionWorkerRow" style="display:none; gap:8px; align-items:center; margin-top:8px;">
+          <input type="text" id="rlSessionWorkerLinkInput" class="dashboard-input" placeholder="Session Worker record name" style="flex:1;">
+          <button type="button" class="dashboard-btn dashboard-btn-secondary" id="rlSaveSessionWorkerLinkBtn">Link</button>
+        </div>
+      </div>
     `;
 
-    el("rlOpenSessionWorkerSetupBtn")?.addEventListener("click", async () => {
+    el("rlCreateSessionWorkerBtn")?.addEventListener("click", async () => {
       const name = getValue("rlDocname");
-      const btn = el("rlOpenSessionWorkerSetupBtn");
-      if (!name) return;
-      if (btn) { btn.disabled = true; btn.textContent = "Opening..."; }
-      try {
-        const result = await apiPost(`${SHARED_API}.get_session_worker_setup_url`, { name });
-        if (result.url) window.open(result.url, "_blank", "noopener");
-      } catch (error) {
-        window.alert(error.message || "Could not open the New Session Worker form.");
-      } finally {
-        if (btn) { btn.disabled = false; btn.textContent = "Open New Session Worker Form"; }
+      const emailInput = el("rlSessionWorkerEmailInput");
+      const statusEl = el("rlSessionWorkerSetupStatus");
+      const btn = el("rlCreateSessionWorkerBtn");
+      if (!name || !emailInput) return;
+
+      const email = emailInput.value.trim();
+      if (!email) {
+        if (statusEl) statusEl.textContent = "Enter the email address to set up for this Session Worker first.";
+        return;
       }
+
+      if (btn) { btn.disabled = true; btn.textContent = "Creating..."; }
+      if (statusEl) statusEl.textContent = "";
+
+      try {
+        await apiPost(`${SHARED_API}.create_session_worker_from_lead`, { name, email });
+        await loadLead();
+      } catch (error) {
+        if (statusEl) statusEl.textContent = error.message || "Could not create the Session Worker record.";
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = "Create Session Worker"; }
+      }
+    });
+
+    el("rlLinkExistingSessionWorkerToggle")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      const row = el("rlLinkExistingSessionWorkerRow");
+      if (row) row.style.display = row.style.display === "none" ? "flex" : "none";
     });
 
     el("rlSaveSessionWorkerLinkBtn")?.addEventListener("click", async () => {
@@ -1123,7 +1146,7 @@
       } catch (error) {
         if (statusEl) statusEl.textContent = error.message || "Could not save this.";
       } finally {
-        if (btn) { btn.disabled = false; btn.textContent = "Save"; }
+        if (btn) { btn.disabled = false; btn.textContent = "Link"; }
       }
     });
   }
