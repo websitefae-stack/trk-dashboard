@@ -55,6 +55,7 @@ from dashboard.api.shared.utils import coalesce_str, coalesce_raw
 RESOURCE_DOCTYPE = "Knowledge Vault Resource"
 RESOURCE_SCHOOL_DOCTYPE = "Knowledge Vault Resource School"
 RESOURCE_STAFF_DOCTYPE = "Knowledge Vault Resource Staff"
+RESOURCE_VIEW_DOCTYPE = "Knowledge Vault Resource View"
 
 RESOURCE_TYPE_OPTIONS = [
     "Video", "PDF", "Image", "Document", "Email Template",
@@ -67,7 +68,7 @@ RESOURCE_TYPE_OPTIONS = [
 # light-coupling already used between these sibling apps elsewhere.
 SCHOOL_ROLE_OPTIONS = [
     "Head", "Senior Leader", "Teacher", "Teaching Assistant",
-    "SENCO", "Pastoral Staff", "School Administrator", "Other",
+    "SENCO", "Pastoral Staff", "School Administrator", "Ambassador", "Other",
 ]
 
 YEAR_GROUP_OPTIONS = [
@@ -551,3 +552,191 @@ def set_resource_staff_grants(resource, organisation, staff_members):
         ))
 
     return {"ok": True}
+
+
+# =====================================================
+# RESOURCE VIEWS (watch tracking)
+# =====================================================
+
+def _resource_view_doctype_ready():
+    return frappe.db.exists("DocType", RESOURCE_VIEW_DOCTYPE) and frappe.db.table_exists(RESOURCE_VIEW_DOCTYPE)
+
+
+def record_resource_view(resource, organisation, membership):
+    """Called via school_dashboard's own record_resource_view wrapper,
+    the moment a staff member opens a resource's video/file link (not on
+    later page loads of the resource list) - organisation/membership are
+    already-resolved values from the caller's own Organisation
+    Membership lookup, same trust model as get_knowledge_vault_
+    resources_for_school_staff above - this has no login check of its
+    own. Best-effort: never allowed to break opening the resource itself
+    over a tracking write failing.
+
+    Idempotent - only ever one row per (resource, membership), so
+    re-opening the same video doesn't inflate anything; this tracks
+    "did they ever watch it", not a play count."""
+    if not resource or not organisation or not membership:
+        return
+
+    if not _resource_view_doctype_ready():
+        return
+
+    try:
+        resource = str(resource)
+
+        if frappe.db.exists(RESOURCE_VIEW_DOCTYPE, {"resource": resource, "membership": membership}):
+            return
+
+        doc = frappe.new_doc(RESOURCE_VIEW_DOCTYPE)
+        doc.resource = resource
+        doc.organisation = organisation
+        doc.membership = membership
+        doc.viewed_at = frappe.utils.now_datetime()
+        doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Knowledge Vault Resource View Recording Failed")
+
+
+def _staff_display_names(membership_names):
+    if not membership_names:
+        return {}
+
+    rows = frappe.get_all(
+        "Organisation Membership",
+        filters={"name": ["in", list(membership_names)]},
+        fields=["name", "user", "email"],
+    )
+
+    user_emails = {row.name: row.user for row in rows if row.user}
+    full_names = {}
+    if user_emails:
+        for row in frappe.get_all("User", filters={"name": ["in", list(set(user_emails.values()))]}, fields=["name", "full_name"]):
+            full_names[row.name] = row.full_name or row.name
+
+    return {
+        row.name: (full_names.get(row.user) if row.user else None) or row.email or row.name
+        for row in rows
+    }
+
+
+def get_resource_watch_stats_for_school(organisation):
+    """Primary-Contact-only (caller's job to gate, same pattern as this
+    module's other school-facing functions) - for every resource
+    allocated to `organisation`, how many of its own effective_staff
+    (see get_resource_staff_grants_for_school) have actually watched it,
+    and who has/hasn't - the school-side half of "which topics are our
+    staff actually engaging with"."""
+    grants = get_resource_staff_grants_for_school(organisation)
+    if not grants:
+        return []
+
+    resource_names = [str(row["name"]) for row in grants]
+    all_membership_names = {m for row in grants for m in row["effective_staff"]}
+
+    watched_by_resource = {}
+    if all_membership_names and _resource_view_doctype_ready():
+        for row in frappe.get_all(
+            RESOURCE_VIEW_DOCTYPE,
+            filters={"resource": ["in", resource_names], "membership": ["in", list(all_membership_names)]},
+            fields=["resource", "membership"],
+        ):
+            watched_by_resource.setdefault(row.resource, set()).add(row.membership)
+
+    names_by_membership = _staff_display_names(all_membership_names)
+
+    results = []
+    for row in grants:
+        effective = row["effective_staff"]
+        watched = watched_by_resource.get(str(row["name"]), set())
+
+        results.append({
+            "name": row["name"],
+            "title": row["title"],
+            "resource_type": row["resource_type"],
+            "staff_with_access": len(effective),
+            "staff_watched": len(watched & set(effective)),
+            "watched_names": sorted(names_by_membership.get(m, m) for m in watched if m in effective),
+            "not_watched_names": sorted(names_by_membership.get(m, m) for m in effective if m not in watched),
+        })
+
+    return results
+
+
+@frappe.whitelist()
+def get_knowledge_vault_watch_report():
+    """Franchisor-only - every Video resource ranked by how much of its
+    own effective audience has actually watched it, both as an overall
+    total across every school it's allocated to AND broken down per
+    school, so a high overall number that's really just one school
+    doesn't get mistaken for a widespread pattern. This is the "which
+    topics are schools actually engaging with, and which specific school
+    should we proactively reach out to" view - e.g. most of one school's
+    staff watching the anxiety video is a workshop opportunity, not just
+    a vanity metric."""
+    _ensure_franchisor()
+
+    resource_names = frappe.get_all(
+        RESOURCE_DOCTYPE,
+        filters={"resource_type": "Video", "is_active": 1},
+        fields=["name", "title"],
+        order_by="modified desc",
+    )
+    if not resource_names:
+        return []
+
+    school_rows = frappe.get_all(
+        RESOURCE_SCHOOL_DOCTYPE,
+        filters={"parent": ["in", [str(r.name) for r in resource_names]]},
+        fields=["parent", "school"],
+    )
+    schools_by_resource = {}
+    for row in school_rows:
+        schools_by_resource.setdefault(str(row.parent), []).append(row.school)
+
+    school_names = {
+        row.name: (row.customer_name or row.name)
+        for row in frappe.get_all(
+            "Customer",
+            filters={"name": ["in", list({s for schools in schools_by_resource.values() for s in schools})]},
+            fields=["name", "customer_name"],
+        )
+    } if schools_by_resource else {}
+
+    results = []
+    for resource in resource_names:
+        resource_name = str(resource.name)
+        schools = schools_by_resource.get(resource_name, [])
+
+        total_access = 0
+        total_watched = 0
+        per_school = []
+
+        for school in schools:
+            school_stats = get_resource_watch_stats_for_school(school)
+            match = next((row for row in school_stats if str(row["name"]) == resource_name), None)
+            if not match:
+                continue
+
+            total_access += match["staff_with_access"]
+            total_watched += match["staff_watched"]
+            per_school.append({
+                "school": school,
+                "school_label": school_names.get(school, school),
+                "staff_with_access": match["staff_with_access"],
+                "staff_watched": match["staff_watched"],
+            })
+
+        per_school.sort(key=lambda row: row["staff_watched"], reverse=True)
+
+        results.append({
+            "name": resource.name,
+            "title": resource.title,
+            "staff_with_access": total_access,
+            "staff_watched": total_watched,
+            "watch_rate": round(100 * total_watched / total_access, 1) if total_access else 0,
+            "schools": per_school,
+        })
+
+    results.sort(key=lambda row: row["staff_watched"], reverse=True)
+    return results

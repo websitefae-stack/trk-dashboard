@@ -356,6 +356,98 @@
     }
   }
 
+  // =====================================================
+  // WATCH REPORT
+  // =====================================================
+
+  function renderWatchReportRow(row) {
+    return (
+      '<tr class="js-kv-watch-row" data-resource="' + escapeHtml(row.name) + '" style="cursor:pointer;" title="Click to see the school-by-school breakdown">' +
+        "<td>" + escapeHtml(row.title) + "</td>" +
+        "<td>" + Number(row.staff_watched) + " / " + Number(row.staff_with_access) + "</td>" +
+        "<td>" + Number(row.watch_rate) + "%</td>" +
+      "</tr>"
+    );
+  }
+
+  function renderWatchReportDetail(colspan, schools) {
+    if (!schools || !schools.length) {
+      return '<tr class="js-kv-watch-detail-row"><td colspan="' + colspan + '" style="background:#F2F8F8; padding:12px 16px;">Not allocated to any school yet.</td></tr>';
+    }
+
+    const rows = schools.map(function (school) {
+      return (
+        "<tr>" +
+          "<td>" + escapeHtml(school.school_label) + "</td>" +
+          "<td>" + Number(school.staff_watched) + " / " + Number(school.staff_with_access) + "</td>" +
+        "</tr>"
+      );
+    }).join("");
+
+    return (
+      '<tr class="js-kv-watch-detail-row"><td colspan="' + colspan + '" style="background:#F2F8F8; padding:12px 16px;">' +
+        '<table class="dashboard-table"><thead><tr><th>School</th><th>Watched</th></tr></thead><tbody>' + rows + "</tbody></table>" +
+      "</td></tr>"
+    );
+  }
+
+  let expandedWatchRows = {};
+
+  function toggleWatchReportDetail(row, resourceName, schools, colspan) {
+    const existing = row.nextElementSibling;
+    if (existing && existing.classList && existing.classList.contains("js-kv-watch-detail-row")) {
+      existing.remove();
+      delete expandedWatchRows[resourceName];
+      return;
+    }
+
+    Object.keys(expandedWatchRows).forEach(function (name) {
+      const openRow = document.querySelector('[data-watch-detail-for="' + name + '"]');
+      if (openRow) openRow.remove();
+    });
+    expandedWatchRows = {};
+
+    const detailHtml = renderWatchReportDetail(colspan, schools);
+    row.insertAdjacentHTML("afterend", detailHtml);
+    const inserted = row.nextElementSibling;
+    if (inserted) inserted.setAttribute("data-watch-detail-for", resourceName);
+    expandedWatchRows[resourceName] = true;
+  }
+
+  async function loadWatchReport() {
+    const container = el("kvWatchReportTable");
+    if (!container) return;
+
+    let rows;
+    try {
+      rows = await apiPost(SHARED_API + ".get_knowledge_vault_watch_report", {});
+    } catch (error) {
+      container.innerHTML = '<div class="dashboard-empty">Could not load the watch report.</div>';
+      return;
+    }
+
+    if (!rows.length) {
+      container.innerHTML = '<div class="dashboard-empty">No video resources yet.</div>';
+      return;
+    }
+
+    const colspan = 3;
+
+    container.innerHTML =
+      '<table class="dashboard-table"><thead><tr>' +
+        "<th>Video</th><th>Watched</th><th>Watch Rate</th>" +
+      "</tr></thead><tbody>" +
+      rows.map(renderWatchReportRow).join("") +
+      "</tbody></table>";
+
+    Array.prototype.slice.call(container.querySelectorAll(".js-kv-watch-row")).forEach(function (rowEl) {
+      rowEl.addEventListener("click", function () {
+        const match = rows.find(function (r) { return String(r.name) === rowEl.dataset.resource; });
+        toggleWatchReportDetail(rowEl, rowEl.dataset.resource, match ? match.schools : [], colspan);
+      });
+    });
+  }
+
   function init() {
     if (!el("kvResourceTableBody")) return;
 
@@ -373,6 +465,7 @@
     }
 
     loadResources();
+    loadWatchReport();
   }
 
   if (document.readyState === "loading") {
