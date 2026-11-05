@@ -634,6 +634,7 @@ def create_checkout_session(
     postcode=None,
     country=None,
     coach=None,
+    affiliate_code=None,
     coupon_code=None,
     success_url=None,
     cancel_url=None,
@@ -697,6 +698,9 @@ def create_checkout_session(
     if coach and not frappe.db.exists("Coach", coach):
         coach = ""
 
+    from dashboard.api.shared.affiliate import resolve_affiliate_coach
+    affiliate_coach = resolve_affiliate_coach(affiliate_code)
+
     checkout = frappe.new_doc("Webshop Checkout")
     checkout.full_name = full_name
     checkout.email = email
@@ -707,6 +711,8 @@ def create_checkout_session(
     checkout.postcode = postcode or ""
     checkout.country = country or ""
     checkout.coach = coach or None
+    if checkout.meta.has_field("affiliate_coach"):
+        checkout.affiliate_coach = affiliate_coach or None
 
     line_items = []
     priced_lines = []
@@ -1720,6 +1726,13 @@ def _fulfil_checkout_session(session):
                 # a failure to bump the usage counter shouldn't undo an
                 # already-paid order.
                 frappe.log_error(frappe.get_traceback(), f"Could not record coupon use - {checkout.name}")
+
+        if checkout.get("affiliate_coach"):
+            from dashboard.api.shared.affiliate import record_affiliate_commission_for_invoice
+            record_affiliate_commission_for_invoice(
+                invoice, checkout.affiliate_coach,
+                client_full_name=checkout.full_name, client_email=email,
+            )
 
         frappe.db.commit()
 

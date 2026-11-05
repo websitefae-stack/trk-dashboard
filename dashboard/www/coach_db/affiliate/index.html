@@ -1,0 +1,45 @@
+{% include "dashboard/templates/includes/head/coach_head.html" %}
+
+<div class="dashboard-page" id="coachAffiliatePage">
+  {% include "dashboard/templates/includes/sidebar/coach_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Your Affiliate Link</h1>
+          <p class="dashboard-page-subtitle">Share this link - anyone who buys through it (store products or courses that have a commission set up) earns you a commission, at the normal price, no code needed at checkout.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-detail-field">
+          <label for="coachAffiliateLink">Your Link</label>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <input type="text" class="dashboard-input" id="coachAffiliateLink" readonly style="flex:1; min-width:260px;">
+            <button type="button" class="dashboard-btn dashboard-btn-primary" id="copyAffiliateLinkBtn">Copy Link</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:28px; flex-wrap:wrap; margin-top:20px;">
+          <div>
+            <div style="font-size:13px; color:#839898; text-transform:uppercase; letter-spacing:0.04em;">Pending</div>
+            <div id="coachAffiliatePendingTotal" style="font-size:28px; font-weight:700;">-</div>
+          </div>
+          <div>
+            <div style="font-size:13px; color:#839898; text-transform:uppercase; letter-spacing:0.04em;">Paid Out</div>
+            <div id="coachAffiliatePaidTotal" style="font-size:28px; font-weight:700;">-</div>
+          </div>
+          <div>
+            <div style="font-size:13px; color:#839898; text-transform:uppercase; letter-spacing:0.04em;">Sales</div>
+            <div id="coachAffiliateSaleCount" style="font-size:28px; font-weight:700;">-</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

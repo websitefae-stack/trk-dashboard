@@ -22,6 +22,7 @@
   "phone",
   "contact_column",
   "coach",
+  "affiliate_coach",
   "address_section",
   "address_line1",
   "address_line2",
@@ -128,6 +129,14 @@
    "fieldtype": "Link",
    "label": "Coach",
    "options": "Coach"
+  },
+  {
+   "description": "Resolved from the affiliate code carried in the cart (see affiliate.py) at checkout time, not re-looked-up later - a coach's code changing (it shouldn't, but) must never retroactively change who already-placed orders are attributed to. Blank means no affiliate code was present.",
+   "fieldname": "affiliate_coach",
+   "fieldtype": "Link",
+   "label": "Affiliate Coach",
+   "options": "Coach",
+   "read_only": 1
   },
   {
    "fieldname": "address_section",

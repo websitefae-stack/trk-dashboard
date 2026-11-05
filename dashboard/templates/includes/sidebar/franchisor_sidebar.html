@@ -115,7 +115,7 @@
             </div>
         </div>
 
-        <div class="dashboard-nav-group {% if active_page in ['invoices', 'statements', 'fees_report'] %}is-open{% endif %}">
+        <div class="dashboard-nav-group {% if active_page in ['invoices', 'statements', 'fees_report', 'affiliates'] %}is-open{% endif %}">
             <button type="button" class="dashboard-nav-group-toggle">
                 <span class="dashboard-nav-icon">🧾</span>
                 <span>Finance</span>
@@ -135,6 +135,11 @@
                 <a href="/franchisor_db/fees_report" class="{% if active_page == 'fees_report' %}is-active{% endif %}">
                     <span class="dashboard-nav-icon">📈</span>
                     <span>Fees Paid</span>
+                </a>
+
+                <a href="/franchisor_db/affiliates" class="{% if active_page == 'affiliates' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🔗</span>
+                    <span>Affiliates</span>
                 </a>
             </div>
         </div>

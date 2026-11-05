@@ -69,7 +69,7 @@
             <span>Stock</span>
         </a>
 
-        <div class="dashboard-nav-group {% if active_page in ['invoices', 'statements'] %}is-open{% endif %}">
+        <div class="dashboard-nav-group {% if active_page in ['invoices', 'statements', 'affiliate'] %}is-open{% endif %}">
             <button type="button" class="dashboard-nav-group-toggle">
                 <span class="dashboard-nav-icon">🧾</span>
                 <span>Finance</span>
@@ -84,6 +84,11 @@
                 <a href="/coach_db/statements{{ coach_view_query or '' }}" class="{% if active_page == 'statements' %}is-active{% endif %}">
                     <span class="dashboard-nav-icon">📬</span>
                     <span>Statements</span>
+                </a>
+
+                <a href="/coach_db/affiliate{{ coach_view_query or '' }}" class="{% if active_page == 'affiliate' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🔗</span>
+                    <span>Affiliate</span>
                 </a>
             </div>
         </div>

@@ -1,0 +1,127 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page" id="affiliatesPage">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Affiliates</h1>
+          <p class="dashboard-page-subtitle">Each coach has their own link - set which products/courses earn a commission below, and how much. A sale only counts once the customer has actually paid.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-card" id="affiliateSettingForm">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title" id="affiliateSettingFormHeading">Add a Commission Setting</h2>
+        </div>
+
+        <input type="hidden" id="affiliateSettingName">
+
+        <div class="dashboard-detail-grid dashboard-detail-grid-2">
+          <div class="dashboard-detail-field">
+            <label for="affiliateSettingType">Applies To</label>
+            <select class="dashboard-select" id="affiliateSettingType">
+              <option value="item">Store Item</option>
+              <option value="course">Course</option>
+            </select>
+          </div>
+
+          <div class="dashboard-detail-field" id="affiliateSettingItemField">
+            <label for="affiliateSettingItem">Item</label>
+            <input type="text" class="dashboard-input" id="affiliateSettingItem" list="affiliateItemOptions" placeholder="Start typing an item name...">
+            <datalist id="affiliateItemOptions"></datalist>
+          </div>
+
+          <div class="dashboard-detail-field" id="affiliateSettingCourseField" style="display:none;">
+            <label for="affiliateSettingCourse">Course</label>
+            <input type="text" class="dashboard-input" id="affiliateSettingCourse" list="affiliateCourseOptions" placeholder="Start typing a course title...">
+            <datalist id="affiliateCourseOptions"></datalist>
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="affiliateSettingCommissionType">Commission Type</label>
+            <select class="dashboard-select" id="affiliateSettingCommissionType">
+              <option value="Percentage">Percentage</option>
+              <option value="Flat Amount">Flat Amount</option>
+            </select>
+          </div>
+
+          <div class="dashboard-detail-field" id="affiliateSettingPercentField">
+            <label for="affiliateSettingPercent">Commission Percent (%)</label>
+            <input type="number" class="dashboard-input" id="affiliateSettingPercent" min="0" max="100" step="0.1">
+          </div>
+
+          <div class="dashboard-detail-field" id="affiliateSettingFlatField" style="display:none;">
+            <label for="affiliateSettingFlat">Commission Amount (&pound;, per sale)</label>
+            <input type="number" class="dashboard-input" id="affiliateSettingFlat" min="0" step="0.01">
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="affiliateSettingEnabled" style="display:flex; align-items:center; gap:8px; font-weight:normal;">
+              <input type="checkbox" id="affiliateSettingEnabled" checked>
+              Enabled
+            </label>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:16px;">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveAffiliateSettingBtn">Save Setting</button>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelEditAffiliateSettingBtn" style="display:none;">Cancel</button>
+        </div>
+
+        <div id="affiliateSettingError" style="display:none; margin-top:12px; color:#C0392B; font-size:14px;"></div>
+      </div>
+
+      <div class="dashboard-card" style="margin-top:20px;">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Commission Settings</h2>
+        </div>
+        <div id="affiliateSettingsTable">Loading...</div>
+      </div>
+
+      <div class="dashboard-card" style="margin-top:20px;" id="affiliateCommissionsCard">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Commissions</h2>
+        </div>
+
+        <div class="dashboard-detail-grid dashboard-detail-grid-3">
+          <div class="dashboard-detail-field">
+            <label for="affiliateCommissionCoach">Coach</label>
+            <select class="dashboard-select" id="affiliateCommissionCoach">
+              <option value="">All Coaches</option>
+            </select>
+          </div>
+          <div class="dashboard-detail-field">
+            <label for="affiliateCommissionStatus">Status</label>
+            <select class="dashboard-select" id="affiliateCommissionStatus">
+              <option value="">All</option>
+              <option value="Pending">Pending</option>
+              <option value="Paid">Paid</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:28px; flex-wrap:wrap; margin:16px 0;">
+          <div>
+            <div style="font-size:13px; color:#839898; text-transform:uppercase; letter-spacing:0.04em;">Pending</div>
+            <div id="affiliateCommissionsPendingTotal" style="font-size:24px; font-weight:700;">-</div>
+          </div>
+          <div>
+            <div style="font-size:13px; color:#839898; text-transform:uppercase; letter-spacing:0.04em;">Paid</div>
+            <div id="affiliateCommissionsPaidTotal" style="font-size:24px; font-weight:700;">-</div>
+          </div>
+        </div>
+
+        <button type="button" class="dashboard-btn dashboard-btn-light" id="markAffiliateCommissionsPaidBtn">Mark Selected as Paid</button>
+
+        <div id="affiliateCommissionsTable" style="margin-top:16px;">Loading...</div>
+      </div>
+
+    </div>
+  </div>
+</div>
