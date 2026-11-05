@@ -38,6 +38,7 @@
   "requires_renewal",
   "renewal_frequency",
   "coaches_notified",
+  "franchisor_notified",
   "completion_requirements_section",
   "required_action",
   "completion_days",
@@ -247,6 +248,15 @@
    "fieldtype": "Check",
    "hidden": 1,
    "label": "Coaches Notified",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Set automatically once the franchisor has been notified (or deliberately not notified, for a backfilled document) that this document was published - kept in sync by practice_documents.py, don't rely on editing it directly.",
+   "fieldname": "franchisor_notified",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Franchisor Notified",
    "read_only": 1
   },
   {

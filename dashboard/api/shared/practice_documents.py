@@ -25,7 +25,7 @@ import frappe
 from frappe.utils import now_datetime, getdate, nowdate
 
 from dashboard.api.shared.permissions import ensure_logged_in, get_allowed_client_names, ensure_office_user, is_franchisor_user
-from dashboard.api.shared.notifications import create_trk_notification
+from dashboard.api.shared.notifications import create_trk_notification, FRANCHISOR_USERS
 from dashboard.api.shared.item_access import _get_coach_login, _get_linked_item_codes, _get_coach_names_with_access_to_items
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 
@@ -942,6 +942,40 @@ def _notify_coaches_of_new_resource_document_if_due(doc):
 	frappe.db.set_value(PRACTICE_DOCUMENT_DOCTYPE, doc.name, "coaches_notified", 1, update_modified=False)
 
 
+def _notify_franchisor_of_new_practice_document_if_due(doc):
+    """
+    Nothing told the franchisor/office when a new Practice Document was
+    published, regardless of its Document Purpose - only coaches ever
+    got told (and only some of them - see _notify_coaches_of_new_
+    resource_document_if_due / notify_requirement_assigned above, each
+    covering one purpose). Called unconditionally from
+    _resync_practice_document_brand_access, same guard pattern as
+    coaches_notified: fires once per document, the first time it's
+    actually Published, never again on a later edit.
+    """
+    if doc.get("franchisor_notified"):
+        return
+
+    if doc.status == "Published" and _should_notify_for_publish_date(doc.get("published_date")):
+        message = "A new Practice Document was published: {0} ({1}).".format(
+            doc.document_title or doc.name, doc.document_type or "Document",
+        )
+        for recipient in FRANCHISOR_USERS:
+            try:
+                create_trk_notification(
+                    recipient_user=recipient,
+                    notification_type="Announcement",
+                    message=message,
+                    reference_doctype=PRACTICE_DOCUMENT_DOCTYPE,
+                    reference_name=doc.name,
+                )
+            except Exception:
+                frappe.log_error(frappe.get_traceback(), f"New Practice Document Franchisor Notification Failed - {doc.name}")
+
+    if doc.status == "Published":
+        frappe.db.set_value(PRACTICE_DOCUMENT_DOCTYPE, doc.name, "franchisor_notified", 1, update_modified=False)
+
+
 def _notify_coaches_of_new_resource_document(doc):
 	if doc.resource_availability == "Selected Coaches":
 		user_logins = frappe.get_all(
@@ -1204,6 +1238,11 @@ def _resync_practice_document_brand_access(practice_document_name):
 
 	if doc.status == "Published" and (is_workshop_resource or doc.document_purpose == "Client Resource"):
 		_notify_coaches_of_new_resource_document_if_due(doc)
+
+	# Unlike the coach notification just above, this runs regardless of
+	# Document Purpose/type - the franchisor should hear about every new
+	# Practice Document, not just resource ones.
+	_notify_franchisor_of_new_practice_document_if_due(doc)
 
 
 def sync_practice_document_brand_requirements(doc, method=None):
