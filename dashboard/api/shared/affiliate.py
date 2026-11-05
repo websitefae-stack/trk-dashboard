@@ -130,39 +130,93 @@ def get_my_affiliate_summary():
 
 @frappe.whitelist()
 def get_my_affiliate_product_links():
-    """
-    Coach-only - one link per enabled Affiliate Product Setting,
-    pointing straight at that specific item/course's own public page
-    (not just the generic store-wide link get_my_affiliate_link gives)
-    - so a coach can share "buy this exact course" rather than only
-    "browse the whole store", still carrying their own code.
-    """
+    """Coach-only - get_coach_affiliate_links scoped to the current coach."""
     coach_name = get_current_coach_name(optional=False)
+    return get_coach_affiliate_links(coach_name)
+
+
+def get_coach_affiliate_links(coach_name):
+    """
+    One row per enabled Affiliate Product Setting, pointing straight at
+    that specific item/course's own public page (not just the generic
+    store-wide link get_my_affiliate_link gives) - so a coach can share
+    "buy this exact course" rather than only "browse the whole store",
+    still carrying their own code - alongside that one link's own clicks/
+    earned/due, not just the coach-wide totals. Shared by the coach's own
+    page (get_my_affiliate_product_links) and the franchisor's per-coach
+    drill-down (get_affiliate_coach_links) - same shape either way, only
+    who's allowed to ask for which coach differs.
+    """
     code = _ensure_affiliate_code(coach_name)
 
     settings = frappe.get_all(
         AFFILIATE_SETTING_DOCTYPE,
         filters={"enabled": 1},
-        fields=["item", "course"],
+        fields=["name", "item", "course", "click_count"],
     )
+    if not settings:
+        return []
+
+    unlocks_course_field = "custom_unlocks_lms_course" if frappe.get_meta("Item").has_field("custom_unlocks_lms_course") else None
+
+    commission_rows = frappe.get_all(
+        AFFILIATE_COMMISSION_DOCTYPE,
+        filters={"coach": coach_name, "affiliate_setting": ["in", [s.name for s in settings]]},
+        fields=["affiliate_setting", "status", "commission_amount"],
+    )
+    earned_by_setting = {}
+    due_by_setting = {}
+    for row in commission_rows:
+        earned_by_setting[row.affiliate_setting] = earned_by_setting.get(row.affiliate_setting, 0) + flt(row.commission_amount)
+        if row.status == "Pending":
+            due_by_setting[row.affiliate_setting] = due_by_setting.get(row.affiliate_setting, 0) + flt(row.commission_amount)
 
     links = []
     for setting in settings:
         if setting.item:
+            # A course's own backing Item (store_products._ensure_course_item)
+            # is never a second real product - skip it so a course with both
+            # an Item-level and Course-level setting only ever shows one link,
+            # not two for the same course (see disable_affiliate_settings_on_
+            # course_backing_items.py, which cleans up any existing one of
+            # these - this is just a defensive backstop against a new one).
+            if unlocks_course_field and frappe.db.get_value("Item", setting.item, unlocks_course_field):
+                continue
+
             label = frappe.db.get_value("Item", setting.item, "item_name") or setting.item
             link = "{0}/buy?item={1}&aff={2}".format(PUBLIC_SITE_URL, quote(setting.item), quote(code))
         else:
             label = frappe.db.get_value("LMS Course", setting.course, "title") or setting.course
             link = "{0}/trh-course-detail?slug={1}&aff={2}".format(PUBLIC_SITE_URL, quote(setting.course), quote(code))
 
-        links.append({"label": label, "link": link})
+        links.append({
+            "label": label,
+            "link": link,
+            "clicks": setting.click_count or 0,
+            "earned": earned_by_setting.get(setting.name, 0),
+            "due": due_by_setting.get(setting.name, 0),
+        })
 
     links.sort(key=lambda row: row["label"].lower())
     return links
 
 
+@frappe.whitelist()
+def get_affiliate_coach_links(coach=None):
+    """Franchisor-only - get_coach_affiliate_links for any one coach, for
+    the Coach Performance drill-down (click a coach, see every one of
+    their links with its own clicks/earned/due)."""
+    ensure_office_user()
+
+    coach = (coach or "").strip()
+    if not coach or not frappe.db.exists("Coach", coach):
+        frappe.throw(_("A valid coach is required."))
+
+    return get_coach_affiliate_links(coach)
+
+
 @frappe.whitelist(allow_guest=True)
-def record_affiliate_click(code=None):
+def record_affiliate_click(code=None, item=None, course=None):
     """
     Called once from resilient_domains' cart.js, the moment a genuine
     ?aff=<code> is actually found in the URL (not on every subsequent
@@ -172,6 +226,15 @@ def record_affiliate_click(code=None):
     rest of the public checkout surface; silently does nothing for an
     unknown/mistyped code rather than throwing, same as
     resolve_affiliate_coach.
+
+    item/course (whichever's in the landing URL - /buy?item=... or
+    /trh-course-detail?slug=...) additionally bumps that one Affiliate
+    Product Setting's own click_count, same resolution rules record_
+    affiliate_commission_for_invoice already uses (variant falls back
+    to its template) - so "Your Links" can show how many clicks each
+    individual link got, not just the coach-wide total. Left blank for
+    the generic /trh-store?aff= link, which isn't tied to any one
+    product.
     """
     code = (code or "").strip()
     if not code:
@@ -188,6 +251,17 @@ def record_affiliate_click(code=None):
         "UPDATE `tabCoach` SET affiliate_click_count = IFNULL(affiliate_click_count, 0) + 1 WHERE name = %s",
         (coach_name,),
     )
+
+    item = (item or "").strip()
+    course = (course or "").strip()
+    setting = _affiliate_setting_for_item(item) if item else (_affiliate_setting_for_course(course) if course else None)
+
+    if setting:
+        frappe.db.sql(
+            "UPDATE `tabAffiliate Product Setting` SET click_count = IFNULL(click_count, 0) + 1 WHERE name = %s",
+            (setting.name,),
+        )
+
     frappe.db.commit()
 
     return {"ok": True}

@@ -637,6 +637,20 @@ def _current_user_can_allocate_payment(invoice_name):
     if client_type != "Franchise" and not is_someones_linked_client:
         return _current_user_can_access_client(client)
 
+    # Never let the debtor on an inter-account invoice confirm their own
+    # payment of it - e.g. a coach buying from the HQ store while logged
+    # in, which creates the Sales Invoice under their own session and so
+    # makes them its technical "owner" below, despite HQ (not them) being
+    # the one actually owed the money. Confirmed live: SJ could allocate
+    # payment on her own invoices for a personal store purchase billed to
+    # HQ. The owner-match rule below is still right for the case it was
+    # actually written for - one coach raising a transfer fee invoice
+    # against another - since the raiser there is the one being paid, not
+    # the one who owes.
+    current_coach_name = _get_current_coach_name()
+    if current_coach_name and frappe.db.get_value("Coach", current_coach_name, "linked_client") == client:
+        return False
+
     return invoice.get("owner") == frappe.session.user
 
 
@@ -831,7 +845,7 @@ def _invoice_status_class(status):
     return "dashboard-status-archived"
 
 
-def _normalise_invoice_row(row, client_map, dashboard_type, linked_client_names=None):
+def _normalise_invoice_row(row, client_map, dashboard_type, linked_client_names=None, current_coach_own_linked_client=None):
     client_name = row.get("custom_client")
     client_row = client_map.get(client_name) if client_name else None
 
@@ -849,10 +863,11 @@ def _normalise_invoice_row(row, client_map, dashboard_type, linked_client_names=
     # being blocked after they click it.
     client_type = (client_row or {}).get("client_type")
     is_inter_account = client_type == "Franchise" or client_name in (linked_client_names or set())
+    is_own_debt = bool(current_coach_own_linked_client) and client_name == current_coach_own_linked_client
     can_allocate_payment = (
         not is_inter_account
         or _is_franchisor_user()
-        or row.get("owner") == frappe.session.user
+        or (not is_own_debt and row.get("owner") == frappe.session.user)
     )
 
     return {
@@ -1137,8 +1152,14 @@ def _get_invoices_for_clients(client_rows, dashboard_type, owner_coach_name=None
     )
 
     linked_client_names = _linked_client_names()
+    current_coach_name = None if _is_franchisor_user() else _get_current_coach_name()
+    current_coach_own_linked_client = (
+        frappe.db.get_value("Coach", current_coach_name, "linked_client")
+        if current_coach_name and frappe.get_meta("Coach").has_field("linked_client")
+        else None
+    )
     invoices = [
-        _normalise_invoice_row(row, client_map, dashboard_type, linked_client_names)
+        _normalise_invoice_row(row, client_map, dashboard_type, linked_client_names, current_coach_own_linked_client)
         for row in invoice_rows
     ]
 

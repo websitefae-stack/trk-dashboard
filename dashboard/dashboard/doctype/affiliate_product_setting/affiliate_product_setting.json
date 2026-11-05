@@ -10,6 +10,7 @@
   "course",
   "column_break_1",
   "enabled",
+  "click_count",
   "commission_section",
   "commission_type",
   "commission_percent",
@@ -43,6 +44,14 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Enabled"
+  },
+  {
+   "default": "0",
+   "description": "Kept in sync by affiliate.py's record_affiliate_click - don't set by hand.",
+   "fieldname": "click_count",
+   "fieldtype": "Int",
+   "label": "Link Clicks",
+   "read_only": 1
   },
   {
    "fieldname": "commission_section",

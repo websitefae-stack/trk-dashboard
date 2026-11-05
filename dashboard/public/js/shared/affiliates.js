@@ -205,6 +205,54 @@
   }
 
   // =====================================================
+  // SHARED: per-link table (Product/Link/Clicks/Earned/Due) - used by
+  // the coach's own "Your Links" and the franchisor's per-coach
+  // drill-down from Coach Performance.
+  // =====================================================
+
+  function renderAffiliateLinksTable(links) {
+    if (!links.length) {
+      return '<div class="dashboard-empty">No products or courses have a commission set up yet.</div>';
+    }
+
+    return (
+      '<table class="dashboard-table"><thead><tr>' +
+        "<th>Product</th><th>Link</th><th>Clicks</th><th>Commission Earned</th><th>Due</th><th></th>" +
+      "</tr></thead><tbody>" +
+      links.map(function (row) {
+        return (
+          "<tr>" +
+            "<td>" + escapeHtml(row.label) + "</td>" +
+            '<td><input type="text" class="dashboard-input js-affiliate-link-input" readonly style="min-width:260px;" value="' + escapeHtml(row.link) + '"></td>' +
+            "<td>" + Number(row.clicks || 0) + "</td>" +
+            "<td>" + formatCurrency(row.earned) + "</td>" +
+            "<td style=\"font-weight:700;\">" + formatCurrency(row.due) + "</td>" +
+            '<td><button type="button" class="dashboard-btn dashboard-btn-light js-copy-affiliate-link">Copy</button></td>' +
+          "</tr>"
+        );
+      }).join("") +
+      "</tbody></table>"
+    );
+  }
+
+  function wireAffiliateLinkCopyButtons(container) {
+    Array.prototype.slice.call(container.querySelectorAll(".js-copy-affiliate-link")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        var input = button.closest("tr").querySelector(".js-affiliate-link-input");
+        if (!input || !input.value) return;
+        input.select();
+        try {
+          navigator.clipboard.writeText(input.value);
+          button.textContent = "Copied!";
+          setTimeout(function () { button.textContent = "Copy"; }, 1500);
+        } catch (error) {
+          document.execCommand("copy");
+        }
+      });
+    });
+  }
+
+  // =====================================================
   // SHARED: expandable "what did they actually buy" row
   // =====================================================
 
@@ -297,13 +345,15 @@
       return;
     }
 
+    var colspan = 5;
+
     container.innerHTML =
       '<table class="dashboard-table"><thead><tr>' +
         "<th>Coach</th><th>Clicks</th><th>Sales</th><th>Pending</th><th>Paid</th>" +
       "</tr></thead><tbody>" +
       rows.map(function (row) {
         return (
-          "<tr>" +
+          '<tr class="js-affiliate-coach-row" data-coach="' + escapeHtml(row.coach) + '" style="cursor:pointer;" title="Click to see this coach\'s own links">' +
             "<td>" + escapeHtml(row.coach_label) + "</td>" +
             "<td>" + Number(row.click_count) + "</td>" +
             "<td>" + Number(row.sale_count) + "</td>" +
@@ -313,6 +363,45 @@
         );
       }).join("") +
       "</tbody></table>";
+
+    Array.prototype.slice.call(container.querySelectorAll(".js-affiliate-coach-row")).forEach(function (row) {
+      row.addEventListener("click", function () {
+        toggleCoachLinksDetail(row, row.dataset.coach, colspan);
+      });
+    });
+  }
+
+  var expandedCoachLinkRows = {};
+
+  async function toggleCoachLinksDetail(row, coachName, colspan) {
+    var existing = row.nextElementSibling;
+    if (existing && existing.classList && existing.classList.contains("js-affiliate-coach-detail-row")) {
+      existing.remove();
+      delete expandedCoachLinkRows[coachName];
+      return;
+    }
+
+    Object.keys(expandedCoachLinkRows).forEach(function (name) {
+      var openRow = document.querySelector('[data-coach-detail-for="' + name + '"]');
+      if (openRow) openRow.remove();
+    });
+    expandedCoachLinkRows = {};
+
+    var detailHtml;
+    try {
+      var links = await apiPost(API + ".get_affiliate_coach_links", { coach: coachName });
+      detailHtml = '<tr class="js-affiliate-coach-detail-row"><td colspan="' + colspan + '" style="background:#F2F8F8; padding:12px 16px;">' + renderAffiliateLinksTable(links) + "</td></tr>";
+    } catch (error) {
+      detailHtml = '<tr class="js-affiliate-coach-detail-row"><td colspan="' + colspan + '" style="background:#F2F8F8; padding:12px 16px;">Could not load this coach\'s links.</td></tr>';
+    }
+
+    row.insertAdjacentHTML("afterend", detailHtml);
+    var inserted = row.nextElementSibling;
+    if (inserted) {
+      inserted.setAttribute("data-coach-detail-for", coachName);
+      wireAffiliateLinkCopyButtons(inserted);
+    }
+    expandedCoachLinkRows[coachName] = true;
   }
 
   async function loadCoachFilterOptions() {
@@ -479,38 +568,8 @@
       return;
     }
 
-    if (!links.length) {
-      container.innerHTML = '<div class="dashboard-empty">No products or courses have a commission set up yet.</div>';
-      return;
-    }
-
-    container.innerHTML = links.map(function (row, index) {
-      var inputId = "coachAffiliateProductLink" + index;
-      return (
-        '<div class="dashboard-detail-field" style="margin-top:' + (index ? "12px" : "0") + ';">' +
-          "<label for=\"" + inputId + "\">" + escapeHtml(row.label) + "</label>" +
-          '<div style="display:flex; gap:10px; flex-wrap:wrap;">' +
-            '<input type="text" class="dashboard-input" id="' + inputId + '" readonly style="flex:1; min-width:260px;" value="' + escapeHtml(row.link) + '">' +
-            '<button type="button" class="dashboard-btn dashboard-btn-light js-copy-affiliate-product-link" data-target="' + inputId + '">Copy Link</button>' +
-          "</div>" +
-        "</div>"
-      );
-    }).join("");
-
-    Array.prototype.slice.call(container.querySelectorAll(".js-copy-affiliate-product-link")).forEach(function (button) {
-      button.addEventListener("click", function () {
-        var input = el(button.dataset.target);
-        if (!input || !input.value) return;
-        input.select();
-        try {
-          navigator.clipboard.writeText(input.value);
-          button.textContent = "Copied!";
-          setTimeout(function () { button.textContent = "Copy Link"; }, 1500);
-        } catch (error) {
-          document.execCommand("copy");
-        }
-      });
-    });
+    container.innerHTML = renderAffiliateLinksTable(links);
+    wireAffiliateLinkCopyButtons(container);
   }
 
   async function loadMyAffiliateSales() {
