@@ -64,8 +64,15 @@
   var courseOptionsByLabel = {};
 
   async function loadItemOptions(query) {
+    // Selecting a suggestion from the datalist fires another "input"
+    // event with the full "name — code" label as its value - searching
+    // for THAT as a fresh query matches nothing, which used to wipe
+    // itemOptionsByLabel (a plain reassignment) right as it was needed
+    // to resolve the very selection just made. Skip re-querying
+    // entirely once the box already holds a known, valid selection.
+    if (Object.prototype.hasOwnProperty.call(itemOptionsByLabel, query)) return;
+
     var items = await apiPost(API + ".search_affiliate_items", { query: query || "" });
-    itemOptionsByLabel = {};
     var list = el("affiliateItemOptions");
     if (!list) return;
     list.innerHTML = items.map(function (item) {
@@ -76,8 +83,10 @@
   }
 
   async function loadCourseOptions(query) {
+    // Same reasoning as loadItemOptions above.
+    if (Object.prototype.hasOwnProperty.call(courseOptionsByLabel, query)) return;
+
     var courses = await apiPost(API + ".search_affiliate_courses", { query: query || "" });
-    courseOptionsByLabel = {};
     var list = el("affiliateCourseOptions");
     if (!list) return;
     list.innerHTML = courses.map(function (course) {
