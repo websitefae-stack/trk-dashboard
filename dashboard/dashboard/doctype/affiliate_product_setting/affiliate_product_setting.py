@@ -14,6 +14,13 @@ class AffiliateProductSetting(Document):
 				"it automatically. A variant template is already the right place for this."
 			).format(self.item))
 
+		# Only required while actually enabled - a disabled row (the
+		# catalog list's own "turn this back off" state, see
+		# affiliate.py's save_affiliate_commission_catalog) can sit at
+		# zero with nothing to pay out.
+		if not self.enabled:
+			return
+
 		if self.commission_type == "Percentage" and not self.commission_percent:
 			frappe.throw(_("Set a Commission Percent."))
 		if self.commission_type == "Flat Amount" and not self.commission_flat_amount:

@@ -49,216 +49,110 @@
     return "£" + Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
-  function showSettingError(message) {
-    var box = el("affiliateSettingError");
+  function showCatalogError(message) {
+    var box = el("affiliateCatalogError");
     if (!box) return;
     box.textContent = message || "";
     box.style.display = message ? "" : "none";
   }
 
   // =====================================================
-  // SETTINGS
+  // SETTINGS (full catalog - every item/course listed, tick to enable)
   // =====================================================
 
-  var itemOptionsByLabel = {};
-  var courseOptionsByLabel = {};
+  function renderCatalogRow(row) {
+    var isPercent = row.commission_type !== "Flat Amount";
+    var rowId = row.type + ":" + row.code;
 
-  async function loadItemOptions(query) {
-    // Selecting a suggestion from the datalist fires another "input"
-    // event with the full "name — code" label as its value - searching
-    // for THAT as a fresh query matches nothing, which used to wipe
-    // itemOptionsByLabel (a plain reassignment) right as it was needed
-    // to resolve the very selection just made. Skip re-querying
-    // entirely once the box already holds a known, valid selection.
-    if (Object.prototype.hasOwnProperty.call(itemOptionsByLabel, query)) return;
-
-    var items = await apiPost(API + ".search_affiliate_items", { query: query || "" });
-    var list = el("affiliateItemOptions");
-    if (!list) return;
-    list.innerHTML = items.map(function (item) {
-      var label = item.item_name + (item.has_variants ? " (has variants)" : "") + " — " + item.name;
-      itemOptionsByLabel[label] = item.name;
-      return '<option value="' + escapeHtml(label) + '"></option>';
-    }).join("");
+    return (
+      '<tr data-row-id="' + escapeHtml(rowId) + '" data-type="' + row.type + '" data-code="' + escapeHtml(row.code) + '">' +
+        "<td>" + escapeHtml(row.label) + "</td>" +
+        '<td><input type="checkbox" class="js-affiliate-catalog-enabled" ' + (row.enabled ? "checked" : "") + "></td>" +
+        '<td><select class="dashboard-select js-affiliate-catalog-type">' +
+          '<option value="Percentage"' + (isPercent ? " selected" : "") + ">Percentage</option>" +
+          '<option value="Flat Amount"' + (!isPercent ? " selected" : "") + ">Flat Amount</option>" +
+        "</select></td>" +
+        '<td><input type="number" min="0" max="100" step="0.1" class="dashboard-input js-affiliate-catalog-percent" ' +
+          'style="width:90px;' + (isPercent ? "" : "display:none;") + '" value="' + (row.commission_percent || "") + '"></td>' +
+        '<td><input type="number" min="0" step="0.01" class="dashboard-input js-affiliate-catalog-flat" ' +
+          'style="width:90px;' + (isPercent ? "display:none;" : "") + '" value="' + (row.commission_flat_amount || "") + '"></td>' +
+      "</tr>"
+    );
   }
 
-  async function loadCourseOptions(query) {
-    // Same reasoning as loadItemOptions above.
-    if (Object.prototype.hasOwnProperty.call(courseOptionsByLabel, query)) return;
+  function renderCatalogSection(title, rows) {
+    if (!rows.length) return "";
 
-    var courses = await apiPost(API + ".search_affiliate_courses", { query: query || "" });
-    var list = el("affiliateCourseOptions");
-    if (!list) return;
-    list.innerHTML = courses.map(function (course) {
-      var label = course.title + " — " + course.name;
-      courseOptionsByLabel[label] = course.name;
-      return '<option value="' + escapeHtml(label) + '"></option>';
-    }).join("");
+    return (
+      '<div style="margin-top:16px;"><h3 style="margin:0 0 8px;">' + escapeHtml(title) + "</h3>" +
+      '<table class="dashboard-table"><thead><tr>' +
+        "<th>Name</th><th>Enabled</th><th>Commission Type</th><th>Percent (%)</th><th>Flat Amount (&pound;)</th>" +
+      "</tr></thead><tbody>" +
+      rows.map(renderCatalogRow).join("") +
+      "</tbody></table></div>"
+    );
   }
 
-  function applicableTypeFields() {
-    var isItem = el("affiliateSettingType").value === "item";
-    el("affiliateSettingItemField").style.display = isItem ? "" : "none";
-    el("affiliateSettingCourseField").style.display = isItem ? "none" : "";
-  }
+  async function loadCatalogTable() {
+    var container = el("affiliateCatalogTable");
+    showCatalogError("");
 
-  function applicableCommissionFields() {
-    var isPercent = el("affiliateSettingCommissionType").value === "Percentage";
-    el("affiliateSettingPercentField").style.display = isPercent ? "" : "none";
-    el("affiliateSettingFlatField").style.display = isPercent ? "none" : "";
-  }
-
-  function resetSettingForm() {
-    el("affiliateSettingName").value = "";
-    el("affiliateSettingType").value = "item";
-    el("affiliateSettingItem").value = "";
-    el("affiliateSettingCourse").value = "";
-    el("affiliateSettingCommissionType").value = "Percentage";
-    el("affiliateSettingPercent").value = "";
-    el("affiliateSettingFlat").value = "";
-    el("affiliateSettingEnabled").checked = true;
-    showSettingError("");
-
-    el("affiliateSettingFormHeading").textContent = "Add a Commission Setting";
-    el("saveAffiliateSettingBtn").textContent = "Save Setting";
-    el("cancelEditAffiliateSettingBtn").style.display = "none";
-
-    applicableTypeFields();
-    applicableCommissionFields();
-  }
-
-  function loadSettingIntoForm(row) {
-    el("affiliateSettingName").value = row.name;
-    el("affiliateSettingType").value = row.item ? "item" : "course";
-
-    if (row.item) {
-      el("affiliateSettingItem").value = row.label + " — " + row.item;
-      itemOptionsByLabel[row.label + " — " + row.item] = row.item;
-    } else {
-      el("affiliateSettingCourse").value = row.label + " — " + row.course;
-      courseOptionsByLabel[row.label + " — " + row.course] = row.course;
-    }
-
-    el("affiliateSettingCommissionType").value = row.commission_type;
-    el("affiliateSettingPercent").value = row.commission_percent || "";
-    el("affiliateSettingFlat").value = row.commission_flat_amount || "";
-    el("affiliateSettingEnabled").checked = !!row.enabled;
-    showSettingError("");
-
-    el("affiliateSettingFormHeading").textContent = "Edit Commission Setting";
-    el("saveAffiliateSettingBtn").textContent = "Update Setting";
-    el("cancelEditAffiliateSettingBtn").style.display = "";
-
-    applicableTypeFields();
-    applicableCommissionFields();
-    el("affiliateSettingForm").scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  var latestSettings = [];
-
-  async function loadSettingsTable() {
-    var container = el("affiliateSettingsTable");
+    var catalog;
     try {
-      latestSettings = await apiPost(API + ".get_affiliate_product_settings", {});
+      catalog = await apiPost(API + ".get_affiliate_commission_catalog", {});
     } catch (error) {
-      container.innerHTML = '<div class="dashboard-empty">Could not load settings.</div>';
+      container.innerHTML = '<div class="dashboard-empty">Could not load the catalog.</div>';
       return;
     }
 
-    if (!latestSettings.length) {
-      container.innerHTML = '<div class="dashboard-empty">No commission settings yet - add one above.</div>';
+    if (!catalog.items.length && !catalog.courses.length) {
+      container.innerHTML = '<div class="dashboard-empty">No store items or courses found.</div>';
       return;
     }
 
     container.innerHTML =
-      '<table class="dashboard-table"><thead><tr>' +
-        "<th>Applies To</th><th>Commission</th><th>Enabled</th><th></th>" +
-      "</tr></thead><tbody>" +
-      latestSettings.map(function (row) {
-        var commission = row.commission_type === "Flat Amount"
-          ? formatCurrency(row.commission_flat_amount) + " flat"
-          : Number(row.commission_percent || 0) + "%";
-        return (
-          "<tr>" +
-            "<td>" + escapeHtml(row.label) + (row.course ? " (Course)" : "") + "</td>" +
-            "<td>" + escapeHtml(commission) + "</td>" +
-            "<td>" + (row.enabled ? "Yes" : "No") + "</td>" +
-            '<td><button type="button" class="dashboard-btn dashboard-btn-light dashboard-btn-sm js-edit-affiliate-setting" data-name="' + escapeHtml(row.name) + '">Edit</button> ' +
-            '<button type="button" class="dashboard-btn dashboard-btn-light dashboard-btn-sm js-delete-affiliate-setting" data-name="' + escapeHtml(row.name) + '">Delete</button></td>' +
-          "</tr>"
-        );
-      }).join("") +
-      "</tbody></table>";
+      renderCatalogSection("Store Items", catalog.items) +
+      renderCatalogSection("Courses", catalog.courses);
+
+    Array.prototype.slice.call(container.querySelectorAll(".js-affiliate-catalog-type")).forEach(function (select) {
+      select.addEventListener("change", function () {
+        var row = select.closest("tr");
+        var isPercent = select.value === "Percentage";
+        row.querySelector(".js-affiliate-catalog-percent").style.display = isPercent ? "" : "none";
+        row.querySelector(".js-affiliate-catalog-flat").style.display = isPercent ? "none" : "";
+      });
+    });
   }
 
-  function initSettingForm() {
-    el("affiliateSettingType").addEventListener("change", applicableTypeFields);
-    el("affiliateSettingCommissionType").addEventListener("change", applicableCommissionFields);
+  function initCatalogSave() {
+    var saveBtn = el("saveAffiliateCatalogBtn");
+    if (!saveBtn) return;
 
-    el("affiliateSettingItem").addEventListener("input", function () {
-      loadItemOptions(this.value);
-    });
-    el("affiliateSettingCourse").addEventListener("input", function () {
-      loadCourseOptions(this.value);
-    });
+    saveBtn.addEventListener("click", async function () {
+      showCatalogError("");
 
-    el("cancelEditAffiliateSettingBtn").addEventListener("click", resetSettingForm);
-
-    el("saveAffiliateSettingBtn").addEventListener("click", async function () {
-      showSettingError("");
-
-      var isItem = el("affiliateSettingType").value === "item";
-      var item = isItem ? (itemOptionsByLabel[el("affiliateSettingItem").value] || "") : "";
-      var course = !isItem ? (courseOptionsByLabel[el("affiliateSettingCourse").value] || "") : "";
-
-      if (isItem && !item) {
-        showSettingError("Pick an item from the list.");
-        return;
-      }
-      if (!isItem && !course) {
-        showSettingError("Pick a course from the list.");
-        return;
-      }
-
-      var payload = {
-        name: el("affiliateSettingName").value || "",
-        item: item,
-        course: course,
-        commission_type: el("affiliateSettingCommissionType").value,
-        commission_percent: el("affiliateSettingPercent").value || 0,
-        commission_flat_amount: el("affiliateSettingFlat").value || 0,
-        enabled: el("affiliateSettingEnabled").checked ? 1 : 0,
-      };
+      var rows = Array.prototype.slice.call(document.querySelectorAll("#affiliateCatalogTable tr[data-row-id]")).map(function (tr) {
+        return {
+          type: tr.dataset.type,
+          code: tr.dataset.code,
+          enabled: tr.querySelector(".js-affiliate-catalog-enabled").checked ? 1 : 0,
+          commission_type: tr.querySelector(".js-affiliate-catalog-type").value,
+          commission_percent: tr.querySelector(".js-affiliate-catalog-percent").value || 0,
+          commission_flat_amount: tr.querySelector(".js-affiliate-catalog-flat").value || 0,
+        };
+      });
 
       try {
-        el("saveAffiliateSettingBtn").disabled = true;
-        await apiPost(API + ".save_affiliate_product_setting", payload);
-        resetSettingForm();
-        await loadSettingsTable();
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Saving...";
+        await apiPost(API + ".save_affiliate_commission_catalog", { rows: JSON.stringify(rows) });
+        await loadCatalogTable();
+        await loadCoachPerformanceTable();
       } catch (error) {
-        showSettingError(error.message || "Could not save this setting.");
+        showCatalogError(error.message || "Could not save these changes.");
       } finally {
-        el("saveAffiliateSettingBtn").disabled = false;
-      }
-    });
-
-    document.addEventListener("click", async function (event) {
-      var editBtn = event.target.closest(".js-edit-affiliate-setting");
-      if (editBtn) {
-        var row = latestSettings.filter(function (r) { return r.name === editBtn.dataset.name; })[0];
-        if (row) loadSettingIntoForm(row);
-        return;
-      }
-
-      var deleteBtn = event.target.closest(".js-delete-affiliate-setting");
-      if (deleteBtn) {
-        if (!window.confirm("Delete this commission setting?")) return;
-        try {
-          await apiPost(API + ".delete_affiliate_product_setting", { name: deleteBtn.dataset.name });
-          await loadSettingsTable();
-        } catch (error) {
-          window.alert(error.message || "Could not delete this setting.");
-        }
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Save Changes";
       }
     });
   }
@@ -330,13 +224,22 @@
   // COMMISSIONS
   // =====================================================
 
+  function currentDateFilters() {
+    var fromEl = el("affiliateFromDate");
+    var toEl = el("affiliateToDate");
+    return {
+      from_date: fromEl ? fromEl.value : "",
+      to_date: toEl ? toEl.value : "",
+    };
+  }
+
   async function loadCoachPerformanceTable() {
     var container = el("affiliateCoachPerformanceTable");
     if (!container) return;
 
     var rows;
     try {
-      rows = await apiPost(API + ".get_affiliate_coach_performance", {});
+      rows = await apiPost(API + ".get_affiliate_coach_performance", currentDateFilters());
     } catch (error) {
       container.innerHTML = '<div class="dashboard-empty">Could not load coach performance.</div>';
       return;
@@ -386,7 +289,10 @@
 
     var rows;
     try {
-      rows = await apiPost(API + ".get_affiliate_commissions", { coach: coach, status: status });
+      var payload = currentDateFilters();
+      payload.coach = coach;
+      payload.status = status;
+      rows = await apiPost(API + ".get_affiliate_commissions", payload);
     } catch (error) {
       container.innerHTML = '<div class="dashboard-empty">Could not load commissions.</div>';
       return;
@@ -439,6 +345,22 @@
     el("affiliateCommissionCoach").addEventListener("change", loadCommissionsTable);
     el("affiliateCommissionStatus").addEventListener("change", loadCommissionsTable);
 
+    // Shared by Coach Performance and Commissions - one period filter.
+    var fromEl = el("affiliateFromDate");
+    var toEl = el("affiliateToDate");
+    if (fromEl) {
+      fromEl.addEventListener("change", function () {
+        loadCoachPerformanceTable();
+        loadCommissionsTable();
+      });
+    }
+    if (toEl) {
+      toEl.addEventListener("change", function () {
+        loadCoachPerformanceTable();
+        loadCommissionsTable();
+      });
+    }
+
     el("markAffiliateCommissionsPaidBtn").addEventListener("click", async function () {
       var names = Array.prototype.slice.call(document.querySelectorAll(".js-affiliate-commission-check:checked"))
         .map(function (input) { return input.value; });
@@ -451,6 +373,7 @@
       try {
         await apiPost(API + ".mark_affiliate_commissions_paid", { names: JSON.stringify(names) });
         await loadCommissionsTable();
+        await loadCoachPerformanceTable();
       } catch (error) {
         window.alert(error.message || "Could not mark these as paid.");
       }
@@ -542,12 +465,10 @@
 
   function init() {
     if (el("affiliatesPage")) {
-      initSettingForm();
+      initCatalogSave();
       initCommissionsFilters();
-      applicableTypeFields();
-      applicableCommissionFields();
 
-      loadSettingsTable();
+      loadCatalogTable();
       loadCoachPerformanceTable();
       loadCoachFilterOptions();
       loadCommissionsTable();
