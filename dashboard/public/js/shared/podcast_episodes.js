@@ -91,6 +91,51 @@
     return data.message && data.message.file_url;
   }
 
+  function setEpisodeImage(url) {
+    var urlInput = el("episodeImageUrl");
+    var preview = el("episodeImagePreview");
+    var removeBtn = el("removeEpisodeImageBtn");
+    if (urlInput) urlInput.value = url || "";
+    if (preview) {
+      preview.src = url || "";
+      preview.style.display = url ? "" : "none";
+    }
+    if (removeBtn) removeBtn.style.display = url ? "" : "none";
+  }
+
+  function initImageField() {
+    var chooseBtn = el("chooseEpisodeImageBtn");
+    var fileInput = el("episodeImageFileInput");
+    var removeBtn = el("removeEpisodeImageBtn");
+    if (!chooseBtn || !fileInput) return;
+
+    chooseBtn.addEventListener("click", function () {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener("change", async function () {
+      var file = fileInput.files && fileInput.files[0];
+      fileInput.value = "";
+      if (!file) return;
+
+      chooseBtn.disabled = true;
+      try {
+        var fileUrl = await uploadResourceFile(file);
+        if (fileUrl) setEpisodeImage(fileUrl);
+      } catch (error) {
+        window.alert(error.message || "Could not upload this image.");
+      } finally {
+        chooseBtn.disabled = false;
+      }
+    });
+
+    if (removeBtn) {
+      removeBtn.addEventListener("click", function () {
+        setEpisodeImage("");
+      });
+    }
+  }
+
   function initResourcesField() {
     var addBtn = el("addEpisodeResourceBtn");
     var fileInput = el("episodeResourcesFileInput");
@@ -190,7 +235,11 @@
     return (
       '<div class="dashboard-card" data-episode-name="' + escapeHtml(episode.name) + '" style="margin-bottom:12px;">' +
         '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">' +
-          '<div>' +
+          '<div style="display:flex; gap:12px; align-items:flex-start;">' +
+            (episode.episode_image
+              ? '<img src="' + escapeHtml(episode.episode_image) + '" alt="" style="width:56px; height:56px; object-fit:cover; border-radius:8px; flex-shrink:0;">'
+              : "") +
+            '<div>' +
             '<div style="font-weight:600; font-size:16px;">' + titleBits.join(" - ") + "</div>" +
             '<div class="dashboard-doc-list-meta" style="margin-top:4px;">' +
               [
@@ -199,6 +248,7 @@
                 episode.topics ? escapeHtml(episode.topics) : "",
               ].filter(Boolean).join(" · ") +
             "</div>" +
+          "</div>" +
           "</div>" +
           '<span class="' + statusClass + '">' + escapeHtml(episode.status) + "</span>" +
         "</div>" +
@@ -285,6 +335,7 @@
   function resetForm() {
     el("episodeFormName").value = "";
     el("episodeTitle").value = "";
+    setEpisodeImage("");
     el("episodeSeason").value = "";
     el("episodeNumber").value = "";
     el("episodeGuest").value = "";
@@ -312,6 +363,7 @@
 
       el("episodeFormName").value = episode.name || "";
       el("episodeTitle").value = episode.episode_title || "";
+      setEpisodeImage(episode.episode_image || "");
       el("episodeSeason").value = episode.season_number || "";
       el("episodeNumber").value = episode.episode_number || "";
       el("episodeGuest").value = episode.guest_name || "";
@@ -358,6 +410,7 @@
         await apiPost(SHARED_API + ".save_podcast_episode", {
           name: el("episodeFormName").value || null,
           episode_title: title,
+          episode_image: el("episodeImageUrl").value,
           season_number: el("episodeSeason").value || null,
           episode_number: el("episodeNumber").value || null,
           guest_name: el("episodeGuest").value,
@@ -390,6 +443,7 @@
     if (!el("podcastEpisodesList")) return;
 
     initShowNotesEditor();
+    initImageField();
     initResourcesField();
     loadEpisodes();
     initForm();

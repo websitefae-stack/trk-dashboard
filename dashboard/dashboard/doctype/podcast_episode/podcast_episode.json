@@ -7,6 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "episode_title",
+  "episode_image",
   "season_number",
   "episode_number",
   "guest_name",
@@ -29,6 +30,12 @@
    "in_list_view": 1,
    "label": "Episode Title",
    "reqd": 1
+  },
+  {
+   "description": "Cover image for this episode - shown on the public Podcasts page (3 per row). Falls back to a plain placeholder there if left blank.",
+   "fieldname": "episode_image",
+   "fieldtype": "Attach Image",
+   "label": "Episode Image"
   },
   {
    "fieldname": "season_number",
