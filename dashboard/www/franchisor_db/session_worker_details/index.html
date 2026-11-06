@@ -29,6 +29,7 @@
         </div>
 
         <div class="dashboard-tab-panel dashboard-session-worker-detail-panel is-active" id="session-worker-profile-tab">
+          <input type="hidden" id="swDetailName" value="{{ session_worker.name }}">
           <div class="dashboard-detail-section">
             <div class="dashboard-detail-section-head">
               <h2 class="dashboard-detail-section-title">Profile Information</h2>
@@ -51,9 +52,24 @@
               </div>
 
               <div class="dashboard-detail-field">
-                <label>Linked Coach</label>
+                <label>Coaches With Clients Assigned</label>
                 <input class="dashboard-input" type="text" value="{{ session_worker.linked_coach_label or '' }}" readonly>
+                <p class="dashboard-field-hint">Worked out automatically from which coach's clients this session worker is already on - not something you set here.</p>
               </div>
+            </div>
+          </div>
+
+          <div class="dashboard-detail-section" style="margin-top:24px;">
+            <div class="dashboard-detail-section-head">
+              <h2 class="dashboard-detail-section-title">Approved Coaches</h2>
+            </div>
+            <p class="dashboard-field-hint">Which coach(es) this session worker is allowed to work with - franchisor-only, coaches never see or set this themselves.</p>
+
+            <div id="swApprovedCoachesList" style="margin-top:10px; display:flex; flex-direction:column; gap:8px; max-width:420px;">Loading…</div>
+
+            <div style="margin-top:14px;">
+              <button type="button" class="dashboard-btn dashboard-btn-primary" id="swSaveApprovedCoachesBtn">Save</button>
+              <span class="dashboard-help" id="swApprovedCoachesStatus" style="margin-left:8px;"></span>
             </div>
           </div>
         </div>
