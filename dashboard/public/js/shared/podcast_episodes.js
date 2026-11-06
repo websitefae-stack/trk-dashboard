@@ -119,6 +119,8 @@
       if (!file) return;
 
       chooseBtn.disabled = true;
+      var originalLabel = chooseBtn.textContent;
+      chooseBtn.textContent = "Uploading…";
       try {
         var fileUrl = await uploadResourceFile(file);
         if (fileUrl) setEpisodeImage(fileUrl);
@@ -126,6 +128,7 @@
         window.alert(error.message || "Could not upload this image.");
       } finally {
         chooseBtn.disabled = false;
+        chooseBtn.textContent = originalLabel;
       }
     });
 
@@ -151,8 +154,10 @@
       if (!files.length) return;
 
       addBtn.disabled = true;
+      var originalLabel = addBtn.textContent;
       try {
         for (var i = 0; i < files.length; i++) {
+          addBtn.textContent = files.length > 1 ? "Uploading " + (i + 1) + " of " + files.length + "…" : "Uploading…";
           var fileUrl = await uploadResourceFile(files[i]);
           if (fileUrl) {
             currentResources.push({ label: files[i].name, file: fileUrl });
@@ -163,6 +168,7 @@
         window.alert(error.message || "Could not upload one of the files.");
       } finally {
         addBtn.disabled = false;
+        addBtn.textContent = originalLabel;
       }
     });
 
@@ -342,6 +348,8 @@
     el("episodeStatus").value = "Published";
     el("episodeAirDate").value = "";
     el("episodeTopics").value = "";
+    var suggestedList = el("suggestedTopicsList");
+    if (suggestedList) suggestedList.innerHTML = "";
     if (showNotesEditor) showNotesEditor.setHtml("");
     currentResources = [];
     renderResourcesList();
@@ -393,6 +401,66 @@
     }
   }
 
+  function addTopic(topic) {
+    var input = el("episodeTopics");
+    if (!input) return;
+
+    var existing = (input.value || "").split(",").map(function (t) { return t.trim(); }).filter(Boolean);
+    var already = existing.some(function (t) { return t.toLowerCase() === topic.toLowerCase(); });
+    if (already) return;
+
+    existing.push(topic);
+    input.value = existing.join(", ");
+  }
+
+  function initSuggestTopics() {
+    var btn = el("suggestTopicsBtn");
+    var list = el("suggestedTopicsList");
+    if (!btn || !list) return;
+
+    btn.addEventListener("click", async function () {
+      // Whichever uploaded resource is the transcript (same "starts
+      // with Transcript" rule the public episode page uses to pick it
+      // out) - the suggestions work off that file's text plus the show
+      // notes, not every resource.
+      var transcript = currentResources.filter(function (resource) {
+        return (resource.label || "").trim().toLowerCase().indexOf("transcript") === 0;
+      })[0];
+
+      btn.disabled = true;
+      var originalLabel = btn.textContent;
+      btn.textContent = "Checking…";
+      list.innerHTML = "";
+
+      try {
+        var topics = await apiPost(SHARED_API + ".suggest_podcast_topics", {
+          show_notes: showNotesEditor ? showNotesEditor.getHtml() : "",
+          transcript_file: transcript ? transcript.file : "",
+        });
+
+        if (!topics.length) {
+          list.innerHTML = '<span class="dashboard-help">No matching topics found - add show notes/a transcript first, or type your own above.</span>';
+        } else {
+          list.innerHTML = topics.map(function (topic) {
+            return '<button type="button" class="dashboard-btn dashboard-btn-light dashboard-suggested-topic" data-topic="' + escapeHtml(topic) + '" style="padding:4px 12px; font-size:13px;">+ ' + escapeHtml(topic) + "</button>";
+          }).join("");
+
+          list.querySelectorAll(".dashboard-suggested-topic").forEach(function (chip) {
+            chip.addEventListener("click", function () {
+              addTopic(chip.dataset.topic);
+              chip.remove();
+            });
+          });
+        }
+      } catch (error) {
+        list.innerHTML = '<span class="dashboard-help">' + escapeHtml(error.message || "Could not check for topics.") + "</span>";
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+      }
+    });
+  }
+
   function initForm() {
     var saveBtn = el("saveEpisodeBtn");
     if (!saveBtn) return;
@@ -405,6 +473,8 @@
       }
 
       saveBtn.disabled = true;
+      var originalSaveLabel = saveBtn.textContent;
+      saveBtn.textContent = "Saving…";
 
       try {
         await apiPost(SHARED_API + ".save_podcast_episode", {
@@ -428,6 +498,7 @@
         await loadEpisodes();
       } catch (error) {
         window.alert(error.message || "Could not save this episode.");
+        saveBtn.textContent = originalSaveLabel;
       } finally {
         saveBtn.disabled = false;
       }
@@ -445,6 +516,7 @@
     initShowNotesEditor();
     initImageField();
     initResourcesField();
+    initSuggestTopics();
     loadEpisodes();
     initForm();
   }

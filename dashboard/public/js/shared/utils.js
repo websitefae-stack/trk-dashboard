@@ -170,22 +170,88 @@
         .replace(/>/g, "&gt;");
     }
 
+    // Tags worth keeping from a pasted source (Google Docs, a web page,
+    // another editor) - headings and links in particular, so copying
+    // show notes in from wherever they were drafted doesn't mean
+    // manually re-adding every link and re-marking every heading
+    // afterwards. Everything else (DIV/SPAN wrappers, inline styles,
+    // classes, Word's own bloated markup, images, tables, scripts) is
+    // stripped rather than kept - that mess is exactly what the old
+    // plain-text-only paste behaviour was trying to avoid, so this
+    // keeps that same spirit, just less aggressively.
+    var PASTE_KEEP_TAGS = {
+      P: "P", DIV: "P", H1: "H1", H2: "H2", H3: "H3", H4: "H4", H5: "H5", H6: "H6",
+      A: "A", B: "B", STRONG: "STRONG", I: "I", EM: "EM", U: "U",
+      UL: "UL", OL: "OL", LI: "LI", BR: "BR",
+    };
+
+    function cleanPastedNode(node, doc) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return doc.createTextNode(node.nodeValue);
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return null;
+
+      var tag = PASTE_KEEP_TAGS[node.tagName];
+      var out = tag ? doc.createElement(tag) : doc.createDocumentFragment();
+
+      if (tag === "A") {
+        var href = (node.getAttribute("href") || "").trim();
+        // Only ever a real http(s)/mailto link - never a javascript:
+        // URL or anything else that isn't actually a link.
+        if (/^(https?:|mailto:)/i.test(href)) {
+          out.setAttribute("href", href);
+          out.setAttribute("target", "_blank");
+          out.setAttribute("rel", "noopener noreferrer");
+        } else {
+          out = doc.createDocumentFragment();
+        }
+      }
+
+      node.childNodes.forEach(function (child) {
+        var cleaned = cleanPastedNode(child, doc);
+        if (cleaned) out.appendChild(cleaned);
+      });
+
+      return out;
+    }
+
+    function cleanPastedHtml(html) {
+      var parsed = new DOMParser().parseFromString(html, "text/html");
+      var fragment = parsed.body.ownerDocument.createDocumentFragment();
+      parsed.body.childNodes.forEach(function (child) {
+        var cleaned = cleanPastedNode(child, document);
+        if (cleaned) fragment.appendChild(cleaned);
+      });
+      var wrapper = document.createElement("div");
+      wrapper.appendChild(fragment);
+      return wrapper.innerHTML;
+    }
+
     body.addEventListener("input", refreshEmptyState);
     body.addEventListener("blur", refreshEmptyState);
     refreshEmptyState();
 
-    // Pasting plain text (e.g. an email drafted elsewhere and copied in)
-    // otherwise lands as one unbroken run with no paragraph breaks at
-    // all - the browser's default paste-into-contenteditable behaviour
-    // doesn't reliably turn blank lines into separate blocks. This reads
-    // the plain text off the clipboard directly and rebuilds it as one
-    // <p> per paragraph (blank-line-separated, falling back to one per
-    // line if there are no blank lines) instead.
+    // Prefers the clipboard's real HTML (Google Docs, a web page,
+    // another editor) when there is any, kept down to a safe tag
+    // whitelist via cleanPastedHtml() above - headings and links
+    // survive, everything else doesn't. Falls back to the old plain-
+    // text paragraph-rebuilding behaviour only when there's no HTML on
+    // the clipboard at all (e.g. pasting from a plain text source),
+    // since the browser's default paste-into-contenteditable doesn't
+    // reliably turn blank lines into separate blocks on its own.
     body.addEventListener("paste", function (e) {
       var clipboardData = e.clipboardData || window.clipboardData;
       if (!clipboardData) return;
 
       e.preventDefault();
+
+      var sourceHtml = clipboardData.getData("text/html");
+      if (sourceHtml) {
+        var cleaned = cleanPastedHtml(sourceHtml);
+        document.execCommand("insertHTML", false, cleaned || "<p></p>");
+        refreshEmptyState();
+        return;
+      }
 
       var text = clipboardData.getData("text/plain") || "";
       var paragraphs = text.split(/\r\n\s*\r\n|\n\s*\n/);

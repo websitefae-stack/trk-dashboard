@@ -14,11 +14,14 @@ stripped out for them, and for the future-air-date visibility rule).
 Managing episodes (add/edit/delete) is franchisor-only.
 """
 
+import re
+
 import frappe
 from frappe import _
 from frappe.utils import getdate, nowdate
 
 from dashboard.api.shared.permissions import ensure_logged_in, ensure_office_user
+from dashboard.api.shared.utils import coalesce_str
 
 DOCTYPE = "Podcast Episode"
 RESOURCE_DOCTYPE = "Podcast Episode Resource"
@@ -215,6 +218,73 @@ def save_podcast_episode(
 		doc.insert(ignore_permissions=True)
 
 	return {"name": doc.name}
+
+
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _strip_html(value):
+	return _HTML_TAG_RE.sub(" ", value or "")
+
+
+def _known_topics():
+	"""Every distinct topic Ashley's already used across other episodes
+	(split on comma, deduped case-insensitively) - the vocabulary
+	suggest_podcast_topics checks for, rather than inventing new ones."""
+	rows = frappe.get_all(DOCTYPE, fields=["topics"])
+	seen = {}
+	for row in rows:
+		for part in (row.topics or "").split(","):
+			part = part.strip()
+			if part and part.lower() not in seen:
+				seen[part.lower()] = part
+	return list(seen.values())
+
+
+def _read_file_text(file_url):
+	"""Best-effort plain text of an uploaded file - works for a .txt
+	transcript, silently gives up (returns "") for anything that isn't
+	valid UTF-8 text (a .docx/.pdf transcript's real text can't be
+	pulled out this way) rather than throwing - a transcript that can't
+	be read just means suggest_podcast_topics falls back to the show
+	notes alone."""
+	file_url = (file_url or "").strip()
+	if not file_url:
+		return ""
+
+	try:
+		file_doc = frappe.get_doc("File", {"file_url": file_url})
+		content = file_doc.get_content()
+		if isinstance(content, bytes):
+			content = content.decode("utf-8")
+		return content or ""
+	except Exception:
+		return ""
+
+
+@frappe.whitelist()
+def suggest_podcast_topics(show_notes=None, transcript_file=None):
+	"""
+	Franchisor-only. Keyword matching against a known vocabulary (every
+	topic already used on another episode) - not an AI call. Checks the
+	show notes and the transcript's own text (see _read_file_text's own
+	docstring for the .txt-only limitation) for each known topic, and
+	returns whichever ones actually turn up, for the form to offer as
+	one-click-to-add suggestions rather than Ashley re-typing the same
+	topics from memory every time.
+	"""
+	ensure_office_user()
+
+	show_notes = coalesce_str("show_notes", show_notes)
+	transcript_file = coalesce_str("transcript_file", transcript_file)
+
+	haystack = (_strip_html(show_notes) + "\n" + _read_file_text(transcript_file)).lower()
+	if not haystack.strip():
+		return []
+
+	matches = [topic for topic in _known_topics() if topic.lower() in haystack]
+	matches.sort(key=lambda topic: topic.lower())
+	return matches
 
 
 @frappe.whitelist()
