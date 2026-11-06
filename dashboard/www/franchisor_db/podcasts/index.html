@@ -75,6 +75,11 @@
           <div class="dashboard-detail-field dashboard-detail-field-full">
             <label for="episodeTopics">Topics (comma-separated)</label>
             <input type="text" class="dashboard-input" id="episodeTopics" placeholder="e.g. anxiety, exam stress, parenting">
+            <div style="margin-top:8px;">
+              <button type="button" class="dashboard-btn dashboard-btn-light" id="suggestTopicsBtn">Suggest Topics</button>
+              <span class="dashboard-help" style="margin-left:8px;">Checks the show notes and transcript against topics you've already used on other episodes - click one to add it.</span>
+            </div>
+            <div id="suggestedTopicsList" style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;"></div>
           </div>
 
           <div class="dashboard-detail-field dashboard-detail-field-full">
