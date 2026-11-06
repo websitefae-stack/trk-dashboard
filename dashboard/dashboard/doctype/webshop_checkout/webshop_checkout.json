@@ -23,6 +23,7 @@
   "contact_column",
   "coach",
   "affiliate_coach",
+  "affiliate_session_worker",
   "address_section",
   "address_line1",
   "address_line2",
@@ -131,11 +132,19 @@
    "options": "Coach"
   },
   {
-   "description": "Resolved from the affiliate code carried in the cart (see affiliate.py) at checkout time, not re-looked-up later - a coach's code changing (it shouldn't, but) must never retroactively change who already-placed orders are attributed to. Blank means no affiliate code was present.",
+   "description": "Resolved from the affiliate code carried in the cart (see affiliate.py) at checkout time, not re-looked-up later - a coach's code changing (it shouldn't, but) must never retroactively change who already-placed orders are attributed to. Blank means no affiliate code was present, or it belonged to a Session Worker instead (see affiliate_session_worker).",
    "fieldname": "affiliate_coach",
    "fieldtype": "Link",
    "label": "Affiliate Coach",
    "options": "Coach",
+   "read_only": 1
+  },
+  {
+   "description": "Same as affiliate_coach, for a Session Worker's own affiliate code instead - exactly one of the two is ever set.",
+   "fieldname": "affiliate_session_worker",
+   "fieldtype": "Link",
+   "label": "Affiliate Session Worker",
+   "options": "Session Worker",
    "read_only": 1
   },
   {

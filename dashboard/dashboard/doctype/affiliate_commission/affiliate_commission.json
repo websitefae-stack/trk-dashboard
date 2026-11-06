@@ -7,6 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "coach",
+  "session_worker",
   "affiliate_setting",
   "column_break_1",
   "item",
@@ -26,13 +27,22 @@
  ],
  "fields": [
   {
+   "description": "Leave blank if this sale came through a Session Worker's link instead - set exactly one of the two.",
    "fieldname": "coach",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Coach",
-   "options": "Coach",
-   "reqd": 1
+   "options": "Coach"
+  },
+  {
+   "description": "Leave blank if this sale came through a Coach's link instead.",
+   "fieldname": "session_worker",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Session Worker",
+   "options": "Session Worker"
   },
   {
    "fieldname": "affiliate_setting",

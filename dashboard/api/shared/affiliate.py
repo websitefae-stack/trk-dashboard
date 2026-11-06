@@ -1,9 +1,17 @@
 """
-A coach's own affiliate link for the public store/course site: one
-link per coach (not one per product), carrying a short code that gets
-remembered by the shopper's browser (see resilient_domains' cart.js)
-until they actually check out - whatever they end up buying, not just
-whatever page the link first landed on.
+A coach's or session worker's own affiliate link for the public
+store/course site: one link per earner (not one per product), carrying
+a short code that gets remembered by the shopper's browser (see
+resilient_domains' cart.js) until they actually check out - whatever
+they end up buying, not just whatever page the link first landed on.
+
+Coach and Session Worker are two separate doctypes, so every earner-
+facing lookup here resolves "whoever's actually logged in" via
+_current_earner(), and every Affiliate Commission row carries exactly
+one of a coach or a session_worker field (never both) - see
+_earner_filter/_earner_label. Affiliate codes themselves are unique
+across BOTH tables, enforced in _code_in_use since a DB-level unique
+constraint on either table alone can't see across to the other one.
 
 Which items/courses actually earn a commission, and how much, is set
 up separately by the franchisor (Affiliate Product Setting) - this
@@ -15,9 +23,9 @@ called from webshop_purchase._fulfil_checkout_session right after a
 guest checkout is confirmed paid by Stripe.
 
 Deliberately scoped to the public guest webshop checkout only - a
-coach raising an invoice for their own client through the normal
-dashboard flow isn't a sale that came through anyone's affiliate link,
-so it's never considered here.
+coach/session worker raising an invoice for their own client through
+the normal dashboard flow isn't a sale that came through anyone's
+affiliate link, so it's never considered here.
 """
 
 import random
@@ -29,12 +37,21 @@ import frappe
 from frappe import _
 from frappe.utils import flt, nowdate
 
-from dashboard.api.shared.permissions import ensure_office_user, get_current_coach_name
+from dashboard.api.shared.permissions import ensure_office_user, get_current_coach_name, get_current_session_worker_name
 from dashboard.api.shared.utils import coalesce_str, coalesce_raw
 from dashboard.api.shared.profile import PUBLIC_SITE_URL
+from dashboard.api.shared.session_workers import (
+    SESSION_WORKER_LABEL_FIELDS,
+    get_first_value,
+    get_session_worker_fields,
+    get_session_worker_label,
+    has_field,
+)
 
 AFFILIATE_SETTING_DOCTYPE = "Affiliate Product Setting"
 AFFILIATE_COMMISSION_DOCTYPE = "Affiliate Commission"
+COACH_DOCTYPE = "Coach"
+SESSION_WORKER_DOCTYPE = "Session Worker"
 
 
 def _coach_label(coach_name):
@@ -43,40 +60,84 @@ def _coach_label(coach_name):
     return frappe.db.get_value("Coach", coach_name, "coach_name") or coach_name
 
 
+def _earner_label(coach=None, session_worker=None):
+    return _coach_label(coach) if coach else get_session_worker_label(session_worker)
+
+
+def _current_earner():
+    """Whichever identity the current logged-in user actually has -
+    Coach checked first (the common case), falling back to Session
+    Worker - same dual-resolution pattern testimonials.py's save_
+    testimonial already uses. Throws if neither applies, same as
+    get_current_coach_name(optional=False) did before this was
+    generalised."""
+    coach_name = get_current_coach_name(optional=True)
+    if coach_name:
+        return COACH_DOCTYPE, coach_name
+
+    worker_name = get_current_session_worker_name(optional=True)
+    if worker_name:
+        return SESSION_WORKER_DOCTYPE, worker_name
+
+    frappe.throw(_("No Coach or Session Worker profile is linked to your user."), frappe.PermissionError)
+
+
+def _earner_filter(doctype, name):
+    """The Affiliate Commission filter for one earner - coach and
+    session_worker are separate Link fields (never a single generic
+    one), so this is the one place that decides which column a given
+    (doctype, name) pair actually means."""
+    return {"coach": name} if doctype == COACH_DOCTYPE else {"session_worker": name}
+
+
 # =====================================================
 # AFFILIATE CODE / LINK
 # =====================================================
 
-def _slugify_coach_name(coach_name):
-    label = _coach_label(coach_name) or coach_name
-    slug = re.sub(r"[^a-z0-9]+", "", label.lower())
+def _slugify_label(label):
+    slug = re.sub(r"[^a-z0-9]+", "", (label or "").lower())
     return slug[:16] or "coach"
 
 
-def _ensure_affiliate_code(coach_name):
+def _code_in_use(candidate):
+    """Affiliate codes must be unique across BOTH Coach and Session
+    Worker, not just within whichever table a new one's being minted
+    for - they're two separate tables, so a DB-level unique constraint
+    on either only ever guards within that one table, and code
+    resolution (record_affiliate_click, resolve_affiliate_earner)
+    needs exactly one match regardless of which doctype it turns out
+    to be."""
+    return bool(
+        frappe.db.exists(COACH_DOCTYPE, {"affiliate_code": candidate})
+        or frappe.db.exists(SESSION_WORKER_DOCTYPE, {"affiliate_code": candidate})
+    )
+
+
+def _ensure_affiliate_code_for(doctype, name):
     """Idempotent - returns the existing code if one's already set,
     otherwise mints and saves a new one. Called lazily (the first time
-    a coach's own link is actually requested), not backfilled for every
-    coach up front - see add_coach_affiliate_code_field.py's own
+    this coach/session worker's own link is actually requested), not
+    backfilled up front - see add_coach_affiliate_code_field.py's own
     docstring for why."""
-    existing = frappe.db.get_value("Coach", coach_name, "affiliate_code")
+    existing = frappe.db.get_value(doctype, name, "affiliate_code")
     if existing:
         return existing
 
-    base = _slugify_coach_name(coach_name)
+    label = _earner_label(name) if doctype == COACH_DOCTYPE else _earner_label(session_worker=name)
+    base = _slugify_label(label)
 
     for _attempt in range(20):
         candidate = base + "".join(random.choices(string.digits, k=3))
-        if not frappe.db.exists("Coach", {"affiliate_code": candidate}):
-            frappe.db.set_value("Coach", coach_name, "affiliate_code", candidate, update_modified=False)
+        if not _code_in_use(candidate):
+            frappe.db.set_value(doctype, name, "affiliate_code", candidate, update_modified=False)
             frappe.db.commit()
             return candidate
 
     # Vanishingly unlikely (20 random 3-digit suffixes all colliding),
-    # but never leave this coach without a code - fall back to
-    # something guaranteed unique.
+    # but never leave this coach/session worker without a code - fall
+    # back to something guaranteed unique.
     candidate = base + frappe.generate_hash(length=6)
-    frappe.db.set_value("Coach", coach_name, "affiliate_code", candidate, update_modified=False)
+    frappe.db.set_value(doctype, name, "affiliate_code", candidate, update_modified=False)
     frappe.db.commit()
     return candidate
 
@@ -94,24 +155,24 @@ def _affiliate_link(code):
 
 @frappe.whitelist()
 def get_my_affiliate_link():
-    """Coach-only - their own shareable link, generating a code the
-    first time this is ever called for them."""
-    coach_name = get_current_coach_name(optional=False)
-    code = _ensure_affiliate_code(coach_name)
+    """Coach or Session Worker - their own shareable link, generating a
+    code the first time this is ever called for them."""
+    doctype, name = _current_earner()
+    code = _ensure_affiliate_code_for(doctype, name)
 
     return {"code": code, "link": _affiliate_link(code)}
 
 
 @frappe.whitelist()
 def get_my_affiliate_summary():
-    """Coach-only - their own link plus running commission/click totals,
-    for the coach dashboard's own affiliate section."""
-    coach_name = get_current_coach_name(optional=False)
-    code = _ensure_affiliate_code(coach_name)
+    """Coach or Session Worker - their own link plus running commission/
+    click totals, for their dashboard's own affiliate section."""
+    doctype, name = _current_earner()
+    code = _ensure_affiliate_code_for(doctype, name)
 
     rows = frappe.get_all(
         AFFILIATE_COMMISSION_DOCTYPE,
-        filters={"coach": coach_name},
+        filters=_earner_filter(doctype, name),
         fields=["status", "commission_amount"],
     )
 
@@ -124,30 +185,32 @@ def get_my_affiliate_summary():
         "pending_total": pending_total,
         "paid_total": paid_total,
         "sale_count": len(rows),
-        "click_count": frappe.db.get_value("Coach", coach_name, "affiliate_click_count") or 0,
+        "click_count": frappe.db.get_value(doctype, name, "affiliate_click_count") or 0,
     }
 
 
 @frappe.whitelist()
 def get_my_affiliate_product_links():
-    """Coach-only - get_coach_affiliate_links scoped to the current coach."""
-    coach_name = get_current_coach_name(optional=False)
-    return get_coach_affiliate_links(coach_name)
+    """Coach or Session Worker - get_earner_affiliate_links scoped to
+    whichever identity is currently logged in."""
+    doctype, name = _current_earner()
+    return get_earner_affiliate_links(doctype, name)
 
 
-def get_coach_affiliate_links(coach_name):
+def get_earner_affiliate_links(doctype, name):
     """
     One row per enabled Affiliate Product Setting, pointing straight at
     that specific item/course's own public page (not just the generic
-    store-wide link get_my_affiliate_link gives) - so a coach can share
-    "buy this exact course" rather than only "browse the whole store",
-    still carrying their own code - alongside that one link's own clicks/
-    earned/due, not just the coach-wide totals. Shared by the coach's own
-    page (get_my_affiliate_product_links) and the franchisor's per-coach
-    drill-down (get_affiliate_coach_links) - same shape either way, only
-    who's allowed to ask for which coach differs.
+    store-wide link get_my_affiliate_link gives) - so a coach/session
+    worker can share "buy this exact course" rather than only "browse
+    the whole store", still carrying their own code - alongside that
+    one link's own clicks/earned/due, not just the earner-wide totals.
+    Shared by the earner's own page (get_my_affiliate_product_links)
+    and the franchisor's per-earner drill-down (get_affiliate_coach_links,
+    despite its name - see its own docstring) - same shape either way,
+    only who's allowed to ask for which earner differs.
     """
-    code = _ensure_affiliate_code(coach_name)
+    code = _ensure_affiliate_code_for(doctype, name)
 
     settings = frappe.get_all(
         AFFILIATE_SETTING_DOCTYPE,
@@ -159,9 +222,11 @@ def get_coach_affiliate_links(coach_name):
 
     unlocks_course_field = "custom_unlocks_lms_course" if frappe.get_meta("Item").has_field("custom_unlocks_lms_course") else None
 
+    commission_filters = _earner_filter(doctype, name)
+    commission_filters["affiliate_setting"] = ["in", [s.name for s in settings]]
     commission_rows = frappe.get_all(
         AFFILIATE_COMMISSION_DOCTYPE,
-        filters={"coach": coach_name, "affiliate_setting": ["in", [s.name for s in settings]]},
+        filters=commission_filters,
         fields=["affiliate_setting", "status", "commission_amount"],
     )
     earned_by_setting = {}
@@ -203,16 +268,21 @@ def get_coach_affiliate_links(coach_name):
 
 @frappe.whitelist()
 def get_affiliate_coach_links(coach=None):
-    """Franchisor-only - get_coach_affiliate_links for any one coach, for
-    the Coach Performance drill-down (click a coach, see every one of
-    their links with its own clicks/earned/due)."""
+    """Franchisor-only - get_earner_affiliate_links for any one coach OR
+    session worker (despite the param name - affiliates.js's Performance
+    table drill-down calls this same endpoint for either kind of row, so
+    it resolves which doctype the given name actually belongs to rather
+    than needing a second, separate endpoint the frontend would have to
+    know to call instead)."""
     ensure_office_user()
 
     coach = (coach or "").strip()
-    if not coach or not frappe.db.exists("Coach", coach):
-        frappe.throw(_("A valid coach is required."))
+    if coach and frappe.db.exists(COACH_DOCTYPE, coach):
+        return get_earner_affiliate_links(COACH_DOCTYPE, coach)
+    if coach and frappe.db.exists(SESSION_WORKER_DOCTYPE, coach):
+        return get_earner_affiliate_links(SESSION_WORKER_DOCTYPE, coach)
 
-    return get_coach_affiliate_links(coach)
+    frappe.throw(_("A valid coach or session worker is required."))
 
 
 @frappe.whitelist(allow_guest=True)
@@ -221,18 +291,18 @@ def record_affiliate_click(code=None, item=None, course=None):
     Called once from resilient_domains' cart.js, the moment a genuine
     ?aff=<code> is actually found in the URL (not on every subsequent
     page view while it's just sitting in localStorage) - a simple
-    running count per coach, for "how many clicks did my link get"
+    running count per earner, for "how many clicks did my link get"
     rather than full click-by-click logging. Guest-accessible like the
     rest of the public checkout surface; silently does nothing for an
     unknown/mistyped code rather than throwing, same as
-    resolve_affiliate_coach.
+    resolve_affiliate_earner.
 
     item/course (whichever's in the landing URL - /buy?item=... or
     /trh-course-detail?slug=...) additionally bumps that one Affiliate
     Product Setting's own click_count, same resolution rules record_
     affiliate_commission_for_invoice already uses (variant falls back
     to its template) - so "Your Links" can show how many clicks each
-    individual link got, not just the coach-wide total. Left blank for
+    individual link got, not just the earner-wide total. Left blank for
     the generic /trh-store?aff= link, which isn't tied to any one
     product.
     """
@@ -240,16 +310,19 @@ def record_affiliate_click(code=None, item=None, course=None):
     if not code:
         return {"ok": True}
 
-    coach_name = frappe.db.get_value("Coach", {"affiliate_code": code}, "name")
-    if not coach_name:
+    earner = resolve_affiliate_earner(code)
+    doctype = earner["doctype"]
+    name = earner["name"]
+    if not name:
         return {"ok": True}
 
     # A single atomic UPDATE rather than read-then-write - two clicks
     # landing in the same instant must never both read the same stale
     # count and silently lose one increment.
+    table = "tabCoach" if doctype == COACH_DOCTYPE else "tabSession Worker"
     frappe.db.sql(
-        "UPDATE `tabCoach` SET affiliate_click_count = IFNULL(affiliate_click_count, 0) + 1 WHERE name = %s",
-        (coach_name,),
+        "UPDATE `{0}` SET affiliate_click_count = IFNULL(affiliate_click_count, 0) + 1 WHERE name = %s".format(table),
+        (name,),
     )
 
     item = (item or "").strip()
@@ -267,19 +340,28 @@ def record_affiliate_click(code=None, item=None, course=None):
     return {"ok": True}
 
 
-def resolve_affiliate_coach(affiliate_code):
+def resolve_affiliate_earner(affiliate_code):
     """Used by webshop_purchase.create_checkout_session to resolve a
     raw code (from the shopper's cart, carried via localStorage - see
-    resilient_domains' cart.js) to a real Coach at the moment the
-    checkout doc is created. Returns "" for anything that doesn't
-    match a real coach, rather than throwing - an expired/mistyped/
-    tampered code should just mean no attribution, never a broken
-    checkout."""
+    resilient_domains' cart.js) to a real Coach or Session Worker at
+    the moment the checkout doc is created. Returns {"doctype": "",
+    "name": ""} for anything that doesn't match either - an expired/
+    mistyped/tampered code should just mean no attribution, never a
+    broken checkout. _code_in_use guarantees a code never belongs to
+    both tables at once, so at most one of the two lookups ever hits."""
     affiliate_code = (affiliate_code or "").strip()
     if not affiliate_code:
-        return ""
+        return {"doctype": "", "name": ""}
 
-    return frappe.db.get_value("Coach", {"affiliate_code": affiliate_code}, "name") or ""
+    coach_name = frappe.db.get_value(COACH_DOCTYPE, {"affiliate_code": affiliate_code}, "name")
+    if coach_name:
+        return {"doctype": COACH_DOCTYPE, "name": coach_name}
+
+    worker_name = frappe.db.get_value(SESSION_WORKER_DOCTYPE, {"affiliate_code": affiliate_code}, "name")
+    if worker_name:
+        return {"doctype": SESSION_WORKER_DOCTYPE, "name": worker_name}
+
+    return {"doctype": "", "name": ""}
 
 
 # =====================================================
@@ -457,7 +539,9 @@ def _compute_commission(setting, sale_amount):
     return flt(sale_amount * rate / 100, 2), "{0:g}%".format(rate)
 
 
-def record_affiliate_commission_for_invoice(invoice, affiliate_coach, client_full_name=None, client_email=None):
+def record_affiliate_commission_for_invoice(
+    invoice, affiliate_coach=None, affiliate_session_worker=None, client_full_name=None, client_email=None,
+):
     """
     Called from webshop_purchase._fulfil_checkout_session right after a
     guest checkout is confirmed paid - never from anywhere an invoice
@@ -466,21 +550,28 @@ def record_affiliate_commission_for_invoice(invoice, affiliate_coach, client_ful
     item directly, its item's variant template, or the LMS course it
     unlocks) - an invoice can earn commission on more than one line.
 
+    Exactly one of affiliate_coach/affiliate_session_worker is ever
+    set (see resolve_affiliate_earner) - both are accepted here rather
+    than a single generic param so the two Affiliate Commission fields
+    they end up on stay unambiguous.
+
     Best-effort: never allowed to raise, since this runs after the
     customer has already been charged and the order already recorded -
     a commission-recording problem must never look like a failed
     purchase.
     """
-    if not affiliate_coach:
+    if not affiliate_coach and not affiliate_session_worker:
         return
 
     try:
-        _record_affiliate_commission_for_invoice(invoice, affiliate_coach, client_full_name, client_email)
+        _record_affiliate_commission_for_invoice(
+            invoice, affiliate_coach, affiliate_session_worker, client_full_name, client_email,
+        )
     except Exception:
         frappe.log_error(frappe.get_traceback(), f"Affiliate Commission Recording Failed - {invoice.name}")
 
 
-def _record_affiliate_commission_for_invoice(invoice, affiliate_coach, client_full_name, client_email):
+def _record_affiliate_commission_for_invoice(invoice, affiliate_coach, affiliate_session_worker, client_full_name, client_email):
     if not frappe.db.exists(AFFILIATE_SETTING_DOCTYPE):
         return
 
@@ -520,7 +611,8 @@ def _record_affiliate_commission_for_invoice(invoice, affiliate_coach, client_fu
             continue
 
         commission = frappe.new_doc(AFFILIATE_COMMISSION_DOCTYPE)
-        commission.coach = affiliate_coach
+        commission.coach = affiliate_coach or None
+        commission.session_worker = affiliate_session_worker or None
         commission.affiliate_setting = setting.name
         commission.item = matched_item or (row.item_code if setting.item else None)
         commission.course = matched_course or setting.course
@@ -542,9 +634,26 @@ def _record_affiliate_commission_for_invoice(invoice, affiliate_coach, client_fu
 
 @frappe.whitelist()
 def get_coach_options_for_affiliates():
+    """Franchisor-only - drives the Commissions table's filter dropdown.
+    Session workers are appended under the same "name"/"coach_name"
+    shape the dropdown already renders, so a franchisor can filter
+    commissions down to one session worker without the dropdown (or
+    get_affiliate_commissions below) needing a separate concept of
+    "worker" vs "coach" options."""
     ensure_office_user()
 
-    return frappe.get_all("Coach", fields=["name", "coach_name"], order_by="coach_name asc")
+    options = frappe.get_all("Coach", fields=["name", "coach_name"], order_by="coach_name asc")
+
+    if has_field(SESSION_WORKER_DOCTYPE, "affiliate_code"):
+        workers = frappe.get_all(SESSION_WORKER_DOCTYPE, fields=get_session_worker_fields())
+        for worker in workers:
+            options.append({
+                "name": worker.name,
+                "coach_name": (get_first_value(worker, SESSION_WORKER_LABEL_FIELDS) or worker.name) + " (Session Worker)",
+            })
+        options.sort(key=lambda row: (row["coach_name"] or row["name"]).lower())
+
+    return options
 
 
 def _commission_date_filters(from_date, to_date):
@@ -559,31 +668,38 @@ def _commission_date_filters(from_date, to_date):
 
 @frappe.whitelist()
 def get_affiliate_coach_performance(from_date=None, to_date=None):
-    """Franchisor-only - one row per coach who has ever had a click or a
-    commission, for the Affiliates page's own "who's actually driving
-    sales" summary (link clicks are otherwise invisible anywhere in the
-    per-sale Commissions table below). from_date/to_date filter the
-    sale figures only (sale_count/pending_total/paid_total) by when
-    each commission was earned - click_count is always the coach's
-    all-time total, since clicks are only ever kept as a running count,
-    not individually dated."""
+    """Franchisor-only - one row per coach/session worker who has ever
+    had a click or a commission, for the Affiliates page's own "who's
+    actually driving sales" summary (link clicks are otherwise
+    invisible anywhere in the per-sale Commissions table below).
+    from_date/to_date filter the sale figures only (sale_count/
+    pending_total/paid_total) by when each commission was earned -
+    click_count is always the earner's all-time total, since clicks
+    are only ever kept as a running count, not individually dated.
+
+    Session workers are unioned into the exact same "coach"/"coach_
+    label" result keys as an additional set of rows (purely for
+    display - affiliates.js's franchisor table needs no changes to
+    show them) rather than a parallel field, since the frontend only
+    ever renders one flat performance table either way.
+    """
     ensure_office_user()
 
     from_date = coalesce_str("from_date", from_date)
     to_date = coalesce_str("to_date", to_date)
 
-    coaches = frappe.get_all(
-        "Coach", filters={"affiliate_code": ["is", "set"]},
-        fields=["name", "coach_name", "affiliate_click_count"],
-    )
+    date_filters = _commission_date_filters(from_date, to_date)
 
-    commission_rows = frappe.get_all(
+    coach_commission_filters = dict(date_filters)
+    coach_commission_rows = frappe.get_all(
         AFFILIATE_COMMISSION_DOCTYPE,
-        filters=_commission_date_filters(from_date, to_date),
+        filters=coach_commission_filters,
         fields=["coach", "status", "commission_amount"],
     )
     by_coach = {}
-    for row in commission_rows:
+    for row in coach_commission_rows:
+        if not row.coach:
+            continue
         bucket = by_coach.setdefault(row.coach, {"sale_count": 0, "pending_total": 0, "paid_total": 0})
         bucket["sale_count"] += 1
         if row.status == "Pending":
@@ -591,7 +707,28 @@ def get_affiliate_coach_performance(from_date=None, to_date=None):
         else:
             bucket["paid_total"] += flt(row.commission_amount)
 
+    worker_commission_rows = frappe.get_all(
+        AFFILIATE_COMMISSION_DOCTYPE,
+        filters=date_filters,
+        fields=["session_worker", "status", "commission_amount"],
+    )
+    by_worker = {}
+    for row in worker_commission_rows:
+        if not row.session_worker:
+            continue
+        bucket = by_worker.setdefault(row.session_worker, {"sale_count": 0, "pending_total": 0, "paid_total": 0})
+        bucket["sale_count"] += 1
+        if row.status == "Pending":
+            bucket["pending_total"] += flt(row.commission_amount)
+        else:
+            bucket["paid_total"] += flt(row.commission_amount)
+
     results = []
+
+    coaches = frappe.get_all(
+        "Coach", filters={"affiliate_code": ["is", "set"]},
+        fields=["name", "coach_name", "affiliate_click_count"],
+    )
     for coach in coaches:
         bucket = by_coach.get(coach.name, {"sale_count": 0, "pending_total": 0, "paid_total": 0})
         if not coach.affiliate_click_count and not bucket["sale_count"]:
@@ -599,7 +736,31 @@ def get_affiliate_coach_performance(from_date=None, to_date=None):
         results.append({
             "coach": coach.name,
             "coach_label": coach.coach_name or coach.name,
+            "is_session_worker": 0,
             "click_count": coach.affiliate_click_count or 0,
+            "sale_count": bucket["sale_count"],
+            "pending_total": bucket["pending_total"],
+            "paid_total": bucket["paid_total"],
+        })
+
+    workers = []
+    if has_field(SESSION_WORKER_DOCTYPE, "affiliate_code"):
+        worker_fields = get_session_worker_fields()
+        if has_field(SESSION_WORKER_DOCTYPE, "affiliate_click_count"):
+            worker_fields = worker_fields + ["affiliate_click_count"]
+        workers = frappe.get_all(
+            SESSION_WORKER_DOCTYPE, filters={"affiliate_code": ["is", "set"]},
+            fields=worker_fields,
+        )
+    for worker in workers:
+        bucket = by_worker.get(worker.name, {"sale_count": 0, "pending_total": 0, "paid_total": 0})
+        if not worker.affiliate_click_count and not bucket["sale_count"]:
+            continue
+        results.append({
+            "coach": worker.name,
+            "coach_label": get_first_value(worker, SESSION_WORKER_LABEL_FIELDS) or worker.name,
+            "is_session_worker": 1,
+            "click_count": worker.affiliate_click_count or 0,
             "sale_count": bucket["sale_count"],
             "pending_total": bucket["pending_total"],
             "paid_total": bucket["paid_total"],
@@ -609,14 +770,17 @@ def get_affiliate_coach_performance(from_date=None, to_date=None):
     return results
 
 
-def _get_affiliate_sale_items(commission_name, restrict_to_coach=None):
+def _get_affiliate_sale_items(commission_name, restrict_to_earner=None):
     if not commission_name or not frappe.db.exists(AFFILIATE_COMMISSION_DOCTYPE, commission_name):
         frappe.throw(_("Commission record not found."))
 
     commission = frappe.get_doc(AFFILIATE_COMMISSION_DOCTYPE, commission_name)
 
-    if restrict_to_coach and commission.coach != restrict_to_coach:
-        frappe.throw(_("You do not have permission to view this."), frappe.PermissionError)
+    if restrict_to_earner:
+        doctype, name = restrict_to_earner
+        owns = (commission.coach == name) if doctype == COACH_DOCTYPE else (commission.session_worker == name)
+        if not owns:
+            frappe.throw(_("You do not have permission to view this."), frappe.PermissionError)
 
     if not commission.sales_invoice or not frappe.db.exists("Sales Invoice", commission.sales_invoice):
         return {"items": [], "grand_total": 0}
@@ -645,23 +809,24 @@ def get_affiliate_sale_items(commission=None):
 
 @frappe.whitelist()
 def get_my_affiliate_sale_items(commission=None):
-    """Coach-only, and only for their own commission - same shape as
-    get_affiliate_sale_items, for the coach dashboard's own drill-down."""
-    coach_name = get_current_coach_name(optional=False)
+    """Coach or Session Worker, and only for their own commission - same
+    shape as get_affiliate_sale_items, for their dashboard's own
+    drill-down."""
+    earner = _current_earner()
 
     commission = coalesce_str("commission", commission)
-    return _get_affiliate_sale_items(commission, restrict_to_coach=coach_name)
+    return _get_affiliate_sale_items(commission, restrict_to_earner=earner)
 
 
 @frappe.whitelist()
 def get_my_affiliate_commissions():
-    """Coach-only - their own sale list (customer, price, commission),
-    for the coach dashboard's own affiliate section."""
-    coach_name = get_current_coach_name(optional=False)
+    """Coach or Session Worker - their own sale list (customer, price,
+    commission), for their dashboard's own affiliate section."""
+    doctype, name = _current_earner()
 
     rows = frappe.get_all(
         AFFILIATE_COMMISSION_DOCTYPE,
-        filters={"coach": coach_name},
+        filters=_earner_filter(doctype, name),
         fields=[
             "name", "item", "course", "sale_amount", "commission_rate_snapshot",
             "commission_amount", "client_full_name", "client_email", "status", "creation",
@@ -682,6 +847,12 @@ def get_my_affiliate_commissions():
 
 @frappe.whitelist()
 def get_affiliate_commissions(coach=None, status=None, from_date=None, to_date=None):
+    """Franchisor-only. The "coach" param (kept under its original name
+    for the frontend - see get_affiliate_coach_links' own docstring)
+    may actually be a session worker's name - resolved the same way,
+    against whichever doctype it really belongs to, since the filter
+    dropdown that supplies it now lists both (get_coach_options_for_
+    affiliates)."""
     ensure_office_user()
 
     coach = coalesce_str("coach", coach)
@@ -691,7 +862,10 @@ def get_affiliate_commissions(coach=None, status=None, from_date=None, to_date=N
 
     filters = _commission_date_filters(from_date, to_date)
     if coach:
-        filters["coach"] = coach
+        if frappe.db.exists(SESSION_WORKER_DOCTYPE, coach) and not frappe.db.exists(COACH_DOCTYPE, coach):
+            filters["session_worker"] = coach
+        else:
+            filters["coach"] = coach
     if status:
         filters["status"] = status
 
@@ -699,15 +873,15 @@ def get_affiliate_commissions(coach=None, status=None, from_date=None, to_date=N
         AFFILIATE_COMMISSION_DOCTYPE,
         filters=filters,
         fields=[
-            "name", "coach", "item", "course", "sales_invoice", "sale_amount",
+            "name", "coach", "session_worker", "item", "course", "sales_invoice", "sale_amount",
             "commission_rate_snapshot", "commission_amount", "client_full_name",
             "client_email", "status", "paid_on", "creation",
         ],
-        order_by="coach asc, creation desc",
+        order_by="coach asc, session_worker asc, creation desc",
     )
 
     for row in rows:
-        row["coach_label"] = _coach_label(row.coach)
+        row["coach_label"] = _earner_label(coach=row.coach, session_worker=row.session_worker)
         if row.item:
             row["product_label"] = frappe.db.get_value("Item", row.item, "item_name") or row.item
         elif row.course:
