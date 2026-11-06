@@ -1,0 +1,100 @@
+{% include "dashboard/templates/includes/head/session_worker_head.html" %}
+
+<div class="dashboard-page" id="testimonialsPage">
+  {% include "dashboard/templates/includes/sidebar/session_worker_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      {% if session_worker_is_view_mode %}
+        <div style="background:#ac455c; color:#ffffff; border-radius:14px; padding:16px 18px; margin-bottom:18px;">
+          <strong>Viewing Session Worker:</strong>
+          {{ session_worker_view_display_name }}
+          <div style="margin-top:12px;">
+            <a href="{{ session_worker_view_return_to }}" class="dashboard-btn dashboard-btn-secondary">
+              Back to Session Workers
+            </a>
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Testimonials</h1>
+          <p class="dashboard-page-subtitle">Testimonials you've received - add a new one, or edit one of your own.</p>
+        </div>
+      </div>
+
+      {% if not session_worker_is_view_mode %}
+      <div class="dashboard-card" id="testimonialForm">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title" id="testimonialFormHeading">Add a Testimonial</h2>
+        </div>
+
+        <input type="hidden" id="testimonialFormName">
+
+        <div class="dashboard-detail-grid dashboard-detail-grid-2">
+          <div class="dashboard-detail-field">
+            <label for="testimonialDate">Date</label>
+            <input type="date" class="dashboard-input" id="testimonialDate">
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="testimonialType">Format</label>
+            <select class="dashboard-select" id="testimonialType">
+              <option value="Text">Text</option>
+              <option value="Photo">Photo</option>
+              <option value="Video">Video</option>
+            </select>
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="testimonialClientName">Name</label>
+            <input type="text" class="dashboard-input" id="testimonialClientName" placeholder="Leave blank if anonymous">
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label>
+              <input type="checkbox" id="testimonialAnonymous">
+              Anonymous
+            </label>
+          </div>
+
+          <div class="dashboard-detail-field dashboard-detail-field-full" id="testimonialTextWrap">
+            <label for="testimonialText">Testimonial Text</label>
+            <textarea class="dashboard-input" id="testimonialText" rows="4"></textarea>
+          </div>
+
+          <div class="dashboard-detail-field dashboard-detail-field-full" id="testimonialFileWrap" style="display:none;">
+            <label for="testimonialFile">Photo/Video File</label>
+            <input type="file" class="dashboard-input" id="testimonialFile" accept="image/*,video/*">
+            <div id="testimonialExistingFile"></div>
+          </div>
+
+          <div class="dashboard-detail-field dashboard-detail-field-full">
+            <label>Which Brand(s) / Category Is This For</label>
+            <div style="display:flex; gap:18px; flex-wrap:wrap; margin-top:6px;">
+              <label id="testimonialBrandKidWrap"><input type="checkbox" id="testimonialBrandKid"> TRK</label>
+              <label id="testimonialBrandTeenWrap"><input type="checkbox" id="testimonialBrandTeen"> TRT</label>
+              <label id="testimonialBrandPeopleWrap"><input type="checkbox" id="testimonialBrandPeople"> TRP</label>
+              <label id="testimonialBrandSchoolWrap"><input type="checkbox" id="testimonialBrandSchool"> TRS</label>
+              <label id="testimonialForBooksWrap"><input type="checkbox" id="testimonialForBooks"> Books</label>
+              <label><input type="checkbox" id="testimonialForPodcast"> Podcast</label>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:16px;">
+          <button type="button" class="dashboard-btn dashboard-btn-primary" id="saveTestimonialBtn">Save Testimonial</button>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="cancelEditTestimonialBtn" style="display:none;">Cancel</button>
+        </div>
+      </div>
+      {% endif %}
+
+      <div id="testimonialsList" style="margin-top:20px;"></div>
+
+    </div>
+  </div>
+</div>

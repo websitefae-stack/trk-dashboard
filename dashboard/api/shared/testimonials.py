@@ -19,11 +19,13 @@ from dashboard.api.shared.permissions import (
 	ensure_office_user,
 	is_office_user,
 	get_current_coach_name,
+	get_current_session_worker_name,
 )
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 
 DOCTYPE = "Coach Testimonial"
 COACH_DOCTYPE = "Coach"
+SESSION_WORKER_DOCTYPE = "Session Worker"
 
 # Books is only ever Ashley's own - she's the author, and this only gets
 # used when marketing one of her books (rare). Same login FRANCHISOR_
@@ -42,7 +44,7 @@ BRAND_FIELDS = {
 }
 
 LIST_FIELDS = [
-	"name", "coach", "testimonial_date", "testimonial_type", "client_name", "is_anonymous",
+	"name", "coach", "session_worker", "testimonial_date", "testimonial_type", "client_name", "is_anonymous",
 	"testimonial_text", "testimonial_file",
 	"brand_access_kid", "brand_access_teen", "brand_access_people", "brand_access_school",
 	"for_books", "for_podcast",
@@ -140,20 +142,37 @@ def get_coach_brand_options(coach=None):
 	}
 
 
-def _clean_brand_values(doc_values, coach):
+def _allowed_brands_for_session_worker(worker):
 	"""
-	Drops any ticked brand (or Books) the coach isn't actually allowed -
-	never trusts the browser's own checkbox-hiding to be the only gate,
-	since this is a server call a coach could otherwise hit directly
-	with any box ticked regardless of what the form showed them.
+	A session worker has no Coach Brand Access of their own (that's a
+	per-coach single-brand identity a session worker doesn't carry) -
+	unrestricted rather than "none", the opposite default from a coach
+	with no Brand Access rows, since there's no real per-worker brand
+	data that could ever be "filled in" here the way a coach's can.
 	"""
-	allowed_brands = set(_allowed_brands_for_coach(coach))
+	return list(BRAND_FIELDS.values())
+
+
+def _clean_brand_values(doc_values, coach=None, session_worker=None):
+	"""
+	Drops any ticked brand (or Books) the submitter isn't actually
+	allowed - never trusts the browser's own checkbox-hiding to be the
+	only gate, since this is a server call a coach/session worker could
+	otherwise hit directly with any box ticked regardless of what the
+	form showed them.
+	"""
+	if session_worker:
+		allowed_brands = set(_allowed_brands_for_session_worker(session_worker))
+	else:
+		allowed_brands = set(_allowed_brands_for_coach(coach))
 
 	for fieldname, brand_value in BRAND_FIELDS.items():
 		if brand_value not in allowed_brands:
 			doc_values[fieldname] = 0
 
-	if coach != _get_ashley_coach_name():
+	# Books is only ever Ashley's own - never available to a session
+	# worker, same as every coach who isn't Ashley.
+	if session_worker or coach != _get_ashley_coach_name():
 		doc_values["for_books"] = 0
 
 	return doc_values
@@ -163,6 +182,16 @@ def _clean_brand_values(doc_values, coach):
 def get_my_coach_brand_options():
 	ensure_logged_in()
 	return get_coach_brand_options(get_current_coach_name())
+
+
+@frappe.whitelist()
+def get_my_session_worker_brand_options():
+	ensure_logged_in()
+	worker = get_current_session_worker_name(optional=False)
+	return {
+		"brands": _allowed_brands_for_session_worker(worker),
+		"books": False,
+	}
 
 
 @frappe.whitelist()
@@ -188,6 +217,20 @@ def get_my_testimonials(view_as=None, viewer=None):
 	return frappe.get_all(
 		DOCTYPE,
 		filters={"coach": coach},
+		fields=LIST_FIELDS,
+		order_by="testimonial_date desc",
+		ignore_permissions=True,
+	)
+
+
+@frappe.whitelist()
+def get_my_session_worker_testimonials():
+	ensure_logged_in()
+	worker = get_current_session_worker_name(optional=False)
+
+	return frappe.get_all(
+		DOCTYPE,
+		filters={"session_worker": worker},
 		fields=LIST_FIELDS,
 		order_by="testimonial_date desc",
 		ignore_permissions=True,
@@ -242,8 +285,12 @@ def get_testimonial_for_edit(name=None):
 
 	doc = frappe.get_doc(DOCTYPE, name)
 
-	if not is_office_user() and doc.coach != get_current_coach_name():
-		frappe.throw(_("You do not have permission to access this testimonial."), frappe.PermissionError)
+	if not is_office_user():
+		owns_as_coach = doc.coach and doc.coach == get_current_coach_name(optional=True)
+		owns_as_session_worker = doc.get("session_worker") and doc.get("session_worker") == get_current_session_worker_name(optional=True)
+
+		if not owns_as_coach and not owns_as_session_worker:
+			frappe.throw(_("You do not have permission to access this testimonial."), frappe.PermissionError)
 
 	return doc.as_dict()
 
@@ -268,15 +315,22 @@ def save_testimonial(
 	ensure_logged_in()
 
 	office = is_office_user()
+	session_worker = None
 
 	if office:
 		coach = (coach or "").strip()
 		if not coach or not frappe.db.exists(COACH_DOCTYPE, coach):
 			frappe.throw(_("Please choose a coach."))
 	else:
-		# A coach can only ever submit under their own name, regardless
-		# of what this call is sent - never trusts the browser.
-		coach = get_current_coach_name()
+		# A coach/session worker can only ever submit under their own
+		# name, regardless of what this call is sent - never trusts the
+		# browser. Tries a coach identity first (the common case),
+		# falling back to a session worker identity rather than
+		# assuming a logged-in non-office user only ever has one kind
+		# of identity to check.
+		coach = get_current_coach_name(optional=True)
+		if not coach:
+			session_worker = get_current_session_worker_name(optional=False)
 
 	testimonial_type = testimonial_type if testimonial_type in ("Text", "Photo", "Video") else "Text"
 
@@ -287,8 +341,10 @@ def save_testimonial(
 		if not frappe.db.exists(DOCTYPE, name):
 			frappe.throw(_("Testimonial not found."))
 		existing_doc = frappe.get_doc(DOCTYPE, name)
-		if not office and existing_doc.coach != coach:
-			frappe.throw(_("You do not have permission to edit this testimonial."), frappe.PermissionError)
+		if not office:
+			owns = (coach and existing_doc.coach == coach) or (session_worker and existing_doc.get("session_worker") == session_worker)
+			if not owns:
+				frappe.throw(_("You do not have permission to edit this testimonial."), frappe.PermissionError)
 
 	if testimonial_type == "Text" and not (testimonial_text or "").strip():
 		frappe.throw(_("Please enter the testimonial text."))
@@ -302,7 +358,8 @@ def save_testimonial(
 		frappe.throw(_("Please upload a {0} file.").format(testimonial_type.lower()))
 
 	values = {
-		"coach": coach,
+		"coach": coach or "",
+		"session_worker": session_worker or "",
 		"testimonial_date": testimonial_date or frappe.utils.nowdate(),
 		"testimonial_type": testimonial_type,
 		"brand_access_kid": 1 if int(brand_access_kid or 0) else 0,
@@ -321,7 +378,7 @@ def save_testimonial(
 	# Drops any ticked brand/Books this coach isn't actually allowed -
 	# done last, after every other value is already in the dict, so
 	# nothing set above can get silently re-applied over the top of it.
-	values = _clean_brand_values(values, coach)
+	values = _clean_brand_values(values, coach=coach, session_worker=session_worker)
 
 	if existing_doc:
 		existing_doc.update(values)
