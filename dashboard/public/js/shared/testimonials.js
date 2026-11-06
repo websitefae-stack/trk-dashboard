@@ -85,6 +85,15 @@
     return !!el("testimonialCoachField");
   }
 
+  // No separate marker element needed for this one - the URL prefix
+  // already tells coach_db/session_worker_db/franchisor_db apart
+  // everywhere else in this app (see form_links.js's own
+  // dashboardBasePath()), and this only matters for which "my own"
+  // endpoint to call, never for permission checks.
+  function isSessionWorkerMode() {
+    return window.location.pathname.indexOf("/session_worker_db/") === 0;
+  }
+
   function formatDate(value) {
     if (!value) return "";
     var parts = String(value).split("-");
@@ -208,6 +217,8 @@
             if (opt.value) coachLabelsByName[opt.value] = opt.textContent;
           });
         }
+      } else if (isSessionWorkerMode()) {
+        rows = await apiPost(SHARED_API + ".get_my_session_worker_testimonials", {});
       } else {
         var params = new URLSearchParams(window.location.search);
         rows = await apiPost(SHARED_API + ".get_my_testimonials", {
@@ -251,7 +262,8 @@
 
   async function refreshBrandOptionsForSelf() {
     try {
-      var result = await apiPost(SHARED_API + ".get_my_coach_brand_options", {});
+      var method = isSessionWorkerMode() ? ".get_my_session_worker_brand_options" : ".get_my_coach_brand_options";
+      var result = await apiPost(SHARED_API + method, {});
       setBrandCheckboxAvailability(Array.isArray(result.brands) ? result.brands : [], !!result.books);
     } catch (error) {
       setBrandCheckboxAvailability(Object.keys(BRAND_CHECKBOX_IDS), false);
