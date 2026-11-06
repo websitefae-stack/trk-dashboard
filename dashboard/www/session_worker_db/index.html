@@ -37,6 +37,11 @@
 
       <div class="dashboard-summary-grid dashboard-summary-grid-billing dashboard-home-summary-grid">
         <div class="dashboard-summary-card">
+          <div class="dashboard-summary-label">Clients Allocated</div>
+          <div class="dashboard-summary-value" id="swTotalClientsValue">—</div>
+        </div>
+
+        <div class="dashboard-summary-card">
           <div class="dashboard-summary-label" id="swOneToOnePreviousLabel">1 on 1 Sessions Previous</div>
           <div class="dashboard-summary-value" id="swOneToOnePreviousValue">—</div>
         </div>
@@ -74,6 +79,32 @@
         <div class="dashboard-summary-card">
           <div class="dashboard-summary-label" id="swWorkshopCurrentLabel">Workshops Current</div>
           <div class="dashboard-summary-value" id="swWorkshopCurrentValue">—</div>
+        </div>
+      </div>
+
+      <div class="dashboard-card dashboard-birthdays-card" id="dashboardBirthdaysCard" style="display:none;">
+        <div class="dashboard-birthdays-title">🎂 Upcoming Birthdays</div>
+        <div class="dashboard-birthdays-list" id="dashboardBirthdaysList"></div>
+      </div>
+
+      <div class="dashboard-card dashboard-home-panel">
+        <div class="dashboard-table-header">
+          <div class="dashboard-table-title">Clients Who Owe Money</div>
+        </div>
+
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Due Date</th>
+                <th class="dashboard-text-right">Outstanding</th>
+              </tr>
+            </thead>
+            <tbody id="swDashboardClientsOwingTableBody">
+              <tr><td colspan="3" class="dashboard-empty">Loading...</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
