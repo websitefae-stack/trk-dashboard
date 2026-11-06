@@ -30,7 +30,17 @@ RESOURCE_DOCTYPE = "Podcast Episode Resource"
 ASHLEY_EMAIL = "ashley@theresilientkid.co.uk"
 
 LIST_FIELDS = [
-	"name", "episode_title", "season_number", "episode_number", "guest_name", "status", "air_date",
+	"name", "episode_title", "episode_image", "season_number", "episode_number", "guest_name", "status", "air_date",
+	"topics", "show_notes",
+	"spotify_url", "youtube_url",
+]
+
+# What the public Podcasts page (resilient_domains) is allowed to see -
+# Published only, air_date already passed (or blank), same cutoff
+# get_podcast_episodes() applies for every non-Ashley login. No
+# planning_notes, ever - that field isn't even in this list.
+PUBLIC_LIST_FIELDS = [
+	"name", "episode_title", "episode_image", "season_number", "episode_number", "guest_name", "air_date",
 	"topics", "show_notes",
 	"spotify_url", "youtube_url",
 ]
@@ -89,6 +99,45 @@ def get_podcast_episodes():
 	return _attach_resources(rows)
 
 
+@frappe.whitelist(allow_guest=True)
+def get_public_podcast_episodes():
+	"""
+	The public Podcasts page (resilient_domains) - Published episodes
+	that have actually aired only (same cutoff as get_podcast_episodes()
+	for everyone but Ashley - a guest site visitor is never Ashley).
+	Called directly (not over HTTP) from resilient_domains' own
+	www/podcasts/index.py, the same cross-app pattern already used for
+	the Team Members page - see session_workers.get_public_team_members.
+	"""
+	today = getdate(nowdate())
+	rows = frappe.get_all(
+		DOCTYPE,
+		filters={"status": "Published"},
+		fields=PUBLIC_LIST_FIELDS,
+		order_by="season_number desc, episode_number desc, air_date desc",
+		ignore_permissions=True,
+	)
+	rows = [row for row in rows if not (row.air_date and getdate(row.air_date) > today)]
+
+	return _attach_resources(rows)
+
+
+@frappe.whitelist(allow_guest=True)
+def get_public_podcast_episode(name=None):
+	"""Single-episode equivalent of get_public_podcast_episodes, for the
+	public episode detail page - same Published/already-aired rule."""
+	name = (name or "").strip()
+	if not name:
+		return None
+
+	today = getdate(nowdate())
+	row = frappe.db.get_value(DOCTYPE, {"name": name, "status": "Published"}, PUBLIC_LIST_FIELDS, as_dict=True)
+	if not row or (row.air_date and getdate(row.air_date) > today):
+		return None
+
+	return _attach_resources([row])[0]
+
+
 @frappe.whitelist()
 def get_podcast_episode_for_edit(name=None):
 	ensure_office_user()
@@ -104,6 +153,7 @@ def get_podcast_episode_for_edit(name=None):
 def save_podcast_episode(
 	name=None,
 	episode_title=None,
+	episode_image=None,
 	season_number=None,
 	episode_number=None,
 	guest_name=None,
@@ -132,6 +182,7 @@ def save_podcast_episode(
 
 	values = {
 		"episode_title": episode_title,
+		"episode_image": (episode_image or "").strip(),
 		"season_number": season_number or None,
 		"episode_number": episode_number or None,
 		"guest_name": (guest_name or "").strip(),
