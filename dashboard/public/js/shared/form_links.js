@@ -34,11 +34,12 @@
     return short.length < trimmed.length ? short : trimmed;
   }
 
-  // /franchisor_db/links or /coach_db/links - same prefix the report
-  // page this links out to lives under, so "View Feedback" stays on
-  // the same dashboard rather than bouncing a coach into franchisor_db.
+  // /franchisor_db/links, /coach_db/links or /session_worker_db/links -
+  // same prefix the report page this links out to lives under, so "View
+  // Feedback" stays on the same dashboard rather than bouncing someone
+  // into franchisor_db.
   function dashboardBasePath() {
-    var match = window.location.pathname.match(/^\/(franchisor_db|coach_db)/);
+    var match = window.location.pathname.match(/^\/(franchisor_db|coach_db|session_worker_db)/);
     return match ? "/" + match[1] : "/franchisor_db";
   }
 
