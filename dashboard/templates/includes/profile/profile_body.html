@@ -90,7 +90,7 @@
           {% if profile_role in ["coach", "franchisor"] %}
             <button type="button" class="dashboard-tab-btn" data-tab="availability">Availability</button>
           {% endif %}
-          {% if profile_role in ["coach", "franchisor"] and not coach_is_view_mode %}
+          {% if profile_role in ["coach", "franchisor", "session_worker"] and not coach_is_view_mode and not session_worker_is_view_mode %}
             <button type="button" class="dashboard-tab-btn" data-tab="email">Google Connection</button>
           {% endif %}
           {% if linked_coaches and not session_worker_is_view_mode %}
@@ -838,9 +838,10 @@
       </div>
       {% endif %}
 
-      {% if profile_role in ["coach", "franchisor"] and not coach_is_view_mode %}
+      {% if profile_role in ["coach", "franchisor", "session_worker"] and not coach_is_view_mode and not session_worker_is_view_mode %}
       <!-- EMAIL TAB -->
       <div class="dashboard-tab-panel" data-tab-panel="email" style="display:none;">
+        {% if profile_role in ["coach", "franchisor"] %}
         <div class="dashboard-card">
           <div class="dashboard-detail-section-head" style="margin-bottom:18px;">
             <div>
@@ -854,6 +855,7 @@
             <div class="dashboard-html-block" id="googleMailConnectStatus">Checking status&hellip;</div>
           </div>
         </div>
+        {% endif %}
 
         <div class="dashboard-card" style="margin-top:18px;">
           <div class="dashboard-detail-section-head" style="margin-bottom:18px;">
