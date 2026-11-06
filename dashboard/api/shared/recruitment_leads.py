@@ -36,6 +36,7 @@ from dashboard.api.shared.session_workers import (
     SESSION_WORKER_EMAIL_FIELDS,
     SESSION_WORKER_MOBILE_FIELDS,
     get_existing_fields,
+    get_first_value,
 )
 
 RECRUITMENT_LEAD_DOCTYPE = "Recruitment Lead"
@@ -1798,6 +1799,30 @@ def create_session_worker_from_lead(name=None, email=None):
     frappe.db.commit()
 
     return {"ok": True, "session_worker": sw.name}
+
+
+@frappe.whitelist()
+def get_session_worker_link_options():
+    """Franchisor-only - every existing Session Worker record, for the
+    "Link it here instead" dropdown (see set_session_worker_link below).
+    Was a free-text input asking for "the Session Worker record's
+    name" - Ashley's own record of why that's wrong: the record's real
+    name is an internal autoname, not the person's label, so anyone
+    typing what they can actually see (e.g. the person's name) always
+    missed and hit set_session_worker_link's own "doesn't exist" guard.
+    A real select, built from this, makes that mismatch impossible."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    label_fields = get_existing_fields(SESSION_WORKER_DOCTYPE, SESSION_WORKER_LABEL_FIELDS)
+    rows = frappe.get_all(SESSION_WORKER_DOCTYPE, fields=label_fields)
+
+    options = [
+        {"name": row.name, "label": get_first_value(row, SESSION_WORKER_LABEL_FIELDS) or row.name}
+        for row in rows
+    ]
+    options.sort(key=lambda row: row["label"].lower())
+    return options
 
 
 @frappe.whitelist()

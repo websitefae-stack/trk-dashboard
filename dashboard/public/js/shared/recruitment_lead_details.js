@@ -1086,7 +1086,9 @@
       <div style="flex-basis:100%; margin-top:10px;">
         <a href="#" id="rlLinkExistingSessionWorkerToggle" class="dashboard-help" style="text-decoration:underline;">Already created one in Desk? Link it here instead</a>
         <div id="rlLinkExistingSessionWorkerRow" style="display:none; gap:8px; align-items:center; margin-top:8px;">
-          <input type="text" id="rlSessionWorkerLinkInput" class="dashboard-input" placeholder="Session Worker record name" style="flex:1;">
+          <select id="rlSessionWorkerLinkInput" class="dashboard-select" style="flex:1;">
+            <option value="">Loading…</option>
+          </select>
           <button type="button" class="dashboard-btn dashboard-btn-secondary" id="rlSaveSessionWorkerLinkBtn">Link</button>
         </div>
       </div>
@@ -1118,10 +1120,27 @@
       }
     });
 
-    el("rlLinkExistingSessionWorkerToggle")?.addEventListener("click", (event) => {
+    let sessionWorkerLinkOptionsLoaded = false;
+
+    el("rlLinkExistingSessionWorkerToggle")?.addEventListener("click", async (event) => {
       event.preventDefault();
       const row = el("rlLinkExistingSessionWorkerRow");
       if (row) row.style.display = row.style.display === "none" ? "flex" : "none";
+      if (sessionWorkerLinkOptionsLoaded) return;
+
+      const select = el("rlSessionWorkerLinkInput");
+      if (!select) return;
+      sessionWorkerLinkOptionsLoaded = true;
+
+      try {
+        const options = await apiPost(`${SHARED_API}.get_session_worker_link_options`, {});
+        select.innerHTML = `<option value="">Select a Session Worker…</option>` + options.map((option) =>
+          `<option value="${escapeHtml(option.name)}">${escapeHtml(option.label)}</option>`
+        ).join("");
+      } catch (error) {
+        select.innerHTML = `<option value="">Could not load Session Workers</option>`;
+        sessionWorkerLinkOptionsLoaded = false;
+      }
     });
 
     el("rlSaveSessionWorkerLinkBtn")?.addEventListener("click", async () => {
@@ -1133,7 +1152,7 @@
 
       const sessionWorker = input.value.trim();
       if (!sessionWorker) {
-        if (statusEl) statusEl.textContent = "Enter the Session Worker record's name first.";
+        if (statusEl) statusEl.textContent = "Select the Session Worker record first.";
         return;
       }
 
