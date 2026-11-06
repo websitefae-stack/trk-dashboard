@@ -1,0 +1,77 @@
+{% include "dashboard/templates/includes/head/session_worker_head.html" %}
+
+<div class="dashboard-page" id="coachAffiliatePage">
+  {% include "dashboard/templates/includes/sidebar/session_worker_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      {% if session_worker_is_view_mode %}
+        <div style="background:#ac455c; color:#ffffff; border-radius:14px; padding:16px 18px; margin-bottom:18px;">
+          <strong>Viewing Session Worker:</strong>
+          {{ session_worker_view_display_name }}
+          <div style="margin-top:12px;">
+            <a href="{{ session_worker_view_return_to }}" class="dashboard-btn dashboard-btn-secondary">
+              Back to Session Workers
+            </a>
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Your Affiliate Link</h1>
+          <p class="dashboard-page-subtitle">Share this link - anyone who buys through it (store products or courses that have a commission set up) earns you a commission, at the normal price, no code needed at checkout.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="dashboard-detail-field">
+          <label for="coachAffiliateLink">Your Link</label>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <input type="text" class="dashboard-input" id="coachAffiliateLink" readonly style="flex:1; min-width:260px;">
+            <button type="button" class="dashboard-btn dashboard-btn-primary" id="copyAffiliateLinkBtn">Copy Link</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:28px; flex-wrap:wrap; margin-top:20px;">
+          <div>
+            <div style="font-size:13px; color:#839898; text-transform:uppercase; letter-spacing:0.04em;">Pending</div>
+            <div id="coachAffiliatePendingTotal" style="font-size:28px; font-weight:700;">-</div>
+          </div>
+          <div>
+            <div style="font-size:13px; color:#839898; text-transform:uppercase; letter-spacing:0.04em;">Paid Out</div>
+            <div id="coachAffiliatePaidTotal" style="font-size:28px; font-weight:700;">-</div>
+          </div>
+          <div>
+            <div style="font-size:13px; color:#839898; text-transform:uppercase; letter-spacing:0.04em;">Sales</div>
+            <div id="coachAffiliateSaleCount" style="font-size:28px; font-weight:700;">-</div>
+          </div>
+          <div>
+            <div style="font-size:13px; color:#839898; text-transform:uppercase; letter-spacing:0.04em;">Link Clicks</div>
+            <div id="coachAffiliateClickCount" style="font-size:28px; font-weight:700;">-</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard-card" style="margin-top:20px;">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Your Links</h2>
+        </div>
+        <p style="color:#839898; font-size:13px; margin-top:-8px;">One link per product or course that has a commission set up - sending someone straight to that item earns you commission on it.</p>
+        <div id="coachAffiliateProductLinksTable">Loading...</div>
+      </div>
+
+      <div class="dashboard-card" style="margin-top:20px;">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Your Sales</h2>
+        </div>
+        <p style="color:#839898; font-size:13px; margin-top:-8px;">Click a sale to see everything in that order - commission is only ever earned on the item(s) that actually have a commission set up, not the whole order.</p>
+        <div id="coachAffiliateSalesTable">Loading...</div>
+      </div>
+
+    </div>
+  </div>
+</div>

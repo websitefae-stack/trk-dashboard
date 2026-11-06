@@ -5,7 +5,7 @@ affiliate.py for the full mechanism (Affiliate Product Setting sets the
 commission per item/course, Affiliate Commission records each paid sale
 attributed to a coach's code).
 
-affiliate_code is generated lazily (see _ensure_affiliate_code in
+affiliate_code is generated lazily (see _ensure_affiliate_code_for in
 affiliate.py) the first time a coach's own link is actually requested,
 not backfilled here for every existing coach - no need to mint codes
 for coaches who may never use this.

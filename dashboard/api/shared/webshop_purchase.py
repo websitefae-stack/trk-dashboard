@@ -698,8 +698,10 @@ def create_checkout_session(
     if coach and not frappe.db.exists("Coach", coach):
         coach = ""
 
-    from dashboard.api.shared.affiliate import resolve_affiliate_coach
-    affiliate_coach = resolve_affiliate_coach(affiliate_code)
+    from dashboard.api.shared.affiliate import resolve_affiliate_earner
+    affiliate_earner = resolve_affiliate_earner(affiliate_code)
+    affiliate_coach = affiliate_earner["name"] if affiliate_earner["doctype"] == "Coach" else ""
+    affiliate_session_worker = affiliate_earner["name"] if affiliate_earner["doctype"] == "Session Worker" else ""
 
     checkout = frappe.new_doc("Webshop Checkout")
     checkout.full_name = full_name
@@ -713,6 +715,8 @@ def create_checkout_session(
     checkout.coach = coach or None
     if checkout.meta.has_field("affiliate_coach"):
         checkout.affiliate_coach = affiliate_coach or None
+    if checkout.meta.has_field("affiliate_session_worker"):
+        checkout.affiliate_session_worker = affiliate_session_worker or None
 
     line_items = []
     priced_lines = []
@@ -1727,10 +1731,12 @@ def _fulfil_checkout_session(session):
                 # already-paid order.
                 frappe.log_error(frappe.get_traceback(), f"Could not record coupon use - {checkout.name}")
 
-        if checkout.get("affiliate_coach"):
+        if checkout.get("affiliate_coach") or checkout.get("affiliate_session_worker"):
             from dashboard.api.shared.affiliate import record_affiliate_commission_for_invoice
             record_affiliate_commission_for_invoice(
-                invoice, checkout.affiliate_coach,
+                invoice,
+                affiliate_coach=checkout.get("affiliate_coach"),
+                affiliate_session_worker=checkout.get("affiliate_session_worker"),
                 client_full_name=checkout.full_name, client_email=email,
             )
 
