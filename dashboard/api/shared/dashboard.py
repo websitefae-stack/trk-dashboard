@@ -915,6 +915,15 @@ def _get_invoice_fields():
 
 
 def _get_invoice_client_names_for_dashboard(dashboard_type, context):
+    if dashboard_type == SESSION_WORKER_DASHBOARD:
+        # Same client scoping _get_dashboard_client_rows already uses for
+        # this dashboard type - a session worker's "who owes money" widget
+        # is scoped to exactly the clients assigned to them, same as every
+        # other part of their own dashboard, never every client company-
+        # wide (they have no coach identity of their own to fall back to
+        # the way COACH_DASHBOARD's "is_dashboard_admin" case does).
+        return _get_client_names_for_session_worker(context)
+
     if dashboard_type == COACH_DASHBOARD:
         # Invoices are based on the primary coach through Client.primary_coach.
         rows = _get_client_rows_for_coach(context, primary_only=True)
@@ -1559,6 +1568,10 @@ def _get_outstanding_invoices(dashboard_type, context, limit=8):
         base_url = {
             COACH_DASHBOARD: "/coach_db/invoice_details",
             FRANCHISOR_DASHBOARD: "/franchisor_db/invoice_details",
+            # No invoice access of their own (see Ashley's own permission
+            # list for this role) - "" rather than falling back to the
+            # coach's page, which would be a broken/wrong link for them.
+            SESSION_WORKER_DASHBOARD: "",
         }.get(dashboard_type, "/coach_db/invoice_details")
 
         invoices.append({
@@ -2075,6 +2088,7 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
                 invoice_cycle_start_date = worker_doc.get("invoice_cycle_start_date")
 
         period = _get_period_ranges(invoice_frequency, invoice_cycle_start_date)
+        _sw_own_client_rows = _get_dashboard_client_rows(dashboard_type, context)
 
         return {
             "dashboard_type": dashboard_type,
@@ -2113,6 +2127,17 @@ def get_dashboard_summary(dashboard_type=None, view_as=None, viewer=None):
             ),
 
             "upcoming_appointments": _get_upcoming_appointments(dashboard_type, context, limit=8),
+
+            # No revenue/fees on this dashboard (deliberately, per Ashley's
+            # own permission list for this role) - just who they're
+            # working with: clients allocated to them, upcoming birthdays
+            # among those clients, and which of those clients currently
+            # owe money. Never anything about a client they're not
+            # assigned to, same scoping _get_dashboard_client_rows already
+            # uses for this dashboard type.
+            "total_clients": len(_sw_own_client_rows),
+            "upcoming_birthdays": _get_upcoming_birthdays(_sw_own_client_rows),
+            "clients_owing": _get_outstanding_invoices(dashboard_type, context, limit=8),
         }
 
     client_rows = _get_dashboard_client_rows(dashboard_type, context, primary_only_for_coach=False)

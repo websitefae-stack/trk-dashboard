@@ -331,8 +331,35 @@
     setText("swWorkshopCurrentValue", payload.workshop_current ?? 0);
     setText("swTravelPreviousValue", formatMiles(payload.travel_miles_previous ?? 0));
     setText("swTravelCurrentValue", formatMiles(payload.travel_miles_current ?? 0));
+    setText("swTotalClientsValue", payload.total_clients ?? 0);
 
     renderUpcomingAppointments("swDashboardUpcomingTableBody", payload.upcoming_appointments || []);
+    renderBirthdays(payload.upcoming_birthdays || []);
+    renderClientsOwing(payload.clients_owing || []);
+  }
+
+  // Read-only - a session worker has no invoice/payment access of their
+  // own (see Ashley's own permission list for this role), unlike
+  // renderOutstandingInvoices' coach/franchisor table with its Mark Paid
+  // actions, so this is deliberately a much simpler list.
+  function renderClientsOwing(items) {
+    const tbody = el("swDashboardClientsOwingTableBody");
+    if (!tbody) return;
+
+    if (!items || !items.length) {
+      tbody.innerHTML = `<tr><td colspan="3" class="dashboard-empty">No clients currently owe money.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = items.map((item) => {
+      return `
+        <tr>
+          <td>${escapeHtml(item.client_name || "")}</td>
+          <td>${escapeHtml(formatDisplayDate(item.due_date))}</td>
+          <td class="dashboard-text-right">${escapeHtml(formatMoney(item.outstanding_amount, item.currency))}</td>
+        </tr>
+      `;
+    }).join("");
   }
 
   function formatBirthdayDate(value) {
