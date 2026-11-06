@@ -13,6 +13,13 @@
   var el = Dashboard.el;
   var SHARED_API = "dashboard.api.shared.podcast_episodes";
 
+  // All episodes as last fetched from the server, and which season tab
+  // is currently selected ("all", "none" for no-season episodes, or a
+  // season number as a string) - the tabs filter this in-memory list,
+  // no extra fetch per tab click.
+  var allEpisodes = [];
+  var currentSeasonFilter = "all";
+
   // Show Notes is real rich text (bullets, links) now, not a plain
   // textarea - Dashboard.richTextEditorHtml()/wireRichTextEditor() are
   // the same small editor already used for School Pipeline emails (see
@@ -284,12 +291,64 @@
     );
   }
 
+  function applySeasonFilter(episodes) {
+    if (currentSeasonFilter === "all") return episodes;
+    if (currentSeasonFilter === "none") {
+      return episodes.filter(function (ep) { return !ep.season_number; });
+    }
+    return episodes.filter(function (ep) { return String(ep.season_number) === currentSeasonFilter; });
+  }
+
+  function renderSeasonTabs(canManage) {
+    var tabsEl = el("podcastSeasonTabs");
+    if (!tabsEl) return;
+
+    var seasonSet = {};
+    var hasNone = false;
+    allEpisodes.forEach(function (ep) {
+      if (ep.season_number) {
+        seasonSet[Number(ep.season_number)] = true;
+      } else {
+        hasNone = true;
+      }
+    });
+    var seasons = Object.keys(seasonSet).map(Number).sort(function (a, b) { return b - a; });
+
+    if (!seasons.length && !hasNone) {
+      tabsEl.innerHTML = "";
+      return;
+    }
+
+    var tabs = [{ value: "all", label: "All Seasons" }];
+    seasons.forEach(function (s) { tabs.push({ value: String(s), label: "Season " + s }); });
+    if (hasNone) tabs.push({ value: "none", label: "No Season" });
+
+    var validValues = tabs.map(function (t) { return t.value; });
+    if (validValues.indexOf(currentSeasonFilter) === -1) currentSeasonFilter = "all";
+
+    tabsEl.innerHTML = tabs.map(function (tab) {
+      var active = tab.value === currentSeasonFilter ? " is-active" : "";
+      return '<button type="button" class="dashboard-tab-btn' + active + '" data-season-tab="' + escapeHtml(tab.value) + '">' + escapeHtml(tab.label) + "</button>";
+    }).join("");
+
+    tabsEl.querySelectorAll("[data-season-tab]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (btn.dataset.seasonTab === currentSeasonFilter) return;
+        currentSeasonFilter = btn.dataset.seasonTab;
+        tabsEl.querySelectorAll(".dashboard-tab-btn").forEach(function (b) { b.classList.remove("is-active"); });
+        btn.classList.add("is-active");
+        renderEpisodeList(applySeasonFilter(allEpisodes), canManage);
+      });
+    });
+  }
+
   function renderEpisodeList(episodes, canManage) {
     var list = el("podcastEpisodesList");
     if (!list) return;
 
     if (!episodes.length) {
-      list.innerHTML = '<div class="dashboard-card"><div class="dashboard-empty">No podcast episodes yet.</div></div>';
+      var emptyMessage = currentSeasonFilter === "all" ? "No podcast episodes yet." : "No episodes in this season.";
+      list.innerHTML = '<div class="dashboard-card"><div class="dashboard-empty">' + escapeHtml(emptyMessage) + "</div></div>";
       return;
     }
 
@@ -332,7 +391,9 @@
 
     try {
       var rows = await apiPost(SHARED_API + ".get_podcast_episodes", {});
-      renderEpisodeList(Array.isArray(rows) ? rows : [], canManage);
+      allEpisodes = Array.isArray(rows) ? rows : [];
+      renderSeasonTabs(canManage);
+      renderEpisodeList(applySeasonFilter(allEpisodes), canManage);
     } catch (error) {
       list.innerHTML = '<div class="dashboard-card"><div class="dashboard-empty">' + escapeHtml(error.message || "Could not load podcast episodes.") + "</div></div>";
     }
