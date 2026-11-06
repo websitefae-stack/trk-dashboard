@@ -615,3 +615,35 @@ def get_session_worker_details(scope=None, worker_name=None):
         "back_url": f"/{scope}_db/session_workers",
         "client_details_base_url": f"/{scope}_db/client_details",
     }
+
+
+@frappe.whitelist(allow_guest=True)
+def get_public_team_members():
+    """
+    Every session worker who's opted into the public "Team Members"
+    page (show_on_team_page - see add_show_on_team_page_field_to_
+    session_worker.py) - deliberately no individual profile page per
+    session worker the way a coach gets one (Ashley's own call), just
+    name/photo/bio on one shared page. Guest-accessible, same as every
+    other public-site content this app serves.
+    """
+    if not has_field(SESSION_WORKER_DOCTYPE, "show_on_team_page"):
+        return []
+
+    rows = frappe.get_all(
+        SESSION_WORKER_DOCTYPE,
+        filters={"show_on_team_page": 1},
+        fields=get_session_worker_fields(),
+        ignore_permissions=True,
+    )
+
+    members = []
+    for row in rows:
+        members.append({
+            "name": get_first_value(row, SESSION_WORKER_LABEL_FIELDS) or row.name,
+            "photo": row.get("photo") or "",
+            "bio": get_first_value(row, ["bio"]),
+        })
+
+    members.sort(key=lambda member: member["name"].lower())
+    return members
