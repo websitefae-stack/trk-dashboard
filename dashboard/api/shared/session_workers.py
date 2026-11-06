@@ -6,6 +6,7 @@ from dashboard.api.shared.permissions import (
     is_franchisor_user,
     get_current_coach_name,
 )
+from dashboard.api.shared.utils import coalesce_raw
 
 
 SESSION_WORKER_DOCTYPE = "Session Worker"
@@ -647,3 +648,85 @@ def get_public_team_members():
 
     members.sort(key=lambda member: member["name"].lower())
     return members
+
+
+# =====================================================
+# LINKED COACHES (franchisor only - who this session worker is
+# actually approved to work with, set here, not derived from whoever
+# already has them assigned to a client - see add_linked_coaches_
+# field_to_session_worker.py's own docstring for why)
+# =====================================================
+
+@frappe.whitelist()
+def get_coach_options_for_session_worker_link():
+    """Franchisor-only - every coach, for the Session Worker Details
+    page's own coach picker."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    return frappe.get_all(COACH_DOCTYPE, fields=["name", "coach_name"], order_by="coach_name asc")
+
+
+@frappe.whitelist()
+def get_session_worker_coach_links(session_worker=None):
+    """Franchisor-only - the coaches currently on this session worker's
+    own approved roster (not the computed "has a client with" list -
+    this is the authoritative one)."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    session_worker = (session_worker or "").strip()
+    if not session_worker or not frappe.db.exists(SESSION_WORKER_DOCTYPE, session_worker):
+        frappe.throw(_("Session Worker not found."))
+
+    if not has_field(SESSION_WORKER_DOCTYPE, "linked_coaches"):
+        return []
+
+    rows = frappe.get_all(
+        "Session Worker Coach",
+        filters={"parent": session_worker, "parenttype": SESSION_WORKER_DOCTYPE},
+        fields=["coach"],
+        order_by="idx asc",
+    )
+
+    return [row.coach for row in rows]
+
+
+@frappe.whitelist()
+def save_session_worker_coach_links(session_worker=None, coaches=None):
+    """Franchisor-only - replaces this session worker's own approved
+    coach roster wholesale with the given list. Never callable by a
+    coach, and never changes anything on any Client record - a coach
+    being on this roster doesn't by itself move or create any client
+    assignment, it only says this session worker is allowed to work
+    with that coach at all."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    session_worker = (session_worker or "").strip()
+    if not session_worker or not frappe.db.exists(SESSION_WORKER_DOCTYPE, session_worker):
+        frappe.throw(_("Session Worker not found."))
+
+    if not has_field(SESSION_WORKER_DOCTYPE, "linked_coaches"):
+        frappe.throw(_("This site hasn't been migrated for Linked Coaches yet."))
+
+    coaches = coalesce_raw("coaches", coaches)
+    if isinstance(coaches, str):
+        import json
+        coaches = json.loads(coaches) if coaches else []
+
+    coach_names = []
+    for coach in coaches or []:
+        coach = (coach or "").strip()
+        if coach and frappe.db.exists(COACH_DOCTYPE, coach) and coach not in coach_names:
+            coach_names.append(coach)
+
+    doc = frappe.get_doc(SESSION_WORKER_DOCTYPE, session_worker)
+    doc.set("linked_coaches", [])
+    for coach_name in coach_names:
+        doc.append("linked_coaches", {"coach": coach_name})
+
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True, "coaches": coach_names}
