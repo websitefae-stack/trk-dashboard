@@ -16,6 +16,7 @@
         </div>
 
         <div class="dashboard-detail-actions dashboard-detail-actions-compact">
+          <a href="/session_worker_db?view_as={{ session_worker.name | urlencode }}&viewer=franchisor&return_to=/franchisor_db/session_worker_details%3Fname%3D{{ session_worker.name | urlencode }}" class="dashboard-btn dashboard-btn-light">View As</a>
           <a href="{{ back_url }}" class="dashboard-btn dashboard-btn-secondary">Back</a>
         </div>
       </div>
