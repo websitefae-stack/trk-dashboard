@@ -59,39 +59,48 @@
             <span>Calendar</span>
         </a>
 
-        <a href="/session_worker_db/profile{{ session_worker_view_query or '' }}" class="{% if active_page == 'profile' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">⚙️</span>
-            <span>Profile</span>
-        </a>
+        <div class="dashboard-nav-group {% if active_page in ['reports', 'documents', 'qr_cards', 'links', 'testimonials'] %}is-open{% endif %}">
+            <button type="button" class="dashboard-nav-group-toggle">
+                <span class="dashboard-nav-icon">🧰</span>
+                <span>Tools</span>
+                <span class="dashboard-nav-group-arrow">›</span>
+            </button>
+            <div class="dashboard-nav-group-items">
+                <a href="/session_worker_db/reports{{ session_worker_view_query or '' }}" class="{% if active_page == 'reports' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">📊</span>
+                    <span>Reports</span>
+                </a>
 
-        <a href="/session_worker_db/reports{{ session_worker_view_query or '' }}" class="{% if active_page == 'reports' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">📊</span>
-            <span>Reports</span>
-        </a>
+                <a href="/session_worker_db/documents{{ session_worker_view_query or '' }}" class="{% if active_page == 'documents' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">📄</span>
+                    <span>Documents</span>
+                </a>
 
-        <a href="/session_worker_db/documents{{ session_worker_view_query or '' }}" class="{% if active_page == 'documents' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">📄</span>
-            <span>Documents</span>
-        </a>
+                <a href="/session_worker_db/qr_cards{{ session_worker_view_query or '' }}" class="{% if active_page == 'qr_cards' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🔳</span>
+                    <span>QR Codes</span>
+                </a>
 
-        <a href="/session_worker_db/qr_cards{{ session_worker_view_query or '' }}" class="{% if active_page == 'qr_cards' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">🔳</span>
-            <span>QR Codes</span>
-        </a>
+                <a href="/session_worker_db/links{{ session_worker_view_query or '' }}" class="{% if active_page == 'links' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🔗</span>
+                    <span>Links</span>
+                </a>
 
-        <a href="/session_worker_db/links{{ session_worker_view_query or '' }}" class="{% if active_page == 'links' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">🔗</span>
-            <span>Links</span>
-        </a>
-
-        <a href="/session_worker_db/testimonials{{ session_worker_view_query or '' }}" class="{% if active_page == 'testimonials' %}is-active{% endif %}">
-            <span class="dashboard-nav-icon">💬</span>
-            <span>Testimonials</span>
-        </a>
+                <a href="/session_worker_db/testimonials{{ session_worker_view_query or '' }}" class="{% if active_page == 'testimonials' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">💬</span>
+                    <span>Testimonials</span>
+                </a>
+            </div>
+        </div>
 
         <a href="/session_worker_db/affiliate{{ session_worker_view_query or '' }}" class="{% if active_page == 'affiliate' %}is-active{% endif %}">
             <span class="dashboard-nav-icon">💰</span>
             <span>Affiliate</span>
+        </a>
+
+        <a href="/session_worker_db/profile{{ session_worker_view_query or '' }}" class="{% if active_page == 'profile' %}is-active{% endif %}">
+            <span class="dashboard-nav-icon">⚙️</span>
+            <span>Profile</span>
         </a>
 
         {% if session_worker_is_view_mode %}
