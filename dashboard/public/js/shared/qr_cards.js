@@ -196,12 +196,17 @@
       cursorY += qrSize + 60;
     }
 
-    ctx.fillStyle = "#333333";
-    ctx.font = "400 34px Arial, sans-serif";
-    var urlLines = wrapText(ctx, url, CARD_WIDTH * 0.8);
-    urlLines.forEach(function (line, i) {
-      ctx.fillText(line, CARD_WIDTH / 2, cursorY + i * 46);
-    });
+    var showUrlCheckbox = el("qrCardShowUrl");
+    var showUrl = !showUrlCheckbox || showUrlCheckbox.checked;
+
+    if (showUrl) {
+      ctx.fillStyle = "#333333";
+      ctx.font = "400 34px Arial, sans-serif";
+      var urlLines = wrapText(ctx, url, CARD_WIDTH * 0.8);
+      urlLines.forEach(function (line, i) {
+        ctx.fillText(line, CARD_WIDTH / 2, cursorY + i * 46);
+      });
+    }
 
     if (cornerImg) {
       var cornerMaxWidth = CARD_WIDTH * 0.42;
