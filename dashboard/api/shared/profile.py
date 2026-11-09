@@ -155,7 +155,11 @@ ROLE_PROFILE_CONFIG = {
             "dbs": "dbs",
             "dbs_update_service": "dbs_update_service",
             "insurance": "insurance",
-            "indemnity": "indemnity",
+            # No "indemnity" (ICO Certificate) - Ashley's rule, an ICO
+            # registration is a practice-level thing session workers
+            # don't need, unlike coaches.
+            "identification": "identification",
+            "safeguarding_certificate": "safeguarding_certificate",
         },
     },
 }
@@ -541,11 +545,13 @@ def get_profile_context(role):
             config["legal_parentfields"]["dbs_update_service"]
         ) or [],
         "insurance_rows": profile_doc.get(config["legal_parentfields"]["insurance"]) or [],
-        "indemnity_rows": profile_doc.get(config["legal_parentfields"]["indemnity"]) or [],
-        # Coach/Ashley only (session_worker's legal_parentfields has no
-        # entry for these - Session Worker has no underlying fields at
-        # all for them) - see profile_body.html's own profile_role gate
-        # on the add buttons/sections themselves.
+        # Coach/Ashley only - session_worker's legal_parentfields has no
+        # "indemnity" entry (Ashley's rule: no ICO Certificate for
+        # session workers) - see profile_body.html's own profile_role
+        # gate on the add button/section itself.
+        "indemnity_rows": (
+            profile_doc.get(config["legal_parentfields"]["indemnity"]) or []
+        ) if "indemnity" in config["legal_parentfields"] else [],
         "identification_rows": (
             profile_doc.get(config["legal_parentfields"]["identification"]) or []
         ) if "identification" in config["legal_parentfields"] else [],

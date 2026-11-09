@@ -685,10 +685,14 @@ def get_expired_legal_items(doc, dashboard_type):
         dbs_update_field = "dbs_update_services"
         plain_tables = [
             ("Insurance", "insurance", "insurance_number", "insurance_missing_since"),
+            # ICO Certificate is Coach-only (Ashley included, since
+            # she's also a Coach record) - Session Worker has no
+            # underlying field for it, so it's never checked for that
+            # type (Ashley's rule - see the session_worker branch
+            # below). Identification/Safeguarding Certificate ARE
+            # checked for both types, just without the Training Day
+            # gate on the session_worker side (see that branch).
             ("ICO Certificate", "indemnity", "indemnity_number", "ico_missing_since"),
-            # Coach-only (Ashley included, since she's also a Coach
-            # record) - Session Worker has no underlying fields for
-            # either of these, so they're never checked for that type.
             ("Identification", "identification", "id_number", "identification_missing_since"),
             ("Safeguarding Certificate", "safeguarding_certificate", "certificate_number", "safeguarding_certificate_missing_since"),
         ]
@@ -706,9 +710,17 @@ def get_expired_legal_items(doc, dashboard_type):
         grace_days = COACH_MISSING_DOCUMENT_GRACE_DAYS
     elif dashboard_type == "session_worker":
         dbs_update_field = "dbs_update_service"
+        # No ICO Certificate - Ashley's rule, an ICO registration is a
+        # practice-level thing session workers don't need, unlike
+        # coaches. Identification/Safeguarding Certificate ARE checked
+        # here (unlike the coach branch above, there's no Training Day
+        # gate - Session Worker has no Training Day concept at all, so
+        # these just use the plain 30-day-from-missing_since behaviour
+        # like DBS/Insurance already do for this type).
         plain_tables = [
             ("Insurance", "insurance", "insurance_number", "insurance_missing_since"),
-            ("ICO Certificate", "indemnity", "indemnity_number", "ico_missing_since"),
+            ("Identification", "identification", "id_number", "identification_missing_since"),
+            ("Safeguarding Certificate", "safeguarding_certificate", "certificate_number", "safeguarding_certificate_missing_since"),
         ]
     else:
         return expired
