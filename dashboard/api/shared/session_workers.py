@@ -70,14 +70,19 @@ LEGAL_PARENTFIELDS = {
     "dbs": "dbs",
     "dbs_update_service": "dbs_update_service",
     "insurance": "insurance",
-    "indemnity": "indemnity",
+    # No "indemnity" (ICO Certificate) - Ashley's rule, an ICO
+    # registration is a practice-level thing session workers don't
+    # need (see profile.py's ROLE_PROFILE_CONFIG for the same rule).
+    "identification": "identification",
+    "safeguarding_certificate": "safeguarding_certificate",
 }
 
 LEGAL_LABELS = {
     "dbs": "DBS",
     "dbs_update_service": "DBS Update Service",
     "insurance": "Insurance",
-    "indemnity": "ICO Certificate",
+    "identification": "Identification",
+    "safeguarding_certificate": "Safeguarding Certificate",
 }
 
 BILLING_FIELD_CONFIG = [
