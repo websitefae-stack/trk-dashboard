@@ -1637,6 +1637,10 @@ def save_client(docname=None, data=None):
     else:
         doc = frappe.new_doc("Client")
 
+    # Snapshot before the generic field loop below can overwrite it -
+    # see the pack-sent transition check right before doc.save().
+    was_pack_sent = int(doc.get("custom_resilient_pack_sent") or 0)
+
     meta = frappe.get_meta("Client")
 
     editable_fields = {
@@ -1745,8 +1749,42 @@ def save_client(docname=None, data=None):
             doc.set(fieldname, coach_defaults.get(fieldname))
     
     apply_age_and_client_type(doc)
-    
+
     sync_billing_contact_to_client_contacts(doc)
+
+    # Ticking "Pack Sent" directly on the client's own profile page used
+    # to only flip this checkbox - the Stock section's pending-handover
+    # worklist (coach_stock.get_pending_pack_handovers) only looks at
+    # custom_pack_handover_status, which this never touched, so the
+    # client stayed stuck on that list even once the pack genuinely had
+    # been sent, and the coach's stock balance never moved either.
+    # Ashley's call: this needs to be the exact same real-world action
+    # as the Stock section's own "Given" button, full stop - so it goes
+    # through the exact same stock deduction (and the exact same
+    # out-of-stock block) via coach_stock.apply_pack_given_stock_effects,
+    # not just a second, separate flag flip. Only fires on a genuine
+    # 0/unset -> 1 transition (not an unrelated re-save of an
+    # already-ticked client) and never for a brand new client (not yet
+    # inserted, so there's no handover to actually record against).
+    if (
+        not is_new_client
+        and doc.meta.has_field("custom_resilient_pack_sent")
+        and "custom_resilient_pack_sent" in payload
+        and not was_pack_sent
+        and int(doc.get("custom_resilient_pack_sent") or 0)
+    ):
+        # Local import - coach_stock imports invoices, which imports
+        # this module, so a top-level import here would be circular.
+        from dashboard.api.shared.coach_stock import apply_pack_given_stock_effects
+
+        apply_pack_given_stock_effects(doc)
+
+        if doc.meta.has_field("custom_pack_handover_status"):
+            doc.custom_pack_handover_status = "Given"
+        if doc.meta.has_field("custom_pack_handover_date"):
+            doc.custom_pack_handover_date = frappe.utils.today()
+        if doc.meta.has_field("custom_pack_handover_recorded_by"):
+            doc.custom_pack_handover_recorded_by = frappe.session.user
 
     doc.save(ignore_permissions=True)
     frappe.db.commit()

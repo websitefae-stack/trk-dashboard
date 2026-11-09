@@ -246,6 +246,63 @@ def _acting_coach_for_handover(client_doc):
     return client_doc.get("primary_coach") or client_doc.get("attending_coach")
 
 
+def apply_pack_given_stock_effects(doc):
+    """The stock-deduction half of recording a pack handover as "Given" -
+    split out from record_pack_handover() so client_details.save_client()
+    can trigger the exact same stock deduction (and the exact same
+    out-of-stock block) when a coach ticks the plain "Pack Sent" checkbox
+    directly on the client's own profile page, instead of going through
+    this module's dedicated Stock worklist. Before this, ticking that
+    checkbox only flipped custom_resilient_pack_sent and left
+    custom_pack_handover_status unset - the client never left the Stock
+    section's pending list, and the coach's stock balance never moved,
+    even though a pack had genuinely just been marked given. Ashley's
+    call: these need to be the same real-world action no matter which
+    screen it's done from, full stop - including being blocked here too
+    when that coach has nothing left in stock.
+
+    Only sets custom_resilient_pack_sent/custom_pack_handover_reason -
+    callers are responsible for custom_pack_handover_status/_date/
+    _recorded_by and saving doc themselves, same division as before."""
+    if doc.client_type not in PACK_CLIENT_TYPES:
+        frappe.throw(_("This client isn't a Kid or Teen client."))
+
+    coach = _acting_coach_for_handover(doc)
+    if not coach:
+        frappe.throw(_("This client has no coach assigned - there's no coach's stock to deduct from."))
+
+    item_name = _pack_item_for_client_type(doc.client_type)
+    item_code = frappe.db.get_value("Item", {"item_name": item_name}, "name")
+    if not item_code:
+        frappe.throw(_("No '{0}' Item exists yet - ask the franchisor to set one up first.").format(item_name))
+
+    # Confirmed decision (reversed from this feature's first build,
+    # which allowed a negative balance and just logged it): a coach
+    # can never record "Given" without the stock to back it up - no
+    # negative balances allowed at all. Steers them towards "Could
+    # Not Give - Out of Stock" instead, which is itself the accurate
+    # record of what actually happened.
+    balance = _balance_for_item(coach, item_code)
+    if balance <= 0:
+        frappe.throw(_(
+            "{0} has no {1} left in stock to give out - record this as "
+            "\"Could Not Give - Out of Stock\" instead."
+        ).format(_coach_label_from_name(coach), item_name))
+
+    frappe.get_doc({
+        "doctype": MOVEMENT_DOCTYPE,
+        "coach": coach,
+        "item": item_code,
+        "quantity_change": -1,
+        "movement_type": "Given to Client",
+        "reference_client": doc.name,
+        "created_by_user": frappe.session.user,
+    }).insert(ignore_permissions=True)
+
+    doc.custom_resilient_pack_sent = 1
+    doc.custom_pack_handover_reason = ""
+
+
 @frappe.whitelist()
 def record_pack_handover(client, status, reason=None):
     client = coalesce_str("client", client)
@@ -262,43 +319,7 @@ def record_pack_handover(client, status, reason=None):
     _ensure_can_record_handover(doc)
 
     if status == "Given":
-        if doc.client_type not in PACK_CLIENT_TYPES:
-            frappe.throw(_("This client isn't a Kid or Teen client."))
-
-        coach = _acting_coach_for_handover(doc)
-        if not coach:
-            frappe.throw(_("This client has no coach assigned - there's no coach's stock to deduct from."))
-
-        item_name = _pack_item_for_client_type(doc.client_type)
-        item_code = frappe.db.get_value("Item", {"item_name": item_name}, "name")
-        if not item_code:
-            frappe.throw(_("No '{0}' Item exists yet - ask the franchisor to set one up first.").format(item_name))
-
-        # Confirmed decision (reversed from this feature's first build,
-        # which allowed a negative balance and just logged it): a coach
-        # can never record "Given" without the stock to back it up - no
-        # negative balances allowed at all. Steers them towards "Could
-        # Not Give - Out of Stock" instead, which is itself the accurate
-        # record of what actually happened.
-        balance = _balance_for_item(coach, item_code)
-        if balance <= 0:
-            frappe.throw(_(
-                "{0} has no {1} left in stock to give out - record this as "
-                "\"Could Not Give - Out of Stock\" instead."
-            ).format(_coach_label_from_name(coach), item_name))
-
-        frappe.get_doc({
-            "doctype": MOVEMENT_DOCTYPE,
-            "coach": coach,
-            "item": item_code,
-            "quantity_change": -1,
-            "movement_type": "Given to Client",
-            "reference_client": client,
-            "created_by_user": frappe.session.user,
-        }).insert(ignore_permissions=True)
-
-        doc.custom_resilient_pack_sent = 1
-        doc.custom_pack_handover_reason = ""
+        apply_pack_given_stock_effects(doc)
     else:
         if status == "Not Given - Other Reason" and not reason:
             frappe.throw(_("Please enter a reason."))
