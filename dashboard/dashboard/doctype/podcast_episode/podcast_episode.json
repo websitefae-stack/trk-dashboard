@@ -111,17 +111,19 @@
   {
    "fieldname": "spotify_url",
    "fieldtype": "Data",
-   "label": "Spotify Link"
+   "label": "Spotify Link",
+   "length": 500
   },
   {
    "fieldname": "youtube_url",
    "fieldtype": "Data",
-   "label": "YouTube Link"
+   "label": "YouTube Link",
+   "length": 500
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-29 00:00:00.000000",
+ "modified": "2026-11-09 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Dashboard",
  "name": "Podcast Episode",
