@@ -84,7 +84,7 @@ def _enrol_matching_sequences(doc):
     sequences = frappe.get_all(
         SEQUENCE_DOCTYPE,
         filters={"trigger_doctype": doc.doctype, "is_active": 1},
-        fields=["name", "trigger_email_field", "trigger_name_field"],
+        fields=["name", "trigger_email_field", "trigger_name_field", "trigger_filter_field", "trigger_filter_value"],
     )
     if not sequences:
         return
@@ -95,6 +95,15 @@ def _enrol_matching_sequences(doc):
         email_value = (doc.get(seq.trigger_email_field) or "").strip() if seq.trigger_email_field else ""
         if not email_value:
             continue
+
+        # Optional extra qualifier, e.g. "only when course equals the
+        # Primary Anxiety Toolkit" - every sequence before this one left
+        # both fields blank and keeps matching on trigger_doctype alone,
+        # same as always.
+        if seq.trigger_filter_field:
+            filter_value = doc.get(seq.trigger_filter_field)
+            if str(filter_value or "") != str(seq.trigger_filter_value or ""):
+                continue
 
         if frappe.db.exists(ENROLLMENT_DOCTYPE, {
             "sequence": seq.name,
