@@ -432,13 +432,23 @@ def download_my_assurance_letter(name):
 # -------------------------------------------------------------------
 
 @frappe.whitelist()
-def get_assurance_requests_for_review(status=None):
+def get_assurance_requests_for_review(status=None, coach=None):
+	"""
+	Franchisor-only. Also used (filtered to one coach) by the "Safeguarding
+	Letters" tab on that coach's own Profile page when a franchisor is
+	viewing it via "View As" - same reach as every other Legal Details
+	row on that same view-as page, just read-only like the rest of it.
+	"""
 	ensure_office_user()
 
 	filters = {}
 	status = coalesce_str("status", status)
 	if status:
 		filters["workflow_status"] = status
+
+	coach = coalesce_str("coach", coach)
+	if coach:
+		filters["coach"] = coach
 
 	rows = frappe.get_all(
 		REQUEST_DOCTYPE,

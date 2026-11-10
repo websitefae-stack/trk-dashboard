@@ -226,6 +226,67 @@
   // Franchisor list page
   // -------------------------------------------------------------------
 
+  // -------------------------------------------------------------------
+  // Profile page tab ("Safeguarding Letters") - the coach's own
+  // Profile page, and the same page in a franchisor's read-only
+  // "View As" of that coach (same URL, same template - see
+  // profile_body.html's own coach_is_view_mode gate).
+  // -------------------------------------------------------------------
+
+  function initProfileSafeguardingTab() {
+    var wrap = el("profileSafeguardingLettersList");
+    if (!wrap) return;
+
+    var coachName = (el("safeguardingLettersCoachName") || {}).value || "";
+    var isViewMode = (el("safeguardingLettersViewMode") || {}).value === "1";
+
+    function renderRows(rows, viewMode) {
+      if (!rows.length) {
+        wrap.innerHTML = '<div class="dashboard-empty">No requests yet.</div>';
+        return;
+      }
+
+      wrap.innerHTML =
+        '<div class="dashboard-table-wrap"><table class="dashboard-table"><thead><tr>' +
+        "<th>School</th><th>Status</th><th>Requested</th><th>Start Date</th><th class=\"dashboard-action-col\">Action</th>" +
+        "</tr></thead><tbody>" +
+        rows.map(function (row) {
+          var actionHtml;
+          if (viewMode) {
+            actionHtml = '<a class="dashboard-link-btn" href="/franchisor_db/safeguarding_letter_details?name=' + encodeURIComponent(row.name) + '">Review</a>';
+          } else if (row.workflow_status === "Signed and Issued") {
+            actionHtml = '<a class="dashboard-link-btn" href="/api/method/' + SHARED_API + '.download_my_assurance_letter?name=' + encodeURIComponent(row.name) + '" target="_blank">Download</a>';
+          } else {
+            actionHtml = "&mdash;";
+          }
+
+          return (
+            "<tr>" +
+              "<td>" + escapeHtml(row.school_label) + "</td>" +
+              "<td>" + escapeHtml(row.workflow_status) + "</td>" +
+              "<td>" + formatDate(row.creation) + "</td>" +
+              "<td>" + formatDate(row.expected_start_date) + "</td>" +
+              "<td class=\"dashboard-action-cell\">" + actionHtml + "</td>" +
+            "</tr>"
+          );
+        }).join("") +
+        "</tbody></table></div>";
+    }
+
+    async function load() {
+      try {
+        var rows = isViewMode
+          ? await apiPost(SHARED_API + ".get_assurance_requests_for_review", { coach: coachName })
+          : await apiPost(SHARED_API + ".get_my_assurance_requests", {});
+        renderRows(rows, isViewMode);
+      } catch (error) {
+        wrap.innerHTML = '<div class="dashboard-empty">' + escapeHtml(error.message || "Could not load safeguarding letters.") + "</div>";
+      }
+    }
+
+    load();
+  }
+
   function initFranchisorListPage() {
     var wrap = el("safeguardingRequestsList");
     if (!wrap || !el("safeguardingStatusTabs")) return;
@@ -577,6 +638,7 @@
 
   function init() {
     initCoachPage();
+    initProfileSafeguardingTab();
     initFranchisorListPage();
     initFranchisorDetailPage();
   }
