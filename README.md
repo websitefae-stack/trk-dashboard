@@ -69,6 +69,12 @@ This app never calls the Google API itself. `coach_calendar_sync` (sibling repo)
 ### Compliance - Practice Documents
 `practice_documents.py` is the policy/compliance document library: assigning documents to coaches/session workers, tracking requirement status/due dates, brand-based auto-assignment (ticking a document's Brand Access grants it to every coach on that brand, and vice versa when a coach's own brand changes), and sharing documents with clients (`Client Document Share`).
 
+### Compliance - legal expiry reminders
+`legal_expiry_reminders.py` is a daily job warning coaches/session workers about an expiring (or missing) DBS/DBS Update Service, Insurance, Identification or Safeguarding Certificate - and, coaches/Ashley only, ICO Certificate - at 30/7/1 days before whichever date actually matters, including a grace period countdown for a document that was never on file at all rather than one simply expiring.
+
+### Compliance - School Safeguarding Assurance Letters
+`safeguarding_letters.py` lets a coach request a formal letter confirming their safeguarding/safer-recruitment checks for a specific school (role, nature of work, expected dates), pulling as much evidence as possible straight from that coach's own Practice Documents/legal records (DBS, DBS Update Service, Safeguarding Training) rather than re-asking for it. Ashley reviews, fills in the handful of fields that genuinely need a human judgement call (regulated activity assessment, barred-list check, KCSIE Part One, overseas checks, employment history), then approves and signs with the same in-app canvas signature pad used for Coach Document Requirement - at which point a PDF is generated, hashed, and stored as the final issued letter, with the coach notified and able to download it. Workflow: Draft → Submitted → Under Review → (Returned for Correction/Rejected) → Approved - Awaiting Signature → Signed and Issued (or Superseded/Cancelled). The final sign-off step is gated to Ashley's own login specifically (`_ensure_ashley()`), not the general office/franchisor tier every other franchisor-only action here uses. Surfaced both as its own standalone pages (`coach_db`/`franchisor_db` `safeguarding_letters`) and as a tab on the shared Profile page (coach's own requests, or read-only on a franchisor's "View As" of a coach).
+
 ### Coach Onboarding Journey
 `onboarding.py` instantiates a master-step template (`Coach Onboarding Master Step`) per coach as `Coach Onboarding Step` rows the moment `start_onboarding` is ticked, with LMS course/chapter/lesson links, dependency locking, and live syncing - editing a master step (even unticking it Active) propagates to every coach already on that journey.
 
@@ -88,7 +94,14 @@ Course/lesson content lives in the separate Frappe Learning app, but this app co
 - `mailerlite_sync.py` is a one-directional-for-signups, two-directional-for-unsubscribes sync between Frappe Email Groups and MailerLite, which remains the actual newsletter-sending tool.
 
 ### Notifications & search
-`notifications.py` implements an in-app messaging/notification system (`Dashboard Conversation` + messages + recipients, layered over Frappe's own `Notification Log`), with reply support (`TRK Notification Reply`) and orphaned-recipient cleanup. `global_search.py` and `directory.py` back the topbar's global search and name-lookup.
+`notifications.py` implements an in-app messaging/notification system (`Dashboard Conversation` + messages + recipients, layered over Frappe's own `Notification Log`), with reply support (`TRK Notification Reply`) and orphaned-recipient cleanup. `global_search.py` and `directory.py` back the topbar's global search and name-lookup. `reminders.py` is a lightweight personal-reminder layer on top of the same notification system (fires on or after its own date, then recurs or deactivates).
+
+### Coach extras - affiliates, podcasts, testimonials, QR cards, fees
+- `affiliate.py` gives every coach/session worker their own affiliate link (not per-product) for the public store/course site, tracked via `Affiliate Commission` rows against a configurable product/commission catalog (`Affiliate Product Setting`) and a franchisor-facing performance report.
+- `podcast_episodes.py` is a shared log of podcast episodes (title, status, show notes, topics, resources, Spotify/YouTube links once live) - franchisor-managed, read-only for coaches (with planning notes/future episodes hidden from them).
+- `testimonials.py` lets a coach capture a client testimonial (text/photo/video) under their own name and an operated brand; franchisor can add/edit/delete for anyone.
+- `qr_cards.py` backs the franchisor "QR Codes" tool - a branded, downloadable QR card (logo + title + QR code + destination URL), generated client-side and persisted server-side (`QR Card` + reusable `QR Card Template`).
+- `fees_report.py` is Ashley/office's month-by-month franchise + marketing fees history per coach - hand-typed for history before 1 November 2026 (`Franchise Fee Manual Total`), pulled automatically from actual internal-invoice payments from that date on.
 
 ### Forms / Reports section
 `form_reports.py` auto-discovers every DocType in the site's **"Forms"** module (bespoke Desk-built feedback/survey/consent/assessment forms - wellbeing scales, school questionnaires, CPD booking/feedback, media consent, etc.) from Frappe's own DocType metadata rather than a hardcoded list, and surfaces them as read-only summaries in each dashboard's Reports section, scoped the same way every other list is (coaches see their own, franchisors see everyone's). `Form Visibility Rule` and per-Web-Form "Show in Dashboard Reports"/"Also Show to Coaches" fields control what shows where. Several of these forms (Stirling Wellbeing Scale, care-languages quiz, school experience, staff relationships) have their own scoring logic as `validate` hooks in small, dedicated modules (`wellbeing_forms.py`, `care_language_form.py`, `school_experience_form.py`, `staff_relationships_form.py`).
@@ -124,28 +137,41 @@ Only dependencies this repo's own code demonstrates are listed here:
 
 ## Custom DocTypes (`dashboard/dashboard/doctype/`)
 
+Module-defined (json-controlled) doctypes only - see the note below the list for the other kind this app also has.
+
+- **Affiliate Commission** / **Affiliate Product Setting** - a coach/session worker's earned commissions, and which products/courses earn what
 - **Client Lead** / **Client Lead Note** - the original Client Lead pipeline (ordinary enquiries + franchise/session-worker recruitment) and its notes
-- **Recruitment Lead** - the phase-1 migration target for franchisee/session-worker recruitment, separate from Client Lead
 - **Client Transfer Agreement** (+ **Log**) - the three-way sign-off when a client moves between coaches
 - **Client Document Share** - a Practice Document shared with a specific client
 - **Client Report** - bespoke client progress write-ups, optionally shown on the client portal or emailed
 - **Coach Document Requirement** - a Practice Document assigned to a coach/session worker, with status/due-date tracking
+- **Coach Identification** / **Coach Safeguarding Certificate** - two of Coach's legal/compliance child tables (DBS/Insurance have their own fields directly on Coach)
 - **Coach Onboarding Master Step** / **Coach Onboarding Step** - the onboarding journey template and each coach's per-step instance
 - **Coach Recognition** - franchisor-set recognition/achievement entries on a coach
+- **Coach Testimonial** - a client testimonial captured against a coach
 - **Dashboard Conversation** / **Dashboard Conversation Message** / **Dashboard Conversation Recipient** - the notification/messaging system
+- **Dashboard Reminder** - a user's own personal reminders
+- **Fees Report Settings** / **Franchise Fee Manual Total** - the Fees Report's config and its hand-typed pre-automation history
 - **Form Visibility Rule** - controls which "Forms"-module DocTypes are visible where
 - **Item Gallery Image** - gallery images on a store/public-facing Item
 - **Mileage Log** / **Training And Supervision Log** - coach self-logged entries
 - **Online Client** - a guest webshop purchaser, later manually linked to a real Client by email
 - **Pending Booking** - fallback queue for appointment bookings that hit MySQL naming-series lock contention
+- **Podcast Episode** (+ **Resource** child) - the shared podcast episode log
 - **Practice Document** (+ **Coach**/**File**/**Item** child tables) - the compliance/policy document library
+- **QR Card** / **QR Card Template** - the branded QR-code tool's saved cards and reusable logo templates
 - **Safer Recruitment Checklist Item** - checklist rows for the recruitment safeguarding process
 - **School Pipeline Branding** - branding config for the School Pipeline's automated emails
+- **School Safeguarding Assurance Request** - a coach's request for a formal school safeguarding assurance letter, through to Ashley's signed-and-issued PDF
+- **Session Worker Coach** - links a Session Worker to the Coach(es) they work under
+- **Session Worker Identification** / **Session Worker Safeguarding Certificate** - the same two legal child tables as Coach's, for Session Worker
 - **Store Coupon** (+ **Item** child) - store discount codes
 - **Store Manager** - the Store dashboard's own user-role doctype
 - **TRK Notification Reply** - a reply to a notification
 - **Webshop Checkout** (+ **Item** child) - the Store's order record, from cart through Paid/Packed/Shipped
 - **Webshop Payment Settings** / **Webshop Shipping Settings** - site-wide Stripe and shipping settings
+
+A second kind of custom doctype also exists on this site that this list deliberately excludes: database-only (`custom: 1`) doctypes created programmatically by a one-off `patches.txt` entry rather than a json folder here - **Recruitment Lead**, **School** (+ **Contact**/**Sequence**/**Sequence Step**/**Sequence Enrollment**), **Email Sequence** (+ **Step**/**Enrollment**), **Knowledge Vault Resource** (+ **School**/**Staff**/**View**), **Franchise Brochure** (+ **Request**), **HQ Stock Item**, **Coach Stock Movement**, **MailerLite Settings**, **Store Logo Choice**, **Dashboard Link Click**, and every standalone Forms-module response doctype (Stirling Wellbeing Response, Student Resilience Survey Response, etc.) among others - see each creating patch under `dashboard/patches/` for its exact field list. **These two mechanisms must never define the same DocType name** - a module json for a name a patch already created as `custom: 1` silently wins on the next `bench migrate`, wiping whatever fields/settings the patch gave it (this happened for real in November 2026: a new `School` json folder, meant only to extend it with four Safeguarding Letters fields, wiped School Pipeline's `contacts`/`stage`/`area`/`telephone`/`notes`/`linked_client` entirely - fixed in `restore_school_fields_after_safeguarding_letters_regression.py`). Always check both places before naming a new doctype.
 
 ## `dashboard/api/shared/` - core business logic (~70 modules)
 
@@ -155,13 +181,14 @@ Grouped by area (see each module's own docstring for the full detail - most are 
 - **Clients/contacts/leads**: `clients.py`, `client_details.py`, `client_reports.py`, `client_list_report.py`, `client_locations.py`, `client_transfers.py`, `contacts.py`, `contact_details.py`, `leads.py`, `recruitment_leads.py`, `franchise_info_sheet.py`, `franchise_brochure.py`
 - **Invoicing/payments**: `invoices.py`, `payment_utils.py`, `packages.py`, `webshop_purchase.py`, `item_access.py`, `course_unlock_on_payment.py`
 - **Store**: `store_products.py`, `store_coupons.py`, `store_orders.py`, `store_shipping.py`, `store_stock.py`, `coach_stock.py`
-- **Compliance/onboarding**: `practice_documents.py`, `onboarding.py`, `coach_logs.py`
+- **Compliance/onboarding**: `practice_documents.py`, `onboarding.py`, `coach_logs.py`, `legal_expiry_reminders.py`, `safeguarding_letters.py`
 - **LMS**: `lms_access.py`, `lms_certificates.py`
 - **Schools**: `school_pipeline.py`, `school_licenses.py`, `knowledge_vault.py`
 - **Coaches/session workers/franchisor views**: `coaches.py`, `session_workers.py`, `coach_view_mode.py`, `session_worker_view.py`, `session_worker_view_mode.py`
 - **Assessment/feedback form scoring**: `wellbeing_forms.py`, `care_language_form.py`, `school_experience_form.py`, `staff_relationships_form.py`
 - **Email**: `email_templates.py`, `email_sequences.py`, `email_groups.py`, `email_queue_fixes.py`, `mail_throttle.py`, `mailerlite_sync.py`, `google_mail_connect.py`
-- **Notifications/search**: `notifications.py`, `global_search.py`, `directory.py`, `form_reports.py`
+- **Notifications/search**: `notifications.py`, `reminders.py`, `global_search.py`, `directory.py`, `form_reports.py`
+- **Coach extras**: `affiliate.py`, `podcast_episodes.py`, `testimonials.py`, `qr_cards.py`, `fees_report.py`
 - **Other**: `profile.py` (role-specific profile config + banking/Stripe Connect), `blog.py`, `webshop_lead_sync.py`, `permissions.py`, `postcode_boundaries.py`, `portal_access.py`, `pagination.py`, `utils.py`, `dashboard.py` (the largest single API surface - shared cross-dashboard endpoints)
 
 Plus `dashboard/api/franchisor/accounts.py` (franchisor-only Session Worker/Coach field access) and `dashboard/api/session_worker/change_requests.py` (wraps the legacy `trk_session_worker_dashboard` app's change-request handling).
@@ -169,7 +196,7 @@ Plus `dashboard/api/franchisor/accounts.py` (franchisor-only Session Worker/Coac
 ## `hooks.py` summary
 
 - **`doc_events`** cover: `Event`/`Client Appointment` sharing, package-balance recalculation and delete-cascades; `Email Queue` spoofed-sender fixes; `Intake Doctype` and `Franchise Information Sheet Response` syncing into the lead pipeline; `Franchise Brochure Request` link delivery; a wildcard (`"*"`) trigger for the Email Sequence engine; `Lead`/`Comment` bridging from `webshop`; `Coach Document Requirement`/`Practice Document`/`Item`/`Coach`/`Session Worker` syncing for compliance and item access; `Coach Onboarding Master Step` propagation; `LMS Certificate`/`LMS Course`/`LMS Enrollment` gating, store-item sync and welcome emails; `Web Form` Reports-visibility syncing; `Blog Post` hero-image visibility; `Stirling Wellbeing Response`/`Care Language Response`/`School Experience Response`/`Relationships With Staff Response` scoring; `Communication` reply detection for the School Pipeline; `Sales Invoice`/`Payment Entry` stock and course-unlock hooks; `Email Group Member` MailerLite sync.
-- **`scheduler_events`**: every 5 minutes - sweep stuck pending bookings, send pending booking confirmations, Meet-link followups and online-session reminders; daily at 10am - process due School Pipeline and Email Sequence steps; daily - refresh every client's age-derived client type.
+- **`scheduler_events`**: every 5 minutes - sweep stuck pending bookings, send pending booking confirmations, Meet-link followups and online-session reminders; daily at 10am - process due School Pipeline sequence steps and send legal expiry reminders; daily at 10:15am (deliberately offset from 10am, so two near-identical email bursts never land in the same minute and get mistaken for spam) - process due Email Sequence steps; daily - refresh every client's age-derived client type, activate any Practice Document whose publish date has arrived, and send due personal Reminders.
 - **`after_migrate`**: a small set of idempotent setup functions that need a doctype from the same deploy's schema sync to already exist (see **Architectural patterns**).
 - **Permission overrides**: `has_permission`/`permission_query_conditions`/`override_whitelisted_methods` all target `LMS Course` (`lms_access.py`).
 - **`jinja.methods`**: exposes `is_franchisor_user()`/`is_current_user_coach()` to templates (used by the shared topbar).
@@ -198,4 +225,4 @@ A genuinely useful chronological index of everything this app has grown into. Ma
 
 `dashboard/tests/test_invoice_payment_rounding.py` - covers invoice outstanding-amount rounding and partial-allocation math. No other test modules exist; most correctness here is enforced by extensive in-code docstrings and manual/production verification rather than an automated suite.
 
-<!-- deploy trigger: 2026-11-05b -->
+<!-- deploy trigger: 2026-11-10b -->
