@@ -1,0 +1,33 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page" id="safeguardingLettersPage" data-franchisor="1">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">Safeguarding Assurance Letters</h1>
+          <p class="dashboard-page-subtitle">Requests from coaches, awaiting review, approval and signature.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-tabs" id="safeguardingStatusTabs">
+        <button type="button" class="dashboard-tab-btn is-active" data-status="">All</button>
+        <button type="button" class="dashboard-tab-btn" data-status="Submitted">Pending Review</button>
+        <button type="button" class="dashboard-tab-btn" data-status="Under Review">Under Review</button>
+        <button type="button" class="dashboard-tab-btn" data-status="Returned for Correction">Awaiting Coach</button>
+        <button type="button" class="dashboard-tab-btn" data-status="Signed and Issued">Issued</button>
+        <button type="button" class="dashboard-tab-btn" data-status="Rejected">Rejected</button>
+      </div>
+
+      <div class="dashboard-card" style="margin-top:16px;">
+        <div id="safeguardingRequestsList">Loading...</div>
+      </div>
+
+    </div>
+  </div>
+</div>

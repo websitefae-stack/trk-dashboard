@@ -93,7 +93,7 @@
             </div>
         </div>
 
-        <div class="dashboard-nav-group {% if active_page in ['documents', 'reports', 'links', 'qr_cards', 'podcasts', 'testimonials'] %}is-open{% endif %}">
+        <div class="dashboard-nav-group {% if active_page in ['documents', 'reports', 'links', 'qr_cards', 'podcasts', 'testimonials', 'safeguarding_letters'] %}is-open{% endif %}">
             <button type="button" class="dashboard-nav-group-toggle">
                 <span class="dashboard-nav-icon">🧰</span>
                 <span>Tools</span>
@@ -128,6 +128,11 @@
                 <a href="/coach_db/testimonials{{ coach_view_query or '' }}" class="{% if active_page == 'testimonials' %}is-active{% endif %}">
                     <span class="dashboard-nav-icon">💬</span>
                     <span>Testimonials</span>
+                </a>
+
+                <a href="/coach_db/safeguarding_letters{{ coach_view_query or '' }}" class="{% if active_page == 'safeguarding_letters' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🛡️</span>
+                    <span>Safeguarding Letters</span>
                 </a>
             </div>
         </div>
