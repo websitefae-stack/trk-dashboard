@@ -255,8 +255,9 @@ def _get_or_create_school(school, new_school_name, new_school_address, new_schoo
 	if not new_school_name:
 		frappe.throw(_("Please select a school, or enter a new school's name."))
 
-	if frappe.db.exists(SCHOOL_DOCTYPE, new_school_name):
-		return new_school_name
+	existing_name = frappe.db.get_value(SCHOOL_DOCTYPE, {"school_name": new_school_name}, "name")
+	if existing_name:
+		return existing_name
 
 	doc = frappe.new_doc(SCHOOL_DOCTYPE)
 	doc.school_name = new_school_name
@@ -323,12 +324,13 @@ def submit_assurance_request(
 	if not expected_start_date:
 		frappe.throw(_("Please enter the expected start date."))
 
-	school_name = _get_or_create_school(school, new_school_name, new_school_address, new_school_postcode)
+	school = _get_or_create_school(school, new_school_name, new_school_address, new_school_postcode)
+	school_label = frappe.db.get_value(SCHOOL_DOCTYPE, school, "school_name") or school
 
 	doc = frappe.new_doc(REQUEST_DOCTYPE)
 	doc.coach = coach
 	doc.coach_name = frappe.db.get_value(COACH_DOCTYPE, coach, "coach_name") or coach
-	doc.school = school_name
+	doc.school = school
 	doc.school_contact_name = school_contact_name
 	doc.school_contact_role = coalesce_str("school_contact_role", school_contact_role)
 	doc.school_contact_email = school_contact_email
@@ -351,7 +353,7 @@ def submit_assurance_request(
 		create_trk_notification(
 			recipient_user=ASHLEY_USER,
 			notification_type="Task",
-			message=f"{coach_label} has requested a Safeguarding Assurance Letter for {school_name}.",
+			message=f"{coach_label} has requested a Safeguarding Assurance Letter for {school_label}.",
 			priority="High",
 			reference_doctype=REQUEST_DOCTYPE,
 			reference_name=doc.name,
