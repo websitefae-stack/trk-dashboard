@@ -1,0 +1,157 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page" id="safeguardingLetterDetailsPage" data-request-name="{{ request_name }}" data-is-ashley="{{ 1 if is_ashley else 0 }}">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title" id="letterDetailTitle">Safeguarding Assurance Letter</h1>
+          <p class="dashboard-page-subtitle" id="letterDetailSubtitle"></p>
+        </div>
+        <div class="dashboard-detail-actions dashboard-detail-actions-compact">
+          <a href="/franchisor_db/safeguarding_letters" class="dashboard-btn dashboard-btn-secondary">Back</a>
+        </div>
+      </div>
+
+      <div id="letterDetailMissing" class="dashboard-card" style="display:none; background:#fff4e2; border-left:3px solid #9a6b12; margin-bottom:18px;">
+        <strong>Not ready to approve yet:</strong>
+        <ul id="letterDetailMissingList" style="margin:8px 0 0; padding-left:20px;"></ul>
+      </div>
+
+      <div class="dashboard-card" style="margin-bottom:18px;">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Request Summary</h2>
+        </div>
+        <div class="dashboard-detail-grid dashboard-detail-grid-2" id="letterSummaryGrid"></div>
+      </div>
+
+      <div class="dashboard-card" style="margin-bottom:18px;">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Checks Pulled From Records</h2>
+        </div>
+        <div class="dashboard-detail-grid dashboard-detail-grid-2" id="letterEvidenceGrid"></div>
+      </div>
+
+      <div class="dashboard-card" style="margin-bottom:18px;">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Safeguarding Review</h2>
+        </div>
+        <p class="dashboard-field-hint">These are judgement calls, or things not tracked elsewhere - fill them in yourself before this letter can be approved.</p>
+
+        <div class="dashboard-detail-grid dashboard-detail-grid-2">
+          <div class="dashboard-detail-field dashboard-detail-field-full">
+            <label for="reviewRegulatedActivity">Regulated Activity Assessment</label>
+            <textarea class="dashboard-input" id="reviewRegulatedActivity" rows="2"></textarea>
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="reviewDbsWording">DBS Section Wording</label>
+            <select class="dashboard-select" id="reviewDbsWording"></select>
+          </div>
+          <div class="dashboard-detail-field">
+            <label for="reviewDbsLevel">DBS Certificate Level</label>
+            <input class="dashboard-input" type="text" id="reviewDbsLevel">
+          </div>
+          <div class="dashboard-detail-field">
+            <label for="reviewDbsWorkforce">DBS Workforce</label>
+            <input class="dashboard-input" type="text" id="reviewDbsWorkforce">
+          </div>
+          <div class="dashboard-detail-field">
+            <label for="reviewBarredList">Children's Barred-List Check</label>
+            <input class="dashboard-input" type="text" id="reviewBarredList">
+          </div>
+
+          <div class="dashboard-detail-field">
+            <label for="reviewKcsie">KCSIE Part One Acknowledgement</label>
+            <input class="dashboard-input" type="text" id="reviewKcsie">
+          </div>
+          <div class="dashboard-detail-field">
+            <label for="reviewOverseas">Overseas Checks</label>
+            <input class="dashboard-input" type="text" id="reviewOverseas">
+          </div>
+          <div class="dashboard-detail-field dashboard-detail-field-full">
+            <label for="reviewEmploymentHistory">Employment History</label>
+            <div style="display:flex; gap:8px; align-items:flex-start;">
+              <input class="dashboard-input" type="text" id="reviewEmploymentHistory" style="flex:1;">
+              <button type="button" class="dashboard-btn dashboard-btn-light" id="useStandardEmploymentHistoryBtn" style="white-space:nowrap;">Use Standard Wording</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:14px; display:flex; gap:10px; align-items:center;">
+          <button type="button" class="dashboard-btn dashboard-btn-secondary" id="saveReviewBtn">Save Review</button>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="previewLetterBtn">Preview Letter</button>
+          <span id="reviewStatus" class="dashboard-help"></span>
+        </div>
+      </div>
+
+      <div class="dashboard-card" id="letterPreviewCard" style="display:none; margin-bottom:18px;">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Letter Preview</h2>
+        </div>
+        <div id="letterPreviewFrame" style="border:1px solid #e3eded; border-radius:8px; padding:16px; background:#fff; max-height:600px; overflow:auto;"></div>
+      </div>
+
+      <div class="dashboard-card" style="margin-bottom:18px;">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Return or Reject</h2>
+        </div>
+        <div class="dashboard-detail-grid dashboard-detail-grid-2">
+          <div class="dashboard-detail-field dashboard-detail-field-full">
+            <label for="correctionNotes">Notes for the coach (for Return for Correction)</label>
+            <textarea class="dashboard-input" id="correctionNotes" rows="2"></textarea>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:10px;">
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="returnForCorrectionBtn">Return for Correction</button>
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="rejectRequestBtn" style="color:#AC455C;">Reject Request</button>
+        </div>
+      </div>
+
+      <div class="dashboard-card" id="approveSignCard">
+        <div class="dashboard-detail-section-head">
+          <h2 class="dashboard-detail-section-title">Approve and Sign</h2>
+        </div>
+
+        <div id="notAshleyNotice" style="display:none; background:#F2F8F8; border-radius:8px; padding:12px 16px; font-size:13px;">
+          Only Ashley can approve and sign a safeguarding assurance letter - you can review and prepare this request, but the final sign-off has to be done from her own account.
+        </div>
+
+        <div id="ashleySignBlock">
+          <p style="font-size:13px; line-height:1.6;">
+            "I have reviewed the safeguarding and safer recruitment information supporting this request. I am satisfied that the checks stated in this letter have been completed and verified, and that the letter accurately reflects the evidence held by The Resilient Kid."
+          </p>
+
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:14px;">
+            <input type="checkbox" id="approvalConfirmedCheckbox" style="width:auto;">
+            I confirm the above
+          </label>
+
+          <div class="dashboard-detail-grid dashboard-detail-grid-2">
+            <div class="dashboard-detail-field">
+              <label for="signTypedName">Typed Full Name</label>
+              <input class="dashboard-input" type="text" id="signTypedName" value="Ashley Costello">
+            </div>
+          </div>
+
+          <div class="dashboard-detail-field" style="margin-top:10px;">
+            <label>Signature</label>
+            <canvas id="letterSignaturePad" width="500" height="140" style="border:1px solid #e3eded; border-radius:8px; width:100%; max-width:500px; height:140px; touch-action:none; background:#fff;"></canvas>
+            <button type="button" class="dashboard-btn dashboard-btn-light" id="clearSignatureBtn" style="margin-top:8px;">Clear</button>
+          </div>
+
+          <div style="margin-top:14px;">
+            <button type="button" class="dashboard-btn dashboard-btn-primary" id="approveAndSignBtn">Approve and Sign</button>
+            <span id="approveStatus" class="dashboard-help" style="margin-left:8px;"></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

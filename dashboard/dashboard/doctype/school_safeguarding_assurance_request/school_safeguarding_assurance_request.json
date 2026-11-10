@@ -1,0 +1,387 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "naming_series:",
+ "creation": "2026-11-10 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "coach",
+  "coach_name",
+  "workflow_status",
+  "school_section",
+  "school",
+  "school_contact_name",
+  "school_contact_role",
+  "school_contact_email",
+  "column_break_role",
+  "role",
+  "nature_of_work",
+  "expected_start_date",
+  "expected_end_date",
+  "review_section",
+  "regulated_activity_assessment",
+  "dbs_wording_option",
+  "dbs_certificate_level",
+  "dbs_workforce",
+  "childrens_barred_list_check",
+  "column_break_review",
+  "kcsie_part_one_acknowledgement",
+  "overseas_checks",
+  "employment_history_note",
+  "status_section",
+  "rejection_reason",
+  "correction_notes",
+  "column_break_status",
+  "reviewed_by",
+  "reviewed_at",
+  "approval_section",
+  "approved_by",
+  "approved_at",
+  "approval_confirmed",
+  "column_break_approval",
+  "signed_by",
+  "signed_at",
+  "typed_full_name",
+  "signature",
+  "issued_section",
+  "draft_pdf",
+  "final_pdf",
+  "final_pdf_hash",
+  "issued_at",
+  "column_break_issued",
+  "supersedes_request",
+  "letter_template_version",
+  "compliance_guidance_version",
+  "evidence_snapshot"
+ ],
+ "fields": [
+  {
+   "default": "TRK-SAL-.YYYY.-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "TRK-SAL-.YYYY.-.#####"
+  },
+  {
+   "fieldname": "coach",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Coach",
+   "options": "Coach",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "coach.coach_name",
+   "fetch_if_empty": 0,
+   "fieldname": "coach_name",
+   "fieldtype": "Data",
+   "label": "Coach Name",
+   "read_only": 1
+  },
+  {
+   "default": "Submitted",
+   "fieldname": "workflow_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nSubmitted\nUnder Review\nReturned for Correction\nApproved - Awaiting Signature\nSigned and Issued\nRejected\nSuperseded\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "school_section",
+   "fieldtype": "Section Break",
+   "label": "School and Role"
+  },
+  {
+   "fieldname": "school",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "School",
+   "options": "School",
+   "reqd": 1
+  },
+  {
+   "fieldname": "school_contact_name",
+   "fieldtype": "Data",
+   "label": "School Contact Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "school_contact_role",
+   "fieldtype": "Data",
+   "label": "School Contact Job Title"
+  },
+  {
+   "fieldname": "school_contact_email",
+   "fieldtype": "Data",
+   "label": "School Contact Email",
+   "options": "Email",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_role",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "role",
+   "fieldtype": "Select",
+   "label": "Role Being Undertaken",
+   "options": "Resilient Kid Coach\nResilient Teen Coach\nResilience Workshop Facilitator\nOne-to-One Resilience Coach\nGroup Resilience Coach\nSchool Staff Trainer\nOther",
+   "reqd": 1
+  },
+  {
+   "default": "Weekly one-to-one resilience coaching sessions with identified pupils",
+   "description": "Pre-filled with a standard description - edit it if this request needs something different.",
+   "fieldname": "nature_of_work",
+   "fieldtype": "Small Text",
+   "label": "Description of Service",
+   "reqd": 1
+  },
+  {
+   "fieldname": "expected_start_date",
+   "fieldtype": "Date",
+   "label": "Expected Start Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "expected_end_date",
+   "fieldtype": "Date",
+   "label": "Expected End Date"
+  },
+  {
+   "fieldname": "review_section",
+   "fieldtype": "Section Break",
+   "label": "Safeguarding Review (Ashley completes)"
+  },
+  {
+   "description": "A legal judgement call - broadly, whether this role involves regularly teaching, training, caring for or supervising children unsupervised. Decides which DBS level and barred-list eligibility apply.",
+   "fieldname": "regulated_activity_assessment",
+   "fieldtype": "Small Text",
+   "label": "Regulated Activity Assessment"
+  },
+  {
+   "fieldname": "dbs_wording_option",
+   "fieldtype": "Select",
+   "label": "DBS Section Wording",
+   "options": "Certificate clear\nInformation disclosed and assessed\nDBS not required for this role"
+  },
+  {
+   "default": "Enhanced",
+   "fieldname": "dbs_certificate_level",
+   "fieldtype": "Data",
+   "label": "DBS Certificate Level"
+  },
+  {
+   "default": "Child Workforce",
+   "fieldname": "dbs_workforce",
+   "fieldtype": "Data",
+   "label": "DBS Workforce"
+  },
+  {
+   "description": "Only legally available for roles assessed as regulated activity - confirm what the coach's Enhanced DBS certificate actually shows.",
+   "fieldname": "childrens_barred_list_check",
+   "fieldtype": "Small Text",
+   "label": "Children's Barred-List Check"
+  },
+  {
+   "fieldname": "column_break_review",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Has this coach read and acknowledged KCSIE Part One?",
+   "fieldname": "kcsie_part_one_acknowledgement",
+   "fieldtype": "Small Text",
+   "label": "KCSIE Part One Acknowledgement"
+  },
+  {
+   "default": "Not applicable - coach is UK-based",
+   "fieldname": "overseas_checks",
+   "fieldtype": "Small Text",
+   "label": "Overseas Checks"
+  },
+  {
+   "default": "Reviewed - no unexplained gaps outstanding",
+   "description": "Use the default wording, or type your own for this request.",
+   "fieldname": "employment_history_note",
+   "fieldtype": "Small Text",
+   "label": "Employment History"
+  },
+  {
+   "fieldname": "status_section",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "fieldname": "rejection_reason",
+   "fieldtype": "Small Text",
+   "label": "Rejection Reason"
+  },
+  {
+   "fieldname": "correction_notes",
+   "fieldtype": "Small Text",
+   "label": "Correction Notes (sent to coach)"
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reviewed_by",
+   "fieldtype": "Link",
+   "label": "Reviewed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reviewed_at",
+   "fieldtype": "Datetime",
+   "label": "Reviewed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approval_section",
+   "fieldtype": "Section Break",
+   "label": "Approval and Signature"
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "Approved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approved_at",
+   "fieldtype": "Datetime",
+   "label": "Approved At",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "approval_confirmed",
+   "fieldtype": "Check",
+   "label": "Approval Statement Confirmed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_approval",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "signed_by",
+   "fieldtype": "Link",
+   "label": "Signed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signed_at",
+   "fieldtype": "Datetime",
+   "label": "Signed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "typed_full_name",
+   "fieldtype": "Data",
+   "label": "Typed Full Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signature",
+   "fieldtype": "Signature",
+   "label": "Signature",
+   "read_only": 1
+  },
+  {
+   "fieldname": "issued_section",
+   "fieldtype": "Section Break",
+   "label": "Issued Letter"
+  },
+  {
+   "fieldname": "draft_pdf",
+   "fieldtype": "Attach",
+   "label": "Draft PDF",
+   "read_only": 1
+  },
+  {
+   "fieldname": "final_pdf",
+   "fieldtype": "Attach",
+   "label": "Final Signed PDF",
+   "read_only": 1
+  },
+  {
+   "fieldname": "final_pdf_hash",
+   "fieldtype": "Data",
+   "label": "Final PDF Hash",
+   "read_only": 1
+  },
+  {
+   "fieldname": "issued_at",
+   "fieldtype": "Datetime",
+   "label": "Issued At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_issued",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supersedes_request",
+   "fieldtype": "Link",
+   "label": "Supersedes Request",
+   "options": "School Safeguarding Assurance Request",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "letter_template_version",
+   "fieldtype": "Data",
+   "label": "Letter Template Version",
+   "read_only": 1
+  },
+  {
+   "default": "KCSIE 2026",
+   "fieldname": "compliance_guidance_version",
+   "fieldtype": "Data",
+   "label": "Compliance Guidance Version",
+   "read_only": 1
+  },
+  {
+   "description": "A frozen copy of the verified facts used in the issued letter - never the raw DBS disclosure content.",
+   "fieldname": "evidence_snapshot",
+   "fieldtype": "Long Text",
+   "hidden": 1,
+   "label": "Evidence Snapshot"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-10 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "School Safeguarding Assurance Request",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
