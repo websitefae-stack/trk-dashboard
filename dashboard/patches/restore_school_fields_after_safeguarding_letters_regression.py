@@ -94,6 +94,27 @@ def execute():
     if not frappe.db.exists("DocType", SCHOOL_DOCTYPE):
         return
 
+    # Put naming back to Autoincrement straight in the DB first, bypassing
+    # DocType.validate()'s own guard (which refuses to change to/from
+    # Autoincrement through doc.save() once the doctype has data). Safe
+    # here because this doesn't rename any existing school - every school
+    # already has its original autoincrement docname regardless of what
+    # the naming_rule setting says; this only corrects what *new* schools
+    # get named with going forward. Doing it as a separate raw update
+    # (rather than bundling it into the save() below) means the doc
+    # loaded after this already reflects "Autoincrement" on both sides of
+    # that validate() check, so the field-restore save() doesn't trip it.
+    current_naming_rule = frappe.db.get_value("DocType", SCHOOL_DOCTYPE, "naming_rule")
+    if current_naming_rule != "Autoincrement":
+        frappe.db.set_value(
+            "DocType",
+            SCHOOL_DOCTYPE,
+            {"naming_rule": "Autoincrement", "autoname": "autoincrement"},
+            update_modified=False,
+        )
+        frappe.db.commit()
+        frappe.clear_cache(doctype=SCHOOL_DOCTYPE)
+
     doc = frappe.get_doc("DocType", SCHOOL_DOCTYPE)
     existing_fieldnames = {field.fieldname for field in doc.fields}
 
@@ -108,11 +129,6 @@ def execute():
         if field.fieldname == "school_name" and field.unique:
             field.unique = 0
             changed = True
-
-    if doc.naming_rule != "Autoincrement" or doc.autoname != "autoincrement":
-        doc.naming_rule = "Autoincrement"
-        doc.autoname = "autoincrement"
-        changed = True
 
     if not doc.custom:
         doc.custom = 1
