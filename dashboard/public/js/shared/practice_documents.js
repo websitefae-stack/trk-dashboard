@@ -266,6 +266,111 @@
     return !!(page && page.dataset.franchisor === "1");
   }
 
+  // -------------------------------------------------------------------
+  // "View by Coach" - franchisor-only report of which resources each
+  // coach currently has access to (grouped by coach, the other way
+  // round from the normal type-tabs/search views above).
+  // -------------------------------------------------------------------
+
+  var coachAccessReportCache = null;
+  var coachAccessViewActive = false;
+
+  async function loadCoachResourceAccessReport() {
+    if (coachAccessReportCache) return coachAccessReportCache;
+    coachAccessReportCache = await apiGet(API + ".get_coach_resource_access_report", {});
+    return coachAccessReportCache;
+  }
+
+  function renderCoachAccessReport(rows) {
+    var wrap = el("documentCoachAccessResults");
+    if (!wrap) return;
+
+    if (!rows.length) {
+      wrap.innerHTML = '<div class="dashboard-empty">No coaches found.</div>';
+      return;
+    }
+
+    wrap.innerHTML = rows.map(function (row) {
+      var resourceList = row.resources.length
+        ? (
+            "<ul>" +
+              row.resources.map(function (resource) {
+                return "<li>" + escapeHtml(resource.document_title || resource.name) + "</li>";
+              }).join("") +
+            "</ul>"
+          )
+        : '<p class="dashboard-field-hint">No resources currently visible to this coach.</p>';
+
+      return (
+        '<div class="dashboard-card" style="margin-bottom:16px;">' +
+          '<div class="dashboard-detail-section-head">' +
+            "<h2 class=\"dashboard-detail-section-title\">" + escapeHtml(row.coach_display_name || row.coach) + "</h2>" +
+            '<span class="dashboard-table-count">' + row.resource_count + (row.resource_count === 1 ? " resource" : " resources") + "</span>" +
+          "</div>" +
+          resourceList +
+        "</div>"
+      );
+    }).join("");
+  }
+
+  function showCoachAccessView() {
+    coachAccessViewActive = true;
+
+    var tabsWrap = el("documentTypeTabs");
+    var panelsWrap = el("documentTypePanels");
+    var searchResultsWrap = el("documentSearchResults");
+    var coachWrap = el("documentCoachAccessResults");
+    var searchInput = el("documentSearch");
+    var toggleBtn = el("toggleCoachAccessViewBtn");
+
+    if (tabsWrap) tabsWrap.style.display = "none";
+    if (panelsWrap) panelsWrap.style.display = "none";
+    if (searchResultsWrap) searchResultsWrap.style.display = "none";
+    if (searchInput) searchInput.value = "";
+    if (toggleBtn) toggleBtn.textContent = "Back to Documents";
+
+    if (coachWrap) {
+      coachWrap.style.display = "";
+      coachWrap.innerHTML = '<div class="dashboard-empty">Loading...</div>';
+    }
+
+    loadCoachResourceAccessReport()
+      .then(renderCoachAccessReport)
+      .catch(function (error) {
+        if (coachWrap) {
+          coachWrap.innerHTML = '<div class="dashboard-empty">' +
+            escapeHtml(error.message || "Could not load this report.") + "</div>";
+        }
+      });
+  }
+
+  function hideCoachAccessView() {
+    coachAccessViewActive = false;
+
+    var tabsWrap = el("documentTypeTabs");
+    var panelsWrap = el("documentTypePanels");
+    var coachWrap = el("documentCoachAccessResults");
+    var toggleBtn = el("toggleCoachAccessViewBtn");
+
+    if (tabsWrap) tabsWrap.style.display = "";
+    if (panelsWrap) panelsWrap.style.display = "";
+    if (coachWrap) coachWrap.style.display = "none";
+    if (toggleBtn) toggleBtn.textContent = "View by Coach";
+  }
+
+  function initCoachAccessToggle() {
+    var btn = el("toggleCoachAccessViewBtn");
+    if (!btn || !isFranchisorDocumentsPage()) return;
+
+    btn.addEventListener("click", function () {
+      if (coachAccessViewActive) {
+        hideCoachAccessView();
+      } else {
+        showCoachAccessView();
+      }
+    });
+  }
+
   function setSearchMode(isSearching) {
     var tabsWrap = el("documentTypeTabs");
     var panelsWrap = el("documentTypePanels");
@@ -353,6 +458,7 @@
     if (!el("documentsPage")) return;
     loadDocuments();
     initDocumentSearch();
+    initCoachAccessToggle();
   }
 
   // -------------------------------------------------------------------
