@@ -216,17 +216,15 @@ def _get_linked_item_labels_by_document(document_names):
 	return labels_by_document
 
 
-def _get_visible_resource_documents(user=None):
+def _get_published_resource_documents():
 	"""
-	Published Practice Documents that reach a coach without ever getting a
-	Coach Document Requirement row - either because their purpose includes
-	Client Resource ("Create assignments when published" only fires a
-	requirement for Internal Compliance/Both), or because they're a
-	Workshop Resource, which stays Internal Compliance on purpose (it's
-	gated purely by Item Access via Resource Availability/Practice
-	Document Coach, not the Applies To section's own audience, so it's in
-	the same "nothing else surfaces this" position a Client Resource
-	document is).
+	The raw rows _get_visible_resource_documents() filters per-user -
+	split out so get_coach_resource_access_report() can fetch this list
+	once and filter it against every coach's own login in turn, rather
+	than re-querying per coach or (worse) reusing _get_visible_resource_
+	documents()'s own default of frappe.session.user, which would be
+	whichever franchisor is looking at the report, not the coach it's
+	actually being computed for.
 	"""
 	rows = frappe.get_all(
 		PRACTICE_DOCUMENT_DOCTYPE,
@@ -249,9 +247,24 @@ def _get_visible_resource_documents(user=None):
 	for row in rows:
 		row["linked_items"] = linked_labels.get(row.name, [])
 
+	return [row for row in rows if not _publish_date_is_future(row.get("published_date"))]
+
+
+def _get_visible_resource_documents(user=None):
+	"""
+	Published Practice Documents that reach a coach without ever getting a
+	Coach Document Requirement row - either because their purpose includes
+	Client Resource ("Create assignments when published" only fires a
+	requirement for Internal Compliance/Both), or because they're a
+	Workshop Resource, which stays Internal Compliance on purpose (it's
+	gated purely by Item Access via Resource Availability/Practice
+	Document Coach, not the Applies To section's own audience, so it's in
+	the same "nothing else surfaces this" position a Client Resource
+	document is).
+	"""
 	return [
-		row for row in rows
-		if not _publish_date_is_future(row.get("published_date")) and _can_user_see_resource(row, user=user)
+		row for row in _get_published_resource_documents()
+		if _can_user_see_resource(row, user=user)
 	]
 
 
@@ -370,6 +383,91 @@ def get_all_documents_for_franchisor():
 		documents[key].sort(key=lambda row: _natural_sort_key(row.get("document_title")))
 
 	return {"types": types, "documents": documents}
+
+
+def _get_coach_roster():
+	"""Every Coach, with a best-effort display name - same multi-
+	candidate field pattern used across this app (e.g. invoices.
+	_get_coach_options) since the exact name field present varies by
+	site/import history."""
+	meta = frappe.get_meta("Coach")
+	fields = ["name"]
+
+	for fieldname in ["coach_name", "full_name", "name1", "first_name", "last_name"]:
+		if meta.has_field(fieldname):
+			fields.append(fieldname)
+
+	rows = frappe.get_all("Coach", fields=fields, order_by="name asc", ignore_permissions=True)
+
+	for row in rows:
+		row["display_name"] = (
+			row.get("coach_name")
+			or row.get("full_name")
+			or " ".join(filter(None, [row.get("first_name"), row.get("last_name")]))
+			or row.get("name1")
+			or row.get("name")
+		)
+
+	return rows
+
+
+@frappe.whitelist()
+def get_coach_resource_access_report():
+	"""
+	Franchisor-only: every coach, and which of the published resource
+	documents (the same Client Resource/Workshop Resource set _get_
+	visible_resource_documents shows a coach on their own Documents page)
+	each one can currently see right now - an "All Coaches" resource
+	appears under every coach, a "Selected Coaches" one only under the
+	coaches actually named on that document's own Practice Document
+	Coach rows (resource_availability/_can_user_see_resource, unchanged).
+
+	Read-only report about Client Resource/Workshop Resource visibility
+	specifically - it doesn't touch, and isn't about, Coach Document
+	Requirement (the separate "requirement assigned, has this coach
+	opened/signed it" tracking that drives, e.g., franchisor compliance
+	chasing).
+
+	A coach with no login set up yet (_get_coach_login returns "") only
+	ever sees "All Coaches" resources here, never a "Selected Coaches"
+	one, even if they're actually named on it - matching real behaviour,
+	since Practice Document Coach rows are matched by user, and there's
+	no user to match against yet for that coach.
+	"""
+	ensure_office_user()
+
+	resources = _get_published_resource_documents()
+	coaches = _get_coach_roster()
+
+	report = []
+	for coach in coaches:
+		coach_user = _get_coach_login(coach.get("name"))
+
+		if coach_user:
+			accessible = [
+				resource for resource in resources
+				if _can_user_see_resource(resource, user=coach_user)
+			]
+		else:
+			# No login for this coach yet - _can_user_see_resource(user="")
+			# would fall back to frappe.session.user (the franchisor
+			# viewing this report), which is the wrong person to check
+			# "Selected Coaches" access against. Only "All Coaches"
+			# resources are genuinely visible to a coach with no login.
+			accessible = [
+				resource for resource in resources
+				if resource.get("resource_availability") != "Selected Coaches"
+			]
+		report.append({
+			"coach": coach.get("name"),
+			"coach_display_name": coach.get("display_name"),
+			"resources": accessible,
+			"resource_count": len(accessible),
+		})
+
+	report.sort(key=lambda row: (row.get("coach_display_name") or "").lower())
+
+	return report
 
 
 def _is_resource_reachable(source):

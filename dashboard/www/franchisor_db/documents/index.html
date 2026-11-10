@@ -25,11 +25,16 @@
             placeholder="Search every document in the system by name or code"
           >
         </div>
+
+        <div class="dashboard-filter-field" style="align-self:flex-end;">
+          <button type="button" class="dashboard-btn dashboard-btn-light" id="toggleCoachAccessViewBtn">View by Coach</button>
+        </div>
       </div>
 
       <div class="dashboard-tabs" id="documentTypeTabs" role="tablist"></div>
       <div id="documentTypePanels"></div>
       <div id="documentSearchResults" style="display:none;"></div>
+      <div id="documentCoachAccessResults" style="display:none;"></div>
 
     </div>
   </div>
