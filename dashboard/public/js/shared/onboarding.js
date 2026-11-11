@@ -487,6 +487,9 @@
       detailMethod: API + ".get_my_onboarding_steps",
       detailParam: "coach",
       markDoneMethod: API + ".mark_step_done_for_coach",
+      notStartedMethod: API + ".get_coaches_not_yet_onboarding",
+      startMethod: API + ".start_coach_onboarding",
+      startParam: "coach",
     },
     session_worker: {
       personKey: "session_worker",
@@ -497,6 +500,9 @@
       detailMethod: API + ".get_my_session_worker_onboarding_steps",
       detailParam: "session_worker",
       markDoneMethod: API + ".mark_session_worker_step_done_for_hq",
+      notStartedMethod: API + ".get_session_workers_not_yet_onboarding",
+      startMethod: API + ".start_session_worker_onboarding",
+      startParam: "session_worker",
     }
   };
 
@@ -524,6 +530,58 @@
     );
   }
 
+  function renderNotStartedRow(row) {
+    var config = ROLE_CONFIG[currentRole];
+    return (
+      "<tr>" +
+        "<td>" + escapeHtml(row.label) + "</td>" +
+        '<td class="dashboard-text-right">' +
+          '<button type="button" class="dashboard-btn dashboard-btn-primary dashboard-onboarding-start-btn" data-person="' +
+            escapeHtml(row.name) + '">Start Onboarding</button>' +
+        "</td>" +
+      "</tr>"
+    );
+  }
+
+  async function loadNotYetStarted() {
+    var config = ROLE_CONFIG[currentRole];
+    var body = el("onboardingNotStartedBody");
+    var header = el("onboardingNotStartedColumnHeader");
+    if (!body) return;
+
+    if (header) header.textContent = config.personLabel;
+    body.innerHTML = '<tr><td colspan="2"><div class="dashboard-empty">Loading...</div></td></tr>';
+
+    var rows;
+    try {
+      rows = await apiGet(config.notStartedMethod, {});
+    } catch (error) {
+      body.innerHTML = '<tr><td colspan="2"><div class="dashboard-empty">' + escapeHtml(error.message) + "</div></td></tr>";
+      return;
+    }
+
+    body.innerHTML = rows.length
+      ? rows.map(renderNotStartedRow).join("")
+      : '<tr><td colspan="2"><div class="dashboard-empty">Everyone\'s either onboarding already or finished.</div></td></tr>';
+
+    body.querySelectorAll(".dashboard-onboarding-start-btn").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        btn.disabled = true;
+        btn.textContent = "Starting...";
+        try {
+          var payload = {};
+          payload[config.startParam] = btn.dataset.person;
+          await apiPost(config.startMethod, payload);
+          await loadOverview();
+        } catch (error) {
+          window.alert(error.message || "Could not start onboarding for this person.");
+          btn.disabled = false;
+          btn.textContent = "Start Onboarding";
+        }
+      });
+    });
+  }
+
   async function loadOverview() {
     var config = ROLE_CONFIG[currentRole];
     var body = el("onboardingOverviewBody");
@@ -545,6 +603,8 @@
     if (detail) detail.style.display = "none";
     if (manager) manager.style.display = "none";
     if (table) table.style.display = "";
+
+    loadNotYetStarted();
 
     var rows;
     try {
