@@ -665,7 +665,22 @@ def _is_locked(row, done_step_names):
     return bool(row.depends_on_step) and row.depends_on_step not in done_step_names and row.status != "Done"
 
 
-def _group_by_stage(rows):
+def _group_by_stage(rows, hq_unlocked=False):
+    """
+    hq_unlocked is set when this is HQ's own franchisor drill-down (see
+    is_drill_down in get_my_onboarding_steps/get_my_session_worker_
+    onboarding_steps) - "some steps i can do earlier byt they are
+    locked down so i can not mark them as done": HQ isn't bound by the
+    "only show now and next" sequencing a coach/session worker sees
+    (that's a UX choice for THEM, not a real database-level gate - see
+    the module docstring), so nothing here should ever actually stop
+    her acting on a step early, out of order, when she already knows
+    it's genuinely ready. Every step, including Legal Record/LMS-tracked
+    ones, shows unlocked (Go link included) here regardless of Depends
+    On - the status dropdown already let her override those regardless
+    of lock state, this just stops the step looking (and partly acting)
+    blocked in the one view where that was never actually true.
+    """
     done_step_names = {row.onboarding_step for row in rows if row.status == "Done"}
 
     stages = []
@@ -692,7 +707,7 @@ def _group_by_stage(rows):
             "link_url": row.link_url or "",
             "completed_on": row.completed_on,
             "notes": row.notes or "",
-            "is_locked": _is_locked(row, done_step_names),
+            "is_locked": False if hq_unlocked else _is_locked(row, done_step_names),
             "hidden_from_coach": bool(row.hidden_from_coach),
             # Carried through so _append_step_to_stage can slot a dynamic
             # step (e.g. Operations Manual) in among these by position
@@ -787,7 +802,7 @@ def get_my_onboarding_steps(coach=None):
 
     rows = sorted(rows, key=lambda row: (row.stage_sort_order or 0, row.sort_order or 0))
 
-    stages = _group_by_stage(rows)
+    stages = _group_by_stage(rows, hq_unlocked=is_drill_down)
     policy_stage = _dynamic_policies_stage(coach_name, view_as_coach=view_as_coach)
     _insert_dynamic_stage(stages, policy_stage, after_stage_number=4)
 
@@ -863,7 +878,7 @@ def get_my_session_worker_onboarding_steps(session_worker=None):
 
     rows = sorted(rows, key=lambda row: (row.stage_sort_order or 0, row.sort_order or 0))
 
-    stages = _group_by_stage(rows)
+    stages = _group_by_stage(rows, hq_unlocked=is_drill_down)
     policy_stage = _dynamic_policies_stage_for_session_worker(session_worker_name, view_as_session_worker=view_as_session_worker)
     _insert_dynamic_stage(stages, policy_stage, after_stage_number=4)
 
