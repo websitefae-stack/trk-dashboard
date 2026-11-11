@@ -1255,6 +1255,98 @@ def mark_session_worker_step_done_for_hq(step_name=None, status=None):
     return {"ok": True, "status": row.status}
 
 
+@frappe.whitelist()
+def get_coaches_not_yet_onboarding():
+    """
+    Franchisor-only: every coach who hasn't had Start Onboarding ticked
+    yet, for the dashboard's own "Start Onboarding" picker - "i need to
+    see the list of coaches and session workers so i can just click to
+    say start onboarding. i dont want to do this in desk". Excludes
+    Ashley's own Coach record, same as get_coaches() does, for the same
+    reason - franchisor-facing coach pickers never need to offer her own.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to view this."), frappe.PermissionError)
+
+    rows = frappe.get_all(
+        "Coach",
+        filters=[["start_onboarding", "!=", 1], ["user", "!=", frappe.session.user]],
+        fields=["name", "coach_name"],
+        order_by="coach_name asc",
+        limit_page_length=5000,
+    )
+    return [{"name": row.name, "label": row.coach_name or row.name} for row in rows]
+
+
+@frappe.whitelist()
+def start_coach_onboarding(coach=None):
+    """
+    Franchisor-only: ticks Start Onboarding on a coach's behalf from the
+    dashboard itself, rather than needing Desk access. Loads and saves
+    the real document (not a targeted frappe.db.set_value) specifically
+    so Coach.on_update's own provision_onboarding_steps hook fires
+    exactly as it would from a Desk edit - has_value_changed included -
+    reusing that one existing code path rather than duplicating what it
+    does here.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    coach = coalesce_str("coach", coach)
+    if not coach or not frappe.db.exists("Coach", coach):
+        frappe.throw(_("Coach not found."))
+
+    doc = frappe.get_doc("Coach", coach)
+    if doc.get("start_onboarding"):
+        return {"ok": True, "already_started": True}
+
+    doc.start_onboarding = 1
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True, "already_started": False}
+
+
+@frappe.whitelist()
+def get_session_workers_not_yet_onboarding():
+    """Session Worker equivalent of get_coaches_not_yet_onboarding."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to view this."), frappe.PermissionError)
+
+    sw_meta = frappe.get_meta("Session Worker")
+    display_field = "sw_name" if sw_meta.has_field("sw_name") else "name"
+
+    rows = frappe.get_all(
+        "Session Worker",
+        filters=[["start_onboarding", "!=", 1]],
+        fields=["name", display_field],
+        order_by=f"{display_field} asc",
+        limit_page_length=5000,
+    )
+    return [{"name": row.name, "label": row.get(display_field) or row.name} for row in rows]
+
+
+@frappe.whitelist()
+def start_session_worker_onboarding(session_worker=None):
+    """Session Worker equivalent of start_coach_onboarding."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    session_worker = coalesce_str("session_worker", session_worker)
+    if not session_worker or not frappe.db.exists("Session Worker", session_worker):
+        frappe.throw(_("Session Worker not found."))
+
+    doc = frappe.get_doc("Session Worker", session_worker)
+    if doc.get("start_onboarding"):
+        return {"ok": True, "already_started": True}
+
+    doc.start_onboarding = 1
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True, "already_started": False}
+
+
 def _ensure_all_started_coaches_provisioned():
     """
     Same self-healing as get_my_onboarding_steps, but for every coach at
