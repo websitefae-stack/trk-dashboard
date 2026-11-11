@@ -170,19 +170,26 @@
     });
   }
 
-  // Most existing coaches were never opted into the onboarding journey
-  // (it's opt-in, per coach - see start_onboarding on the Coach
-  // doctype), so the sidebar link is only worth showing to a coach who
-  // actually has a checklist. Franchisor-side nav keeps its own
-  // Onboarding link regardless, since that one is the overview across
-  // every coach, not tied to any single coach having steps.
+  // Most existing coaches/session workers were never opted into the
+  // onboarding journey (it's opt-in, per person - see start_onboarding
+  // on Coach/Session Worker), so the sidebar link is only worth showing
+  // to someone who actually has a checklist. Franchisor-side nav keeps
+  // its own Onboarding link regardless, since that one is the overview
+  // across everyone, not tied to any single person having steps.
   async function hideOnboardingLinkIfUnused() {
-    if (window.location.pathname.indexOf("/coach_db/") !== 0) return;
+    var isCoach = window.location.pathname.indexOf("/coach_db/") === 0;
+    var isSessionWorker = window.location.pathname.indexOf("/session_worker_db/") === 0;
+    if (!isCoach && !isSessionWorker) return;
 
-    const link = qs('.dashboard-nav a[href^="/coach_db/onboarding"]');
+    var base = isCoach ? "/coach_db/onboarding" : "/session_worker_db/onboarding";
+    var method = isCoach
+      ? "dashboard.api.shared.onboarding.coach_has_onboarding_steps"
+      : "dashboard.api.shared.onboarding.session_worker_has_onboarding_steps";
+
+    const link = qs('.dashboard-nav a[href^="' + base + '"]');
     if (!link) return;
 
-    const data = await callApi("dashboard.api.shared.onboarding.coach_has_onboarding_steps", {});
+    const data = await callApi(method, {});
     if (data && (!data.has_steps || data.all_done)) {
       link.style.display = "none";
     }

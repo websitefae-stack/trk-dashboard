@@ -98,6 +98,11 @@
             <span>Affiliate</span>
         </a>
 
+        <a href="/session_worker_db/onboarding{{ session_worker_view_query or '' }}" class="{% if active_page == 'onboarding' %}is-active{% endif %}">
+            <span class="dashboard-nav-icon">🧭</span>
+            <span>Onboarding</span>
+        </a>
+
         <a href="/session_worker_db/profile{{ session_worker_view_query or '' }}" class="{% if active_page == 'profile' %}is-active{% endif %}">
             <span class="dashboard-nav-icon">⚙️</span>
             <span>Profile</span>

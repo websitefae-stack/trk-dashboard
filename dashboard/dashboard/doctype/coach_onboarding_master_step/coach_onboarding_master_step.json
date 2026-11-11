@@ -12,6 +12,7 @@
   "hidden_from_coach",
   "column_break_active",
   "owner_type",
+  "applies_to",
   "column_break_stage",
   "stage",
   "stage_sort_order",
@@ -23,6 +24,7 @@
   "lms_course",
   "lms_chapter",
   "lms_lesson_number",
+  "legal_record_fieldname",
   "column_break_details",
   "depends_on"
  ],
@@ -62,6 +64,16 @@
    "label": "Owner",
    "options": "Coach\nHQ",
    "reqd": 1
+  },
+  {
+   "default": "Coach",
+   "fieldname": "applies_to",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Applies To",
+   "options": "Coach\nSession Worker\nBoth",
+   "reqd": 1,
+   "description": "Who this step is provisioned for. \"Both\" is one shared step - edit it once here and it's current for coaches and session workers alike. Every step that existed before this field was added defaults to \"Coach\" (its only previous behaviour), so nothing already live changes just because this field exists."
   },
   {
    "fieldname": "column_break_stage",
@@ -130,6 +142,12 @@
    "fieldtype": "Int",
    "label": "LMS Lesson Number",
    "description": "Which lesson within the chapter Go should open (its position in the chapter's lesson list, not the lesson's own name) - Done still requires every lesson in the chapter, not just this one."
+  },
+  {
+   "fieldname": "legal_record_fieldname",
+   "fieldtype": "Data",
+   "label": "Legal Record Type",
+   "description": "Only used when Where It Happens is exactly \"Legal Record\" - one of profile.py's LEGAL_RECORD_CONFIG keys (e.g. \"safeguarding_certificate\", \"dbs\", \"identification\"), not a raw fieldname - the matching child table on Coach/Session Worker is resolved per role from there, since it isn't always spelled the same way on both (e.g. DBS Update Service). This step is marked Done automatically the moment that table has a row with its file attached - never by Mark Done, and never locked by Depends On regardless of what that's set to."
   },
   {
    "fieldname": "column_break_details",

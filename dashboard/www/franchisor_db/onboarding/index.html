@@ -11,7 +11,7 @@
       <div class="dashboard-page-header">
         <div>
           <h1 class="dashboard-page-title">Onboarding</h1>
-          <p class="dashboard-page-subtitle">Every coach currently onboarding, and what's waiting on HQ</p>
+          <p class="dashboard-page-subtitle" id="onboardingPageSubtitle">Every coach currently onboarding, and what's waiting on HQ</p>
         </div>
 
         <div class="dashboard-page-actions">
@@ -21,16 +21,22 @@
         </div>
       </div>
 
+      <div class="dashboard-tabs" id="onboardingRoleTabs" style="margin-bottom:18px;">
+        <button type="button" class="dashboard-tab-btn is-active" data-role="coach">Coaches</button>
+        <button type="button" class="dashboard-tab-btn" data-role="session_worker">Session Workers</button>
+      </div>
+
       <div id="onboardingStepManagerSection" style="display:none;">
         <div class="dashboard-page-actions" style="margin-bottom:14px;">
           <button type="button" class="dashboard-btn dashboard-btn-secondary" id="onboardingStepManagerBackBtn">
-            &larr; Back to coach progress
+            &larr; Back to progress
           </button>
         </div>
         <p class="dashboard-page-subtitle" style="margin-bottom:14px;">
-          Add a link to any step so a coach can click straight through to where they need to go - an internal
+          Add a link to any step so someone can click straight through to where they need to go - an internal
           dashboard page (e.g. <code>/coach_db/documents</code>) or a full external link (LMS module, etc.).
-          Saving here updates every coach already on that step too, not just coaches who start from now on.
+          Saving here updates everyone already on that step too, not just whoever starts from now on. Every
+          step shows here regardless of its Applies To - Coach, Session Worker or Both.
         </p>
         <div id="onboardingStepManagerContent"></div>
       </div>
@@ -41,7 +47,7 @@
           <table class="dashboard-table dashboard-doc-list-table">
             <thead>
               <tr>
-                <th>Coach</th>
+                <th id="onboardingPersonColumnHeader">Coach</th>
                 <th>Current Stage</th>
                 <th>Progress</th>
                 <th>Waiting on HQ</th>
@@ -58,7 +64,7 @@
           <table class="dashboard-table dashboard-doc-list-table">
             <thead>
               <tr>
-                <th>Coach</th>
+                <th id="onboardingPersonColumnHeaderCompleted">Coach</th>
                 <th>Current Stage</th>
                 <th>Progress</th>
                 <th>Waiting on HQ</th>
@@ -74,11 +80,11 @@
       <div id="onboardingOverviewDetail" style="display:none;">
         <div class="dashboard-page-actions" style="margin-bottom:14px;">
           <button type="button" class="dashboard-btn dashboard-btn-secondary" id="onboardingOverviewBackBtn">
-            &larr; Back to all coaches
+            &larr; Back to all
           </button>
         </div>
         <h2 class="dashboard-detail-section-title" id="onboardingOverviewDetailTitle"></h2>
-        <p class="dashboard-page-subtitle">Every step for this coach - green once done, light red while outstanding.</p>
+        <p class="dashboard-page-subtitle">Every step - green once done, light red while outstanding.</p>
         <div id="onboardingOverviewDetailContent"></div>
       </div>
 

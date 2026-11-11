@@ -1,0 +1,236 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "autoincrement",
+ "creation": "2026-11-11 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "session_worker",
+  "onboarding_step",
+  "column_break_link",
+  "status",
+  "step_details_section",
+  "step_name",
+  "stage",
+  "owner_type",
+  "hidden_from_coach",
+  "column_break_step_details",
+  "stage_sort_order",
+  "sort_order",
+  "expected_result",
+  "where_it_happens",
+  "link_url",
+  "lms_course",
+  "lms_chapter",
+  "lms_lesson_number",
+  "legal_record_fieldname",
+  "depends_on_step",
+  "completion_section",
+  "completed_on",
+  "completed_by",
+  "column_break_completion",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "session_worker",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Session Worker",
+   "options": "Session Worker",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "onboarding_step",
+   "fieldtype": "Link",
+   "label": "Onboarding Step",
+   "options": "Coach Onboarding Master Step",
+   "read_only": 1,
+   "reqd": 1,
+   "description": "Same master step list Coach Onboarding Step draws from - see its own Applies To field."
+  },
+  {
+   "fieldname": "column_break_link",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Not Started",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Not Started\nIn Progress\nWaiting on HQ\nReady for You\nDone"
+  },
+  {
+   "fieldname": "step_details_section",
+   "fieldtype": "Section Break",
+   "label": "Step Details",
+   "description": "Copied from the Onboarding Step at the point this was created, so a later edit to the master step doesn't rewrite a session worker's history of what they were actually asked to do."
+  },
+  {
+   "fetch_from": "onboarding_step.step_name",
+   "fieldname": "step_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Step Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.stage",
+   "fieldname": "stage",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Stage",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.owner_type",
+   "fieldname": "owner_type",
+   "fieldtype": "Select",
+   "label": "Owner",
+   "options": "Coach\nHQ",
+   "read_only": 1,
+   "description": "\"Coach\" here means the person being onboarded (the session worker), not literally a Coach record - same label kept so both checklists read the same way."
+  },
+  {
+   "fetch_from": "onboarding_step.hidden_from_coach",
+   "fieldname": "hidden_from_coach",
+   "fieldtype": "Check",
+   "label": "Hidden From Session Worker",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_step_details",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "onboarding_step.stage_sort_order",
+   "fieldname": "stage_sort_order",
+   "fieldtype": "Int",
+   "label": "Stage Sort Order",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.sort_order",
+   "fieldname": "sort_order",
+   "fieldtype": "Int",
+   "label": "Sort Order Within Stage",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.expected_result",
+   "fieldname": "expected_result",
+   "fieldtype": "Small Text",
+   "label": "Expected Result When Done",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.where_it_happens",
+   "fieldname": "where_it_happens",
+   "fieldtype": "Data",
+   "label": "Where It Happens",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.link_url",
+   "fieldname": "link_url",
+   "fieldtype": "Data",
+   "label": "Link URL",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.lms_course",
+   "fieldname": "lms_course",
+   "fieldtype": "Link",
+   "options": "LMS Course",
+   "label": "LMS Course",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.lms_chapter",
+   "fieldname": "lms_chapter",
+   "fieldtype": "Link",
+   "options": "Course Chapter",
+   "label": "LMS Chapter",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.lms_lesson_number",
+   "fieldname": "lms_lesson_number",
+   "fieldtype": "Int",
+   "label": "LMS Lesson Number",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.legal_record_fieldname",
+   "fieldname": "legal_record_fieldname",
+   "fieldtype": "Data",
+   "label": "Legal Record Fieldname",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.depends_on",
+   "fieldname": "depends_on_step",
+   "fieldtype": "Link",
+   "label": "Depends On Step",
+   "options": "Coach Onboarding Master Step",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completion_section",
+   "fieldtype": "Section Break",
+   "label": "Completion"
+  },
+  {
+   "fieldname": "completed_on",
+   "fieldtype": "Datetime",
+   "label": "Completed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completed_by",
+   "fieldtype": "Link",
+   "label": "Completed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_completion",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-11-11 00:00:01.000000",
+ "modified_by": "Administrator",
+ "module": "Dashboard",
+ "name": "Session Worker Onboarding Step",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

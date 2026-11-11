@@ -77,12 +77,20 @@ jinja = {
 # add_session_worker_identification_and_safeguarding_fields needs its own
 # two new child doctypes (Session Worker Identification, Session Worker
 # Safeguarding Certificate) to already exist for the same reason.
+#
+# add_session_worker_onboarding_master_steps needs Coach Onboarding
+# Master Step's own new fields (applies_to, legal_record_fieldname) to
+# already exist - those were added straight to that module doctype's
+# json (it's module-owned, not a patch-created custom doctype), so
+# they're only guaranteed to exist once THIS deploy's own schema sync
+# has run, same ordering trap as every other entry here.
 after_migrate = [
     "dashboard.patches.create_store_manager_for_rachel_v2.execute",
     "dashboard.patches.add_item_gallery_field.execute",
     "dashboard.patches.add_coach_recognition_field.execute",
     "dashboard.patches.add_coach_identification_and_safeguarding_fields.execute",
     "dashboard.patches.add_session_worker_identification_and_safeguarding_fields.execute",
+    "dashboard.patches.add_session_worker_onboarding_master_steps.execute",
 ]
 
 # Keep appointments Private (Frappe's own permission model then restricts
@@ -241,24 +249,34 @@ doc_events = {
     # Session Worker equivalent of the Coach hook above. See
     # practice_documents.sync_session_worker_brand_document_requirements.
     "Session Worker": {
-        "on_update": "dashboard.api.shared.practice_documents.sync_session_worker_brand_document_requirements",
+        "on_update": [
+            "dashboard.api.shared.practice_documents.sync_session_worker_brand_document_requirements",
+            # Provisions the Session Worker Onboarding Journey the one
+            # time start_onboarding is ticked - see onboarding.
+            # provision_session_worker_onboarding_steps.
+            "dashboard.api.shared.onboarding.provision_session_worker_onboarding_steps",
+        ],
     },
     # link_url/lms_course/lms_chapter/lms_lesson_number are "always
     # current" fields (not a point-in-time snapshot like step_name,
     # which stays whatever a coach was actually told at the time), so any
-    # edit here needs to reach every coach already on this step - from
+    # edit here needs to reach every person already on this step - from
     # ANY save path (a direct Desk edit, not just the franchisor Manage
-    # Step List screen). See onboarding.sync_master_step_link_fields.
+    # Step List screen). One shared master list for Coach and Session
+    # Worker now (see its own Applies To field) - these hooks already
+    # push to whichever of the two per-person tables actually has a row
+    # for it, regardless of which role(s) the step applies to. See
+    # onboarding.sync_master_step_link_fields.
     "Coach Onboarding Master Step": {
         "on_update": [
             "dashboard.api.shared.onboarding.sync_master_step_link_fields",
-            # Unticking Active removes this step from every coach's
-            # checklist outright, re-ticking adds it back onto everyone
-            # already onboarding - see onboarding.sync_master_step_active_state.
+            # Unticking Active removes this step from every checklist
+            # outright, re-ticking adds it back onto everyone already
+            # onboarding - see onboarding.sync_master_step_active_state.
             "dashboard.api.shared.onboarding.sync_master_step_active_state",
         ],
         # Deleting the master step outright (not just unticking Active)
-        # used to leave every coach's own row for it stranded, silently
+        # used to leave every per-person row for it stranded, silently
         # inflating total_steps forever after - see
         # onboarding.remove_coach_steps_on_master_step_delete.
         "on_trash": "dashboard.api.shared.onboarding.remove_coach_steps_on_master_step_delete",
