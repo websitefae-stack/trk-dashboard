@@ -25,6 +25,7 @@
   "lms_course",
   "lms_chapter",
   "lms_lesson_number",
+  "legal_record_fieldname",
   "depends_on_step",
   "completion_section",
   "completed_on",
@@ -159,6 +160,13 @@
    "fieldname": "lms_lesson_number",
    "fieldtype": "Int",
    "label": "LMS Lesson Number",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "onboarding_step.legal_record_fieldname",
+   "fieldname": "legal_record_fieldname",
+   "fieldtype": "Data",
+   "label": "Legal Record Fieldname",
    "read_only": 1
   },
   {

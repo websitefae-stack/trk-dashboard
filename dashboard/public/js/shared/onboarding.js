@@ -296,13 +296,16 @@
     window.scrollTo(0, scrollY);
   }
 
-  function bindStepActions(container, onChange) {
+  function bindStepActions(container, onChange, markDoneForHqMethod, markDoneSelfMethod) {
+    markDoneForHqMethod = markDoneForHqMethod || (API + ".mark_step_done_for_coach");
+    markDoneSelfMethod = markDoneSelfMethod || (API + ".mark_step_done");
+
     container.querySelectorAll(".dashboard-onboarding-mark-done").forEach(function (btn) {
       btn.addEventListener("click", async function () {
         btn.disabled = true;
         btn.textContent = "Saving...";
         try {
-          await apiPost(API + ".mark_step_done", { step_name: btn.dataset.step });
+          await apiPost(markDoneSelfMethod, { step_name: btn.dataset.step });
           await runChangeKeepingScroll(onChange);
         } catch (error) {
           window.alert(error.message || "Could not update this step.");
@@ -316,7 +319,7 @@
       select.addEventListener("change", async function () {
         select.disabled = true;
         try {
-          await apiPost(API + ".mark_step_done_for_coach", { step_name: select.dataset.step, status: select.value });
+          await apiPost(markDoneForHqMethod, { step_name: select.dataset.step, status: select.value });
           await runChangeKeepingScroll(onChange);
         } catch (error) {
           window.alert(error.message || "Could not update this step.");
@@ -392,7 +395,7 @@
   }
 
   function initCoachOnboardingPage() {
-    if (!el("onboardingPage") || window.location.pathname.indexOf("/franchisor_db") !== -1) return;
+    if (!el("onboardingPage") || window.location.pathname.indexOf("/coach_db") !== 0) return;
 
     var checkbox = el("onboardingShowCompletedCheckbox");
     if (checkbox) {
@@ -407,17 +410,108 @@
   }
 
   // -------------------------------------------------------------------
+  // Session Worker's own page - same mechanism as the coach's own page
+  // above, kept as its own small set of functions (rather than threading
+  // a role parameter through renderMyOnboardingStages/loadMyOnboarding)
+  // since this is exactly the "one person's own view" case ROLE_CONFIG
+  // above was built for the franchisor overview, not this.
+  // -------------------------------------------------------------------
+
+  var SESSION_WORKER_HIDE_COMPLETED_STORAGE_KEY = "trk_sw_onboarding_show_completed";
+  var lastSessionWorkerOnboardingData = null;
+
+  function renderMySessionWorkerOnboardingStages() {
+    var content = el("onboardingContent");
+    if (!content || !lastSessionWorkerOnboardingData) return;
+
+    var hideCompleted = !getShowCompletedPreference(SESSION_WORKER_HIDE_COMPLETED_STORAGE_KEY);
+    content.innerHTML = lastSessionWorkerOnboardingData.stages
+      .map(function (stage) { return renderStage(stage, false, hideCompleted); })
+      .join("");
+    bindStepActions(content, loadMySessionWorkerOnboarding, null, API + ".mark_session_worker_step_done");
+  }
+
+  async function loadMySessionWorkerOnboarding() {
+    var content = el("onboardingContent");
+    if (!content) return;
+
+    var data;
+    try {
+      data = await apiGet(API + ".get_my_session_worker_onboarding_steps", {});
+    } catch (error) {
+      content.innerHTML = '<div class="dashboard-empty">' + escapeHtml(error.message) + "</div>";
+      return;
+    }
+
+    if (!data.started) {
+      content.innerHTML = '<div class="dashboard-empty">Your onboarding journey hasn\'t started yet - reach out if you think this is a mistake.</div>';
+      return;
+    }
+
+    lastSessionWorkerOnboardingData = data;
+    renderProgress(data);
+    renderMySessionWorkerOnboardingStages();
+  }
+
+  function initSessionWorkerOnboardingPage() {
+    if (!el("onboardingPage") || window.location.pathname.indexOf("/session_worker_db") !== 0) return;
+
+    var checkbox = el("onboardingShowCompletedCheckbox");
+    if (checkbox) {
+      checkbox.checked = getShowCompletedPreference(SESSION_WORKER_HIDE_COMPLETED_STORAGE_KEY);
+      checkbox.addEventListener("change", function () {
+        setShowCompletedPreference(SESSION_WORKER_HIDE_COMPLETED_STORAGE_KEY, checkbox.checked);
+        renderMySessionWorkerOnboardingStages();
+      });
+    }
+
+    loadMySessionWorkerOnboarding();
+  }
+
+  // -------------------------------------------------------------------
   // Franchisor overview + drill-down
   // -------------------------------------------------------------------
 
+  // Role config for the franchisor overview/drill-down - lets the same
+  // markup and rendering code serve Coaches and Session Workers, rather
+  // than a second parallel set of functions. ROLE_API's method names
+  // intentionally match onboarding.py's real whitelisted names - see
+  // its own docstrings for each.
+  var ROLE_CONFIG = {
+    coach: {
+      personKey: "coach",
+      labelKey: "coach_label",
+      personLabel: "Coach",
+      personLabelPlural: "coaches",
+      overviewMethod: API + ".get_all_coaches_onboarding_progress",
+      detailMethod: API + ".get_my_onboarding_steps",
+      detailParam: "coach",
+      markDoneMethod: API + ".mark_step_done_for_coach",
+    },
+    session_worker: {
+      personKey: "session_worker",
+      labelKey: "session_worker_label",
+      personLabel: "Session Worker",
+      personLabelPlural: "session workers",
+      overviewMethod: API + ".get_all_session_workers_onboarding_progress",
+      detailMethod: API + ".get_my_session_worker_onboarding_steps",
+      detailParam: "session_worker",
+      markDoneMethod: API + ".mark_session_worker_step_done_for_hq",
+    }
+  };
+
+  var currentRole = "coach";
+
   function renderOverviewRow(row) {
     var pct = row.total_steps ? Math.round((row.done_steps / row.total_steps) * 100) : 0;
+    var config = ROLE_CONFIG[currentRole];
+    var personName = row[config.personKey];
 
     return (
       "<tr>" +
         "<td>" +
-          '<a href="#" class="dashboard-onboarding-view-coach" data-coach="' + escapeHtml(row.coach) + '">' +
-            escapeHtml(row.coach_label) +
+          '<a href="#" class="dashboard-onboarding-view-coach" data-person="' + escapeHtml(personName) + '">' +
+            escapeHtml(row[config.labelKey]) +
           "</a>" +
         "</td>" +
         "<td>" + escapeHtml(row.current_stage) + "</td>" +
@@ -431,12 +525,22 @@
   }
 
   async function loadOverview() {
+    var config = ROLE_CONFIG[currentRole];
     var body = el("onboardingOverviewBody");
     var completedBody = el("onboardingOverviewCompletedBody");
     var table = el("onboardingOverviewTable");
     var detail = el("onboardingOverviewDetail");
     var manager = el("onboardingStepManagerSection");
+    var personHeader = el("onboardingPersonColumnHeader");
+    var personHeaderCompleted = el("onboardingPersonColumnHeaderCompleted");
+    var subtitle = el("onboardingPageSubtitle");
     if (!body) return;
+
+    if (personHeader) personHeader.textContent = config.personLabel;
+    if (personHeaderCompleted) personHeaderCompleted.textContent = config.personLabel;
+    if (subtitle) {
+      subtitle.textContent = "Every " + config.personLabel.toLowerCase() + " currently onboarding, and what's waiting on HQ";
+    }
 
     if (detail) detail.style.display = "none";
     if (manager) manager.style.display = "none";
@@ -444,7 +548,7 @@
 
     var rows;
     try {
-      rows = await apiGet(API + ".get_all_coaches_onboarding_progress", {});
+      rows = await apiGet(config.overviewMethod, {});
     } catch (error) {
       body.innerHTML = '<tr><td colspan="4"><div class="dashboard-empty">' + escapeHtml(error.message) + "</div></td></tr>";
       if (completedBody) completedBody.innerHTML = "";
@@ -452,8 +556,8 @@
     }
 
     if (!rows.length) {
-      body.innerHTML = '<tr><td colspan="4"><div class="dashboard-empty">No coaches are currently onboarding.</div></td></tr>';
-      if (completedBody) completedBody.innerHTML = '<tr><td colspan="4"><div class="dashboard-empty">No coaches have completed onboarding yet.</div></td></tr>';
+      body.innerHTML = '<tr><td colspan="4"><div class="dashboard-empty">No ' + config.personLabelPlural + ' are currently onboarding.</div></td></tr>';
+      if (completedBody) completedBody.innerHTML = '<tr><td colspan="4"><div class="dashboard-empty">No ' + config.personLabelPlural + ' have completed onboarding yet.</div></td></tr>';
       return;
     }
 
@@ -462,12 +566,12 @@
 
     body.innerHTML = inProgress.length
       ? inProgress.map(renderOverviewRow).join("")
-      : '<tr><td colspan="4"><div class="dashboard-empty">No coaches are currently onboarding.</div></td></tr>';
+      : '<tr><td colspan="4"><div class="dashboard-empty">No ' + config.personLabelPlural + ' are currently onboarding.</div></td></tr>';
 
     if (completedBody) {
       completedBody.innerHTML = completed.length
         ? completed.map(renderOverviewRow).join("")
-        : '<tr><td colspan="4"><div class="dashboard-empty">No coaches have completed onboarding yet.</div></td></tr>';
+        : '<tr><td colspan="4"><div class="dashboard-empty">No ' + config.personLabelPlural + ' have completed onboarding yet.</div></td></tr>';
     }
 
     [body, completedBody].forEach(function (tbody) {
@@ -475,7 +579,7 @@
       tbody.querySelectorAll(".dashboard-onboarding-view-coach").forEach(function (link) {
         link.addEventListener("click", function (event) {
           event.preventDefault();
-          loadCoachDetail(link.dataset.coach);
+          loadCoachDetail(link.dataset.person);
         });
       });
     });
@@ -494,10 +598,11 @@
     content.innerHTML = lastCoachDetailData.stages
       .map(function (stage) { return renderStage(stage, true, false); })
       .join("");
-    bindStepActions(content, function () { loadCoachDetail(lastCoachDetailName); });
+    bindStepActions(content, function () { loadCoachDetail(lastCoachDetailName); }, ROLE_CONFIG[currentRole].markDoneMethod);
   }
 
-  async function loadCoachDetail(coachName) {
+  async function loadCoachDetail(personName) {
+    var config = ROLE_CONFIG[currentRole];
     var table = el("onboardingOverviewTable");
     var detail = el("onboardingOverviewDetail");
     var manager = el("onboardingStepManagerSection");
@@ -508,19 +613,21 @@
     if (table) table.style.display = "none";
     if (manager) manager.style.display = "none";
     detail.style.display = "block";
-    if (title) title.textContent = "Onboarding - " + coachName;
+    if (title) title.textContent = "Onboarding - " + personName;
     content.innerHTML = '<div class="dashboard-empty">Loading...</div>';
 
     var data;
     try {
-      data = await apiGet(API + ".get_my_onboarding_steps", { coach: coachName });
+      var params = {};
+      params[config.detailParam] = personName;
+      data = await apiGet(config.detailMethod, params);
     } catch (error) {
       content.innerHTML = '<div class="dashboard-empty">' + escapeHtml(error.message) + "</div>";
       return;
     }
 
     lastCoachDetailData = data;
-    lastCoachDetailName = coachName;
+    lastCoachDetailName = personName;
     renderCoachDetailStages();
   }
 
@@ -605,10 +712,14 @@
           '" placeholder="/coach_db/... or https://...">';
     }
 
+    var appliesToBadge = step.applies_to && step.applies_to !== "Coach"
+      ? ' <span class="dashboard-badge doc-status-new">' + escapeHtml(step.applies_to) + "</span>"
+      : "";
+
     return (
       "<tr>" +
         "<td>" +
-          '<div class="dashboard-doc-list-title">' + escapeHtml(step.step_name) + "</div>" +
+          '<div class="dashboard-doc-list-title">' + escapeHtml(step.step_name) + appliesToBadge + "</div>" +
           (step.expected_result ? '<div class="dashboard-doc-list-meta">' + escapeHtml(step.expected_result) + "</div>" : "") +
         "</td>" +
         "<td>" + escapeHtml(step.owner_type) + "</td>" +
@@ -631,6 +742,80 @@
         "</table>" +
       "</div>"
     );
+  }
+
+  // Lets HQ reuse one existing LMS chapter (and every lesson in it)
+  // under a second course - e.g. "Access your emails with Chantelle
+  // Venter" showing in both the Coach course and a Session Worker-only
+  // course - without duplicating the chapter or its lessons. See
+  // onboarding.link_existing_chapter_to_course's own docstring for how
+  // this actually works and its one cosmetic caveat.
+  function renderChapterShareTool(chapters) {
+    var courseSeen = {};
+    var courseOptions = "";
+    chapters.forEach(function (c) {
+      if (courseSeen[c.course]) return;
+      courseSeen[c.course] = true;
+      courseOptions += '<option value="' + escapeHtml(c.course) + '">' + escapeHtml(c.course_title) + "</option>";
+    });
+
+    var chapterOptions = chapters.map(function (c) {
+      return '<option value="' + escapeHtml(c.chapter_name) + '">' +
+        escapeHtml(c.chapter_title) + " (currently in " + escapeHtml(c.course_title) + ")</option>";
+    }).join("");
+
+    return (
+      '<div class="dashboard-card" style="margin-bottom:18px;">' +
+        '<h3 class="dashboard-onboarding-stage-title">Share an Existing Module With Another Course</h3>' +
+        '<p class="dashboard-doc-list-meta">Picks an existing chapter (with all its lessons) into a second course too - nothing is copied, so editing the lesson still only ever needs doing in one place.</p>' +
+        '<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-top:10px;">' +
+          '<div>' +
+            '<label class="dashboard-field-label">Module (chapter) to share</label>' +
+            '<select class="dashboard-select" id="onboardingShareChapterSelect">' + chapterOptions + "</select>" +
+          "</div>" +
+          '<div>' +
+            '<label class="dashboard-field-label">Add it to this course</label>' +
+            '<select class="dashboard-select" id="onboardingShareCourseSelect">' + courseOptions + "</select>" +
+          "</div>" +
+          '<button type="button" class="dashboard-btn dashboard-btn-primary" id="onboardingShareChapterBtn">Share</button>' +
+        "</div>" +
+        '<div class="dashboard-doc-list-meta" id="onboardingShareChapterResult"></div>' +
+      "</div>"
+    );
+  }
+
+  function bindChapterShareTool() {
+    var btn = el("onboardingShareChapterBtn");
+    if (!btn) return;
+
+    btn.addEventListener("click", async function () {
+      var chapterSelect = el("onboardingShareChapterSelect");
+      var courseSelect = el("onboardingShareCourseSelect");
+      var result = el("onboardingShareChapterResult");
+      if (!chapterSelect || !courseSelect) return;
+
+      btn.disabled = true;
+      btn.textContent = "Sharing...";
+      if (result) result.textContent = "";
+
+      try {
+        var response = await apiPost(API + ".link_existing_chapter_to_course", {
+          course: courseSelect.value,
+          chapter_name: chapterSelect.value,
+        });
+        if (result) {
+          result.textContent = response.already_linked
+            ? "That module is already in this course."
+            : "Done - that module now shows under this course too. Pick it from the chapter dropdown on the matching step below.";
+        }
+        await loadStepManager();
+      } catch (error) {
+        if (result) result.textContent = error.message || "Could not share this module.";
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Share";
+      }
+    });
   }
 
   async function loadStepManager() {
@@ -665,7 +850,9 @@
       return;
     }
 
-    content.innerHTML = stages.map(function (stage) { return renderStepManagerStage(stage, chapters); }).join("");
+    content.innerHTML = (chapters.length ? renderChapterShareTool(chapters) : "") +
+      stages.map(function (stage) { return renderStepManagerStage(stage, chapters); }).join("");
+    bindChapterShareTool();
 
     // Picking a different chapter needs the lesson dropdown next to it
     // rebuilt from that chapter's own lessons - it's a fresh list per
@@ -738,6 +925,19 @@
     var table = el("onboardingOverviewTable");
     if (!table) return;
 
+    var roleTabs = el("onboardingRoleTabs");
+    if (roleTabs) {
+      roleTabs.querySelectorAll(".dashboard-tab-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          if (btn.dataset.role === currentRole) return;
+          roleTabs.querySelectorAll(".dashboard-tab-btn").forEach(function (b) { b.classList.remove("is-active"); });
+          btn.classList.add("is-active");
+          currentRole = btn.dataset.role;
+          loadOverview();
+        });
+      });
+    }
+
     loadOverview();
 
     var backBtn = el("onboardingOverviewBackBtn");
@@ -760,6 +960,7 @@
 
   function init() {
     initCoachOnboardingPage();
+    initSessionWorkerOnboardingPage();
     initFranchisorOnboardingPage();
   }
 

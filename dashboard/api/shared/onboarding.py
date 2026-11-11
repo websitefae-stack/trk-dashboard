@@ -1,25 +1,38 @@
 """
-Coach Onboarding Journey - Tier 1.
+Onboarding Journey - Tier 1. Covers Coach and Session Worker from the
+same master step list.
 
-Two doctypes: "Onboarding Step" is the master template (managed directly in
-the Frappe Desk by HQ, same pattern as Practice Document), and "Coach
-Onboarding Step" is one row per coach per step, created only once - when
-that coach's own "Start Onboarding" checkbox is ticked (see
-provision_onboarding_steps, hooked on Coach.on_update). This is
-deliberately opt-in and per coach: existing coaches are never affected,
-since nothing here runs unless that field is explicitly ticked.
+Two doctypes drive each role: "Coach Onboarding Master Step" is the one
+shared master template (managed directly in the Frappe Desk by HQ, same
+pattern as Practice Document) - its "Applies To" field (Coach/Session
+Worker/Both) decides who a step is provisioned for, so a step that's
+identical for both roles (wording, link, LMS chapter - everything)
+needs editing in exactly one place. "Coach Onboarding Step"/"Session
+Worker Onboarding Step" are then one row per person per step, created
+only once - when that person's own "Start Onboarding" checkbox is
+ticked (see provision_onboarding_steps/provision_session_worker_
+onboarding_steps, hooked on Coach.on_update/Session Worker.on_update).
+This is deliberately opt-in and per person: nobody already onboarded is
+ever affected, since nothing here runs unless that field is explicitly
+ticked.
 
-A step whose Onboarding Step has a "Depends On" set shows as locked (not
-yet actionable) for a coach until the step it depends on is Done - see
-_is_locked below. This is the "only show now and next" behaviour from the
-onboarding journey design, not a hard database-level gate.
+A step whose master step has a "Depends On" set shows as locked (not
+yet actionable) until the step it depends on is Done - see _is_locked
+below. This is the "only show now and next" behaviour from the
+onboarding journey design, not a hard database-level gate. A step can
+also mark itself Done automatically rather than being locked/unlocked
+at all - see LMS progress (where_it_happens "LMS") and Legal Record
+completion (where_it_happens "Legal Record", e.g. Safeguarding Training
+only being considered done once an actual certificate is on file) below.
 """
 
 import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
-from dashboard.api.shared.permissions import ensure_logged_in, is_franchisor_user, get_current_coach_name
+from dashboard.api.shared.permissions import (
+    ensure_logged_in, is_franchisor_user, get_current_coach_name, get_current_session_worker_name,
+)
 from dashboard.api.shared.utils import coalesce_str
 
 # The one HQ-owned step that gates the start of the legal-document
@@ -31,18 +44,23 @@ from dashboard.api.shared.utils import coalesce_str
 TRAINING_DAY_STEP_NAME = "Training Day - curriculum, Resilient Kid Values, Resilient Kid Framework, Photoshoot"
 
 COACH_ONBOARDING_STEP_DOCTYPE = "Coach Onboarding Step"
+SESSION_WORKER_ONBOARDING_STEP_DOCTYPE = "Session Worker Onboarding Step"
 # Deliberately NOT "Onboarding Step" - that name collides with a doctype
 # Frappe's own core framework already ships (used for ERPNext's built-in
 # "Getting Started" setup guidance). Creating a doctype with that same
 # name overwrote the core one's schema, which is why this is prefixed.
+# Shared by both Coach and Session Worker - see module docstring.
 ONBOARDING_STEP_DOCTYPE = "Coach Onboarding Master Step"
 
-COACH_STEP_FIELDS = [
+_STEP_FIELDS = [
     "name", "onboarding_step", "step_name", "stage", "owner_type", "status",
     "expected_result", "where_it_happens", "link_url",
-    "lms_course", "lms_chapter", "lms_lesson_number", "hidden_from_coach",
+    "lms_course", "lms_chapter", "lms_lesson_number", "legal_record_fieldname", "hidden_from_coach",
     "depends_on_step", "stage_sort_order", "sort_order", "completed_on", "completed_by", "notes",
 ]
+# Kept as the original name too - every existing caller (and anyone
+# reading this module fresh) looks for the Coach-specific name first.
+COACH_STEP_FIELDS = _STEP_FIELDS
 
 
 def provision_onboarding_steps(doc, method=None):
@@ -69,8 +87,32 @@ def provision_onboarding_steps(doc, method=None):
         frappe.log_error(frappe.get_traceback(), f"Onboarding Provisioning Failed - {doc.name}")
 
 
+def provision_session_worker_onboarding_steps(doc, method=None):
+    """
+    Session Worker.on_update hook - same trigger as provision_onboarding_
+    steps above, for Session Worker's own start_onboarding field.
+    """
+    if not doc.get("start_onboarding"):
+        return
+
+    if not doc.has_value_changed("start_onboarding"):
+        return
+
+    if frappe.db.exists(SESSION_WORKER_ONBOARDING_STEP_DOCTYPE, {"session_worker": doc.name}):
+        return
+
+    try:
+        _create_session_worker_onboarding_steps(doc.name)
+        frappe.db.set_value(
+            "Session Worker", doc.name, "onboarding_started_on", now_datetime(), update_modified=False,
+        )
+        frappe.db.commit()
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Session Worker Onboarding Provisioning Failed - {doc.name}")
+
+
 MASTER_STEP_LIVE_FIELDS = [
-    "link_url", "lms_course", "lms_chapter", "lms_lesson_number", "hidden_from_coach",
+    "link_url", "lms_course", "lms_chapter", "lms_lesson_number", "legal_record_fieldname", "hidden_from_coach",
     # Structural fields, not descriptive text - who owns the step (which
     # controls whether a coach even gets a Mark Done button, or just an
     # "Owned by HQ" badge - see renderStepRow) and where it sits (Stage 3
@@ -92,10 +134,11 @@ def sync_master_step_link_fields(doc, method=None):
     always-current rather than a point-in-time snapshot (unlike
     step_name/expected_result/etc, which stay whatever a coach was
     actually told at the time), so a change to any of them needs to
-    reach every Coach Onboarding Step row already created from this
-    master step, not just coaches who start from now on. Without this,
-    fixing an accidentally-wrong Owner (or Stage/Sort Order) on a master
-    step silently never reached anyone who already had that step.
+    reach every per-person onboarding row already created from this
+    master step (Coach's and Session Worker's alike), not just whoever
+    starts from now on. Without this, fixing an accidentally-wrong Owner
+    (or Stage/Sort Order) on a master step silently never reached anyone
+    who already had that step.
 
     This runs on every save regardless of how it happened (a direct Desk
     edit, the franchisor Manage Step List screen, Data Import...) - it
@@ -103,14 +146,13 @@ def sync_master_step_link_fields(doc, method=None):
     push, which meant a plain Desk edit silently never reached any
     coach's already-existing row.
     """
-    if not frappe.db.exists("DocType", COACH_ONBOARDING_STEP_DOCTYPE):
-        return
-
     try:
         updates = {field: doc.get(field) for field in MASTER_STEP_LIVE_FIELDS}
-        frappe.db.set_value(
-            COACH_ONBOARDING_STEP_DOCTYPE, {"onboarding_step": doc.name}, updates, update_modified=False,
-        )
+        for step_doctype in (COACH_ONBOARDING_STEP_DOCTYPE, SESSION_WORKER_ONBOARDING_STEP_DOCTYPE):
+            if frappe.db.exists("DocType", step_doctype):
+                frappe.db.set_value(
+                    step_doctype, {"onboarding_step": doc.name}, updates, update_modified=False,
+                )
         frappe.db.commit()
     except Exception:
         frappe.log_error(frappe.get_traceback(), f"Master Step Link Field Sync Failed - {doc.name}")
@@ -122,21 +164,24 @@ def sync_master_step_active_state(doc, method=None):
     only stop this step being provisioned to a coach newly starting
     onboarding (see the is_active filter in _create_coach_onboarding_steps)
     - a coach who already had the step kept it forever, "retired" or not.
-    Unticking now removes it from every coach's checklist outright,
-    regardless of its status there - "we no longer need this step" means
-    gone, not lingering as a stale row. Re-ticking adds it back onto
-    every coach already mid-onboarding who doesn't already have it, the
-    same backfill a one-off patch like add_print_materials_onboarding_step
-    would otherwise be needed for.
+    Unticking now removes it from every onboarding checklist outright
+    (coaches' and session workers' alike), regardless of its status there
+    - "we no longer need this step" means gone, not lingering as a stale
+    row. Re-ticking adds it back onto everyone already mid-onboarding who
+    doesn't already have it (filtered by Applies To), the same backfill a
+    one-off patch like add_print_materials_onboarding_step would
+    otherwise be needed for.
     """
-    if not frappe.db.exists("DocType", COACH_ONBOARDING_STEP_DOCTYPE):
-        return
-
     try:
         if doc.is_active:
-            _add_master_step_to_existing_coaches(doc)
+            if doc.applies_to in ("Coach", "Both") and frappe.db.exists("DocType", COACH_ONBOARDING_STEP_DOCTYPE):
+                _add_master_step_to_existing(doc, COACH_ONBOARDING_STEP_DOCTYPE, "coach", "Coach")
+            if doc.applies_to in ("Session Worker", "Both") and frappe.db.exists("DocType", SESSION_WORKER_ONBOARDING_STEP_DOCTYPE):
+                _add_master_step_to_existing(doc, SESSION_WORKER_ONBOARDING_STEP_DOCTYPE, "session_worker", "Session Worker")
         else:
-            frappe.db.delete(COACH_ONBOARDING_STEP_DOCTYPE, {"onboarding_step": doc.name})
+            for step_doctype in (COACH_ONBOARDING_STEP_DOCTYPE, SESSION_WORKER_ONBOARDING_STEP_DOCTYPE):
+                if frappe.db.exists("DocType", step_doctype):
+                    frappe.db.delete(step_doctype, {"onboarding_step": doc.name})
             frappe.db.commit()
     except Exception:
         frappe.log_error(frappe.get_traceback(), f"Master Step Active State Sync Failed - {doc.name}")
@@ -146,36 +191,38 @@ def remove_coach_steps_on_master_step_delete(doc, method=None):
     """
     Coach Onboarding Master Step.on_trash hook - deleting the master step
     outright (rather than unticking Active first) used to leave every
-    coach's own Coach Onboarding Step row for it stranded, pointing at a
-    master step that no longer exists. Those orphaned rows still counted
-    towards total_steps in get_my_onboarding_steps, which is why "how
-    many steps are there" could silently drift from the real current
-    list after a Desk cleanup. Same treatment as unticking Active.
+    per-person row for it stranded, pointing at a master step that no
+    longer exists. Those orphaned rows still counted towards total_steps
+    in get_my_onboarding_steps, which is why "how many steps are there"
+    could silently drift from the real current list after a Desk
+    cleanup. Same treatment as unticking Active - covers both Coach
+    Onboarding Step and Session Worker Onboarding Step regardless of
+    this master step's Applies To, since either could have a stray row
+    pointing at it from before Applies To was ever set.
     """
-    if not frappe.db.exists("DocType", COACH_ONBOARDING_STEP_DOCTYPE):
-        return
-
     try:
-        frappe.db.delete(COACH_ONBOARDING_STEP_DOCTYPE, {"onboarding_step": doc.name})
+        for step_doctype in (COACH_ONBOARDING_STEP_DOCTYPE, SESSION_WORKER_ONBOARDING_STEP_DOCTYPE):
+            if frappe.db.exists("DocType", step_doctype):
+                frappe.db.delete(step_doctype, {"onboarding_step": doc.name})
         frappe.db.commit()
     except Exception:
         frappe.log_error(frappe.get_traceback(), f"Master Step Delete Cleanup Failed - {doc.name}")
 
 
-def _add_master_step_to_existing_coaches(doc):
+def _add_master_step_to_existing(doc, step_doctype, person_fieldname, person_doctype):
     if not doc.stage:
         return
 
-    onboarding_coaches = set(frappe.get_all(COACH_ONBOARDING_STEP_DOCTYPE, pluck="coach"))
+    onboarding_people = set(frappe.get_all(step_doctype, pluck=person_fieldname))
     already_have_it = set(frappe.get_all(
-        COACH_ONBOARDING_STEP_DOCTYPE, filters={"onboarding_step": doc.name}, pluck="coach",
+        step_doctype, filters={"onboarding_step": doc.name}, pluck=person_fieldname,
     ))
 
-    for coach_name in onboarding_coaches - already_have_it:
+    for person_name in onboarding_people - already_have_it:
         try:
             frappe.get_doc({
-                "doctype": COACH_ONBOARDING_STEP_DOCTYPE,
-                "coach": coach_name,
+                "doctype": step_doctype,
+                person_fieldname: person_name,
                 "onboarding_step": doc.name,
                 "status": "Not Started",
                 "step_name": doc.step_name,
@@ -189,13 +236,43 @@ def _add_master_step_to_existing_coaches(doc):
                 "lms_course": doc.lms_course,
                 "lms_chapter": doc.lms_chapter,
                 "lms_lesson_number": doc.lms_lesson_number,
+                "legal_record_fieldname": doc.legal_record_fieldname,
                 "hidden_from_coach": doc.hidden_from_coach,
                 "depends_on_step": doc.depends_on,
             }).insert(ignore_permissions=True)
         except Exception:
-            frappe.log_error(frappe.get_traceback(), f"Master Step Reactivation Backfill Failed - {coach_name}")
+            frappe.log_error(frappe.get_traceback(), f"Master Step Reactivation Backfill Failed - {person_doctype} {person_name}")
 
     frappe.db.commit()
+
+
+_MASTER_STEP_SOURCE_FIELDS = [
+    "name", "step_name", "stage", "owner_type", "stage_sort_order",
+    "sort_order", "expected_result", "where_it_happens", "link_url",
+    "lms_course", "lms_chapter", "lms_lesson_number", "legal_record_fieldname",
+    "hidden_from_coach", "depends_on",
+]
+
+
+def _active_master_steps_for(applies_to_values):
+    # is_active alone isn't a safe filter here: this table used to be
+    # shared with a Frappe core doctype of the same name (see the
+    # rename patch) - when is_active was added as a new field with a
+    # default of 1, MySQL backfills that default onto every pre-existing
+    # row too, including all the leftover core-Frappe ones. Also
+    # requiring stage to be set is what actually distinguishes this
+    # app's real steps, since stage is a field only this app's records
+    # have ever had a value in.
+    return frappe.get_all(
+        ONBOARDING_STEP_DOCTYPE,
+        filters=[
+            ["is_active", "=", 1],
+            ["stage", "is", "set"],
+            ["applies_to", "in", applies_to_values],
+        ],
+        fields=_MASTER_STEP_SOURCE_FIELDS,
+        order_by="stage_sort_order asc, sort_order asc",
+    )
 
 
 def _create_coach_onboarding_steps(coach_name):
@@ -221,24 +298,7 @@ def _create_coach_onboarding_steps(coach_name):
     # already say is intended: a copy taken at creation time, not a live
     # link that would rewrite a coach's history if the master step is
     # edited later.
-    # is_active alone isn't a safe filter here: this table used to be
-    # shared with a Frappe core doctype of the same name (see the
-    # rename patch) - when is_active was added as a new field with a
-    # default of 1, MySQL backfills that default onto every pre-existing
-    # row too, including all the leftover core-Frappe ones. Also
-    # requiring stage to be set is what actually distinguishes this
-    # app's real steps, since stage is a field only this app's records
-    # have ever had a value in.
-    steps = frappe.get_all(
-        ONBOARDING_STEP_DOCTYPE,
-        filters=[["is_active", "=", 1], ["stage", "is", "set"]],
-        fields=[
-            "name", "step_name", "stage", "owner_type", "stage_sort_order",
-            "sort_order", "expected_result", "where_it_happens", "link_url",
-            "lms_course", "lms_chapter", "lms_lesson_number", "hidden_from_coach", "depends_on",
-        ],
-        order_by="stage_sort_order asc, sort_order asc",
-    )
+    steps = _active_master_steps_for(["Coach", "Both"])
 
     for step in steps:
         frappe.get_doc({
@@ -257,6 +317,42 @@ def _create_coach_onboarding_steps(coach_name):
             "lms_course": step.lms_course,
             "lms_chapter": step.lms_chapter,
             "lms_lesson_number": step.lms_lesson_number,
+            "legal_record_fieldname": step.legal_record_fieldname,
+            "hidden_from_coach": step.hidden_from_coach,
+            "depends_on_step": step.depends_on,
+        }).insert(ignore_permissions=True)
+
+
+def _create_session_worker_onboarding_steps(session_worker_name):
+    """
+    Same mechanism as _create_coach_onboarding_steps, for Session Worker -
+    see provision_session_worker_onboarding_steps.
+    """
+    frappe.db.sql("SELECT name FROM `tabSession Worker` WHERE name=%s FOR UPDATE", session_worker_name)
+
+    if frappe.db.exists(SESSION_WORKER_ONBOARDING_STEP_DOCTYPE, {"session_worker": session_worker_name}):
+        return
+
+    steps = _active_master_steps_for(["Session Worker", "Both"])
+
+    for step in steps:
+        frappe.get_doc({
+            "doctype": SESSION_WORKER_ONBOARDING_STEP_DOCTYPE,
+            "session_worker": session_worker_name,
+            "onboarding_step": step.name,
+            "status": "Not Started",
+            "step_name": step.step_name,
+            "stage": step.stage,
+            "owner_type": step.owner_type,
+            "stage_sort_order": step.stage_sort_order,
+            "sort_order": step.sort_order,
+            "expected_result": step.expected_result,
+            "where_it_happens": step.where_it_happens,
+            "link_url": step.link_url,
+            "lms_course": step.lms_course,
+            "lms_chapter": step.lms_chapter,
+            "lms_lesson_number": step.lms_lesson_number,
+            "legal_record_fieldname": step.legal_record_fieldname,
             "hidden_from_coach": step.hidden_from_coach,
             "depends_on_step": step.depends_on,
         }).insert(ignore_permissions=True)
@@ -286,6 +382,25 @@ def _resolve_target_coach(coach=None):
     return own_coach_name
 
 
+def _resolve_target_session_worker(session_worker=None):
+    """Session Worker equivalent of _resolve_target_coach."""
+    ensure_logged_in()
+
+    session_worker = coalesce_str("session_worker", session_worker)
+
+    if session_worker and is_franchisor_user():
+        if not frappe.db.exists("Session Worker", session_worker):
+            frappe.throw(_("Session Worker not found."))
+        return session_worker
+
+    own_name = get_current_session_worker_name(optional=True)
+
+    if not own_name:
+        frappe.throw(_("No Session Worker profile is linked to your user."), frappe.PermissionError)
+
+    return own_name
+
+
 _STEP_COPY_FIELDS = [
     ("step_name", "step_name"),
     ("stage", "stage"),
@@ -298,21 +413,23 @@ _STEP_COPY_FIELDS = [
     ("lms_course", "lms_course"),
     ("lms_chapter", "lms_chapter"),
     ("lms_lesson_number", "lms_lesson_number"),
+    ("legal_record_fieldname", "legal_record_fieldname"),
     ("hidden_from_coach", "hidden_from_coach"),
     ("depends_on", "depends_on_step"),
 ]
 
 
-def _repair_blank_rows(rows):
+def _repair_blank_rows(rows, step_doctype=COACH_ONBOARDING_STEP_DOCTYPE):
     """
-    Coach Onboarding Step rows can end up with their copied step details
-    blank (the fetch_from that used to populate them on insert wasn't
-    reliable - see _create_coach_onboarding_steps). Rather than trust a
-    one-off backfill patch to have caught every case, every read here
-    self-heals: any row missing its step_name gets re-copied from its
-    linked Onboarding Step on the spot, both for this response and
-    written back to the row itself so the Desk list view is correct too
-    (and this never has to run again for that row).
+    Onboarding Step rows (Coach's or Session Worker's) can end up with
+    their copied step details blank (the fetch_from that used to
+    populate them on insert wasn't reliable - see
+    _create_coach_onboarding_steps). Rather than trust a one-off backfill
+    patch to have caught every case, every read here self-heals: any row
+    missing its step_name gets re-copied from its linked Onboarding Step
+    on the spot, both for this response and written back to the row
+    itself so the Desk list view is correct too (and this never has to
+    run again for that row).
     """
     blank_rows = [row for row in rows if row.onboarding_step and (not row.step_name or not row.stage)]
     if not blank_rows:
@@ -337,7 +454,7 @@ def _repair_blank_rows(rows):
             row[target] = value
             updates[target] = value
 
-        frappe.db.set_value(COACH_ONBOARDING_STEP_DOCTYPE, row.name, updates, update_modified=False)
+        frappe.db.set_value(step_doctype, row.name, updates, update_modified=False)
 
     frappe.db.commit()
 
@@ -358,21 +475,24 @@ LMS_LESSON_REFERENCE_DOCTYPE = "Lesson Reference"
 LMS_COURSE_PROGRESS_DOCTYPE = "LMS Course Progress"
 
 
-def _resolve_lms_chapter(chapter_name):
+def _resolve_lms_chapter(chapter_name, course):
     """
     chapter_name is the actual Course Chapter document name (e.g. "0001
     Access your emails with Chantelle Venter") - LMS Chapter is a real
     Link field on the master step now, picked directly in the Desk (or
     via the Manage Step List picker), not a free-text title to match
-    against. Returns everything needed to build a working link and check
-    completion, or None if LMS isn't installed, the chapter no longer
-    exists, or it has no lessons.
+    against. course is the step's own stored LMS Course (the course HQ
+    actually picked this chapter under, from get_lms_chapters) - trusted
+    over Course Chapter's own single "course" field, since a chapter can
+    be shared across two different courses via a second Chapter
+    Reference row (see link_existing_chapter_to_course), and that second
+    reference is exactly the case this needs to resolve correctly: the
+    chapter's own "course" field only ever names ONE of the two. Returns
+    everything needed to build a working link and check completion, or
+    None if LMS isn't installed, the chapter/course combination doesn't
+    actually exist, or the chapter has no lessons.
     """
-    if not chapter_name or not frappe.db.exists("DocType", LMS_COURSE_CHAPTER_DOCTYPE):
-        return None
-
-    course = frappe.db.get_value(LMS_COURSE_CHAPTER_DOCTYPE, chapter_name, "course")
-    if not course:
+    if not chapter_name or not course or not frappe.db.exists("DocType", LMS_COURSE_CHAPTER_DOCTYPE):
         return None
 
     chapter_idx = frappe.db.get_value(
@@ -401,10 +521,10 @@ def _lms_chapter_is_complete(user, chapter_info):
     return completed >= chapter_info["lesson_count"]
 
 
-def _apply_lms_progress_overrides(rows, user):
+def _apply_lms_progress_overrides(rows, user, step_doctype=COACH_ONBOARDING_STEP_DOCTYPE):
     """
     A step with LMS Chapter set gets its Go link and Done status worked
-    out live from the coach's actual progress through that chapter, the
+    out live from the person's actual progress through that chapter, the
     same "derived from the real system of record, not self-reported"
     treatment Stage 5 Policies and Operations Manual already get from
     Coach Document Requirement. Mutates rows in place (frappe._dict from
@@ -412,7 +532,8 @@ def _apply_lms_progress_overrides(rows, user):
     counting and _group_by_stage in get_my_onboarding_steps pick this up
     automatically. Newly-detected completion is persisted (not just
     returned) so completed_on is a real historical date, not "now" on
-    every page load.
+    every page load. step_doctype says which per-person table to write
+    the detected completion back to (Coach's or Session Worker's).
     """
     if not user:
         return
@@ -422,7 +543,7 @@ def _apply_lms_progress_overrides(rows, user):
             continue
 
         try:
-            chapter_info = _resolve_lms_chapter(row.lms_chapter)
+            chapter_info = _resolve_lms_chapter(row.lms_chapter, row.get("lms_course"))
         except Exception:
             frappe.log_error(frappe.get_traceback(), f"LMS Chapter Resolve Failed - {row.name}")
             continue
@@ -430,10 +551,11 @@ def _apply_lms_progress_overrides(rows, user):
         if not chapter_info:
             # Configured but not resolving - genuinely worth knowing about
             # (the chapter got renamed/deleted in the LMS since it was
-            # picked, etc.), not just silently left showing "Complete the
-            # course" with no Go link.
+            # picked, the stored LMS Course is missing or no longer
+            # references this chapter, etc.), not just silently left
+            # showing "Complete the course" with no Go link.
             frappe.log_error(
-                f"Step: {row.name}\nChapter: {row.lms_chapter}",
+                f"Step: {row.name}\nChapter: {row.lms_chapter}\nCourse: {row.get('lms_course')}",
                 "LMS Chapter Not Found",
             )
             continue
@@ -448,7 +570,7 @@ def _apply_lms_progress_overrides(rows, user):
                 if _lms_chapter_is_complete(user, chapter_info):
                     completed_on = now_datetime()
                     frappe.db.set_value(
-                        COACH_ONBOARDING_STEP_DOCTYPE,
+                        step_doctype,
                         row.name,
                         {"status": "Done", "completed_on": completed_on, "completed_by": user},
                         update_modified=False,
@@ -460,7 +582,86 @@ def _apply_lms_progress_overrides(rows, user):
                 frappe.log_error(frappe.get_traceback(), f"LMS Chapter Completion Check Failed - {row.name}")
 
 
+# Role config keys from profile.py's ROLE_PROFILE_CONFIG/LEGAL_RECORD_CONFIG -
+# reused rather than re-declared, since a step's legal_record_fieldname
+# is one of LEGAL_RECORD_CONFIG's own keys (e.g. "safeguarding_certificate"),
+# and the actual child-table fieldname it maps to on a profile doc isn't
+# always spelled the same way for Coach vs Session Worker (DBS Update
+# Service's child table is "dbs_update_services" on Coach, "dbs_update_
+# service" on Session Worker) - legal_parentfields is what already
+# resolves that correctly for profile.py's own legal-document screens.
+_LEGAL_RECORD_ROLE_BY_PROFILE_DOCTYPE = {"Coach": "coach", "Session Worker": "session_worker"}
+
+
+def _legal_record_is_on_file(profile_doctype, profile_name, record_type):
+    from dashboard.api.shared.profile import ROLE_PROFILE_CONFIG, LEGAL_RECORD_CONFIG
+
+    role = _LEGAL_RECORD_ROLE_BY_PROFILE_DOCTYPE.get(profile_doctype)
+    role_config = ROLE_PROFILE_CONFIG.get(role) if role else None
+    record_config = LEGAL_RECORD_CONFIG.get(record_type)
+    if not role_config or not record_config:
+        return False
+
+    parentfield = role_config["legal_parentfields"].get(record_type)
+    if not parentfield:
+        return False
+
+    file_field = record_config["file_field"]
+
+    rows = frappe.get_all(
+        profile_doctype, filters={"name": profile_name}, fields=[parentfield], limit_page_length=1,
+    )
+    # frappe.get_all can't directly select a child table - fetching the
+    # whole doc is the reliable way to read it (this only runs for rows
+    # already filtered to where_it_happens == "Legal Record", so it's a
+    # handful of profiles at most per page load, not every onboarding row).
+    doc = frappe.get_doc(profile_doctype, profile_name)
+    for child_row in doc.get(parentfield) or []:
+        if (child_row.get(file_field) or "").strip():
+            return True
+
+    return False
+
+
+def _apply_legal_record_overrides(rows, profile_doctype, profile_name, user, step_doctype):
+    """
+    A step with Where It Happens "Legal Record" (e.g. Safeguarding
+    Training with High Speed Training) is marked Done automatically the
+    moment the matching legal document child table has a row with its
+    file attached - "the only thing that marks it as complete is the
+    certificate [...] uploaded to the profile", never a manual Mark
+    Done. Same persisted-completion treatment as LMS progress above.
+    """
+    for row in rows:
+        if row.where_it_happens != "Legal Record" or not row.get("legal_record_fieldname"):
+            continue
+
+        if row.status == "Done":
+            continue
+
+        try:
+            if _legal_record_is_on_file(profile_doctype, profile_name, row.legal_record_fieldname):
+                completed_on = now_datetime()
+                frappe.db.set_value(
+                    step_doctype,
+                    row.name,
+                    {"status": "Done", "completed_on": completed_on, "completed_by": user},
+                    update_modified=False,
+                )
+                row["status"] = "Done"
+                row["completed_on"] = completed_on
+                frappe.db.commit()
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"Legal Record Completion Check Failed - {row.name}")
+
+
 def _is_locked(row, done_step_names):
+    # A step completed by Legal Record (see _apply_legal_record_overrides)
+    # is never locked regardless of Depends On - it can be true at any
+    # point once the document exists, same reasoning as Stage 5 Policies
+    # never being locked.
+    if row.where_it_happens == "Legal Record":
+        return False
     return bool(row.depends_on_step) and row.depends_on_step not in done_step_names and row.status != "Done"
 
 
@@ -572,8 +773,10 @@ def get_my_onboarding_steps(coach=None):
             fields=COACH_STEP_FIELDS,
         )
 
-    _repair_blank_rows(rows)
-    _apply_lms_progress_overrides(rows, frappe.db.get_value("Coach", coach_name, "user"))
+    coach_user = frappe.db.get_value("Coach", coach_name, "user")
+    _repair_blank_rows(rows, COACH_ONBOARDING_STEP_DOCTYPE)
+    _apply_lms_progress_overrides(rows, coach_user, COACH_ONBOARDING_STEP_DOCTYPE)
+    _apply_legal_record_overrides(rows, "Coach", coach_name, coach_user, COACH_ONBOARDING_STEP_DOCTYPE)
 
     # Hidden From Coach steps are an HQ-only task the coach never sees at
     # all - not filtered from the counts either, since a coach's own
@@ -607,29 +810,106 @@ def get_my_onboarding_steps(coach=None):
     }
 
 
+@frappe.whitelist()
+def session_worker_has_onboarding_steps():
+    """Session Worker equivalent of coach_has_onboarding_steps."""
+    session_worker_name = get_current_session_worker_name(optional=True)
+    if not session_worker_name:
+        return {"has_steps": False, "all_done": False}
+
+    if not frappe.db.exists(SESSION_WORKER_ONBOARDING_STEP_DOCTYPE, {"session_worker": session_worker_name}):
+        return {"has_steps": False, "all_done": False}
+
+    progress = get_my_session_worker_onboarding_steps()
+    all_done = bool(progress["total_steps"]) and progress["done_steps"] >= progress["total_steps"]
+
+    return {"has_steps": True, "all_done": all_done}
+
+
+@frappe.whitelist()
+def get_my_session_worker_onboarding_steps(session_worker=None):
+    """Session Worker equivalent of get_my_onboarding_steps - see its own
+    docstring for the reasoning behind every piece of this; identical
+    mechanism, just resolved against Session Worker throughout."""
+    session_worker_name = _resolve_target_session_worker(session_worker)
+
+    is_drill_down = bool(coalesce_str("session_worker", session_worker)) and is_franchisor_user()
+    view_as_session_worker = session_worker_name if is_drill_down else None
+
+    rows = frappe.get_all(
+        SESSION_WORKER_ONBOARDING_STEP_DOCTYPE,
+        filters={"session_worker": session_worker_name},
+        fields=_STEP_FIELDS,
+    )
+
+    if not rows and frappe.db.get_value("Session Worker", session_worker_name, "start_onboarding"):
+        _create_session_worker_onboarding_steps(session_worker_name)
+        frappe.db.commit()
+        rows = frappe.get_all(
+            SESSION_WORKER_ONBOARDING_STEP_DOCTYPE,
+            filters={"session_worker": session_worker_name},
+            fields=_STEP_FIELDS,
+        )
+
+    session_worker_user = frappe.db.get_value("Session Worker", session_worker_name, "user")
+    _repair_blank_rows(rows, SESSION_WORKER_ONBOARDING_STEP_DOCTYPE)
+    _apply_lms_progress_overrides(rows, session_worker_user, SESSION_WORKER_ONBOARDING_STEP_DOCTYPE)
+    _apply_legal_record_overrides(
+        rows, "Session Worker", session_worker_name, session_worker_user, SESSION_WORKER_ONBOARDING_STEP_DOCTYPE,
+    )
+
+    if not is_drill_down:
+        rows = [row for row in rows if not row.hidden_from_coach]
+
+    rows = sorted(rows, key=lambda row: (row.stage_sort_order or 0, row.sort_order or 0))
+
+    stages = _group_by_stage(rows)
+    policy_stage = _dynamic_policies_stage_for_session_worker(session_worker_name, view_as_session_worker=view_as_session_worker)
+    _insert_dynamic_stage(stages, policy_stage, after_stage_number=4)
+
+    operations_manual_step = _dynamic_operations_manual_step_for_session_worker(
+        session_worker_name, view_as_session_worker=view_as_session_worker,
+    )
+    if operations_manual_step:
+        _append_step_to_stage(stages, stage_number=3, step=operations_manual_step)
+
+    total = len(rows) + len(policy_stage["steps"]) + (1 if operations_manual_step else 0)
+    done = len([row for row in rows if row.status == "Done"])
+    done += len([step for step in policy_stage["steps"] if step["status"] == "Completed"])
+    if operations_manual_step and operations_manual_step["status"] == "Completed":
+        done += 1
+
+    return {
+        "session_worker": session_worker_name,
+        "started": total > 0,
+        "total_steps": total,
+        "done_steps": done,
+        "stages": stages,
+    }
+
+
 POLICY_DOCUMENT_TYPES = ["Policy", "Procedure"]
 
 
-def _dynamic_policies_stage(coach_name, view_as_coach=None):
+def _dynamic_policies_stage_for(user, base_url, view_as_name=None):
     """
-    Stage 5 (Policies) has no static Coach Onboarding Step rows behind it
-    - it's built live from Coach Document Requirement instead, so it
-    always reflects whatever Policy/Procedure documents currently exist
-    (add a new one in the Desk and it just shows up here, no onboarding
-    step needs creating for it). A step here is automatically "Done" the
-    moment the coach actually acknowledges that document on the
-    Documents page - there's nothing to keep in sync, since it's the
-    same underlying record being read, not a copy of it. Never locked -
-    the whole point is these are readable before Training Day, not
-    gated behind it like everything else from here on.
+    Stage 5 (Policies) has no static Onboarding Step rows behind it - for
+    either role - it's built live from Coach Document Requirement
+    instead, so it always reflects whatever Policy/Procedure documents
+    currently exist (add a new one in the Desk and it just shows up
+    here, no onboarding step needs creating for it). A step here is
+    automatically "Done" the moment the person actually acknowledges
+    that document on their Documents page - there's nothing to keep in
+    sync, since it's the same underlying record being read, not a copy
+    of it. Never locked - the whole point is these are readable before
+    Training Day, not gated behind it like everything else from here on.
 
-    view_as_coach is set only when a franchisor is looking at someone
-    else's checklist (see get_my_onboarding_steps) - document_view needs
-    view_as/viewer on the URL in that case, or it has no way to know
-    she's allowed to be looking at a coach she isn't, and redirects her
-    out entirely.
+    view_as_name is set only when a franchisor is looking at someone
+    else's checklist (see get_my_onboarding_steps/get_my_session_worker_
+    onboarding_steps) - document_view needs view_as/viewer on the URL in
+    that case, or it has no way to know she's allowed to be looking at
+    someone she isn't, and redirects her out entirely.
     """
-    user = frappe.db.get_value("Coach", coach_name, "user")
     if not user:
         return {"stage": "Stage 5 - Policies", "steps": []}
 
@@ -640,10 +920,10 @@ def _dynamic_policies_stage(coach_name, view_as_coach=None):
         order_by="document_type asc, document_title asc",
     )
 
-    if view_as_coach:
-        extra_params = "&view_as=" + frappe.utils.quote(view_as_coach) + "&viewer=franchisor"
+    if view_as_name:
+        extra_params = "&view_as=" + frappe.utils.quote(view_as_name) + "&viewer=franchisor"
     else:
-        extra_params = "&back_to=" + frappe.utils.quote("/coach_db/onboarding")
+        extra_params = "&back_to=" + frappe.utils.quote(base_url + "/onboarding")
 
     steps = []
     for row in rows:
@@ -660,9 +940,9 @@ def _dynamic_policies_stage(coach_name, view_as_coach=None):
             "where_it_happens": "Frappe - Documents",
             # Straight to this specific document (document_view reads
             # ?name=<requirement>), not the general list - the whole
-            # point of the Go link is landing exactly where the coach
+            # point of the Go link is landing exactly where the person
             # needs to act, not one extra click away from it.
-            "link_url": "/coach_db/document_view?name=" + row.name + extra_params,
+            "link_url": base_url + "/document_view?name=" + row.name + extra_params,
             "completed_on": row.completed_on,
             "notes": "",
             "is_locked": False,
@@ -670,6 +950,16 @@ def _dynamic_policies_stage(coach_name, view_as_coach=None):
         })
 
     return {"stage": "Stage 5 - Policies", "steps": steps}
+
+
+def _dynamic_policies_stage(coach_name, view_as_coach=None):
+    user = frappe.db.get_value("Coach", coach_name, "user")
+    return _dynamic_policies_stage_for(user, "/coach_db", view_as_name=view_as_coach)
+
+
+def _dynamic_policies_stage_for_session_worker(session_worker_name, view_as_session_worker=None):
+    user = frappe.db.get_value("Session Worker", session_worker_name, "user")
+    return _dynamic_policies_stage_for(user, "/session_worker_db", view_as_name=view_as_session_worker)
 
 
 # This is deliberately the one specific Practice Document ID, not a
@@ -692,19 +982,16 @@ OPERATIONS_MANUAL_PRACTICE_DOCUMENT = "9006"
 OPERATIONS_MANUAL_SORT_ORDER = 1000
 
 
-def _dynamic_operations_manual_step(coach_name, view_as_coach=None):
+def _dynamic_operations_manual_step_for(user, base_url, view_as_name=None):
     """
-    Same mechanism as _dynamic_policies_stage, but for a single named
+    Same mechanism as _dynamic_policies_stage_for, but for a single named
     document (the Operations Manual) rather than a whole document_type -
-    it used to be a static "complete this in the LMS" step, now it's
-    pulled live from the coach's own Coach Document Requirement for that
-    one Practice Document, so it's automatically "Done" the moment the
-    coach acknowledges it on the Documents page. Returns None if this
-    coach has no requirement for it yet (e.g. brand access hasn't synced
-    one in), in which case the step is simply omitted rather than shown
-    broken.
+    pulled live from the person's own Coach Document Requirement for that
+    one Practice Document, so it's automatically "Done" the moment they
+    acknowledge it on the Documents page. Returns None if this person has
+    no requirement for it yet (e.g. brand access hasn't synced one in),
+    in which case the step is simply omitted rather than shown broken.
     """
-    user = frappe.db.get_value("Coach", coach_name, "user")
     if not user:
         return None
 
@@ -717,10 +1004,10 @@ def _dynamic_operations_manual_step(coach_name, view_as_coach=None):
     if not row:
         return None
 
-    if view_as_coach:
-        extra_params = "&view_as=" + frappe.utils.quote(view_as_coach) + "&viewer=franchisor"
+    if view_as_name:
+        extra_params = "&view_as=" + frappe.utils.quote(view_as_name) + "&viewer=franchisor"
     else:
-        extra_params = "&back_to=" + frappe.utils.quote("/coach_db/onboarding")
+        extra_params = "&back_to=" + frappe.utils.quote(base_url + "/onboarding")
 
     return {
         "name": row.name,
@@ -729,13 +1016,23 @@ def _dynamic_operations_manual_step(coach_name, view_as_coach=None):
         "status": row.status,
         "expected_result": "",
         "where_it_happens": "Frappe - Documents",
-        "link_url": "/coach_db/document_view?name=" + row.name + extra_params,
+        "link_url": base_url + "/document_view?name=" + row.name + extra_params,
         "completed_on": row.completed_on,
         "notes": "",
         "is_locked": False,
         "read_only": True,
         "sort_order": OPERATIONS_MANUAL_SORT_ORDER,
     }
+
+
+def _dynamic_operations_manual_step(coach_name, view_as_coach=None):
+    user = frappe.db.get_value("Coach", coach_name, "user")
+    return _dynamic_operations_manual_step_for(user, "/coach_db", view_as_name=view_as_coach)
+
+
+def _dynamic_operations_manual_step_for_session_worker(session_worker_name, view_as_session_worker=None):
+    user = frappe.db.get_value("Session Worker", session_worker_name, "user")
+    return _dynamic_operations_manual_step_for(user, "/session_worker_db", view_as_name=view_as_session_worker)
 
 
 def _append_step_to_stage(stages, stage_number, step):
@@ -777,26 +1074,33 @@ def _insert_dynamic_stage(stages, dynamic_stage, after_stage_number):
 
 def _stamp_training_day_completed(row):
     """
-    Sets the coach's Coach.training_day_completed_on the first time
-    their Training Day step is actually marked Done - this is what
-    legal-document compliance (permissions.get_expired_legal_items,
-    legal_expiry_reminders.py) waits for before starting any missing-
-    document grace period at all, per Ashley's rule: a coach who
-    hasn't been through Training Day yet shouldn't have a 30/60-day
-    clock already ticking on documents that are normally sorted out
-    that day. Never overwrites an already-set date.
+    Sets Coach.training_day_completed_on (or Session Worker's own field)
+    the first time that person's Training Day step is actually marked
+    Done - this is what legal-document compliance (permissions.
+    get_expired_legal_items, legal_expiry_reminders.py) waits for before
+    starting any missing-document grace period at all, per Ashley's
+    rule: someone who hasn't been through Training Day yet shouldn't
+    have a 30/60-day clock already ticking on documents that are
+    normally sorted out that day. Never overwrites an already-set date.
+    Works for either row type - Coach Onboarding Step has a "coach"
+    field, Session Worker Onboarding Step has "session_worker" instead.
     """
-    if row.step_name != TRAINING_DAY_STEP_NAME or not row.coach:
+    if row.step_name != TRAINING_DAY_STEP_NAME:
         return
 
-    if not frappe.get_meta("Coach").has_field("training_day_completed_on"):
+    profile_doctype = "Coach" if row.get("coach") else ("Session Worker" if row.get("session_worker") else None)
+    profile_name = row.get("coach") or row.get("session_worker")
+    if not profile_doctype or not profile_name:
         return
 
-    if frappe.db.get_value("Coach", row.coach, "training_day_completed_on"):
+    if not frappe.get_meta(profile_doctype).has_field("training_day_completed_on"):
+        return
+
+    if frappe.db.get_value(profile_doctype, profile_name, "training_day_completed_on"):
         return
 
     frappe.db.set_value(
-        "Coach", row.coach, "training_day_completed_on", frappe.utils.today(), update_modified=False
+        profile_doctype, profile_name, "training_day_completed_on", frappe.utils.today(), update_modified=False
     )
 
 
@@ -831,9 +1135,41 @@ def mark_step_done(step_name=None, coach=None):
     # completion behind it. The dashboard already hides the Mark Done
     # button for these (see isLmsStep in onboarding.js), this is the
     # same rule enforced server-side so it can't be bypassed by calling
-    # this endpoint directly.
-    if row.where_it_happens == "LMS":
-        frappe.throw(_("This step is completed in the course itself, not marked done here."))
+    # this endpoint directly. Same reasoning for a Legal Record step
+    # (e.g. Safeguarding Training) - only an actual certificate on file
+    # marks it Done, see _apply_legal_record_overrides.
+    if row.where_it_happens in ("LMS", "Legal Record"):
+        frappe.throw(_("This step is completed automatically, not marked done here."))
+
+    if row.status == "Done":
+        return {"ok": True, "status": row.status}
+
+    row.status = "Done"
+    row.save(ignore_permissions=True)
+    _stamp_training_day_completed(row)
+    frappe.db.commit()
+
+    return {"ok": True, "status": row.status}
+
+
+@frappe.whitelist()
+def mark_session_worker_step_done(step_name=None, session_worker=None):
+    """Session Worker equivalent of mark_step_done."""
+    step_name = coalesce_str("step_name", step_name)
+    session_worker_name = _resolve_target_session_worker(session_worker)
+
+    frappe.flags.ignore_permissions = True
+
+    row = frappe.get_doc(SESSION_WORKER_ONBOARDING_STEP_DOCTYPE, step_name)
+
+    if row.session_worker != session_worker_name:
+        frappe.throw(_("You do not have permission to update this step."), frappe.PermissionError)
+
+    if row.owner_type != "Coach":
+        frappe.throw(_("This step is owned by HQ - only HQ can mark it done."))
+
+    if row.where_it_happens in ("LMS", "Legal Record"):
+        frappe.throw(_("This step is completed automatically, not marked done here."))
 
     if row.status == "Done":
         return {"ok": True, "status": row.status}
@@ -869,6 +1205,32 @@ def mark_step_done_for_coach(step_name=None, status=None):
     frappe.flags.ignore_permissions = True
 
     row = frappe.get_doc(COACH_ONBOARDING_STEP_DOCTYPE, step_name)
+    row.status = status
+    row.save(ignore_permissions=True)
+    if status == "Done":
+        _stamp_training_day_completed(row)
+    frappe.db.commit()
+
+    return {"ok": True, "status": row.status}
+
+
+@frappe.whitelist()
+def mark_session_worker_step_done_for_hq(step_name=None, status=None):
+    """Session Worker equivalent of mark_step_done_for_coach - HQ marking
+    a step (their own, or a session worker's) done or updating its status."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    step_name = coalesce_str("step_name", step_name)
+    status = coalesce_str("status", status) or "Done"
+
+    valid_statuses = {"Not Started", "In Progress", "Waiting on HQ", "Ready for You", "Done"}
+    if status not in valid_statuses:
+        frappe.throw(_("Invalid status."))
+
+    frappe.flags.ignore_permissions = True
+
+    row = frappe.get_doc(SESSION_WORKER_ONBOARDING_STEP_DOCTYPE, step_name)
     row.status = status
     row.save(ignore_permissions=True)
     if status == "Done":
@@ -965,6 +1327,78 @@ def get_all_coaches_onboarding_progress():
     return results
 
 
+def _ensure_all_started_session_workers_provisioned():
+    """Session Worker equivalent of _ensure_all_started_coaches_provisioned."""
+    started = frappe.get_all("Session Worker", filters={"start_onboarding": 1}, pluck="name")
+    if not started:
+        return
+
+    provisioned = set(frappe.get_all(
+        SESSION_WORKER_ONBOARDING_STEP_DOCTYPE,
+        filters={"session_worker": ["in", started]},
+        pluck="session_worker",
+    ))
+
+    for session_worker_name in started:
+        if session_worker_name not in provisioned:
+            _create_session_worker_onboarding_steps(session_worker_name)
+            frappe.db.commit()
+
+
+@frappe.whitelist()
+def get_all_session_workers_onboarding_progress():
+    """Session Worker equivalent of get_all_coaches_onboarding_progress."""
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to view this."), frappe.PermissionError)
+
+    _ensure_all_started_session_workers_provisioned()
+
+    rows = frappe.get_all(
+        SESSION_WORKER_ONBOARDING_STEP_DOCTYPE,
+        fields=["session_worker", "stage", "stage_sort_order", "owner_type", "status"],
+        order_by="session_worker asc, stage_sort_order asc, sort_order asc",
+    )
+
+    if not rows:
+        return []
+
+    sw_names = list({row.session_worker for row in rows})
+    sw_meta = frappe.get_meta("Session Worker")
+    display_field = "sw_name" if sw_meta.has_field("sw_name") else None
+    sw_labels = {
+        w.name: (w.get(display_field) or w.name) if display_field else w.name
+        for w in frappe.get_all(
+            "Session Worker",
+            filters={"name": ["in", sw_names]},
+            fields=["name"] + ([display_field] if display_field else []),
+        )
+    }
+
+    by_sw = {}
+    for row in rows:
+        entry = by_sw.setdefault(row.session_worker, {
+            "session_worker": row.session_worker,
+            "session_worker_label": sw_labels.get(row.session_worker, row.session_worker),
+            "waiting_on_hq": 0,
+            "current_stage": None,
+        })
+        if row.status == "Waiting on HQ":
+            entry["waiting_on_hq"] += 1
+        if row.status != "Done" and entry["current_stage"] is None:
+            entry["current_stage"] = row.stage
+
+    results = []
+    for session_worker_name, entry in by_sw.items():
+        progress = get_my_session_worker_onboarding_steps(session_worker=session_worker_name)
+        entry["total_steps"] = progress["total_steps"]
+        entry["done_steps"] = progress["done_steps"]
+        if entry["current_stage"] is None:
+            entry["current_stage"] = "Complete"
+        results.append(entry)
+
+    return results
+
+
 @frappe.whitelist()
 def get_onboarding_step_master_list():
     """
@@ -980,7 +1414,7 @@ def get_onboarding_step_master_list():
         ONBOARDING_STEP_DOCTYPE,
         filters=[["is_active", "=", 1], ["stage", "is", "set"]],
         fields=[
-            "name", "step_name", "stage", "stage_sort_order", "sort_order", "owner_type",
+            "name", "step_name", "stage", "stage_sort_order", "sort_order", "owner_type", "applies_to",
             "expected_result", "where_it_happens", "link_url",
             "lms_course", "lms_chapter", "lms_lesson_number",
         ],
@@ -1109,6 +1543,90 @@ def update_onboarding_step_master(
     # document save) doesn't fire doc_events on its own.
     sync_master_step_link_fields(frappe.get_doc(ONBOARDING_STEP_DOCTYPE, step_name))
     frappe.db.commit()
+
+
+def _chapter_reference_parentfield():
+    """
+    The fieldname on LMS Course holding its Chapter Reference child table
+    - found from the doctype's own metadata (a Table field whose options
+    is "Chapter Reference") rather than guessed, since this app doesn't
+    own Frappe LMS's schema and the exact fieldname was never confirmed
+    against its source (get_lms_chapters/_resolve_lms_chapter only ever
+    needed to READ Chapter Reference rows by filter, never append one,
+    so nothing here needed the parent doctype's own field name before).
+    """
+    for field in frappe.get_meta("LMS Course").fields:
+        if field.fieldtype == "Table" and field.options == LMS_CHAPTER_REFERENCE_DOCTYPE:
+            return field.fieldname
+    return None
+
+
+@frappe.whitelist()
+def link_existing_chapter_to_course(course=None, chapter_name=None):
+    """
+    Shares an existing LMS chapter (and every lesson already in it) with
+    a second course, without duplicating either - exactly what Ashley
+    asked for: "link a module and its lessons to 2 courses" so editing
+    it once fixes it everywhere it's used (e.g. "Access your emails with
+    Chantelle Venter" showing in both the Coach's course and a Session
+    Worker-specific course covering only 3 of its modules).
+
+    Adds one new Chapter Reference row under the target course, pointing
+    at the chapter that already exists under its original course -
+    nothing about the chapter or its lessons is copied or re-created.
+    Course Chapter's own "course" field still names only its original
+    course (Frappe LMS's own schema - a chapter belongs to exactly one
+    "home" course there), but this app's own Go-link/completion logic
+    (_resolve_lms_chapter) is built to trust whichever course a step's
+    own master record says to use, not that field, so a step configured
+    against this second course still resolves correctly - see its own
+    docstring. The one thing this doesn't fix is cosmetic: if Frappe
+    LMS's own front-end shows "which course this chapter belongs to"
+    anywhere in its breadcrumbs/navigation, that will still say the
+    original course, not this new one - harmless for onboarding tracking
+    itself, but worth knowing before relying on it for anything else.
+
+    Safe to call again for the same pair - a chapter already referenced
+    under a course is left alone, not duplicated.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+
+    course = coalesce_str("course", course)
+    chapter_name = coalesce_str("chapter_name", chapter_name)
+
+    if not frappe.db.exists("DocType", LMS_COURSE_CHAPTER_DOCTYPE):
+        frappe.throw(_("Frappe LMS doesn't appear to be installed on this site."))
+
+    if not course or not frappe.db.exists("LMS Course", course):
+        frappe.throw(_("Course not found."))
+
+    if not chapter_name or not frappe.db.exists(LMS_COURSE_CHAPTER_DOCTYPE, chapter_name):
+        frappe.throw(_("Chapter not found."))
+
+    if frappe.db.exists(LMS_CHAPTER_REFERENCE_DOCTYPE, {"parent": course, "chapter": chapter_name}):
+        return {"ok": True, "already_linked": True}
+
+    parentfield = _chapter_reference_parentfield()
+    if not parentfield:
+        frappe.throw(_("Could not find LMS Course's chapters field - check Frappe LMS is installed and up to date."))
+
+    existing_idx = frappe.db.get_all(
+        LMS_CHAPTER_REFERENCE_DOCTYPE, filters={"parent": course}, fields=["idx"], order_by="idx desc", limit_page_length=1,
+    )
+    next_idx = (existing_idx[0].idx + 1) if existing_idx else 1
+
+    frappe.get_doc({
+        "doctype": LMS_CHAPTER_REFERENCE_DOCTYPE,
+        "parent": course,
+        "parenttype": "LMS Course",
+        "parentfield": parentfield,
+        "chapter": chapter_name,
+        "idx": next_idx,
+    }).insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"ok": True, "already_linked": False}
 
     return {
         "ok": True,
