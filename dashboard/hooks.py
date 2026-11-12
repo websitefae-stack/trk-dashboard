@@ -111,6 +111,7 @@ after_migrate = [
     "dashboard.patches.add_session_worker_onboarding_master_steps.execute",
     "dashboard.patches.apply_coach_onboarding_list_to_session_workers.execute",
     "dashboard.patches.remove_print_materials_from_session_worker_onboarding.execute",
+    "dashboard.patches.remove_photoshoot_images_from_session_worker_onboarding.execute",
     "dashboard.patches.resync_session_worker_document_access.execute",
 ]
 

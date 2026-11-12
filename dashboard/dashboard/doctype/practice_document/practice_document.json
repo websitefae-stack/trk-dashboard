@@ -182,7 +182,7 @@
   },
   {
    "default": "0",
-   "description": "A session worker only ever gets access to this document if this is ticked AND at least one coach on their own approved roster already has access to it (via All Coaches, or being listed in Available to Coaches above) - never on its own.",
+   "description": "Grants every Session Worker access to this document (for Internal Compliance/Both, this creates a Coach Document Requirement for each of them, same as Brand-Based Access does for coaches).",
    "fieldname": "session_workers_can_access",
    "fieldtype": "Check",
    "label": "Session Workers Can Access"
