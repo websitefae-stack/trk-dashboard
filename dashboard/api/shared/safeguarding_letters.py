@@ -261,7 +261,20 @@ def _default_school_contact(client_name):
 	Link row on file. Returns {} if neither exists - the coach always
 	types/confirms these on the form regardless, this is only ever a
 	convenience, never trusted as-is.
+
+	Wrapped so it can NEVER take down get_school_options for every
+	school just because one Client's billing_contact/child rows don't
+	look quite how this was written assuming they would - the school
+	picker itself must still populate even if this prefill can't.
 	"""
+	try:
+		return _default_school_contact_unsafe(client_name)
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), f"Safeguarding Letter - Default School Contact Failed - {client_name}")
+		return {}
+
+
+def _default_school_contact_unsafe(client_name):
 	client_meta = frappe.get_meta(CLIENT_DOCTYPE)
 
 	billing_contact = frappe.db.get_value(CLIENT_DOCTYPE, client_name, "billing_contact") \
@@ -273,7 +286,7 @@ def _default_school_contact(client_name):
 			"email_id": contact.get("email_id") or "",
 		}
 
-	if client_meta.has_field("client_contacts"):
+	if client_meta.has_field("client_contacts") and frappe.db.exists("DocType", "Client Contact Link"):
 		rows = frappe.get_all(
 			"Client Contact Link",
 			filters={"parent": client_name, "parenttype": CLIENT_DOCTYPE, "parentfield": "client_contacts"},
@@ -291,6 +304,19 @@ def _default_school_contact(client_name):
 def get_school_options():
 	ensure_logged_in()
 
+	# safeguarding_letters.js treats a failure here as non-fatal and
+	# silently falls back to "Add a new school..." only - exactly what
+	# Ashley saw when this threw. Logged rather than left silent, so a
+	# real failure leaves a trace in the Error Log instead of just
+	# looking like "there are no schools".
+	try:
+		return _get_school_options_unsafe()
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), "Safeguarding Letter - get_school_options Failed")
+		return []
+
+
+def _get_school_options_unsafe():
 	meta = frappe.get_meta(CLIENT_DOCTYPE)
 	postcode_field = _client_postcode_fieldname()
 
