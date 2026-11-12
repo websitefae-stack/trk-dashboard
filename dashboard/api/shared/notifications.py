@@ -632,6 +632,13 @@ def _get_reference_link(reference_doctype, reference_name, dashboard_base_url=""
         # the lead's own detail page rather than a separate view.
         return f"{dashboard_base_url}/lead_details?name={reference_name}" if dashboard_base_url else ""
 
+    if reference_doctype == "School Safeguarding Assurance Request":
+        # submit_assurance_request() (safeguarding_letters.py) notifies
+        # Ashley with this as the reference - the franchisor review/
+        # approve/sign page reads the same "name" query param (see
+        # franchisor_db/safeguarding_letter_details/index.py).
+        return f"{dashboard_base_url}/safeguarding_letter_details?name={reference_name}" if dashboard_base_url else ""
+
     # Any Desk-built form in the "Forms" module (Sessional Worker Reference
     # Response, and every other Forms-module DocType form_reports.py's own
     # get_form_module_doctypes() discovers) - straight to the Reports
