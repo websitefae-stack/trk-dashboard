@@ -99,7 +99,7 @@
           {% if linked_coaches and not session_worker_is_view_mode %}
             <button type="button" class="dashboard-tab-btn" data-tab="supervision">Supervision</button>
           {% endif %}
-          {% if profile_role == "coach" or profile_role == "franchisor" %}
+          {% if profile_role in ["coach", "franchisor", "session_worker"] %}
             <button type="button" class="dashboard-tab-btn" data-tab="logins">Your Logins</button>
           {% endif %}
         </div>
@@ -951,7 +951,7 @@
       </div>
       {% endif %}
 
-      {% if profile_role == "coach" or profile_role == "franchisor" %}
+      {% if profile_role in ["coach", "franchisor", "session_worker"] %}
       <!-- LOGINS & LINKS TAB -->
       <div class="dashboard-tab-panel" data-tab-panel="logins" style="display:none;">
         <div class="dashboard-card">
@@ -963,6 +963,11 @@
           </p>
           {% if profile_role == "coach" %}
           <a href="/coach_db/onboarding{{ coach_view_query }}" class="dashboard-btn dashboard-btn-light">
+            &larr; See your full Onboarding checklist
+          </a>
+          {% endif %}
+          {% if profile_role == "session_worker" %}
+          <a href="/session_worker_db/onboarding{{ session_worker_view_query }}" class="dashboard-btn dashboard-btn-light">
             &larr; See your full Onboarding checklist
           </a>
           {% endif %}

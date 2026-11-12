@@ -286,7 +286,21 @@ def get_coach_login_links(coach, role="coach"):
     (get_coach_public_booking_link); the franchisor profile instead gets
     the system-wide Franchise Call booking link, same idea as
     /book-franchise-call itself - sharing "my own booking link" makes no
-    sense for Ashley, who isn't the one running client sessions.
+    sense for Ashley, who isn't the one running client sessions. Neither
+    applies to role="session_worker" - a session worker doesn't run
+    their own bookable sessions any more than Ashley does, so that
+    branch is skipped entirely for them, same reasoning.
+
+    role="session_worker" passes a Session Worker record in as `coach`
+    (same loose parameter name, different doctype - matches this file's
+    own ROLE_PROFILE_CONFIG pattern of one function covering more than
+    one role). The Facebook/Instagram/LinkedIn entries use .get(), which
+    is safe against a field that doctype doesn't have - they simply
+    don't show unless Session Worker grows matching fields later. The
+    digital business card is different: get_coach_vcard checks
+    frappe.db.exists("Coach", coach) specifically, so it would 404 for
+    a Session Worker's own name - explicitly skipped for that role
+    rather than built against the wrong doctype.
 
     link_url is always a full absolute URL rather than the relative path
     used elsewhere in the app - a QR code encoding a relative path is
@@ -328,7 +342,7 @@ def get_coach_login_links(coach, role="coach"):
             "link_url": coach.linkedin_url,
         })
 
-    email = coach.get("coach_email") or coach.get("user") or ""
+    email = coach.get("coach_email") or coach.get("sw_email") or coach.get("user") or ""
     links.append({
         "key": "email",
         "label": "Email",
@@ -363,7 +377,7 @@ def get_coach_login_links(coach, role="coach"):
                        "Franchisee Calls, so it never needs updating even if that changes.",
             "link_url": PUBLIC_SITE_URL + "/book-franchise-call",
         })
-    else:
+    elif role == "coach":
         booking_link = get_coach_public_booking_link(coach.name)
         if booking_link:
             links.append({
@@ -381,15 +395,18 @@ def get_coach_login_links(coach, role="coach"):
     # code, scan it on your phone" mechanism this whole tab already has.
     # Someone else scans this one, not the coach themself - the how_to
     # reflects that instead of the "log in with..." wording every other
-    # entry here uses.
-    links.append({
-        "key": "vcard",
-        "label": "My Digital Business Card",
-        "detail": "Share your contact details",
-        "how_to": "Show this QR code to someone so they can scan it and save your contact details straight to "
-                   "their phone.",
-        "link_url": PUBLIC_SITE_URL + "/api/method/dashboard.api.shared.profile.get_coach_vcard?coach=" + coach.name,
-    })
+    # entry here uses. get_coach_vcard only ever looks up "Coach" -
+    # skipped for session_worker rather than built against the wrong
+    # doctype (see this function's own docstring).
+    if role != "session_worker":
+        links.append({
+            "key": "vcard",
+            "label": "My Digital Business Card",
+            "detail": "Share your contact details",
+            "how_to": "Show this QR code to someone so they can scan it and save your contact details straight to "
+                       "their phone.",
+            "link_url": PUBLIC_SITE_URL + "/api/method/dashboard.api.shared.profile.get_coach_vcard?coach=" + coach.name,
+        })
 
     return links
 
@@ -511,7 +528,7 @@ def _get_coach_lms_path(coach):
     """
     fallback = "/lms"
 
-    user = coach.get("user") or coach.get("coach_email")
+    user = coach.get("user") or coach.get("coach_email") or coach.get("sw_email")
     if not user or not frappe.db.exists("DocType", "LMS Enrollment"):
         return fallback
 
@@ -1007,9 +1024,14 @@ def _with_live_status(rows):
     """
     result = []
     for row in rows or []:
-        row = dict(row)
-        row["status"] = _get_status_from_expiry(row.get("expiry_date"))
-        result.append(row)
+        # Each row is usually a Frappe child-table Document (ORM object,
+        # not a plain dict) - dict(row) throws "'Document' object is not
+        # iterable". as_dict() is the correct way to get a plain copy;
+        # dict(row) as a fallback only covers a caller that already
+        # passed plain dicts in.
+        row_dict = row.as_dict() if hasattr(row, "as_dict") else dict(row)
+        row_dict["status"] = _get_status_from_expiry(row_dict.get("expiry_date"))
+        result.append(row_dict)
     return result
 
 
