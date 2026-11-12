@@ -804,80 +804,6 @@
     );
   }
 
-  // Lets HQ reuse one existing LMS chapter (and every lesson in it)
-  // under a second course - e.g. "Access your emails with Chantelle
-  // Venter" showing in both the Coach course and a Session Worker-only
-  // course - without duplicating the chapter or its lessons. See
-  // onboarding.link_existing_chapter_to_course's own docstring for how
-  // this actually works and its one cosmetic caveat.
-  function renderChapterShareTool(chapters) {
-    var courseSeen = {};
-    var courseOptions = "";
-    chapters.forEach(function (c) {
-      if (courseSeen[c.course]) return;
-      courseSeen[c.course] = true;
-      courseOptions += '<option value="' + escapeHtml(c.course) + '">' + escapeHtml(c.course_title) + "</option>";
-    });
-
-    var chapterOptions = chapters.map(function (c) {
-      return '<option value="' + escapeHtml(c.chapter_name) + '">' +
-        escapeHtml(c.chapter_title) + " (currently in " + escapeHtml(c.course_title) + ")</option>";
-    }).join("");
-
-    return (
-      '<div class="dashboard-card" style="margin-bottom:18px;">' +
-        '<h3 class="dashboard-onboarding-stage-title">Share an Existing Module With Another Course</h3>' +
-        '<p class="dashboard-doc-list-meta">Picks an existing chapter (with all its lessons) into a second course too - nothing is copied, so editing the lesson still only ever needs doing in one place.</p>' +
-        '<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-top:10px;">' +
-          '<div>' +
-            '<label class="dashboard-field-label">Module (chapter) to share</label>' +
-            '<select class="dashboard-select" id="onboardingShareChapterSelect">' + chapterOptions + "</select>" +
-          "</div>" +
-          '<div>' +
-            '<label class="dashboard-field-label">Add it to this course</label>' +
-            '<select class="dashboard-select" id="onboardingShareCourseSelect">' + courseOptions + "</select>" +
-          "</div>" +
-          '<button type="button" class="dashboard-btn dashboard-btn-primary" id="onboardingShareChapterBtn">Share</button>' +
-        "</div>" +
-        '<div class="dashboard-doc-list-meta" id="onboardingShareChapterResult"></div>' +
-      "</div>"
-    );
-  }
-
-  function bindChapterShareTool() {
-    var btn = el("onboardingShareChapterBtn");
-    if (!btn) return;
-
-    btn.addEventListener("click", async function () {
-      var chapterSelect = el("onboardingShareChapterSelect");
-      var courseSelect = el("onboardingShareCourseSelect");
-      var result = el("onboardingShareChapterResult");
-      if (!chapterSelect || !courseSelect) return;
-
-      btn.disabled = true;
-      btn.textContent = "Sharing...";
-      if (result) result.textContent = "";
-
-      try {
-        var response = await apiPost(API + ".link_existing_chapter_to_course", {
-          course: courseSelect.value,
-          chapter_name: chapterSelect.value,
-        });
-        if (result) {
-          result.textContent = response.already_linked
-            ? "That module is already in this course."
-            : "Done - that module now shows under this course too. Pick it from the chapter dropdown on the matching step below.";
-        }
-        await loadStepManager();
-      } catch (error) {
-        if (result) result.textContent = error.message || "Could not share this module.";
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "Share";
-      }
-    });
-  }
-
   async function loadStepManager() {
     var content = el("onboardingStepManagerContent");
     if (!content) return;
@@ -910,9 +836,16 @@
       return;
     }
 
-    content.innerHTML = (chapters.length ? renderChapterShareTool(chapters) : "") +
+    // Reusing a module/chapter across two courses (e.g. an LMS lesson
+    // shared between the Coach course and a Session Worker-only one)
+    // is a plain LMS Tools job now, not onboarding-specific - see
+    // franchisor_db/lms_tools.
+    content.innerHTML =
+      '<p class="dashboard-doc-list-meta" style="margin-bottom:14px;">' +
+        "Want a step to reuse a module/lesson already used elsewhere? Share it onto this step's course first from " +
+        '<a href="/franchisor_db/lms_tools">LMS Tools</a>, then pick it from the chapter dropdown on the matching step below.' +
+      "</p>" +
       stages.map(function (stage) { return renderStepManagerStage(stage, chapters); }).join("");
-    bindChapterShareTool();
 
     // Picking a different chapter needs the lesson dropdown next to it
     // rebuilt from that chapter's own lessons - it's a fresh list per

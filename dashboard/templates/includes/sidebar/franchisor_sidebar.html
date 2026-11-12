@@ -144,7 +144,7 @@
             </div>
         </div>
 
-        <div class="dashboard-nav-group {% if active_page in ['documents', 'reports', 'links', 'email_templates', 'reminders', 'qr_cards', 'podcasts', 'testimonials', 'safeguarding_letters'] %}is-open{% endif %}">
+        <div class="dashboard-nav-group {% if active_page in ['documents', 'reports', 'links', 'email_templates', 'reminders', 'qr_cards', 'podcasts', 'testimonials', 'safeguarding_letters', 'lms_tools'] %}is-open{% endif %}">
             <button type="button" class="dashboard-nav-group-toggle">
                 <span class="dashboard-nav-icon">🧰</span>
                 <span>Tools</span>
@@ -189,6 +189,11 @@
                 <a href="/franchisor_db/safeguarding_letters" class="{% if active_page in ['safeguarding_letters', 'safeguarding_letter_details'] %}is-active{% endif %}">
                     <span class="dashboard-nav-icon">🛡️</span>
                     <span>Safeguarding Letters</span>
+                </a>
+
+                <a href="/franchisor_db/lms_tools" class="{% if active_page == 'lms_tools' %}is-active{% endif %}">
+                    <span class="dashboard-nav-icon">🎓</span>
+                    <span>LMS Tools</span>
                 </a>
 
                 {% if frappe.session.user == "office@theresilienthub.co.uk" %}

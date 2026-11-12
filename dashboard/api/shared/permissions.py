@@ -751,29 +751,26 @@ def get_expired_legal_items(doc, dashboard_type):
             expired.append(missing_item)
 
     for label, table_field, number_field, missing_since_field in plain_tables:
-        has_dated_row = False
+        # The row with the furthest-out expiry decides compliance, same
+        # as the DBS family above - checking every row independently
+        # used to mean an old, already-superseded record (e.g. an
+        # expired ICO Certificate from 2 renewals ago) kept blocking
+        # access forever even once a genuinely current one was on file,
+        # since each expired-by-date row was flagged on its own with
+        # nothing excluding it once something newer existed. Confirmed
+        # live: Fiona Kennedy stuck on "ICO Certificate expired" with a
+        # current (2027-expiry) ICO Certificate already on file,
+        # alongside two older expired ones from past renewals.
+        best = _latest_dated_row(doc.get(table_field), number_field)
 
-        for row in doc.get(table_field) or []:
-            expiry_date = row.get("expiry_date")
-
-            if not expiry_date:
-                continue
-
-            has_dated_row = True
-
-            try:
-                expiry = frappe.utils.getdate(expiry_date)
-            except Exception:
-                continue
-
-            if expiry < today:
+        if best:
+            if best["expiry"] < today:
                 expired.append({
                     "label": label,
-                    "number": row.get(number_field) or "",
-                    "expiry_date": expiry_date,
+                    "number": best["number"],
+                    "expiry_date": best["expiry_date"],
                 })
-
-        if not has_dated_row:
+        else:
             effective_missing_since = _effective_missing_since(doc.get(missing_since_field), training_day_completed_on)
             missing_item = _missing_item_if_grace_period_over(label, effective_missing_since, today, grace_days=grace_days)
             if missing_item:

@@ -540,23 +540,23 @@ def get_profile_context(role):
         "bank_account": bank_account,
         "can_request_banking_change": config.get("can_request_banking_change", 0),
         "can_edit_banking_directly": config.get("can_edit_banking_directly", 0),
-        "dbs_rows": profile_doc.get(config["legal_parentfields"]["dbs"]) or [],
-        "dbs_update_service_rows": profile_doc.get(
+        "dbs_rows": _with_live_status(profile_doc.get(config["legal_parentfields"]["dbs"])),
+        "dbs_update_service_rows": _with_live_status(profile_doc.get(
             config["legal_parentfields"]["dbs_update_service"]
-        ) or [],
-        "insurance_rows": profile_doc.get(config["legal_parentfields"]["insurance"]) or [],
+        )),
+        "insurance_rows": _with_live_status(profile_doc.get(config["legal_parentfields"]["insurance"])),
         # Coach/Ashley only - session_worker's legal_parentfields has no
         # "indemnity" entry (Ashley's rule: no ICO Certificate for
         # session workers) - see profile_body.html's own profile_role
         # gate on the add button/section itself.
-        "indemnity_rows": (
-            profile_doc.get(config["legal_parentfields"]["indemnity"]) or []
+        "indemnity_rows": _with_live_status(
+            profile_doc.get(config["legal_parentfields"]["indemnity"])
         ) if "indemnity" in config["legal_parentfields"] else [],
-        "identification_rows": (
-            profile_doc.get(config["legal_parentfields"]["identification"]) or []
+        "identification_rows": _with_live_status(
+            profile_doc.get(config["legal_parentfields"]["identification"])
         ) if "identification" in config["legal_parentfields"] else [],
-        "safeguarding_certificate_rows": (
-            profile_doc.get(config["legal_parentfields"]["safeguarding_certificate"]) or []
+        "safeguarding_certificate_rows": _with_live_status(
+            profile_doc.get(config["legal_parentfields"]["safeguarding_certificate"])
         ) if "safeguarding_certificate" in config["legal_parentfields"] else [],
         "recognitions": get_coach_recognitions(profile_doc.name),
     }
@@ -986,6 +986,31 @@ def _get_status_from_expiry(expiry_date):
 
     except Exception:
         return "Expired"
+
+
+def _with_live_status(rows):
+    """
+    Legal record rows store "status" as a snapshot taken once, the
+    moment the record is uploaded (see add_my_legal_record) - nothing
+    ever revisits it as time passes, so a record correctly marked
+    Current on the day it was added stays labelled Current forever,
+    even long after its own expiry_date has actually passed. Confirmed
+    live: Fiona Kennedy's Legal Details tab showed an ICO Certificate
+    as "Current" with an expiry date of 07-11-2026, several days in the
+    past - misleading given the real access-lockout check (permissions.
+    get_expired_legal_items) works off expiry_date directly, not this
+    field, so the badge and the actual lockout could disagree.
+
+    Recomputed here at display time instead of relying on the stored
+    value - every page that shows these rows calls this, so there's
+    nothing to keep in sync and no daily job needed to "fix" it later.
+    """
+    result = []
+    for row in rows or []:
+        row = dict(row)
+        row["status"] = _get_status_from_expiry(row.get("expiry_date"))
+        result.append(row)
+    return result
 
 
 def _save_optional_file(fieldname, attached_to_doctype, attached_to_name, is_private=1):

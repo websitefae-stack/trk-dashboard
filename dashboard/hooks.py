@@ -84,6 +84,11 @@ jinja = {
 # json (it's module-owned, not a patch-created custom doctype), so
 # they're only guaranteed to exist once THIS deploy's own schema sync
 # has run, same ordering trap as every other entry here.
+#
+# apply_coach_onboarding_list_to_session_workers needs applies_to too,
+# same reason, and must run after add_session_worker_onboarding_master_
+# steps so its own newly-seeded Safeguarding Training step already
+# exists before this one goes looking for what else needs flipping.
 after_migrate = [
     "dashboard.patches.create_store_manager_for_rachel_v2.execute",
     "dashboard.patches.add_item_gallery_field.execute",
@@ -91,6 +96,7 @@ after_migrate = [
     "dashboard.patches.add_coach_identification_and_safeguarding_fields.execute",
     "dashboard.patches.add_session_worker_identification_and_safeguarding_fields.execute",
     "dashboard.patches.add_session_worker_onboarding_master_steps.execute",
+    "dashboard.patches.apply_coach_onboarding_list_to_session_workers.execute",
 ]
 
 # Keep appointments Private (Frappe's own permission model then restricts
@@ -213,6 +219,11 @@ doc_events = {
             # brand a Coach Document Requirement. See
             # practice_documents.sync_practice_document_brand_requirements.
             "dashboard.api.shared.practice_documents.sync_practice_document_brand_requirements",
+            # Publishing a document with Previous Version set
+            # auto-retires the one it replaces, so it stops showing in
+            # the coach-facing Documents list without a second manual
+            # edit. See practice_documents.supersede_previous_version.
+            "dashboard.api.shared.practice_documents.supersede_previous_version",
         ],
     },
     # A new service Item (has a brand flag ticked, isn't a Store product)
