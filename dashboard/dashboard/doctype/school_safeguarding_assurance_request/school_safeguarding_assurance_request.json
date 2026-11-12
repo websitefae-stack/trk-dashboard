@@ -101,7 +101,8 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "School",
-   "options": "School",
+   "options": "Client",
+   "description": "A real Client (client_type \"School\") - not the separate School Pipeline sales-prospecting doctype, which a coach has no access to.",
    "reqd": 1
   },
   {
