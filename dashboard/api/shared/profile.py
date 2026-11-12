@@ -1007,9 +1007,14 @@ def _with_live_status(rows):
     """
     result = []
     for row in rows or []:
-        row = dict(row)
-        row["status"] = _get_status_from_expiry(row.get("expiry_date"))
-        result.append(row)
+        # Each row is usually a Frappe child-table Document (ORM object,
+        # not a plain dict) - dict(row) throws "'Document' object is not
+        # iterable". as_dict() is the correct way to get a plain copy;
+        # dict(row) as a fallback only covers a caller that already
+        # passed plain dicts in.
+        row_dict = row.as_dict() if hasattr(row, "as_dict") else dict(row)
+        row_dict["status"] = _get_status_from_expiry(row_dict.get("expiry_date"))
+        result.append(row_dict)
     return result
 
 
