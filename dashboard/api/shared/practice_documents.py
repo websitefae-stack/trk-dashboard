@@ -196,31 +196,17 @@ def _session_worker_name_for_user(user):
 	return None
 
 
-def _get_linked_coach_names_for_session_worker(session_worker_name):
-	"""The session worker's own approved coach roster (Session Worker
-	Coach / linked_coaches - franchisor-managed, see session_workers.
-	get_session_worker_coach_links), not a client-overlap guess - the
-	roster Ashley actually means by "their connected coach"."""
-	if not frappe.db.exists("DocType", "Session Worker Coach"):
-		return []
-
-	return frappe.get_all(
-		"Session Worker Coach",
-		filters={"parent": session_worker_name, "parenttype": "Session Worker"},
-		pluck="coach",
-	)
-
-
 def _can_session_worker_see_resource(document, session_worker_name):
 	"""
 	"I need a way on practice documents to tick if the session worker
-	has access to it. they can also only get access to it if their
-	connected coach has access" - a session worker only ever sees a
-	resource document if BOTH: (1) Session Workers Can Access is ticked
-	on the document, and (2) at least one coach on their own approved
-	roster already has access to the same document via the ordinary
-	coach rule (_can_user_see_resource) - a session worker should never
-	see something none of their own coaches can.
+	has access to it" - a session worker sees a resource document
+	whenever Session Workers Can Access is ticked on it, full stop.
+	Originally also required at least one of their own approved coaches
+	to already have access ("it is not coach dependant" - Ashley,
+	confirming this should match the tick alone, same as
+	_sync_session_worker_document_access on the Internal Compliance
+	side) - dropped for consistency, so this one field behaves the same
+	way regardless of the document's own Document Purpose.
 
 	Deliberately NOT routed through _can_user_see_resource itself with
 	the session worker's own login - that function's "Selected Coaches"
@@ -228,15 +214,7 @@ def _can_session_worker_see_resource(document, session_worker_name):
 	actual coaches, so a session worker's own login would never match
 	one regardless of this field.
 	"""
-	if not document.get("session_workers_can_access"):
-		return False
-
-	for coach_name in _get_linked_coach_names_for_session_worker(session_worker_name):
-		coach_user = _get_coach_login(coach_name)
-		if coach_user and _can_user_see_resource(document, user=coach_user):
-			return True
-
-	return False
+	return bool(document.get("session_workers_can_access"))
 
 
 def _get_linked_item_labels_by_document(document_names):
@@ -1356,47 +1334,36 @@ def _sync_brand_document_requirements(practice_document_name, brand_values):
 			)
 
 
-def _get_session_worker_names_linked_to_coaches(coach_names):
-	if not coach_names or not frappe.db.exists("DocType", "Session Worker Coach"):
-		return set()
-
-	rows = frappe.get_all(
-		"Session Worker Coach",
-		filters={"parenttype": "Session Worker", "coach": ["in", list(coach_names)]},
-		fields=["parent"],
-	)
-	return {row.parent for row in rows}
-
-
 def _sync_session_worker_document_access(doc):
 	"""
 	"I need a way on practice documents to tick if the session worker
-	has access to it. they can also only get access to it if their
-	connected coach has access" - confirmed via a real example (SESSION
-	WORKER HANDBOOK, Document Purpose "Internal Compliance") that this
-	tick needs to drive Coach Document Requirement, the same mechanism
+	has access to it" - confirmed via a real example (SESSION WORKER
+	HANDBOOK, Document Purpose "Internal Compliance") that this tick
+	needs to drive Coach Document Requirement, the same mechanism
 	Brand-Based Access already uses for coaches - not the separate
 	Available to Coaches/resource_availability path, which only ever
 	applies to Client Resource documents and never even sees an
 	Internal Compliance one like this.
+
+	Originally gated on top of that by whether the session worker's own
+	approved coach already had access ("it is not coach dependant" -
+	Ashley, after confirming her own coach record already had access
+	and it still made no difference) - dropped entirely. The tick alone
+	now grants every Session Worker, the same "All Coaches"-equivalent
+	simplicity the coach side already has, not a second condition to
+	satisfy on top of it.
 
 	Reconciles the same way _sync_brand_document_requirements does, on
 	its own flag (granted_via_session_worker_access) so the two
 	mechanisms never fight over the same row: a session worker with a
 	row granted via brand access keeps it regardless of this tick, and
 	a row only this mechanism granted is removed (while still a draft)
-	the moment the tick comes off or their coach no longer has access.
+	the moment the tick comes off.
 	"""
-	if not doc.get("session_workers_can_access"):
-		coach_names_with_access = set()
+	if doc.get("session_workers_can_access"):
+		target_names = set(frappe.get_all("Session Worker", pluck="name"))
 	else:
-		coach_names_with_access = set(frappe.get_all(
-			COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
-			filters={"practice_document": doc.name, "person_type": "Coach"},
-			pluck="coach",
-		))
-
-	target_names = _get_session_worker_names_linked_to_coaches(coach_names_with_access)
+		target_names = set()
 
 	existing_rows = frappe.get_all(
 		COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
