@@ -4,6 +4,7 @@ from frappe import _
 from dashboard.api.shared.profile import (
     get_profile_context,
     get_profile_display_name,
+    _with_live_status,
 )
 from dashboard.api.shared.permissions import get_expired_legal_items
 from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
@@ -53,10 +54,10 @@ def get_context(context):
         context.can_request_banking_change = 0
         context.can_edit_banking_directly = 0
 
-        context.dbs_rows = session_worker.get("dbs") or []
-        context.dbs_update_service_rows = session_worker.get("dbs_update_service") or []
-        context.insurance_rows = session_worker.get("insurance") or []
-        context.indemnity_rows = session_worker.get("indemnity") or []
+        context.dbs_rows = _with_live_status(session_worker.get("dbs"))
+        context.dbs_update_service_rows = _with_live_status(session_worker.get("dbs_update_service"))
+        context.insurance_rows = _with_live_status(session_worker.get("insurance"))
+        context.indemnity_rows = _with_live_status(session_worker.get("indemnity"))
         context.expired_legal_items = []
 
     else:

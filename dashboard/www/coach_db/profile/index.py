@@ -8,6 +8,7 @@ from dashboard.api.shared.profile import (
     coach_has_secret_key,
     get_coach_login_links,
     get_coach_recognitions,
+    _with_live_status,
 )
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
 
@@ -56,12 +57,12 @@ def get_context(context):
         context.can_request_banking_change = 0
         context.can_edit_banking_directly = 0
 
-        context.dbs_rows = coach.get("dbs") or []
-        context.dbs_update_service_rows = coach.get("dbs_update_services") or []
-        context.insurance_rows = coach.get("insurance") or []
-        context.indemnity_rows = coach.get("indemnity") or []
-        context.identification_rows = coach.get("identification") or []
-        context.safeguarding_certificate_rows = coach.get("safeguarding_certificate") or []
+        context.dbs_rows = _with_live_status(coach.get("dbs"))
+        context.dbs_update_service_rows = _with_live_status(coach.get("dbs_update_services"))
+        context.insurance_rows = _with_live_status(coach.get("insurance"))
+        context.indemnity_rows = _with_live_status(coach.get("indemnity"))
+        context.identification_rows = _with_live_status(coach.get("identification"))
+        context.safeguarding_certificate_rows = _with_live_status(coach.get("safeguarding_certificate"))
         context.recognitions = get_coach_recognitions(coach.name)
 
         context.has_secret_key = coach_has_secret_key(coach.name)
