@@ -1483,6 +1483,40 @@ def sync_practice_document_brand_requirements(doc, method=None):
 		frappe.log_error(frappe.get_traceback(), f"Practice Document Brand Requirement Sync Failed - {doc.name}")
 
 
+def supersede_previous_version(doc, method=None):
+	"""
+	Practice Document.on_update hook - "why is this not removing the old
+	version" (Ashley, after publishing a new Operations Manual with
+	Previous Version pointing at the old one, which kept showing in the
+	coach-facing Documents list). Previous Version was a plain reference
+	field with nothing acting on it - setting it never did anything to
+	the document it points at. Every document list here filters on
+	status == "Published" alone, so the old one only stops showing once
+	its OWN status is changed to Superseded, which this now does
+	automatically the moment a document naming it as Previous Version is
+	itself Published - matching what "Previous Version" implies should
+	happen, rather than needing a second manual edit on the old record.
+
+	frappe.db.set_value, not a full doc.save() - a single-field update,
+	no need to fire the old document's own on_update chain for this.
+	"""
+	if not doc.name or doc.status != "Published" or not doc.previous_version:
+		return
+
+	if doc.previous_version == doc.name:
+		return
+
+	try:
+		if not frappe.db.exists(PRACTICE_DOCUMENT_DOCTYPE, doc.previous_version):
+			return
+
+		if frappe.db.get_value(PRACTICE_DOCUMENT_DOCTYPE, doc.previous_version, "status") != "Superseded":
+			frappe.db.set_value(PRACTICE_DOCUMENT_DOCTYPE, doc.previous_version, "status", "Superseded", update_modified=False)
+			frappe.db.commit()
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), f"Practice Document Supersede Previous Version Failed - {doc.name}")
+
+
 def activate_due_practice_documents():
 	"""
 	Daily scheduled job (see hooks.py scheduler_events["daily"]) - nothing

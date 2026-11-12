@@ -219,6 +219,11 @@ doc_events = {
             # brand a Coach Document Requirement. See
             # practice_documents.sync_practice_document_brand_requirements.
             "dashboard.api.shared.practice_documents.sync_practice_document_brand_requirements",
+            # Publishing a document with Previous Version set
+            # auto-retires the one it replaces, so it stops showing in
+            # the coach-facing Documents list without a second manual
+            # edit. See practice_documents.supersede_previous_version.
+            "dashboard.api.shared.practice_documents.supersede_previous_version",
         ],
     },
     # A new service Item (has a brand flag ticked, isn't a Store product)
