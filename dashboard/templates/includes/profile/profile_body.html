@@ -482,16 +482,29 @@
 
             <h4>{{ section.title }} Records</h4>
             <div class="dashboard-table-wrap" style="margin-bottom:24px;">
-              <table class="dashboard-table dashboard-table-compact">
+              <!-- Always the same 6 columns (Insurer Name included, even
+                   where it's always "—") and a fixed, shared set of column
+                   widths - so Date Received/Expiry Date/Number/File line
+                   up at the same position down every one of these tables,
+                   not just within a single table. Without table-layout:
+                   fixed each table sizes its own columns off its own
+                   content, which is what left them out of line before. -->
+              <table class="dashboard-table dashboard-table-compact dashboard-legal-table">
+                <colgroup>
+                  <col style="width:10%;">
+                  <col style="width:13%;">
+                  <col style="width:13%;">
+                  <col style="width:28%;">
+                  <col style="width:20%;">
+                  <col style="width:8%;">
+                </colgroup>
                 <thead>
                   <tr>
                     <th>Status</th>
                     <th>Date Received</th>
                     <th>Expiry Date</th>
                     <th>{{ section.number_label }}</th>
-                    {% if section.has_insurer %}
-                      <th>Insurer Name</th>
-                    {% endif %}
+                    <th>Insurer Name</th>
                     <th>File</th>
                   </tr>
                 </thead>
@@ -504,9 +517,7 @@
                         <td>{{ frappe.utils.formatdate(row.date_received, "dd-MM-yyyy") if row.date_received else "—" }}</td>
                         <td>{{ frappe.utils.formatdate(row.expiry_date, "dd-MM-yyyy") if row.expiry_date else "—" }}</td>
                         <td>{{ row.get(section.number_field) or "—" }}</td>
-                        {% if section.has_insurer %}
-                          <td>{{ row.insurer_name or "—" }}</td>
-                        {% endif %}
+                        <td>{{ row.insurer_name or "—" }}</td>
                         <td>
                           {% if row.get(section.file_field) %}
                             <a class="dashboard-inline-link" href="{{ row.get(section.file_field) }}" target="_blank">View</a>
@@ -518,7 +529,7 @@
                     {% endfor %}
                   {% else %}
                     <tr>
-                      <td colspan="{{ section.colspan }}" class="dashboard-empty">{{ section.empty }}</td>
+                      <td colspan="6" class="dashboard-empty">{{ section.empty }}</td>
                     </tr>
                   {% endif %}
                 </tbody>

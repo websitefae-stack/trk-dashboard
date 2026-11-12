@@ -13,6 +13,7 @@
   "session_worker",
   "user",
   "granted_via_brand_access",
+  "granted_via_session_worker_access",
   "assignment_column",
   "assigned_by",
   "assigned_date",
@@ -98,6 +99,14 @@
    "fieldname": "granted_via_brand_access",
    "fieldtype": "Check",
    "label": "Granted via Brand Access",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Set automatically when this Session Worker row exists only because the Practice Document's own Session Workers Can Access is ticked AND at least one coach on this session worker's own approved roster already has a requirement for the same document - kept in sync from there, same reconciliation rule as Granted via Brand Access (only removed while still a draft).",
+   "fieldname": "granted_via_session_worker_access",
+   "fieldtype": "Check",
+   "label": "Granted via Session Worker Access",
    "read_only": 1
   },
   {
