@@ -485,8 +485,8 @@ def _resolve_lms_chapter(chapter_name, course):
     actually picked this chapter under, from get_lms_chapters) - trusted
     over Course Chapter's own single "course" field, since a chapter can
     be shared across two different courses via a second Chapter
-    Reference row (see link_existing_chapter_to_course), and that second
-    reference is exactly the case this needs to resolve correctly: the
+    Reference row (see lms_tools.link_existing_chapter_to_course), and
+    that second reference is exactly the case this needs to resolve correctly: the
     chapter's own "course" field only ever names ONE of the two. Returns
     everything needed to build a working link and check completion, or
     None if LMS isn't installed, the chapter/course combination doesn't
@@ -1599,33 +1599,6 @@ def get_lms_chapters():
 
 
 @frappe.whitelist()
-def get_lms_courses():
-    """
-    Every LMS Course, for the "Add it to this course" side of the Share
-    an Existing Module tool - deliberately NOT derived from
-    get_lms_chapters()'s own chapter list, which only ever lists courses
-    that already have at least one chapter in them. A brand new course
-    (e.g. a just-created Session Worker-only course, empty until its
-    first chapter is shared into it) would never appear as a share
-    target otherwise - exactly the "still not able to link lessons to a
-    second course" symptom Ashley hit, since there was nothing wrong
-    with link_existing_chapter_to_course itself, the new course just
-    never showed up to pick in the first place.
-    """
-    if not is_franchisor_user():
-        frappe.throw(_("You do not have permission to view this."), frappe.PermissionError)
-
-    if not frappe.db.exists("DocType", "LMS Course"):
-        return []
-
-    return frappe.get_all(
-        "LMS Course",
-        fields=["name", "title"],
-        order_by="title asc",
-    )
-
-
-@frappe.whitelist()
 def update_onboarding_step_master(
     step_name=None, link_url=None, lms_course=None, lms_chapter=None, lms_lesson_number=None,
 ):
@@ -1679,85 +1652,3 @@ def update_onboarding_step_master(
     frappe.db.commit()
 
 
-def _chapter_reference_parentfield():
-    """
-    The fieldname on LMS Course holding its Chapter Reference child table
-    - found from the doctype's own metadata (a Table field whose options
-    is "Chapter Reference") rather than guessed, since this app doesn't
-    own Frappe LMS's schema and the exact fieldname was never confirmed
-    against its source (get_lms_chapters/_resolve_lms_chapter only ever
-    needed to READ Chapter Reference rows by filter, never append one,
-    so nothing here needed the parent doctype's own field name before).
-    """
-    for field in frappe.get_meta("LMS Course").fields:
-        if field.fieldtype == "Table" and field.options == LMS_CHAPTER_REFERENCE_DOCTYPE:
-            return field.fieldname
-    return None
-
-
-@frappe.whitelist()
-def link_existing_chapter_to_course(course=None, chapter_name=None):
-    """
-    Shares an existing LMS chapter (and every lesson already in it) with
-    a second course, without duplicating either - exactly what Ashley
-    asked for: "link a module and its lessons to 2 courses" so editing
-    it once fixes it everywhere it's used (e.g. "Access your emails with
-    Chantelle Venter" showing in both the Coach's course and a Session
-    Worker-specific course covering only 3 of its modules).
-
-    Adds one new Chapter Reference row under the target course, pointing
-    at the chapter that already exists under its original course -
-    nothing about the chapter or its lessons is copied or re-created.
-    Course Chapter's own "course" field still names only its original
-    course (Frappe LMS's own schema - a chapter belongs to exactly one
-    "home" course there), but this app's own Go-link/completion logic
-    (_resolve_lms_chapter) is built to trust whichever course a step's
-    own master record says to use, not that field, so a step configured
-    against this second course still resolves correctly - see its own
-    docstring. The one thing this doesn't fix is cosmetic: if Frappe
-    LMS's own front-end shows "which course this chapter belongs to"
-    anywhere in its breadcrumbs/navigation, that will still say the
-    original course, not this new one - harmless for onboarding tracking
-    itself, but worth knowing before relying on it for anything else.
-
-    Safe to call again for the same pair - a chapter already referenced
-    under a course is left alone, not duplicated.
-    """
-    if not is_franchisor_user():
-        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
-
-    course = coalesce_str("course", course)
-    chapter_name = coalesce_str("chapter_name", chapter_name)
-
-    if not frappe.db.exists("DocType", LMS_COURSE_CHAPTER_DOCTYPE):
-        frappe.throw(_("Frappe LMS doesn't appear to be installed on this site."))
-
-    if not course or not frappe.db.exists("LMS Course", course):
-        frappe.throw(_("Course not found."))
-
-    if not chapter_name or not frappe.db.exists(LMS_COURSE_CHAPTER_DOCTYPE, chapter_name):
-        frappe.throw(_("Chapter not found."))
-
-    if frappe.db.exists(LMS_CHAPTER_REFERENCE_DOCTYPE, {"parent": course, "chapter": chapter_name}):
-        return {"ok": True, "already_linked": True}
-
-    parentfield = _chapter_reference_parentfield()
-    if not parentfield:
-        frappe.throw(_("Could not find LMS Course's chapters field - check Frappe LMS is installed and up to date."))
-
-    existing_idx = frappe.db.get_all(
-        LMS_CHAPTER_REFERENCE_DOCTYPE, filters={"parent": course}, fields=["idx"], order_by="idx desc", limit_page_length=1,
-    )
-    next_idx = (existing_idx[0].idx + 1) if existing_idx else 1
-
-    frappe.get_doc({
-        "doctype": LMS_CHAPTER_REFERENCE_DOCTYPE,
-        "parent": course,
-        "parenttype": "LMS Course",
-        "parentfield": parentfield,
-        "chapter": chapter_name,
-        "idx": next_idx,
-    }).insert(ignore_permissions=True)
-    frappe.db.commit()
-
-    return {"ok": True, "already_linked": False}

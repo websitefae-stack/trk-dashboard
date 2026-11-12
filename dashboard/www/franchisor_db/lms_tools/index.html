@@ -1,0 +1,28 @@
+{% include "dashboard/templates/includes/head/franchisor_head.html" %}
+
+<div class="dashboard-page" id="lmsToolsPage">
+  {% include "dashboard/templates/includes/sidebar/franchisor_sidebar.html" %}
+
+  <div class="dashboard-main">
+    {% include "dashboard/templates/includes/topbar/shared_topbar.html" %}
+
+    <div class="dashboard-container">
+
+      <div class="dashboard-page-header">
+        <div>
+          <h1 class="dashboard-page-title">LMS Tools</h1>
+          <p class="dashboard-page-subtitle">Admin tools for Frappe LMS courses - not tied to onboarding, use these any time you're setting up a course.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-card" style="margin-bottom:18px;">
+        <h3 class="dashboard-onboarding-stage-title">Share an Existing Module With Another Course</h3>
+        <p class="dashboard-doc-list-meta">Picks an existing chapter (with all its lessons) into a second course too - nothing is copied, so editing the lesson still only ever needs doing in one place. Works for any two courses - set up the destination course in LMS first (it can be empty, with no chapters of its own yet).</p>
+        <div id="lmsShareToolBody" style="margin-top:10px;">
+          <div class="dashboard-empty">Loading...</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
