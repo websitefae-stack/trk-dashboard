@@ -1284,7 +1284,7 @@ def _get_item_access_gated_coach_names(practice_document_name):
 	return _get_coach_names_with_access_to_items(linked_item_codes)
 
 
-def _ensure_brand_requirement(practice_document_name, person_type, person_name, user):
+def _ensure_brand_requirement(practice_document_name, person_type, person_name, user, granted_field="granted_via_brand_access"):
 	if not user:
 		return
 
@@ -1293,7 +1293,7 @@ def _ensure_brand_requirement(practice_document_name, person_type, person_name, 
 		"person_type": person_type,
 		"user": user,
 		"practice_document": practice_document_name,
-		"granted_via_brand_access": 1,
+		granted_field: 1,
 	}
 	if person_type == "Coach":
 		payload["coach"] = person_name
@@ -1356,6 +1356,79 @@ def _sync_brand_document_requirements(practice_document_name, brand_values):
 			)
 
 
+def _get_session_worker_names_linked_to_coaches(coach_names):
+	if not coach_names or not frappe.db.exists("DocType", "Session Worker Coach"):
+		return set()
+
+	rows = frappe.get_all(
+		"Session Worker Coach",
+		filters={"parenttype": "Session Worker", "coach": ["in", list(coach_names)]},
+		fields=["parent"],
+	)
+	return {row.parent for row in rows}
+
+
+def _sync_session_worker_document_access(doc):
+	"""
+	"I need a way on practice documents to tick if the session worker
+	has access to it. they can also only get access to it if their
+	connected coach has access" - confirmed via a real example (SESSION
+	WORKER HANDBOOK, Document Purpose "Internal Compliance") that this
+	tick needs to drive Coach Document Requirement, the same mechanism
+	Brand-Based Access already uses for coaches - not the separate
+	Available to Coaches/resource_availability path, which only ever
+	applies to Client Resource documents and never even sees an
+	Internal Compliance one like this.
+
+	Reconciles the same way _sync_brand_document_requirements does, on
+	its own flag (granted_via_session_worker_access) so the two
+	mechanisms never fight over the same row: a session worker with a
+	row granted via brand access keeps it regardless of this tick, and
+	a row only this mechanism granted is removed (while still a draft)
+	the moment the tick comes off or their coach no longer has access.
+	"""
+	if not doc.get("session_workers_can_access"):
+		coach_names_with_access = set()
+	else:
+		coach_names_with_access = set(frappe.get_all(
+			COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
+			filters={"practice_document": doc.name, "person_type": "Coach"},
+			pluck="coach",
+		))
+
+	target_names = _get_session_worker_names_linked_to_coaches(coach_names_with_access)
+
+	existing_rows = frappe.get_all(
+		COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
+		filters={"practice_document": doc.name, "person_type": "Session Worker"},
+		fields=["name", "session_worker", "granted_via_session_worker_access", "granted_via_brand_access", "docstatus"],
+	)
+
+	covered = set()
+
+	for row in existing_rows:
+		session_worker_name = row.get("session_worker")
+		if session_worker_name:
+			covered.add(session_worker_name)
+
+		only_granted_here = row.get("granted_via_session_worker_access") and not row.get("granted_via_brand_access")
+		if only_granted_here and session_worker_name not in target_names and row.get("docstatus") == 0:
+			frappe.delete_doc(COACH_DOCUMENT_REQUIREMENT_DOCTYPE, row.get("name"), ignore_permissions=True)
+
+	for session_worker_name in target_names - covered:
+		try:
+			user = _get_session_worker_login(session_worker_name)
+			_ensure_brand_requirement(
+				doc.name, "Session Worker", session_worker_name, user,
+				granted_field="granted_via_session_worker_access",
+			)
+		except Exception:
+			frappe.log_error(
+				frappe.get_traceback(),
+				f"Session Worker Document Access Sync Failed - {doc.name} - {session_worker_name}",
+			)
+
+
 def _resync_practice_document_brand_access(practice_document_name):
 	"""
 	Dispatches brand-based access to whichever mechanism this document
@@ -1405,6 +1478,7 @@ def _resync_practice_document_brand_access(practice_document_name):
 
 	if not is_workshop_resource and doc.document_purpose in ("Internal Compliance", "Both") and doc.status == "Published":
 		_sync_brand_document_requirements(practice_document_name, brand_values)
+		_sync_session_worker_document_access(doc)
 
 	if is_workshop_resource or doc.document_purpose in ("Client Resource", "Both"):
 		from dashboard.api.shared.item_access import _resync_practice_document_coaches

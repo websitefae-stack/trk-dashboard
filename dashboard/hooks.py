@@ -96,6 +96,12 @@ jinja = {
 # needs to run after rather than simply not being in the list above,
 # since apply_coach_onboarding_list_to_session_workers already shipped
 # and ran on this site once.
+#
+# resync_session_worker_document_access needs Coach Document
+# Requirement's own new field (granted_via_session_worker_access) to
+# already exist, same ordering trap - and needs to run so Ashley's
+# already-ticked SESSION WORKER HANDBOOK resolves on this deploy
+# rather than waiting for a re-save or tomorrow's scheduled job.
 after_migrate = [
     "dashboard.patches.create_store_manager_for_rachel_v2.execute",
     "dashboard.patches.add_item_gallery_field.execute",
@@ -105,6 +111,7 @@ after_migrate = [
     "dashboard.patches.add_session_worker_onboarding_master_steps.execute",
     "dashboard.patches.apply_coach_onboarding_list_to_session_workers.execute",
     "dashboard.patches.remove_print_materials_from_session_worker_onboarding.execute",
+    "dashboard.patches.resync_session_worker_document_access.execute",
 ]
 
 # Keep appointments Private (Frappe's own permission model then restricts
