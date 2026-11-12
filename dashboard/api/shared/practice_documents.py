@@ -52,7 +52,24 @@ PRACTICE_DOCUMENT_BRAND_FIELDS = {
 
 # Login fields tried in order to resolve a Session Worker's own sign-in
 # identity - mirrors item_access.py's COACH_LOGIN_FIELDS convention.
-SESSION_WORKER_LOGIN_FIELDS = ["user", "user_id", "email"]
+#
+# THE BUG: this list never actually included "sw_email" - the real
+# field this app uses everywhere else for a session worker's login
+# (profile.py's own ROLE_PROFILE_CONFIG: user_fields ["user",
+# "sw_email"], email_field "sw_email"; session_worker_db/profile/
+# index.py: session_worker.get("sw_email")). "email" (plain, no sw_
+# prefix) isn't a real field on Session Worker at all, so it was
+# always silently skipped. Every session worker whose "user" field
+# isn't linked - which is most of them, since Session Worker logins
+# are set up via sw_email, not a User doctype link - got "" back from
+# this function. _ensure_brand_requirement then silently no-ops on an
+# empty user with no error logged, which is exactly why NOTHING -
+# Policy, Procedure, Form, Practice Manual, every document type alike
+# - was ever actually reaching a session worker through either access
+# mechanism that calls this (_sync_session_worker_document_access,
+# _can_session_worker_see_resource's own coach-login lookups), not a
+# document-type-specific problem at all.
+SESSION_WORKER_LOGIN_FIELDS = ["user", "sw_email", "user_id", "email"]
 
 
 def _get_session_worker_login(session_worker_name):
