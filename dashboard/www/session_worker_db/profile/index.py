@@ -4,6 +4,7 @@ from frappe import _
 from dashboard.api.shared.profile import (
     get_profile_context,
     get_profile_display_name,
+    get_coach_login_links,
     _with_live_status,
 )
 from dashboard.api.shared.permissions import get_expired_legal_items
@@ -78,6 +79,8 @@ def get_context(context):
         context.insurance_rows = profile_context["insurance_rows"]
         context.indemnity_rows = profile_context["indemnity_rows"]
         context.expired_legal_items = get_expired_legal_items(session_worker, "session_worker")
+
+    context.login_links = get_coach_login_links(session_worker, role="session_worker")
 
     context.linked_coaches = []
 
