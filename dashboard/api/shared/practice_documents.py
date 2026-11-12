@@ -178,6 +178,67 @@ def _can_user_see_resource(document, user=None):
 	))
 
 
+def _session_worker_name_for_user(user):
+	"""None if `user` isn't a Session Worker login at all (most callers
+	here are coaches/franchisor) - tried against every field
+	SESSION_WORKER_LOGIN_FIELDS lists, same fields _get_session_worker_
+	login itself reads, just in the opposite direction."""
+	if not user:
+		return None
+
+	meta = frappe.get_meta("Session Worker")
+	for fieldname in SESSION_WORKER_LOGIN_FIELDS:
+		if meta.has_field(fieldname):
+			name = frappe.db.get_value("Session Worker", {fieldname: user}, "name")
+			if name:
+				return name
+
+	return None
+
+
+def _get_linked_coach_names_for_session_worker(session_worker_name):
+	"""The session worker's own approved coach roster (Session Worker
+	Coach / linked_coaches - franchisor-managed, see session_workers.
+	get_session_worker_coach_links), not a client-overlap guess - the
+	roster Ashley actually means by "their connected coach"."""
+	if not frappe.db.exists("DocType", "Session Worker Coach"):
+		return []
+
+	return frappe.get_all(
+		"Session Worker Coach",
+		filters={"parent": session_worker_name, "parenttype": "Session Worker"},
+		pluck="coach",
+	)
+
+
+def _can_session_worker_see_resource(document, session_worker_name):
+	"""
+	"I need a way on practice documents to tick if the session worker
+	has access to it. they can also only get access to it if their
+	connected coach has access" - a session worker only ever sees a
+	resource document if BOTH: (1) Session Workers Can Access is ticked
+	on the document, and (2) at least one coach on their own approved
+	roster already has access to the same document via the ordinary
+	coach rule (_can_user_see_resource) - a session worker should never
+	see something none of their own coaches can.
+
+	Deliberately NOT routed through _can_user_see_resource itself with
+	the session worker's own login - that function's "Selected Coaches"
+	check is keyed to Practice Document Coach rows, which only ever name
+	actual coaches, so a session worker's own login would never match
+	one regardless of this field.
+	"""
+	if not document.get("session_workers_can_access"):
+		return False
+
+	for coach_name in _get_linked_coach_names_for_session_worker(session_worker_name):
+		coach_user = _get_coach_login(coach_name)
+		if coach_user and _can_user_see_resource(document, user=coach_user):
+			return True
+
+	return False
+
+
 def _get_linked_item_labels_by_document(document_names):
 	"""
 	Which item(s)/workshop(s) each of the given Practice Documents is
@@ -236,7 +297,7 @@ def _get_published_resource_documents():
 		fields=[
 			"name", "document_title", "document_code", "version",
 			"document_type", "mandatory", "resource_availability", "document_file",
-			"published_date",
+			"published_date", "session_workers_can_access",
 		],
 		order_by="modified desc",
 		ignore_permissions=True,
@@ -261,7 +322,22 @@ def _get_visible_resource_documents(user=None):
 	Document Coach, not the Applies To section's own audience, so it's in
 	the same "nothing else surfaces this" position a Client Resource
 	document is).
+
+	A session worker's login is never checked against _can_user_see_
+	resource's own "Selected Coaches" rule (see _can_session_worker_see_
+	resource's own docstring for why) - resolved and branched here once,
+	rather than teaching _can_user_see_resource itself about two
+	different kinds of login.
 	"""
+	user = user or frappe.session.user
+	session_worker_name = _session_worker_name_for_user(user)
+
+	if session_worker_name:
+		return [
+			row for row in _get_published_resource_documents()
+			if _can_session_worker_see_resource(row, session_worker_name)
+		]
+
 	return [
 		row for row in _get_published_resource_documents()
 		if _can_user_see_resource(row, user=user)
