@@ -57,6 +57,31 @@ def _is_franchisor_user():
     }
 
 
+ITEM_GROUP_SELLS_AS_FIELD = "custom_sells_as"
+
+
+def get_service_item_groups():
+    """
+    Item Groups classified Service (see add_item_group_sells_as_field.py/
+    add_item_group_service_classification.py) - the real fix for "Ashley
+    only sees services when raising an invoice", replacing the old
+    custom_store_enabled-only exclusion below, which only ever caught
+    actual Store products and kept letting other non-store Products
+    (merch, bags, hoodies, etc.) through since that flag was never a
+    real product/service classification to begin with. Classified at
+    the Item Group level, not per Item - every item in a given group is
+    always one classification (confirmed against Ashley's own export,
+    zero mixed groups) - so a brand new product added under an existing
+    Product group is correctly excluded with no extra tagging needed.
+    Returns an empty list (callers then skip the filter) rather than
+    throwing if the field isn't installed yet.
+    """
+    if not frappe.get_meta("Item Group").has_field(ITEM_GROUP_SELLS_AS_FIELD):
+        return []
+
+    return frappe.get_all("Item Group", filters={ITEM_GROUP_SELLS_AS_FIELD: "Service"}, pluck="name")
+
+
 def _normalise_dashboard_type(dashboard_type=None):
     dashboard_type = (dashboard_type or "").strip().lower()
 
@@ -1596,14 +1621,21 @@ def get_link_options(doctype, txt=None, limit_page_length=200):
     if doctype == "Item":
         item_filters = [["name", "like", f"%{txt}%"]] if txt else []
 
-        # Store products (custom_store_enabled=1 - same flag store_products.
-        # get_store_products() itself filters on) are sold only through the
-        # Store/checkout flow, never picked by hand onto an invoice - with
-        # every product also listed here, the one Service item someone
-        # actually wants (e.g. a coaching session) got buried. Confirmed
-        # live this clutter was a problem for Ashley raising an invoice
-        # manually too, not just coaches - excluded for everyone, not
-        # scoped by role like the rest of this branch.
+        # Only Service-classified items (see get_service_item_groups) ever
+        # belong on a manually-raised invoice - a Product (Store merch,
+        # courses, etc.) or the Shipping item is never picked by hand
+        # here, same for Ashley as for a coach. This is the real fix for
+        # products repeatedly leaking into this list - the previous
+        # custom_store_enabled-only exclusion below only ever caught
+        # actual Store products, not every other kind of Product.
+        service_item_groups = get_service_item_groups()
+        if service_item_groups:
+            item_filters.append(["item_group", "in", service_item_groups])
+
+        # Kept alongside the above as a second, independent safety net -
+        # a Store product (custom_store_enabled=1) is never picked by
+        # hand onto an invoice either way, even on the off chance its
+        # Item Group were ever misclassified.
         if frappe.get_meta("Item").has_field("custom_store_enabled"):
             item_filters.append(["custom_store_enabled", "!=", 1])
 

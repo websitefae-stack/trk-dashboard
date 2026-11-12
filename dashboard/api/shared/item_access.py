@@ -31,6 +31,7 @@ import frappe
 from frappe import _
 
 from dashboard.api.shared.permissions import ensure_office_user
+from dashboard.api.shared.invoices import get_service_item_groups
 
 DEFAULT_PRICE_LIST = "Coach Pricelist"
 
@@ -92,24 +93,36 @@ def get_item_access_grid():
     item_meta = frappe.get_meta("Item")
     brand_fieldnames = [fieldname for fieldname in BRAND_FIELDS if item_meta.has_field(fieldname)]
 
-    # Services only - not Store products any more. Store products already
-    # have their own separate Access/Show on Site management on the
-    # Products tab (see store_products.py's _ensure_item_default_row),
-    # and a Store product that has_variants=1 (e.g. a hoodie with size/
-    # colour options) breaks when saved from here: Item.save() on a
-    # variant template triggers ERPNext's own update_variants background
-    # job, which calls variant.save() with no ignore_permissions - fine
-    # for a plain service (no variants, nothing to cascade), but that job
-    # fails with a PermissionError on every one of the template's
-    # variants for a Store product, since those auto-generated variant
-    # documents were never actually granted to whoever's saving here.
-    # Nor Courses (item_group "Courses" - see store_products.py's
-    # COURSE_ITEM_GROUP) - a coach doesn't individually invoice a client
-    # for a self-serve LMS course the way they would a real service, and
-    # these already get granted to coaches a different way (see
+    # Services only - not Store products, Shipping, or Courses. Classified
+    # at the Item Group level now (get_service_item_groups - see
+    # add_item_group_sells_as_field.py), not guessed from custom_store_
+    # enabled/item_group name - that's the same real fix as invoices.
+    # get_link_options' Item branch, and for the same reason: Courses and
+    # every other non-Store Product were never reliably excluded by
+    # custom_store_enabled alone, since that flag was only ever a Store
+    # *visibility* switch, not a product/service classification. Store
+    # products already have their own separate Access/Show on Site
+    # management on the Products tab (see store_products.py's
+    # _ensure_item_default_row) - and excluding them here isn't just
+    # about tidiness: a Store product that has_variants=1 (e.g. a hoodie
+    # with size/colour options) breaks when saved from here. Item.save()
+    # on a variant template triggers ERPNext's own update_variants
+    # background job, which calls variant.save() with no
+    # ignore_permissions - fine for a plain service (no variants, nothing
+    # to cascade), but that job fails with a PermissionError on every one
+    # of the template's variants for a Store product, since those
+    # auto-generated variant documents were never actually granted to
+    # whoever's saving here. Courses aren't individually invoiced for a
+    # self-serve LMS course the way a real service would be either -
+    # those already get granted to coaches a different way (see
     # lms_access.py), not through this grid.
     has_store_field = item_meta.has_field("custom_store_enabled")
-    filters = {"disabled": 0, "variant_of": ["is", "not set"], "item_group": ["!=", "Courses"]}
+    filters = {"disabled": 0, "variant_of": ["is", "not set"]}
+
+    service_item_groups = get_service_item_groups()
+    if service_item_groups:
+        filters["item_group"] = ["in", service_item_groups]
+
     if has_store_field:
         filters["custom_store_enabled"] = ["!=", 1]
 

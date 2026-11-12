@@ -60,7 +60,16 @@ from dashboard.api.shared.notifications import create_trk_notification, ASHLEY_U
 from dashboard.api.shared.utils import coalesce_str
 
 REQUEST_DOCTYPE = "School Safeguarding Assurance Request"
-SCHOOL_DOCTYPE = "School"
+# Deliberately Client (client_type="School"), not the separate School
+# Pipeline "School" doctype this used to point at - that one is
+# franchisor-only sales-prospecting data (see school_pipeline.py), a
+# coach has no access to it and no reason to know about it. A coach
+# requesting a letter is doing so for a school they actually work at -
+# a real Client, the same record that shows on their own Clients list -
+# not a cold-outreach prospect. "these schools should not be hard coded
+# they should pull fromt he client file with the client type school".
+CLIENT_DOCTYPE = "Client"
+SCHOOL_CLIENT_TYPE = "School"
 COACH_DOCTYPE = "Coach"
 
 ROLE_OPTIONS = [
@@ -228,26 +237,100 @@ def _build_evidence(coach_doc):
 
 
 # -------------------------------------------------------------------
-# Schools
+# Schools - pulled from real Client records (client_type="School"), not
+# a separate hardcoded/lightweight list - see CLIENT_DOCTYPE's own
+# comment above for why.
 # -------------------------------------------------------------------
+
+_CLIENT_POSTCODE_FIELD_CANDIDATES = ["zip_code", "postcode", "postal_code"]
+
+
+def _client_postcode_fieldname():
+	meta = frappe.get_meta(CLIENT_DOCTYPE)
+	for fieldname in _CLIENT_POSTCODE_FIELD_CANDIDATES:
+		if meta.has_field(fieldname):
+			return fieldname
+	return None
+
+
+def _default_school_contact(client_name):
+	"""
+	Best-effort prefill for the request form - tries the Client's own
+	Billing Contact first (the person most likely to be the school's
+	main point of contact), then falls back to the first Client Contact
+	Link row on file. Returns {} if neither exists - the coach always
+	types/confirms these on the form regardless, this is only ever a
+	convenience, never trusted as-is.
+	"""
+	client_meta = frappe.get_meta(CLIENT_DOCTYPE)
+
+	billing_contact = frappe.db.get_value(CLIENT_DOCTYPE, client_name, "billing_contact") \
+		if client_meta.has_field("billing_contact") else None
+	if billing_contact and frappe.db.exists("Contact", billing_contact):
+		contact = frappe.get_doc("Contact", billing_contact)
+		return {
+			"contact_name": contact.get("full_name") or billing_contact,
+			"email_id": contact.get("email_id") or "",
+		}
+
+	if client_meta.has_field("client_contacts"):
+		rows = frappe.get_all(
+			"Client Contact Link",
+			filters={"parent": client_name, "parenttype": CLIENT_DOCTYPE, "parentfield": "client_contacts"},
+			fields=["contact_name", "email_id"],
+			order_by="idx asc",
+			limit_page_length=1,
+		)
+		if rows:
+			return {"contact_name": rows[0].contact_name, "email_id": rows[0].email_id}
+
+	return {}
+
 
 @frappe.whitelist()
 def get_school_options():
 	ensure_logged_in()
 
-	return frappe.get_all(
-		SCHOOL_DOCTYPE,
-		fields=["name", "school_name", "address", "postcode", "default_contact_name", "default_contact_role", "default_contact_email"],
-		order_by="school_name asc",
+	meta = frappe.get_meta(CLIENT_DOCTYPE)
+	postcode_field = _client_postcode_fieldname()
+
+	fields = ["name", "client_name"]
+	if meta.has_field("address"):
+		fields.append("address")
+	if postcode_field:
+		fields.append(postcode_field)
+
+	rows = frappe.get_all(
+		CLIENT_DOCTYPE,
+		filters={"client_type": SCHOOL_CLIENT_TYPE},
+		fields=fields,
+		order_by="client_name asc",
 		limit_page_length=0,
 	)
+
+	results = []
+	for row in rows:
+		default_contact = _default_school_contact(row.name)
+		results.append({
+			"name": row.name,
+			"school_name": row.get("client_name") or row.name,
+			"address": row.get("address") or "",
+			"postcode": (row.get(postcode_field) if postcode_field else "") or "",
+			"default_contact_name": default_contact.get("contact_name", ""),
+			# No equivalent "job title" field exists on a Client Contact -
+			# left blank, the coach types it in by hand.
+			"default_contact_role": "",
+			"default_contact_email": default_contact.get("email_id", ""),
+		})
+
+	return results
 
 
 def _get_or_create_school(school, new_school_name, new_school_address, new_school_postcode):
 	school = coalesce_str("school", school)
 
 	if school:
-		if not frappe.db.exists(SCHOOL_DOCTYPE, school):
+		if not frappe.db.exists(CLIENT_DOCTYPE, school):
 			frappe.throw(_("School not found."))
 		return school
 
@@ -255,14 +338,22 @@ def _get_or_create_school(school, new_school_name, new_school_address, new_schoo
 	if not new_school_name:
 		frappe.throw(_("Please select a school, or enter a new school's name."))
 
-	existing_name = frappe.db.get_value(SCHOOL_DOCTYPE, {"school_name": new_school_name}, "name")
+	existing_name = frappe.db.get_value(
+		CLIENT_DOCTYPE, {"client_type": SCHOOL_CLIENT_TYPE, "client_name": new_school_name}, "name",
+	)
 	if existing_name:
 		return existing_name
 
-	doc = frappe.new_doc(SCHOOL_DOCTYPE)
-	doc.school_name = new_school_name
-	doc.address = coalesce_str("new_school_address", new_school_address)
-	doc.postcode = coalesce_str("new_school_postcode", new_school_postcode)
+	meta = frappe.get_meta(CLIENT_DOCTYPE)
+	postcode_field = _client_postcode_fieldname()
+
+	doc = frappe.new_doc(CLIENT_DOCTYPE)
+	doc.client_name = new_school_name
+	doc.client_type = SCHOOL_CLIENT_TYPE
+	if meta.has_field("address"):
+		doc.address = coalesce_str("new_school_address", new_school_address)
+	if postcode_field:
+		doc.set(postcode_field, coalesce_str("new_school_postcode", new_school_postcode))
 	doc.insert(ignore_permissions=True)
 
 	return doc.name
@@ -325,7 +416,7 @@ def submit_assurance_request(
 		frappe.throw(_("Please enter the expected start date."))
 
 	school = _get_or_create_school(school, new_school_name, new_school_address, new_school_postcode)
-	school_label = frappe.db.get_value(SCHOOL_DOCTYPE, school, "school_name") or school
+	school_label = frappe.db.get_value(CLIENT_DOCTYPE, school, "client_name") or school
 
 	doc = frappe.new_doc(REQUEST_DOCTYPE)
 	doc.coach = coach
@@ -379,8 +470,8 @@ def get_my_assurance_requests():
 
 	school_names = {row.school for row in rows if row.school}
 	school_labels = {
-		row.name: row.school_name
-		for row in frappe.get_all(SCHOOL_DOCTYPE, filters={"name": ["in", list(school_names)]}, fields=["name", "school_name"])
+		row.name: row.client_name
+		for row in frappe.get_all(CLIENT_DOCTYPE, filters={"name": ["in", list(school_names)]}, fields=["name", "client_name"])
 	} if school_names else {}
 
 	for row in rows:
@@ -395,7 +486,7 @@ def get_my_assurance_request(name):
 
 	return {
 		"name": doc.name,
-		"school_label": frappe.db.get_value(SCHOOL_DOCTYPE, doc.school, "school_name") or doc.school,
+		"school_label": frappe.db.get_value(CLIENT_DOCTYPE, doc.school, "client_name") or doc.school,
 		"role": doc.role,
 		"expected_start_date": doc.expected_start_date,
 		"workflow_status": doc.workflow_status,
@@ -462,8 +553,8 @@ def get_assurance_requests_for_review(status=None, coach=None):
 
 	school_names = {row.school for row in rows if row.school}
 	school_labels = {
-		row.name: row.school_name
-		for row in frappe.get_all(SCHOOL_DOCTYPE, filters={"name": ["in", list(school_names)]}, fields=["name", "school_name"])
+		row.name: row.client_name
+		for row in frappe.get_all(CLIENT_DOCTYPE, filters={"name": ["in", list(school_names)]}, fields=["name", "client_name"])
 	} if school_names else {}
 
 	for row in rows:
@@ -525,7 +616,7 @@ def get_assurance_request_for_review(name):
 		"coach": doc.coach,
 		"coach_name": doc.coach_name,
 		"school": doc.school,
-		"school_label": frappe.db.get_value(SCHOOL_DOCTYPE, doc.school, "school_name") or doc.school,
+		"school_label": frappe.db.get_value(CLIENT_DOCTYPE, doc.school, "client_name") or doc.school,
 		"school_contact_name": doc.school_contact_name,
 		"school_contact_role": doc.school_contact_role,
 		"school_contact_email": doc.school_contact_email,
@@ -843,8 +934,8 @@ def _render_letter_html(doc, coach_doc, evidence, is_signed):
 		"signatory_role": SIGNATORY_ROLE,
 		"logo_data_uri": _logo_data_uri(),
 		"letter_date": frappe.utils.formatdate(nowdate(), "d MMMM yyyy"),
-		"school_label": esc(frappe.db.get_value(SCHOOL_DOCTYPE, doc.school, "school_name") or doc.school),
-		"school_address": esc(frappe.db.get_value(SCHOOL_DOCTYPE, doc.school, "address") or ""),
+		"school_label": esc(frappe.db.get_value(CLIENT_DOCTYPE, doc.school, "client_name") or doc.school),
+		"school_address": esc(frappe.db.get_value(CLIENT_DOCTYPE, doc.school, "address") or ""),
 		"evidence": evidence,
 		"identity_verified_text": _format_date(evidence["identity_verified_date"]),
 		"right_to_work_text": _format_date(evidence["right_to_work_date"]) + " - " + RIGHT_TO_WORK_NOTE,
