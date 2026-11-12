@@ -414,6 +414,7 @@
     var requestName = page.dataset.requestName;
     var isAshley = page.dataset.isAshley === "1";
     var signaturePad = initSignaturePad();
+    var letterPreviewed = false;
 
     if (!isAshley) {
       el("notAshleyNotice").style.display = "";
@@ -540,26 +541,31 @@
       }
     });
 
+    async function loadLetterPreview() {
+      var result = await apiPost(SHARED_API + ".preview_assurance_letter", { name: requestName });
+
+      // An iframe with srcdoc, not innerHTML - the letter's own
+      // <style> block uses plain tag selectors (table, td, h2,
+      // body) that would otherwise leak out and restyle the rest
+      // of this dashboard page the moment a preview is opened.
+      var frameWrap = el("letterPreviewFrame");
+      frameWrap.innerHTML = "";
+      var iframe = document.createElement("iframe");
+      iframe.style.width = "100%";
+      iframe.style.border = "0";
+      iframe.style.minHeight = "900px";
+      iframe.srcdoc = result.html;
+      frameWrap.appendChild(iframe);
+
+      el("letterPreviewCard").style.display = "";
+      letterPreviewed = true;
+    }
+
     el("previewLetterBtn").addEventListener("click", async function () {
       var btn = el("previewLetterBtn");
       btn.disabled = true;
       try {
-        var result = await apiPost(SHARED_API + ".preview_assurance_letter", { name: requestName });
-
-        // An iframe with srcdoc, not innerHTML - the letter's own
-        // <style> block uses plain tag selectors (table, td, h2,
-        // body) that would otherwise leak out and restyle the rest
-        // of this dashboard page the moment a preview is opened.
-        var frameWrap = el("letterPreviewFrame");
-        frameWrap.innerHTML = "";
-        var iframe = document.createElement("iframe");
-        iframe.style.width = "100%";
-        iframe.style.border = "0";
-        iframe.style.minHeight = "900px";
-        iframe.srcdoc = result.html;
-        frameWrap.appendChild(iframe);
-
-        el("letterPreviewCard").style.display = "";
+        await loadLetterPreview();
         el("letterPreviewCard").scrollIntoView({ behavior: "smooth", block: "start" });
       } catch (error) {
         window.alert(error.message || "Could not preview this letter.");
@@ -574,6 +580,23 @@
         window.alert("Please explain what needs to change first.");
         return;
       }
+
+      // Ashley needs to see the full letter the coach will receive
+      // before it goes back to them - load/show it the first time
+      // instead of letting her confirm a return blind, same as if
+      // she'd clicked "Preview Letter" herself.
+      if (!letterPreviewed) {
+        try {
+          await loadLetterPreview();
+        } catch (error) {
+          window.alert(error.message || "Could not load the letter preview.");
+          return;
+        }
+        el("letterPreviewCard").scrollIntoView({ behavior: "smooth", block: "start" });
+        window.alert("Please review the full letter below, then click Return for Correction again.");
+        return;
+      }
+
       if (!window.confirm("Return this request to the coach for correction?")) return;
 
       try {
