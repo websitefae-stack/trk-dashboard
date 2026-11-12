@@ -810,14 +810,15 @@
   // course - without duplicating the chapter or its lessons. See
   // onboarding.link_existing_chapter_to_course's own docstring for how
   // this actually works and its one cosmetic caveat.
-  function renderChapterShareTool(chapters) {
-    var courseSeen = {};
-    var courseOptions = "";
-    chapters.forEach(function (c) {
-      if (courseSeen[c.course]) return;
-      courseSeen[c.course] = true;
-      courseOptions += '<option value="' + escapeHtml(c.course) + '">' + escapeHtml(c.course_title) + "</option>";
-    });
+  function renderChapterShareTool(chapters, courses) {
+    // Deliberately NOT derived from `chapters` - that only ever lists
+    // courses that already have a chapter in them, so a brand new,
+    // still-empty course (the normal state for a just-created Session
+    // Worker-only course before its first module is shared into it)
+    // would never show up to pick as a destination. See get_lms_courses.
+    var courseOptions = (courses || []).map(function (c) {
+      return '<option value="' + escapeHtml(c.name) + '">' + escapeHtml(c.title || c.name) + "</option>";
+    }).join("");
 
     var chapterOptions = chapters.map(function (c) {
       return '<option value="' + escapeHtml(c.chapter_name) + '">' +
@@ -884,10 +885,11 @@
 
     content.innerHTML = '<div class="dashboard-empty">Loading...</div>';
 
-    var steps, chapters;
+    var steps, chapters, courses;
     try {
       steps = await apiGet(API + ".get_onboarding_step_master_list", {});
       chapters = await apiGet(API + ".get_lms_chapters", {});
+      courses = await apiGet(API + ".get_lms_courses", {});
     } catch (error) {
       content.innerHTML = '<div class="dashboard-empty">' + escapeHtml(error.message) + "</div>";
       return;
@@ -910,7 +912,7 @@
       return;
     }
 
-    content.innerHTML = (chapters.length ? renderChapterShareTool(chapters) : "") +
+    content.innerHTML = (chapters.length ? renderChapterShareTool(chapters, courses) : "") +
       stages.map(function (stage) { return renderStepManagerStage(stage, chapters); }).join("");
     bindChapterShareTool();
 

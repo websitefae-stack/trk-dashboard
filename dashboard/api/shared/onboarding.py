@@ -1599,6 +1599,33 @@ def get_lms_chapters():
 
 
 @frappe.whitelist()
+def get_lms_courses():
+    """
+    Every LMS Course, for the "Add it to this course" side of the Share
+    an Existing Module tool - deliberately NOT derived from
+    get_lms_chapters()'s own chapter list, which only ever lists courses
+    that already have at least one chapter in them. A brand new course
+    (e.g. a just-created Session Worker-only course, empty until its
+    first chapter is shared into it) would never appear as a share
+    target otherwise - exactly the "still not able to link lessons to a
+    second course" symptom Ashley hit, since there was nothing wrong
+    with link_existing_chapter_to_course itself, the new course just
+    never showed up to pick in the first place.
+    """
+    if not is_franchisor_user():
+        frappe.throw(_("You do not have permission to view this."), frappe.PermissionError)
+
+    if not frappe.db.exists("DocType", "LMS Course"):
+        return []
+
+    return frappe.get_all(
+        "LMS Course",
+        fields=["name", "title"],
+        order_by="title asc",
+    )
+
+
+@frappe.whitelist()
 def update_onboarding_step_master(
     step_name=None, link_url=None, lms_course=None, lms_chapter=None, lms_lesson_number=None,
 ):
@@ -1734,11 +1761,3 @@ def link_existing_chapter_to_course(course=None, chapter_name=None):
     frappe.db.commit()
 
     return {"ok": True, "already_linked": False}
-
-    return {
-        "ok": True,
-        "link_url": link_url,
-        "lms_course": lms_course,
-        "lms_chapter": lms_chapter,
-        "lms_lesson_number": lms_lesson_number,
-    }
