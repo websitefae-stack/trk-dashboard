@@ -49,6 +49,18 @@
   min-width: 100%;
 }
 
+/* Legal Details tab (profile_body.html) - several separate <table>s
+   stacked one after another (DBS, Insurance, ICO Certificate, etc.),
+   each normally sizing its own columns off its own content, which left
+   Date Received/Expiry Date/Number/File landing at a different x
+   position in every table. table-layout: fixed + the <colgroup> widths
+   set on each of these tables (identical column count and percentages
+   in every one, Insurer Name included even where it's always "—")
+   forces every column into the same position down the whole tab. */
+.dashboard-legal-table {
+  table-layout: fixed;
+}
+
 /* A table inside a popup modal (e.g. Add/Edit Product's variant
    combinations, or Manage Variants) is only ever a handful of narrow
    columns - the 980px report-table min-width above forces it to

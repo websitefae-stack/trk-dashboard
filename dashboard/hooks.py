@@ -89,6 +89,13 @@ jinja = {
 # same reason, and must run after add_session_worker_onboarding_master_
 # steps so its own newly-seeded Safeguarding Training step already
 # exists before this one goes looking for what else needs flipping.
+#
+# remove_print_materials_from_session_worker_onboarding undoes one part
+# of that same flip (session workers don't get print materials/business
+# cards) - must run after it for the same applies_to-field reason, and
+# needs to run after rather than simply not being in the list above,
+# since apply_coach_onboarding_list_to_session_workers already shipped
+# and ran on this site once.
 after_migrate = [
     "dashboard.patches.create_store_manager_for_rachel_v2.execute",
     "dashboard.patches.add_item_gallery_field.execute",
@@ -97,6 +104,7 @@ after_migrate = [
     "dashboard.patches.add_session_worker_identification_and_safeguarding_fields.execute",
     "dashboard.patches.add_session_worker_onboarding_master_steps.execute",
     "dashboard.patches.apply_coach_onboarding_list_to_session_workers.execute",
+    "dashboard.patches.remove_print_materials_from_session_worker_onboarding.execute",
 ]
 
 # Keep appointments Private (Frappe's own permission model then restricts

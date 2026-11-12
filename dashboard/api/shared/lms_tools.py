@@ -17,12 +17,21 @@ step link to" picker, not just this module's own share tool.
 import frappe
 from frappe import _
 
-from dashboard.api.shared.permissions import is_franchisor_user
 from dashboard.api.shared.utils import coalesce_str
+from dashboard.api.shared.profile import OFFICE_USER
 from dashboard.api.shared.onboarding import (
     LMS_COURSE_CHAPTER_DOCTYPE,
     LMS_CHAPTER_REFERENCE_DOCTYPE,
 )
+
+
+def _ensure_office_user():
+    # Office-only, not Ashley's own login - is_franchisor_user() treats
+    # Ashley and office as the same tier (FRANCHISOR_USERS), so this
+    # needs the literal OFFICE_USER check instead, matching the page
+    # itself (franchisor_db/lms_tools/index.py) and its sidebar link.
+    if frappe.session.user != OFFICE_USER:
+        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
 
 
 @frappe.whitelist()
@@ -39,8 +48,7 @@ def get_lms_courses():
     nothing wrong with link_existing_chapter_to_course itself, the new
     course just never showed up to pick in the first place.
     """
-    if not is_franchisor_user():
-        frappe.throw(_("You do not have permission to view this."), frappe.PermissionError)
+    _ensure_office_user()
 
     if not frappe.db.exists("DocType", "LMS Course"):
         return []
@@ -95,8 +103,7 @@ def link_existing_chapter_to_course(course=None, chapter_name=None):
     Safe to call again for the same pair - a chapter already referenced
     under a course is left alone, not duplicated.
     """
-    if not is_franchisor_user():
-        frappe.throw(_("You do not have permission to do this."), frappe.PermissionError)
+    _ensure_office_user()
 
     course = coalesce_str("course", course)
     chapter_name = coalesce_str("chapter_name", chapter_name)

@@ -191,10 +191,12 @@
                     <span>Safeguarding Letters</span>
                 </a>
 
+                {% if frappe.session.user == "office@theresilienthub.co.uk" %}
                 <a href="/franchisor_db/lms_tools" class="{% if active_page == 'lms_tools' %}is-active{% endif %}">
                     <span class="dashboard-nav-icon">🎓</span>
                     <span>LMS Tools</span>
                 </a>
+                {% endif %}
 
                 {% if frappe.session.user == "office@theresilienthub.co.uk" %}
                 <a href="/franchisor_db/email_templates" class="{% if active_page == 'email_templates' %}is-active{% endif %}">
