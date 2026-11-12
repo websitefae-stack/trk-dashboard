@@ -58,6 +58,14 @@ from dashboard.api.shared.permissions import (
 )
 from dashboard.api.shared.notifications import create_trk_notification, ASHLEY_USER
 from dashboard.api.shared.utils import coalesce_str
+# Client has no single "client_name" field (confirmed live -
+# MySQLdb.OperationalError: Unknown column 'client_name' in 'SELECT' -
+# school_pipeline.convert_school_to_client's own has_field guard around
+# setting it was the tell this doesn't exist on every site). A Client's
+# real display name is full_name, or composed from first/last for an
+# individual, or the bare docname as a last resort - invoices.py already
+# has this worked out correctly, reused here rather than re-guessing.
+from dashboard.api.shared.invoices import _client_display_name, _client_display_from_row, _get_client_fields
 
 REQUEST_DOCTYPE = "School Safeguarding Assurance Request"
 # Deliberately Client (client_type="School"), not the separate School
@@ -320,7 +328,7 @@ def _get_school_options_unsafe():
 	meta = frappe.get_meta(CLIENT_DOCTYPE)
 	postcode_field = _client_postcode_fieldname()
 
-	fields = ["name", "client_name"]
+	fields = list(_get_client_fields())
 	if meta.has_field("address"):
 		fields.append("address")
 	if postcode_field:
@@ -330,7 +338,9 @@ def _get_school_options_unsafe():
 		CLIENT_DOCTYPE,
 		filters={"client_type": SCHOOL_CLIENT_TYPE},
 		fields=fields,
-		order_by="client_name asc",
+		# Not ordered in SQL by the display name - it isn't one single
+		# real column (see _client_display_from_row), just sorted in
+		# Python below once it's actually been worked out per row.
 		limit_page_length=0,
 	)
 
@@ -339,7 +349,7 @@ def _get_school_options_unsafe():
 		default_contact = _default_school_contact(row.name)
 		results.append({
 			"name": row.name,
-			"school_name": row.get("client_name") or row.name,
+			"school_name": _client_display_from_row(row) or row.name,
 			"address": row.get("address") or "",
 			"postcode": (row.get(postcode_field) if postcode_field else "") or "",
 			"default_contact_name": default_contact.get("contact_name", ""),
@@ -348,6 +358,8 @@ def _get_school_options_unsafe():
 			"default_contact_role": "",
 			"default_contact_email": default_contact.get("email_id", ""),
 		})
+
+	results.sort(key=lambda school: (school["school_name"] or "").lower())
 
 	return results
 
@@ -364,8 +376,11 @@ def _get_or_create_school(school, new_school_name, new_school_address, new_schoo
 	if not new_school_name:
 		frappe.throw(_("Please select a school, or enter a new school's name."))
 
+	# full_name is a school/organisation client's real name field (same
+	# one client_details.py fills in for a brand new client) - there is
+	# no single "client_name" field on Client at all.
 	existing_name = frappe.db.get_value(
-		CLIENT_DOCTYPE, {"client_type": SCHOOL_CLIENT_TYPE, "client_name": new_school_name}, "name",
+		CLIENT_DOCTYPE, {"client_type": SCHOOL_CLIENT_TYPE, "full_name": new_school_name}, "name",
 	)
 	if existing_name:
 		return existing_name
@@ -374,7 +389,8 @@ def _get_or_create_school(school, new_school_name, new_school_address, new_schoo
 	postcode_field = _client_postcode_fieldname()
 
 	doc = frappe.new_doc(CLIENT_DOCTYPE)
-	doc.client_name = new_school_name
+	if meta.has_field("full_name"):
+		doc.full_name = new_school_name
 	doc.client_type = SCHOOL_CLIENT_TYPE
 	if meta.has_field("address"):
 		doc.address = coalesce_str("new_school_address", new_school_address)
@@ -442,7 +458,7 @@ def submit_assurance_request(
 		frappe.throw(_("Please enter the expected start date."))
 
 	school = _get_or_create_school(school, new_school_name, new_school_address, new_school_postcode)
-	school_label = frappe.db.get_value(CLIENT_DOCTYPE, school, "client_name") or school
+	school_label = _client_display_name(school)
 
 	doc = frappe.new_doc(REQUEST_DOCTYPE)
 	doc.coach = coach
@@ -496,8 +512,8 @@ def get_my_assurance_requests():
 
 	school_names = {row.school for row in rows if row.school}
 	school_labels = {
-		row.name: row.client_name
-		for row in frappe.get_all(CLIENT_DOCTYPE, filters={"name": ["in", list(school_names)]}, fields=["name", "client_name"])
+		row.name: _client_display_from_row(row)
+		for row in frappe.get_all(CLIENT_DOCTYPE, filters={"name": ["in", list(school_names)]}, fields=_get_client_fields())
 	} if school_names else {}
 
 	for row in rows:
@@ -512,7 +528,7 @@ def get_my_assurance_request(name):
 
 	return {
 		"name": doc.name,
-		"school_label": frappe.db.get_value(CLIENT_DOCTYPE, doc.school, "client_name") or doc.school,
+		"school_label": _client_display_name(doc.school),
 		"role": doc.role,
 		"expected_start_date": doc.expected_start_date,
 		"workflow_status": doc.workflow_status,
@@ -579,8 +595,8 @@ def get_assurance_requests_for_review(status=None, coach=None):
 
 	school_names = {row.school for row in rows if row.school}
 	school_labels = {
-		row.name: row.client_name
-		for row in frappe.get_all(CLIENT_DOCTYPE, filters={"name": ["in", list(school_names)]}, fields=["name", "client_name"])
+		row.name: _client_display_from_row(row)
+		for row in frappe.get_all(CLIENT_DOCTYPE, filters={"name": ["in", list(school_names)]}, fields=_get_client_fields())
 	} if school_names else {}
 
 	for row in rows:
@@ -642,7 +658,7 @@ def get_assurance_request_for_review(name):
 		"coach": doc.coach,
 		"coach_name": doc.coach_name,
 		"school": doc.school,
-		"school_label": frappe.db.get_value(CLIENT_DOCTYPE, doc.school, "client_name") or doc.school,
+		"school_label": _client_display_name(doc.school),
 		"school_contact_name": doc.school_contact_name,
 		"school_contact_role": doc.school_contact_role,
 		"school_contact_email": doc.school_contact_email,
@@ -960,7 +976,7 @@ def _render_letter_html(doc, coach_doc, evidence, is_signed):
 		"signatory_role": SIGNATORY_ROLE,
 		"logo_data_uri": _logo_data_uri(),
 		"letter_date": frappe.utils.formatdate(nowdate(), "d MMMM yyyy"),
-		"school_label": esc(frappe.db.get_value(CLIENT_DOCTYPE, doc.school, "client_name") or doc.school),
+		"school_label": esc(_client_display_name(doc.school)),
 		"school_address": esc(frappe.db.get_value(CLIENT_DOCTYPE, doc.school, "address") or ""),
 		"evidence": evidence,
 		"identity_verified_text": _format_date(evidence["identity_verified_date"]),
