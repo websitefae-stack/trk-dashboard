@@ -639,6 +639,16 @@ def _get_reference_link(reference_doctype, reference_name, dashboard_base_url=""
         # franchisor_db/safeguarding_letter_details/index.py).
         return f"{dashboard_base_url}/safeguarding_letter_details?name={reference_name}" if dashboard_base_url else ""
 
+    if reference_doctype == "Practice Document":
+        # _notify_franchisor_of_new_practice_document_if_due and
+        # _notify_coaches_of_new_resource_document (practice_documents.py)
+        # both notify with this as the reference - document_view exists
+        # under coach_db, session_worker_db and franchisor_db alike, and
+        # all three already read this exact "practice_document" query
+        # param (distinct from "name", which is a Coach Document
+        # Requirement instead - see that branch above).
+        return f"{dashboard_base_url}/document_view?practice_document={reference_name}" if dashboard_base_url else ""
+
     # Any Desk-built form in the "Forms" module (Sessional Worker Reference
     # Response, and every other Forms-module DocType form_reports.py's own
     # get_form_module_doctypes() discovers) - straight to the Reports
