@@ -24,13 +24,24 @@ def execute():
 	if not frappe.db.exists("DocType", "Webshop Checkout"):
 		return
 
-	if not frappe.get_meta("Sales Invoice").has_field("custom_delivery_method"):
+	invoice_meta = frappe.get_meta("Sales Invoice")
+	if not invoice_meta.has_field("custom_delivery_method"):
 		return
+
+	# custom_coach isn't guaranteed to exist on Sales Invoice either (it
+	# doesn't on every site - confirmed live: a migrate crashed selecting
+	# it unconditionally) - same has_field guard create_coach_store_order
+	# itself already uses before ever setting it.
+	has_custom_coach = invoice_meta.has_field("custom_coach")
+
+	fields = ["name", "customer", "currency", "creation"]
+	if has_custom_coach:
+		fields.append("custom_coach")
 
 	invoices = frappe.get_all(
 		"Sales Invoice",
 		filters={"custom_delivery_method": ["is", "set"], "docstatus": 1},
-		fields=["name", "customer", "currency", "custom_coach", "creation"],
+		fields=fields,
 	)
 
 	if not invoices:
@@ -46,7 +57,7 @@ def execute():
 	if not invoices:
 		return
 
-	coach_names = {inv.custom_coach for inv in invoices if inv.custom_coach}
+	coach_names = {inv.get("custom_coach") for inv in invoices if inv.get("custom_coach")} if has_custom_coach else set()
 	coach_info = {}
 	if coach_names:
 		for row in frappe.get_all(
@@ -58,8 +69,9 @@ def execute():
 
 	created = 0
 	for inv in invoices:
-		coach = coach_info.get(inv.custom_coach) or {}
-		coach_display_name = coach.get("coach_name") or inv.custom_coach or inv.customer
+		coach_name = inv.get("custom_coach") if has_custom_coach else None
+		coach = coach_info.get(coach_name) or {}
+		coach_display_name = coach.get("coach_name") or coach_name or inv.customer
 		coach_email = coach.get("user") or coach.get("coach_email") or ""
 
 		items = frappe.get_all(
@@ -76,7 +88,7 @@ def execute():
 				"doctype": "Webshop Checkout",
 				"full_name": coach_display_name,
 				"email": coach_email,
-				"coach": inv.custom_coach or None,
+				"coach": coach_name or None,
 				"status": "Paid",
 				"invoice": inv.name,
 				"items": [
