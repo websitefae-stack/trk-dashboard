@@ -144,13 +144,14 @@ def get_coach_brand_options(coach=None):
 
 def _allowed_brands_for_session_worker(worker):
 	"""
-	A session worker has no Coach Brand Access of their own (that's a
-	per-coach single-brand identity a session worker doesn't carry) -
-	unrestricted rather than "none", the opposite default from a coach
-	with no Brand Access rows, since there's no real per-worker brand
-	data that could ever be "filled in" here the way a coach's can.
+	"session workers will only have access to trk the resilient kid
+	stuff" - unlike a coach (who can be set up on any brand via Coach
+	Brand Access), every session worker is hard-restricted to Kid/TRK
+	only here, regardless of what Session Worker Brand Access rows (if
+	any) say - there's no "which brands" picker for this on the session
+	worker side, so there's nothing to read instead.
 	"""
-	return list(BRAND_FIELDS.values())
+	return ["Kid"]
 
 
 def _clean_brand_values(doc_values, coach=None, session_worker=None):
