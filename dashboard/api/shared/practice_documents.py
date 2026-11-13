@@ -1283,23 +1283,33 @@ def _ensure_brand_requirement(practice_document_name, person_type, person_name, 
 	if not user:
 		return
 
-	# document_type is never a fetch-from field on Coach Document
-	# Requirement - without setting it explicitly here, every row this
+	# None of document_title/document_code/document_version/document_type/
+	# mandatory/document_file are fetch-from fields on Coach Document
+	# Requirement - without copying them explicitly here, every row this
 	# function creates (Brand-Based Access, for both coaches and session
-	# workers) was landing with a blank document_type. get_my_documents_
-	# by_type then has no match for it against any real Document Type
-	# tab, so it silently bucketed into "Other" instead of its actual
-	# Policy/Procedure/etc tab - "it looks like the policies and
-	# procedures that should be under the policy and procedure tabs" is
-	# exactly this.
-	document_type = frappe.db.get_value(PRACTICE_DOCUMENT_DOCTYPE, practice_document_name, "document_type")
+	# workers) landed with blanks across the board. document_type blank
+	# meant get_my_documents_by_type had nothing to match against a real
+	# Document Type tab, so it silently bucketed into "Other" (now
+	# fixed) - document_title blank is the next layer of the same bug:
+	# the row shows up in the right tab now, but with no name to read,
+	# exactly "25001", "25002"... with nothing beside them.
+	source = frappe.db.get_value(
+		PRACTICE_DOCUMENT_DOCTYPE, practice_document_name,
+		["document_title", "document_code", "version", "document_type", "mandatory", "document_file"],
+		as_dict=True,
+	) or {}
 
 	payload = {
 		"doctype": COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
 		"person_type": person_type,
 		"user": user,
 		"practice_document": practice_document_name,
-		"document_type": document_type,
+		"document_title": source.get("document_title"),
+		"document_code": source.get("document_code"),
+		"document_version": source.get("version"),
+		"document_type": source.get("document_type"),
+		"mandatory": source.get("mandatory"),
+		"document_file": source.get("document_file"),
 		granted_field: 1,
 	}
 	if person_type == "Coach":
