@@ -238,6 +238,7 @@
     if (!wrap) return;
 
     var coachName = (el("safeguardingLettersCoachName") || {}).value || "";
+    var sessionWorkerName = (el("safeguardingLettersSessionWorkerName") || {}).value || "";
     var isViewMode = (el("safeguardingLettersViewMode") || {}).value === "1";
 
     function renderRows(rows, viewMode) {
@@ -276,7 +277,7 @@
     async function load() {
       try {
         var rows = isViewMode
-          ? await apiPost(SHARED_API + ".get_assurance_requests_for_review", { coach: coachName })
+          ? await apiPost(SHARED_API + ".get_assurance_requests_for_review", sessionWorkerName ? { session_worker: sessionWorkerName } : { coach: coachName })
           : await apiPost(SHARED_API + ".get_my_assurance_requests", {});
         renderRows(rows, isViewMode);
       } catch (error) {
