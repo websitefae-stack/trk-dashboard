@@ -91,11 +91,28 @@ def _get_template_names_for_type(appointment_type_label, require_public_bookable
     return matches
 
 
+def _resolve_worker_doctype(worker):
+    """
+    "coach" throughout this module is really just "whoever's availability
+    we're querying" - almost always a Coach, but a client assigned a
+    Session Worker (Client.session_worker) self-books Parent Check-In
+    against that session worker's own availability instead. Checked
+    against the real record rather than threaded through as a second
+    param, since every caller already only has the one name.
+    """
+    if frappe.db.exists("Coach", worker):
+        return "Coach"
+    if frappe.db.exists("Session Worker", worker):
+        return "Session Worker"
+    return None
+
+
 def _get_coach_windows_for_date(coach, date_str, appointment_type, require_public_bookable=True):
-    if not frappe.db.exists("Coach", coach):
+    doctype = _resolve_worker_doctype(coach)
+    if not doctype:
         return []
 
-    coach_meta = frappe.get_meta("Coach")
+    coach_meta = frappe.get_meta(doctype)
     if not coach_meta.has_field("appointment_types"):
         return []
 
@@ -105,7 +122,7 @@ def _get_coach_windows_for_date(coach, date_str, appointment_type, require_publi
 
     day_name = DAY_NAMES[getdate(date_str).weekday()]
 
-    coach_doc = frappe.get_doc("Coach", coach)
+    coach_doc = frappe.get_doc(doctype, coach)
     windows = []
 
     for row in coach_doc.get("appointment_types") or []:
@@ -151,7 +168,12 @@ def _get_coach_booked_windows(coach_user, date_str):
 
 
 def _get_coach_user(coach):
-    return frappe.db.get_value("Coach", coach, "user") or frappe.db.get_value("Coach", coach, "coach_email")
+    return (
+        frappe.db.get_value("Coach", coach, "user")
+        or frappe.db.get_value("Coach", coach, "coach_email")
+        or frappe.db.get_value("Session Worker", coach, "user")
+        or frappe.db.get_value("Session Worker", coach, "sw_email")
+    )
 
 
 def _compute_available_slots(coach, date_str, appointment_type, require_public_bookable=True, duration_minutes=None):
@@ -216,10 +238,11 @@ def _get_windows_by_weekday(coach, appointment_type, require_public_bookable=Tru
     """Same as _get_coach_windows_for_date, but grouped by weekday and
     computed once - used by the month view so it doesn't reload the Coach
     doc once per day of the month."""
-    if not frappe.db.exists("Coach", coach):
+    doctype = _resolve_worker_doctype(coach)
+    if not doctype:
         return {}
 
-    coach_meta = frappe.get_meta("Coach")
+    coach_meta = frappe.get_meta(doctype)
     if not coach_meta.has_field("appointment_types"):
         return {}
 
@@ -227,7 +250,7 @@ def _get_windows_by_weekday(coach, appointment_type, require_public_bookable=Tru
     if not template_names:
         return {}
 
-    coach_doc = frappe.get_doc("Coach", coach)
+    coach_doc = frappe.get_doc(doctype, coach)
     by_weekday = {day: [] for day in DAY_NAMES}
 
     for row in coach_doc.get("appointment_types") or []:
@@ -494,7 +517,13 @@ def create_portal_booking(client=None, coach=None, date=None, time=None, appoint
         frappe.throw(_("Client not found."))
 
     actual_coach = frappe.db.get_value("Client", client, "primary_coach")
-    if not actual_coach or actual_coach != coach:
+    actual_session_worker = frappe.db.get_value("Client", client, "session_worker")
+
+    if coach == actual_session_worker:
+        worker_doctype = "Session Worker"
+    elif coach == actual_coach:
+        worker_doctype = "Coach"
+    else:
         frappe.throw(_("This client's coach does not match."), frappe.PermissionError)
 
     if not date or not time:
@@ -552,8 +581,12 @@ def create_portal_booking(client=None, coach=None, date=None, time=None, appoint
     if _event_has_field("custom_client"):
         event.custom_client = client
 
-    if _event_has_field("custom_coach"):
-        event.custom_coach = coach
+    if worker_doctype == "Session Worker":
+        if _event_has_field("custom_session_worker"):
+            event.custom_session_worker = coach
+    else:
+        if _event_has_field("custom_coach"):
+            event.custom_coach = coach
 
     if _event_has_field("custom_client_package_balance"):
         event.custom_client_package_balance = balance_name

@@ -823,14 +823,18 @@
         </div>
       </div>
 
-      {% if profile_role in ["coach", "franchisor"] %}
+      {% if profile_role in ["coach", "franchisor", "session_worker"] %}
       <!-- AVAILABILITY TAB -->
       <div class="dashboard-tab-panel" data-tab-panel="availability" style="display:none;">
         <div class="dashboard-card">
           <div class="dashboard-detail-section-head" style="margin-bottom:18px;">
             <div>
               <h3>Availability</h3>
-              <p class="dashboard-page-subtitle">Set the days and times potential clients can book an Initial Consultation with you online.</p>
+              {% if profile_role == "session_worker" %}
+                <p class="dashboard-page-subtitle">Set the days and times clients can book a Parent Check-In with you.</p>
+              {% else %}
+                <p class="dashboard-page-subtitle">Set the days and times potential clients can book an Initial Consultation with you online.</p>
+              {% endif %}
             </div>
 
             <button type="button" class="dashboard-btn dashboard-btn-primary" id="addAvailabilityBtn">
