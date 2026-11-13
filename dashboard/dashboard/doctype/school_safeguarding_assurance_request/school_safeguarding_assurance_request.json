@@ -7,8 +7,11 @@
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
+  "requester_type",
   "coach",
   "coach_name",
+  "session_worker",
+  "session_worker_name",
   "workflow_status",
   "school_section",
   "school",
@@ -66,12 +69,20 @@
    "options": "TRK-SAL-.YYYY.-.#####"
   },
   {
+   "default": "Coach",
+   "fieldname": "requester_type",
+   "fieldtype": "Select",
+   "label": "Requester Type",
+   "options": "Coach\nSession Worker",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.requester_type==\"Coach\"",
    "fieldname": "coach",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Coach",
-   "options": "Coach",
-   "reqd": 1
+   "options": "Coach"
   },
   {
    "fetch_from": "coach.coach_name",
@@ -79,6 +90,22 @@
    "fieldname": "coach_name",
    "fieldtype": "Data",
    "label": "Coach Name",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.requester_type==\"Session Worker\"",
+   "fieldname": "session_worker",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Session Worker",
+   "options": "Session Worker"
+  },
+  {
+   "fetch_from": "session_worker.sw_name",
+   "fetch_if_empty": 0,
+   "fieldname": "session_worker_name",
+   "fieldtype": "Data",
+   "label": "Session Worker Name",
    "read_only": 1
   },
   {

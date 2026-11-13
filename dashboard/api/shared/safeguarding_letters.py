@@ -54,6 +54,8 @@ from dashboard.api.shared.permissions import (
 	ensure_logged_in,
 	ensure_office_user,
 	get_current_coach_name,
+	get_current_session_worker_name,
+	get_current_user_dashboard_type,
 	_latest_dated_row,
 )
 from dashboard.api.shared.notifications import create_trk_notification, ASHLEY_USER
@@ -153,11 +155,34 @@ def _ensure_ashley():
 		frappe.throw(_("Only Ashley can approve and sign a safeguarding assurance letter."), frappe.PermissionError)
 
 
-def _ensure_request_owner(doc):
-	coach = get_current_coach_name(optional=True)
+def _resolve_current_requester():
+	"""
+	(role, name, display_name) for whichever of Coach/Session Worker is
+	currently logged in - "Session Worker" added alongside Coach as a
+	second requester role (see REQUEST_DOCTYPE's own requester_type
+	field). Worked out from the dashboard the person is actually in
+	(get_current_user_dashboard_type), not guessed from which of the
+	two records happens to exist for their login.
+	"""
+	if get_current_user_dashboard_type() == "session_worker":
+		name = get_current_session_worker_name()
+		display = frappe.db.get_value("Session Worker", name, "sw_name") or name
+		return "session_worker", name, display
 
-	if not coach or doc.coach != coach:
-		frappe.throw(_("You do not have permission to access this request."), frappe.PermissionError)
+	name = get_current_coach_name()
+	display = frappe.db.get_value(COACH_DOCTYPE, name, "coach_name") or name
+	return "coach", name, display
+
+
+def _ensure_request_owner(doc):
+	role, name, _display = _resolve_current_requester()
+
+	if role == "session_worker":
+		if not name or doc.session_worker != name:
+			frappe.throw(_("You do not have permission to access this request."), frappe.PermissionError)
+	else:
+		if not name or doc.coach != name:
+			frappe.throw(_("You do not have permission to access this request."), frappe.PermissionError)
 
 
 def _get_owned_request(name, for_coach=True):
@@ -185,22 +210,38 @@ def _format_date(value):
 		return str(value)
 
 
-def _build_evidence(coach_doc):
+def _build_evidence(person_doc, role="coach"):
 	"""
-	Everything this feature actually reads from existing coach records -
-	see this module's own docstring for exactly what is and isn't
-	auto-populated, and why. Never guesses a value this doc doesn't
-	support; a missing record comes back as a blank/"not on file" entry,
-	never a fabricated date or outcome.
+	Everything this feature actually reads from existing coach/session
+	worker records - see this module's own docstring for exactly what
+	is and isn't auto-populated, and why. Never guesses a value this doc
+	doesn't support; a missing record comes back as a blank/"not on
+	file" entry, never a fabricated date or outcome.
+
+	Field names resolved via profile.ROLE_PROFILE_CONFIG's own
+	legal_parentfields rather than hardcoded here a second time - Coach
+	and Session Worker don't spell these the same way (Coach's DBS
+	Update Service child table is "dbs_update_services", Session
+	Worker's is "dbs_update_service" - singular), and this app has
+	already been bitten once this session by a field name hardcoded in
+	a second place quietly drifting from the one profile.py actually
+	uses.
 	"""
-	meta = coach_doc.meta
+	from dashboard.api.shared.profile import ROLE_PROFILE_CONFIG
 
-	join_date = getdate(coach_doc.creation)
+	legal_fields = ROLE_PROFILE_CONFIG.get(role, {}).get("legal_parentfields", {})
+	dbs_field = legal_fields.get("dbs", "dbs")
+	dbs_update_field = legal_fields.get("dbs_update_service", "dbs_update_services")
+	safeguarding_field = legal_fields.get("safeguarding_certificate", "safeguarding_certificate")
 
-	dbs_best = _latest_dated_row(coach_doc.get("dbs") if meta.has_field("dbs") else [], "dbs_number")
-	update_service_rows = coach_doc.get("dbs_update_services") if meta.has_field("dbs_update_services") else []
+	meta = person_doc.meta
+
+	join_date = getdate(person_doc.creation)
+
+	dbs_best = _latest_dated_row(person_doc.get(dbs_field) if meta.has_field(dbs_field) else [], "dbs_number")
+	update_service_rows = person_doc.get(dbs_update_field) if meta.has_field(dbs_update_field) else []
 	update_best = _latest_dated_row(update_service_rows, "dbs_number")
-	safeguarding_rows = coach_doc.get("safeguarding_certificate") if meta.has_field("safeguarding_certificate") else []
+	safeguarding_rows = person_doc.get(safeguarding_field) if meta.has_field(safeguarding_field) else []
 	training_best = None
 	for row in safeguarding_rows or []:
 		if not training_best or (row.get("date_received") or "") > (training_best.get("date_received") or ""):
@@ -215,7 +256,7 @@ def _build_evidence(coach_doc):
 		# _latest_dated_row only carries number/expiry - go back to the
 		# actual row for date_received (the certificate's issue date),
 		# matched by its number.
-		for row in coach_doc.get("dbs") or []:
+		for row in person_doc.get(dbs_field) or []:
 			if row.get("dbs_number") == dbs_number:
 				dbs_issue_date = row.get("date_received")
 				break
@@ -407,16 +448,14 @@ def _get_or_create_school(school, new_school_name, new_school_address, new_schoo
 
 @frappe.whitelist()
 def get_request_form_defaults():
-	"""Coach-facing: what the request form needs before it can render -
-	the coach's own pulled-in details, the role options, and the
-	default Nature of Work wording."""
+	"""Coach/Session-Worker-facing: what the request form needs before
+	it can render - the requester's own pulled-in details, the role
+	options, and the default Nature of Work wording."""
 	ensure_logged_in()
-	coach = get_current_coach_name()
-
-	coach_doc = frappe.get_doc(COACH_DOCTYPE, coach)
+	_role, _name, display_name = _resolve_current_requester()
 
 	return {
-		"coach_name": coach_doc.get("coach_name") or coach,
+		"coach_name": display_name,
 		"role_options": ROLE_OPTIONS,
 		"default_nature_of_work": DEFAULT_NATURE_OF_WORK,
 	}
@@ -437,7 +476,7 @@ def submit_assurance_request(
 	expected_end_date=None,
 ):
 	ensure_logged_in()
-	coach = get_current_coach_name()
+	requester_role, requester_name, display_name = _resolve_current_requester()
 
 	school_contact_name = coalesce_str("school_contact_name", school_contact_name)
 	school_contact_email = coalesce_str("school_contact_email", school_contact_email)
@@ -461,8 +500,13 @@ def submit_assurance_request(
 	school_label = _client_display_name(school)
 
 	doc = frappe.new_doc(REQUEST_DOCTYPE)
-	doc.coach = coach
-	doc.coach_name = frappe.db.get_value(COACH_DOCTYPE, coach, "coach_name") or coach
+	doc.requester_type = "Session Worker" if requester_role == "session_worker" else "Coach"
+	if requester_role == "session_worker":
+		doc.session_worker = requester_name
+		doc.session_worker_name = display_name
+	else:
+		doc.coach = requester_name
+		doc.coach_name = display_name
 	doc.school = school
 	doc.school_contact_name = school_contact_name
 	doc.school_contact_role = coalesce_str("school_contact_role", school_contact_role)
@@ -480,13 +524,11 @@ def submit_assurance_request(
 	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 
-	coach_label = doc.coach_name or coach
-
 	try:
 		create_trk_notification(
 			recipient_user=ASHLEY_USER,
 			notification_type="Task",
-			message=f"{coach_label} has requested a Safeguarding Assurance Letter for {school_label}.",
+			message=f"{display_name} has requested a Safeguarding Assurance Letter for {school_label}.",
 			priority="High",
 			reference_doctype=REQUEST_DOCTYPE,
 			reference_name=doc.name,
@@ -500,11 +542,12 @@ def submit_assurance_request(
 @frappe.whitelist()
 def get_my_assurance_requests():
 	ensure_logged_in()
-	coach = get_current_coach_name()
+	role, requester_name, _display = _resolve_current_requester()
+	filter_field = "session_worker" if role == "session_worker" else "coach"
 
 	rows = frappe.get_all(
 		REQUEST_DOCTYPE,
-		filters={"coach": coach},
+		filters={filter_field: requester_name},
 		fields=["name", "school", "workflow_status", "expected_start_date", "creation", "approved_at", "issued_at"],
 		order_by="creation desc",
 		limit_page_length=0,
@@ -567,12 +610,13 @@ def download_my_assurance_letter(name):
 # -------------------------------------------------------------------
 
 @frappe.whitelist()
-def get_assurance_requests_for_review(status=None, coach=None):
+def get_assurance_requests_for_review(status=None, coach=None, session_worker=None):
 	"""
-	Franchisor-only. Also used (filtered to one coach) by the "Safeguarding
-	Letters" tab on that coach's own Profile page when a franchisor is
-	viewing it via "View As" - same reach as every other Legal Details
-	row on that same view-as page, just read-only like the rest of it.
+	Franchisor-only. Also used (filtered to one coach, or one session
+	worker) by the "Safeguarding Letters" tab on that person's own
+	Profile page when a franchisor is viewing it via "View As" - same
+	reach as every other Legal Details row on that same view-as page,
+	just read-only like the rest of it.
 	"""
 	ensure_office_user()
 
@@ -585,10 +629,17 @@ def get_assurance_requests_for_review(status=None, coach=None):
 	if coach:
 		filters["coach"] = coach
 
+	session_worker = coalesce_str("session_worker", session_worker)
+	if session_worker:
+		filters["session_worker"] = session_worker
+
 	rows = frappe.get_all(
 		REQUEST_DOCTYPE,
 		filters=filters,
-		fields=["name", "coach", "coach_name", "school", "role", "workflow_status", "expected_start_date", "creation"],
+		fields=[
+			"name", "requester_type", "coach", "coach_name", "session_worker", "session_worker_name",
+			"school", "role", "workflow_status", "expected_start_date", "creation",
+		],
 		order_by="creation desc",
 		limit_page_length=0,
 	)
@@ -601,8 +652,17 @@ def get_assurance_requests_for_review(status=None, coach=None):
 
 	for row in rows:
 		row["school_label"] = school_labels.get(row.school, row.school)
+		row["requester_label"] = row.session_worker_name if row.requester_type == "Session Worker" else row.coach_name
 
 	return rows
+
+
+def _get_requester_doc(doc):
+	"""(person_doc, role) for whichever of Coach/Session Worker this
+	request was actually submitted by - see requester_type."""
+	if doc.requester_type == "Session Worker":
+		return frappe.get_doc("Session Worker", doc.session_worker), "session_worker"
+	return frappe.get_doc(COACH_DOCTYPE, doc.coach), "coach"
 
 
 def _missing_information(doc, evidence):
@@ -616,10 +676,10 @@ def _missing_information(doc, evidence):
 	missing = []
 
 	if not evidence.get("has_dbs_on_file"):
-		missing.append(_("No DBS certificate is on file for this coach."))
+		missing.append(_("No DBS certificate is on file for this person."))
 
 	if not evidence.get("has_training_on_file"):
-		missing.append(_("No safeguarding training record is on file for this coach."))
+		missing.append(_("No safeguarding training record is on file for this person."))
 
 	if not (doc.regulated_activity_assessment or "").strip():
 		missing.append(_("Regulated activity assessment has not been entered."))
@@ -650,13 +710,17 @@ def get_assurance_request_for_review(name):
 		frappe.throw(_("Request not found."))
 
 	doc = frappe.get_doc(REQUEST_DOCTYPE, name)
-	coach_doc = frappe.get_doc(COACH_DOCTYPE, doc.coach)
-	evidence = _build_evidence(coach_doc)
+	person_doc, requester_role = _get_requester_doc(doc)
+	evidence = _build_evidence(person_doc, requester_role)
 
 	return {
 		"name": doc.name,
+		"requester_type": doc.requester_type,
 		"coach": doc.coach,
 		"coach_name": doc.coach_name,
+		"session_worker": doc.session_worker,
+		"session_worker_name": doc.session_worker_name,
+		"requester_label": doc.session_worker_name if doc.requester_type == "Session Worker" else doc.coach_name,
 		"school": doc.school,
 		"school_label": _client_display_name(doc.school),
 		"school_contact_name": doc.school_contact_name,
@@ -721,8 +785,8 @@ def save_assurance_review(
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
 
-	coach_doc = frappe.get_doc(COACH_DOCTYPE, doc.coach)
-	evidence = _build_evidence(coach_doc)
+	person_doc, requester_role = _get_requester_doc(doc)
+	evidence = _build_evidence(person_doc, requester_role)
 
 	return {"ok": 1, "missing_information": _missing_information(doc, evidence)}
 
@@ -735,10 +799,10 @@ def preview_assurance_letter(name):
 		frappe.throw(_("Request not found."))
 
 	doc = frappe.get_doc(REQUEST_DOCTYPE, name)
-	coach_doc = frappe.get_doc(COACH_DOCTYPE, doc.coach)
-	evidence = _build_evidence(coach_doc)
+	person_doc, requester_role = _get_requester_doc(doc)
+	evidence = _build_evidence(person_doc, requester_role)
 
-	return {"html": _render_letter_html(doc, coach_doc, evidence, is_signed=False)}
+	return {"html": _render_letter_html(doc, person_doc, evidence, is_signed=False)}
 
 
 @frappe.whitelist()
@@ -758,7 +822,7 @@ def return_for_correction(name, correction_notes):
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
 
-	_notify_coach(doc, "Action needed on your Safeguarding Assurance Letter request", correction_notes)
+	_notify_requester(doc, "Action needed on your Safeguarding Assurance Letter request", correction_notes)
 
 	return {"ok": 1}
 
@@ -780,19 +844,26 @@ def reject_assurance_request(name, rejection_reason):
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
 
-	_notify_coach(doc, "Your Safeguarding Assurance Letter request was not approved", rejection_reason)
+	_notify_requester(doc, "Your Safeguarding Assurance Letter request was not approved", rejection_reason)
 
 	return {"ok": 1}
 
 
-def _notify_coach(doc, message_title, detail):
-	coach_user = frappe.db.get_value(COACH_DOCTYPE, doc.coach, "coach_email")
-	if not coach_user:
+def _notify_requester(doc, message_title, detail):
+	from dashboard.api.shared.item_access import _get_coach_login
+	from dashboard.api.shared.practice_documents import _get_session_worker_login
+
+	if doc.requester_type == "Session Worker":
+		requester_user = _get_session_worker_login(doc.session_worker)
+	else:
+		requester_user = _get_coach_login(doc.coach)
+
+	if not requester_user:
 		return
 
 	try:
 		create_trk_notification(
-			recipient_user=coach_user,
+			recipient_user=requester_user,
 			notification_type="Task",
 			message=f"{message_title}: {detail}",
 			priority="High",
@@ -800,7 +871,7 @@ def _notify_coach(doc, message_title, detail):
 			reference_name=doc.name,
 		)
 	except Exception:
-		frappe.log_error(frappe.get_traceback(), "Safeguarding Letter - Coach Notification Failed")
+		frappe.log_error(frappe.get_traceback(), "Safeguarding Letter - Requester Notification Failed")
 
 
 @frappe.whitelist()
@@ -828,8 +899,8 @@ def approve_and_sign_assurance_request(name, typed_full_name=None, signature=Non
 	if doc.workflow_status not in ("Submitted", "Under Review", "Returned for Correction"):
 		frappe.throw(_("This request is not ready to be approved."))
 
-	coach_doc = frappe.get_doc(COACH_DOCTYPE, doc.coach)
-	evidence = _build_evidence(coach_doc)
+	person_doc, requester_role = _get_requester_doc(doc)
+	evidence = _build_evidence(person_doc, requester_role)
 	missing = _missing_information(doc, evidence)
 
 	if missing:
@@ -848,7 +919,8 @@ def approve_and_sign_assurance_request(name, typed_full_name=None, signature=Non
 	doc.reviewed_at = doc.reviewed_at or now
 
 	snapshot = {
-		"coach_name": doc.coach_name,
+		"requester_type": doc.requester_type,
+		"coach_name": doc.coach_name or doc.session_worker_name,
 		"role": doc.role,
 		"nature_of_work": doc.nature_of_work,
 		"school": doc.school,
@@ -871,7 +943,7 @@ def approve_and_sign_assurance_request(name, typed_full_name=None, signature=Non
 	}
 	doc.evidence_snapshot = json.dumps(snapshot, indent=2)
 
-	html = _render_letter_html(doc, coach_doc, evidence, is_signed=True)
+	html = _render_letter_html(doc, person_doc, evidence, is_signed=True)
 
 	from frappe.utils.pdf import get_pdf
 
@@ -895,7 +967,7 @@ def approve_and_sign_assurance_request(name, typed_full_name=None, signature=Non
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
 
-	_notify_coach(
+	_notify_requester(
 		doc,
 		"Your Safeguarding Assurance Letter is ready",
 		f"Your signed letter for {doc.school} is ready to download.",
@@ -927,7 +999,7 @@ def _logo_data_uri():
 		return ""
 
 
-def _render_letter_html(doc, coach_doc, evidence, is_signed):
+def _render_letter_html(doc, person_doc, evidence, is_signed):
 	"""
 	Every free-text value below is escaped before it reaches the
 	template - frappe.render_template(string, ...) can't be relied on
@@ -953,7 +1025,10 @@ def _render_letter_html(doc, coach_doc, evidence, is_signed):
 		"frappe": frappe,
 		"letter_reference": doc.name,
 		"compliance_guidance_version": esc(doc.compliance_guidance_version or COMPLIANCE_GUIDANCE_VERSION),
-		"coach_name": esc(doc.coach_name or coach_doc.get("coach_name")),
+		# Context key kept as "coach_name" (the letter template's own
+		# variable name) regardless of requester_type - its value is
+		# whichever of the two actually submitted this request.
+		"coach_name": esc(doc.coach_name or doc.session_worker_name or person_doc.get("coach_name") or person_doc.get("sw_name")),
 		"role": esc(doc.role or ""),
 		"nature_of_work": esc(doc.nature_of_work or ""),
 		"school_contact_name": esc(doc.school_contact_name or ""),

@@ -633,11 +633,20 @@ def _get_reference_link(reference_doctype, reference_name, dashboard_base_url=""
         return f"{dashboard_base_url}/lead_details?name={reference_name}" if dashboard_base_url else ""
 
     if reference_doctype == "School Safeguarding Assurance Request":
-        # submit_assurance_request() (safeguarding_letters.py) notifies
-        # Ashley with this as the reference - the franchisor review/
-        # approve/sign page reads the same "name" query param (see
-        # franchisor_db/safeguarding_letter_details/index.py).
-        return f"{dashboard_base_url}/safeguarding_letter_details?name={reference_name}" if dashboard_base_url else ""
+        # Two different notifications point here: submit_assurance_
+        # request() notifies Ashley (franchisor - the review/approve/
+        # sign page exists and reads this "name" param, see
+        # franchisor_db/safeguarding_letter_details/index.py), and
+        # _notify_requester() notifies the coach/session worker who
+        # submitted it (return for correction / rejected). Neither
+        # coach_db nor session_worker_db has a per-request detail page
+        # - they just see it in their own request list - so this only
+        # ever builds the franchisor link; the coach/session worker
+        # case falls through to "" rather than pointing at a page that
+        # doesn't exist.
+        if dashboard_base_url == "/franchisor_db":
+            return f"{dashboard_base_url}/safeguarding_letter_details?name={reference_name}"
+        return f"{dashboard_base_url}/safeguarding_letters" if dashboard_base_url else ""
 
     if reference_doctype == "Practice Document":
         # _notify_franchisor_of_new_practice_document_if_due and

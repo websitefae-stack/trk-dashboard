@@ -3,17 +3,29 @@ Lets a coach (or the franchisor, who is also backed by their own Coach
 record - see profile.py's ROLE_PROFILE_CONFIG) manage their own weekly
 availability windows (Coach.appointment_types), which is what the public
 booking widget (public_booking.py) reads to work out bookable slots.
+
+Session workers get the same tab, but only ever for "Parent Check-In" -
+they have no public profile page and never run an Initial Consultation
+or Supervision, so their own child table (Session Worker.appointment_
+types, see the add_session_worker_appointment_types_field patch) is
+only ever offered that one appointment type.
 """
 
 import frappe
 from frappe import _
 
-from dashboard.api.shared.permissions import ensure_logged_in, get_current_coach_name
+from dashboard.api.shared.permissions import (
+    ensure_logged_in,
+    get_current_coach_name,
+    get_current_session_worker_name,
+    get_current_user_dashboard_type,
+)
 from dashboard.api.shared.utils import coalesce_str, coalesce_raw
 from dashboard.api.shared.appointment_types import is_publicly_bookable
 from dashboard.api.shared.public_booking import PORTAL_BOOKABLE_TYPES
 from dashboard.api.shared.supervision_booking import SUPERVISION_TYPE_LABEL
 from dashboard.api.shared.coach_view_mode import get_coach_view_mode
+from dashboard.api.shared.session_worker_view_mode import get_session_worker_view_mode
 
 # Parent Check-In and Supervision are deliberately excluded from
 # is_publicly_bookable() - they must never appear on a coach's public
@@ -53,22 +65,37 @@ def _format_time_value(value):
     return text
 
 
-def _get_current_coach_doc(view_as=None, viewer=None):
+def _get_current_worker_doc(view_as=None, viewer=None):
     """
-    The Coach whose availability this request is about - the logged-in
-    user's own Coach record, unless a franchisor is viewing a specific
-    coach's dashboard (view_as/viewer), in which case it's that coach's
-    record instead. Without this, every "View as Coach" visit to
-    Availability was silently showing (and, worse, letting a franchisor
-    edit) their OWN availability while believing they were looking at the
-    coach they'd chosen to view.
+    The Coach or Session Worker whose availability this request is about
+    - the logged-in user's own record, unless a franchisor (or, for a
+    session worker, their own coach too) is viewing someone else's
+    dashboard (view_as/viewer), in which case it's that person's record
+    instead. Without this, every "View as..." visit to Availability was
+    silently showing (and, worse, letting the viewer edit) their OWN
+    availability while believing they were looking at the person they'd
+    chosen to view.
+
+    view_as is just a record name with no type attached, so which view-
+    mode check applies is resolved by which doctype that name actually
+    belongs to, rather than a second parameter the caller would have to
+    get right.
     """
     view_as = (view_as or "").strip()
 
     if view_as:
-        view_mode = get_coach_view_mode(scope=viewer, coach_name=view_as)
-        if view_mode.get("is_view_mode"):
-            return frappe.get_doc("Coach", view_mode.get("view_coach_name"))
+        if frappe.db.exists("Session Worker", view_as):
+            view_mode = get_session_worker_view_mode(scope=viewer, worker_name=view_as)
+            if view_mode.get("is_view_mode"):
+                return frappe.get_doc("Session Worker", view_mode.get("view_worker_name"))
+        elif frappe.db.exists("Coach", view_as):
+            view_mode = get_coach_view_mode(scope=viewer, coach_name=view_as)
+            if view_mode.get("is_view_mode"):
+                return frappe.get_doc("Coach", view_mode.get("view_coach_name"))
+
+    if get_current_user_dashboard_type() == "session_worker":
+        worker_name = get_current_session_worker_name(optional=False)
+        return frappe.get_doc("Session Worker", worker_name)
 
     coach_name = get_current_coach_name(optional=False)
     return frappe.get_doc("Coach", coach_name)
@@ -76,19 +103,24 @@ def _get_current_coach_doc(view_as=None, viewer=None):
 
 def _ensure_not_view_mode(view_as=None, viewer=None):
     """
-    "View as Coach" is read-only everywhere else in the app (see the
-    banner on every other page reached that way) - Availability's own
-    add/update/delete endpoints need this same guard explicitly, since
-    nothing about calling them otherwise stops a franchisor's edit from
-    silently landing on the coach they're viewing.
+    "View as..." is read-only everywhere else in the app (see the banner
+    on every other page reached that way) - Availability's own add/
+    update/delete endpoints need this same guard explicitly, since
+    nothing about calling them otherwise stops the viewer's edit from
+    silently landing on the person they're viewing.
     """
     view_as = (view_as or "").strip()
     if not view_as:
         return
 
-    view_mode = get_coach_view_mode(scope=viewer, coach_name=view_as)
-    if view_mode.get("is_view_mode"):
-        frappe.throw(_("You cannot make changes while viewing this coach's dashboard."), frappe.PermissionError)
+    if frappe.db.exists("Session Worker", view_as):
+        view_mode = get_session_worker_view_mode(scope=viewer, worker_name=view_as)
+        if view_mode.get("is_view_mode"):
+            frappe.throw(_("You cannot make changes while viewing this session worker's dashboard."), frappe.PermissionError)
+    elif frappe.db.exists("Coach", view_as):
+        view_mode = get_coach_view_mode(scope=viewer, coach_name=view_as)
+        if view_mode.get("is_view_mode"):
+            frappe.throw(_("You cannot make changes while viewing this coach's dashboard."), frappe.PermissionError)
 
 
 def _get_template_label(template_name, label_cache):
@@ -113,6 +145,12 @@ def _get_template_label(template_name, label_cache):
 @frappe.whitelist()
 def get_appointment_template_options():
     ensure_logged_in()
+
+    if get_current_user_dashboard_type() == "session_worker":
+        # Session workers have no public profile page and never run an
+        # Initial Consultation or Supervision - Parent Check-In is the
+        # only appointment type they ever self-book availability for.
+        return [{"value": label, "label": label} for label in sorted(PORTAL_BOOKABLE_TYPES)]
 
     options = []
     existing_labels = set()
@@ -153,7 +191,7 @@ def get_appointment_template_options():
 def get_my_availability(view_as=None, viewer=None):
     ensure_logged_in()
 
-    coach = _get_current_coach_doc(view_as, viewer)
+    coach = _get_current_worker_doc(view_as, viewer)
 
     if not coach.meta.has_field("appointment_types"):
         return []
@@ -222,7 +260,7 @@ def add_availability_row(appointment_name=None, days=None, start_time=None, end_
     for day in days:
         _validate_availability_input(appointment_name, day, start_time, end_time)
 
-    coach = _get_current_coach_doc()
+    coach = _get_current_worker_doc()
 
     if not coach.meta.has_field("appointment_types"):
         frappe.throw(_("Availability is not set up on this site yet."))
@@ -257,7 +295,7 @@ def update_availability_row(row_name=None, appointment_name=None, day_of_the_wee
 
     _validate_availability_input(appointment_name, day_of_the_week, start_time, end_time)
 
-    coach = _get_current_coach_doc()
+    coach = _get_current_worker_doc()
 
     row = None
     for candidate in coach.get("appointment_types") or []:
@@ -286,7 +324,7 @@ def delete_availability_row(row_name=None, view_as=None, viewer=None):
 
     row_name = coalesce_str("row_name", row_name)
 
-    coach = _get_current_coach_doc()
+    coach = _get_current_worker_doc()
 
     row = None
     for candidate in coach.get("appointment_types") or []:

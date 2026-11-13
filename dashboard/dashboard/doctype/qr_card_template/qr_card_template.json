@@ -9,7 +9,14 @@
   "template_name",
   "logo",
   "corner_graphic",
-  "accent_color"
+  "accent_color",
+  "brand_access_section",
+  "brand_access_kid",
+  "brand_access_teen",
+  "brand_access_people",
+  "brand_access_column",
+  "brand_access_school",
+  "brand_access_franchise"
  ],
  "fields": [
   {
@@ -39,6 +46,54 @@
    "fieldname": "accent_color",
    "fieldtype": "Color",
    "label": "Accent Colour"
+  },
+  {
+   "description": "Which coaches/session workers can see and use this logo, based on the same Brand Access ticked on their own Coach/Session Worker record (see Practice Document's own Brand-Based Access). Leave every box unticked to make this logo visible to every coach/session worker (franchisor/office always sees everything regardless).",
+   "fieldname": "brand_access_section",
+   "fieldtype": "Section Break",
+   "label": "Brand Access"
+  },
+  {
+   "default": "0",
+   "fieldname": "brand_access_kid",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "TRK",
+   "width": "60px"
+  },
+  {
+   "default": "0",
+   "fieldname": "brand_access_teen",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "TRT",
+   "width": "60px"
+  },
+  {
+   "default": "0",
+   "fieldname": "brand_access_people",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "TRP",
+   "width": "60px"
+  },
+  {
+   "fieldname": "brand_access_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "brand_access_school",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "TRS",
+   "width": "60px"
+  },
+  {
+   "default": "0",
+   "fieldname": "brand_access_franchise",
+   "fieldtype": "Check",
+   "label": "Franchise / Hub"
   }
  ],
  "index_web_pages_for_search": 1,

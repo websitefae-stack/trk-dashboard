@@ -15,4 +15,5 @@ def get_context(context):
     context.page_title = "Reports"
     context.active_page = "reports"
     context.dashboard_base_url = "/session_worker_db"
+    context.dashboard_type = "session_worker"
     context.dashboard_user_name = get_fullname(frappe.session.user)

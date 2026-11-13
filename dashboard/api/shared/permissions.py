@@ -209,14 +209,17 @@ def get_allowed_client_or_filters():
         return filters
 
     if dashboard_type == "session_worker":
+        # "please hide all clients that are not linked to the session
+        # worker" - unlike a coach, a session worker never invoices
+        # anyone, so (unlike the coach branch above) this never includes
+        # Franchise-type clients just because they aren't tied to one
+        # particular person - a session worker only ever sees their own.
         session_worker_name = get_current_session_worker_name(optional=True)
 
-        filters = [[CLIENT_DOCTYPE, "client_type", "=", "Franchise"]]
+        if not session_worker_name:
+            return [[CLIENT_DOCTYPE, "name", "=", "__no_client__"]]
 
-        if session_worker_name:
-            filters.append([CLIENT_DOCTYPE, "session_worker", "=", session_worker_name])
-
-        return filters
+        return [[CLIENT_DOCTYPE, "session_worker", "=", session_worker_name]]
 
     return [[CLIENT_DOCTYPE, "name", "=", "__no_client__"]]
 
@@ -327,13 +330,16 @@ def user_can_access_client(client_name):
 
     dashboard_type = get_current_user_dashboard_type()
 
-    # Franchise-type clients represent coaches themselves (for cross-coach/
-    # HQ invoicing) and aren't tied to a specific primary/attending coach -
-    # every coach needs access regardless of assignment.
-    if client.get("client_type") == "Franchise" and dashboard_type in ("coach", "session_worker"):
-        return True
-
     if dashboard_type == "coach":
+        # Franchise-type clients represent coaches themselves (for cross-
+        # coach/HQ invoicing) and aren't tied to a specific primary/
+        # attending coach - every coach needs access regardless of
+        # assignment. Session workers never invoice anyone, so this
+        # carve-out doesn't extend to them - see get_allowed_client_or_
+        # filters' own session_worker branch for the matching list-side fix.
+        if client.get("client_type") == "Franchise":
+            return True
+
         coach_name = get_current_coach_name(optional=True)
 
         if coach_name in {
@@ -399,7 +405,8 @@ def get_client_role(client_name):
     # Franchise-type clients represent coaches themselves (for cross-coach/
     # HQ invoicing) and aren't tied to a specific primary/attending coach -
     # every coach needs to be able to view and invoice them regardless.
-    if client.get("client_type") == "Franchise" and dashboard_type in ("coach", "session_worker"):
+    # Session workers never invoice anyone, so this doesn't extend to them.
+    if client.get("client_type") == "Franchise" and dashboard_type == "coach":
         return "franchise_peer"
 
     if dashboard_type == "coach":

@@ -114,6 +114,7 @@ after_migrate = [
     "dashboard.patches.remove_photoshoot_images_from_session_worker_onboarding.execute",
     "dashboard.patches.resync_session_worker_document_access.execute",
     "dashboard.patches.resync_all_session_worker_document_grants.execute",
+    "dashboard.patches.add_session_worker_appointment_types_field.execute",
 ]
 
 # Keep appointments Private (Frappe's own permission model then restricts

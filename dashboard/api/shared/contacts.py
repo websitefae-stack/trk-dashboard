@@ -398,16 +398,16 @@ def get_allowed_clients(scope, coach_scope="my"):
     # its primary/attending coach (usually nobody).
 
     if scope == "session_worker":
+        # Unlike a coach, a session worker never invoices anyone, so
+        # (unlike the coach branch below) Franchise-type clients - which
+        # exist purely for cross-coach/HQ invoicing - are never included
+        # here just because they aren't tied to one particular person.
         session_worker = get_current_session_worker_name()
         if not session_worker:
             return []
         return frappe.get_all(
             CLIENT_DOCTYPE,
-            filters=[
-                [CLIENT_DOCTYPE, "session_worker", "=", session_worker],
-                "or",
-                [CLIENT_DOCTYPE, "client_type", "=", "Franchise"],
-            ],
+            filters={"session_worker": session_worker},
             fields=CLIENT_FIELDS,
             order_by="full_name asc, name1 asc, last_name asc",
             limit_page_length=5000,
