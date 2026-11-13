@@ -6,7 +6,9 @@
     <button type="button" class="dashboard-tab-btn" data-forms-report-tab="resilience_comparison">Student Resilience (Before/After)</button>
     <button type="button" class="dashboard-tab-btn" data-forms-report-tab="stirling_comparison">Children's Wellbeing (Before/After)</button>
     <button type="button" class="dashboard-tab-btn" data-forms-report-tab="packs">Open Session Packs</button>
-    <button type="button" class="dashboard-tab-btn" data-forms-report-tab="coach_logs">Coach Logs</button>
+    {% if dashboard_type != "session_worker" %}
+      <button type="button" class="dashboard-tab-btn" data-forms-report-tab="coach_logs">Coach Logs</button>
+    {% endif %}
     {% if dashboard_type == "franchisor" %}
       <button type="button" class="dashboard-tab-btn" data-forms-report-tab="client_list">Client List</button>
       <button type="button" class="dashboard-tab-btn" data-forms-report-tab="client_locations">Client Locations</button>
