@@ -282,6 +282,17 @@ def _build_evidence(person_doc, role="coach"):
 		"dbs_expiry_date": dbs_expiry_date,
 		"dbs_update_service_text": update_service_status,
 		"safeguarding_training_text": training_text,
+		# "mention... qualifications... for which you have also verified. If
+		# she is also a member of a professional association that would
+		# also be good to put on" - school feedback on a letter. Self-
+		# reported by the coach/session worker on their own profile
+		# (profile.py's editable_fields), only ever shown once a
+		# franchisor has ticked qualifications_verified
+		# (profile.set_qualifications_verified) - never an unverified
+		# self-report on an official document.
+		"qualifications_verified": bool(person_doc.get("qualifications_verified")),
+		"qualifications": person_doc.get("qualifications") or "",
+		"professional_association": person_doc.get("professional_association") or "",
 	}
 
 
@@ -938,6 +949,9 @@ def approve_and_sign_assurance_request(name, typed_full_name=None, signature=Non
 		"safeguarding_training_text": evidence["safeguarding_training_text"],
 		"kcsie_part_one_acknowledgement": doc.kcsie_part_one_acknowledgement,
 		"overseas_checks": doc.overseas_checks,
+		"qualifications_verified": evidence["qualifications_verified"],
+		"qualifications": evidence["qualifications"],
+		"professional_association": evidence["professional_association"],
 		"approved_by": doc.approved_by,
 		"approved_at": str(now),
 	}
@@ -999,6 +1013,34 @@ def _logo_data_uri():
 		return ""
 
 
+def _person_photo_data_uri(person_doc):
+	"""
+	Same inlining reasoning as _logo_data_uri() above - a photo "to make
+	the link back to the ID she brings in 100%" (school feedback) is no
+	use on the letter if the PDF renderer can't actually fetch it.
+	Mimetype guessed from the stored file's own extension (a profile
+	photo could be .jpg/.png/.webp/etc, unlike the logo, which is always
+	a fixed PNG) - falls back to PNG rather than guessing wrong and
+	showing nothing. Never throws - a missing/unreadable photo means a
+	letter without one, not a failed letter.
+	"""
+	photo_url = person_doc.get("photo")
+	if not photo_url:
+		return ""
+
+	try:
+		import mimetypes
+
+		from frappe.utils.file_manager import get_file
+
+		fname, fcontent = get_file(photo_url)
+		content_type = mimetypes.guess_type(fname or photo_url)[0] or "image/png"
+		return f"data:{content_type};base64," + base64.b64encode(fcontent).decode("ascii")
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), "Safeguarding Letter - Photo Load Failed")
+		return ""
+
+
 def _render_letter_html(doc, person_doc, evidence, is_signed):
 	"""
 	Every free-text value below is escaped before it reaches the
@@ -1050,6 +1092,10 @@ def _render_letter_html(doc, person_doc, evidence, is_signed):
 		"signatory_name": SIGNATORY_NAME,
 		"signatory_role": SIGNATORY_ROLE,
 		"logo_data_uri": _logo_data_uri(),
+		"person_photo_data_uri": _person_photo_data_uri(person_doc),
+		"qualifications_verified": evidence["qualifications_verified"],
+		"qualifications_text": esc(evidence["qualifications"]),
+		"professional_association_text": esc(evidence["professional_association"]),
 		"letter_date": frappe.utils.formatdate(nowdate(), "d MMMM yyyy"),
 		"school_label": esc(_client_display_name(doc.school)),
 		"school_address": esc(frappe.db.get_value(CLIENT_DOCTYPE, doc.school, "address") or ""),
@@ -1117,7 +1163,12 @@ LETTER_TEMPLATE = """
   {{ school_address }}
 </div>
 
-<div class="re-line">Re: Safeguarding and Safer Recruitment Assurance - {{ coach_name }}</div>
+<div style="display:flex; align-items:center; gap:12px; margin:12px 0;">
+  {% if person_photo_data_uri %}
+    <img src="{{ person_photo_data_uri }}" alt="{{ coach_name }}" style="width:60px; height:60px; object-fit:cover; border-radius:8px; border:1px solid #e3eded; flex-shrink:0;">
+  {% endif %}
+  <div class="re-line" style="margin:0;">Re: Safeguarding and Safer Recruitment Assurance - {{ coach_name }}</div>
+</div>
 
 <p>Dear {{ school_contact_name }},</p>
 <p>I am writing on behalf of {{ org_name }} to provide formal written assurance regarding the safeguarding and safer recruitment checks undertaken in respect of {{ coach_name }}, who will be providing {{ nature_of_work }} at {{ school_label }}.</p>
@@ -1134,6 +1185,8 @@ LETTER_TEMPLATE = """
   <tr><td class="field">School</td><td>{{ school_label }}</td></tr>
   <tr><td class="field">Intended start date</td><td>{{ frappe.utils.formatdate(expected_start_date, "d MMMM yyyy") if expected_start_date else "" }}</td></tr>
   {% if regulated_activity_assessment %}<tr><td class="field">Regulated activity assessment</td><td>{{ regulated_activity_assessment }}</td></tr>{% endif %}
+  {% if qualifications_verified and qualifications_text %}<tr><td class="field">Qualifications</td><td>{{ qualifications_text }}</td></tr>{% endif %}
+  {% if qualifications_verified and professional_association_text %}<tr><td class="field">Professional association</td><td>{{ professional_association_text }}</td></tr>{% endif %}
 </table>
 
 <h2>2. Safeguarding and Safer Recruitment Checks</h2>
@@ -1166,7 +1219,7 @@ LETTER_TEMPLATE = """
 <p>The individual will be advised to present their original DBS certificate and appropriate photographic identification to the school where requested, to enable the school to undertake its own lawful verification procedures.</p>
 
 <h2>4. References, Qualifications and Safeguarding Training</h2>
-<p>We confirm that the references, qualifications and safeguarding training identified in Section 2 have been reviewed and verified to the extent stated.</p>
+<p>We confirm that the references, qualifications and safeguarding training identified above have been reviewed and verified to the extent stated.</p>
 <p>The individual has been made aware of the importance of safeguarding children and young people, maintaining professional boundaries, reporting safeguarding concerns promptly and following the safeguarding policies and procedures of the school in which they are working.</p>
 <p>The individual is expected to familiarise themselves with the school's safeguarding arrangements, including the identity of the Designated Safeguarding Lead, before commencing work.</p>
 
