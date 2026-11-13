@@ -24,7 +24,6 @@ from dashboard.api.shared.permissions import (
 	ensure_logged_in,
 	get_current_user_dashboard_type,
 	get_current_coach_name,
-	get_current_session_worker_name,
 )
 
 TEMPLATE_DOCTYPE = "QR Card Template"
@@ -55,24 +54,31 @@ def _get_current_persons_brand_access():
 	session worker has on their own record - returns None for franchisor/
 	office, meaning "no restriction", rather than an empty set, which
 	would mean "restricted to nothing".
+
+	"session workers will only have access to trk the resilient kid
+	stuff" - unlike a coach (who can be set up on any brand via Coach
+	Brand Access), every session worker is hard-restricted to Kid/TRK
+	only, same rule as testimonials.py's own
+	_allowed_brands_for_session_worker - not read from a per-worker
+	Brand Access record, since there's no "which brands" picker for a
+	session worker to have set one up with.
 	"""
 	role = get_current_user_dashboard_type()
 
-	if role == "coach":
-		child_doctype = "Coach Brand Access"
-		name = get_current_coach_name(optional=True)
-	elif role == "session_worker":
-		child_doctype = "Session Worker Brand Access"
-		name = get_current_session_worker_name(optional=True)
-	else:
+	if role == "session_worker":
+		return {"Kid"}
+
+	if role != "coach":
 		return None
 
-	if not name or not frappe.db.exists("DocType", child_doctype):
+	name = get_current_coach_name(optional=True)
+
+	if not name or not frappe.db.exists("DocType", "Coach Brand Access"):
 		return set()
 
 	return set(frappe.get_all(
-		child_doctype,
-		filters={"parent": name, "parenttype": role == "coach" and "Coach" or "Session Worker"},
+		"Coach Brand Access",
+		filters={"parent": name, "parenttype": "Coach"},
 		pluck="brand_access",
 	))
 
