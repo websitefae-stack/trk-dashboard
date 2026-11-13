@@ -275,7 +275,7 @@
         '<div class="dashboard-doc-list-meta" data-logo-name="' + escapeHtml(t.name) + '" style="display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px solid #eef3f3;">' +
           '<img src="' + escapeHtml(t.logo) + '" alt="" style="height:36px; max-width:120px; object-fit:contain;">' +
           '<span style="flex:1;">' + escapeHtml(t.template_name) + "</span>" +
-          '<button type="button" class="dashboard-btn dashboard-btn-grey dashboard-qr-logo-delete">Delete</button>' +
+          (t.can_delete ? '<button type="button" class="dashboard-btn dashboard-btn-grey dashboard-qr-logo-delete">Delete</button>' : "") +
         "</div>"
       );
     }).join("");
@@ -318,7 +318,7 @@
             '<div style="color:#839898; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(card.url) + "</div>" +
           "</div>" +
           '<a href="' + escapeHtml(card.image) + '" download="' + escapeHtml(filenameBase) + '.png" class="dashboard-btn dashboard-btn-light">Download</a>' +
-          '<button type="button" class="dashboard-btn dashboard-btn-grey dashboard-qr-card-delete">Delete</button>' +
+          (card.can_delete ? '<button type="button" class="dashboard-btn dashboard-btn-grey dashboard-qr-card-delete">Delete</button>' : "") +
         "</div>"
       );
     }).join("");
