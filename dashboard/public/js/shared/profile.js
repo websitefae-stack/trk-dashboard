@@ -728,7 +728,36 @@
       field.addEventListener("input", update);
       update();
     }
-    
+
+    function initQualificationsVerified() {
+      const checkbox = el("qualificationsVerifiedCheckbox");
+      if (!checkbox) return;
+
+      const message = el("qualificationsVerifiedMessage");
+      const personName = (el("qualificationsPersonName") || {}).value || "";
+      const role = (el("qualificationsPersonRole") || {}).value || "";
+
+      checkbox.addEventListener("change", async function () {
+        const checked = checkbox.checked;
+        checkbox.disabled = true;
+        if (message) message.textContent = "Saving...";
+
+        try {
+          await postJson("dashboard.api.shared.profile.set_qualifications_verified", {
+            role: role,
+            person: personName,
+            verified: checked ? 1 : 0
+          });
+          if (message) message.textContent = checked ? "Verified." : "Marked unverified.";
+        } catch (error) {
+          checkbox.checked = !checked;
+          if (message) message.textContent = error.message || "Could not save.";
+        } finally {
+          checkbox.disabled = false;
+        }
+      });
+    }
+
   function init() {
     const page = document.querySelector("[data-profile-role]");
 
@@ -746,6 +775,7 @@
     initLegalForms();
     initLegalToggleButtons();
     initRecognitions();
+    initQualificationsVerified();
   }
 
   if (document.readyState === "loading") {
