@@ -998,6 +998,7 @@ def create_coach_store_order(items=None, delivery_method=None):
         })
 
         order_lines.append({
+            "item_code": item["item_code"],
             "item_name": item["item_name"],
             "qty": line["qty"],
             "rate": item["rate"],
@@ -1022,6 +1023,7 @@ def create_coach_store_order(items=None, delivery_method=None):
             })
 
             order_lines.append({
+                "item_code": shipping_item_code,
                 "item_name": "Shipping",
                 "qty": 1,
                 "rate": shipping_amount,
@@ -1039,6 +1041,42 @@ def create_coach_store_order(items=None, delivery_method=None):
     invoice.insert(ignore_permissions=True)
     invoice.submit()
     frappe.db.commit()
+
+    # "why are coach orders not showing in the store" - the Store
+    # dashboard's own Orders/pack-and-ship list (store_orders.py) reads
+    # exclusively off Webshop Checkout, never Sales Invoice directly -
+    # a Coach Store order only ever raised the invoice above, so it was
+    # never visible there at all, with nothing to pack or mark shipped.
+    # A minimal "Paid" Webshop Checkout, linked to this same invoice,
+    # puts it in that exact same list/workflow - skips every public-
+    # checkout concern (Stripe, Online Client, portal access, coupons)
+    # that doesn't apply to an already-known, already-logged-in coach.
+    try:
+        checkout = frappe.new_doc("Webshop Checkout")
+        checkout.full_name = coach_display_name
+        checkout.email = coach_email
+        checkout.coach = coach.get("name")
+        checkout.status = "Paid"
+        if checkout.meta.has_field("invoice"):
+            checkout.invoice = invoice.name
+
+        for line in order_lines:
+            checkout.append("items", {
+                "item_code": line.get("item_code") or "",
+                "item_name": line["item_name"],
+                "qty": line["qty"],
+                "rate": line["rate"],
+                "currency": line["currency"],
+            })
+
+        checkout.insert(ignore_permissions=True)
+        frappe.db.commit()
+    except Exception:
+        # The order/invoice is already raised - a failed Webshop Checkout
+        # record shouldn't look like a failed order to the coach placing
+        # it, just leave it missing from the Orders list for office to
+        # chase up from the invoice directly.
+        frappe.log_error(frappe.get_traceback(), f"Coach Store Order Checkout Record Failed - {invoice.name}")
 
     try:
         _send_coach_order_confirmation_email(invoice, coach_email, coach_display_name, order_lines, settings, delivery_method)
