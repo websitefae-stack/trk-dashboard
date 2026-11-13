@@ -9,7 +9,6 @@
   var el = Dashboard.el;
 
   const API = "dashboard.api.shared.store_coupons";
-  const PRODUCTS_API = "dashboard.api.shared.store_products";
 
   let coupons = [];
   let products = null; // lazy-loaded, cached - [{name, item_name}, ...]
@@ -133,7 +132,7 @@
 
     const list = el("storeCouponItemsList");
     try {
-      products = await apiPost(`${PRODUCTS_API}.get_store_products`, {});
+      products = await apiPost(`${API}.get_coupon_eligible_items`, {});
     } catch (error) {
       products = [];
       list.innerHTML = '<div class="dashboard-empty">Could not load products.</div>';

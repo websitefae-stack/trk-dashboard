@@ -195,6 +195,54 @@ def _coupon_item_rows(coupon):
 
 
 @frappe.whitelist()
+def get_coupon_eligible_items():
+    """
+    Every Item a "Specific Items" coupon can be scoped to - ordinary
+    store products (custom_store_enabled=1, same list Manage Store
+    shows) plus paid LMS Courses' own backing Items, which are
+    deliberately custom_store_enabled=0 (store_products._ensure_
+    course_item's own docstring: "stays out of the general store grid")
+    so they'd otherwise never be offered here at all - "how do i put in
+    a free coupon code on a course" has no answer without this, since a
+    100%-off "Entire Store" coupon would make every other product free
+    too, not just the one course.
+    """
+    _ensure_store_access()
+
+    item_meta = frappe.get_meta("Item")
+
+    # Variant rows carry the same custom_store_enabled flag as their
+    # template (see get_store_products' own comment on this) and are
+    # filtered out in Python rather than the query itself - SQL's
+    # "col IN ('', NULL)" never actually matches a true NULL column
+    # value (IN is just a chain of "col = value" checks, and "= NULL"
+    # is never true), so this can't be done as a DB-side filter.
+    products = frappe.get_all(
+        "Item",
+        filters={"custom_store_enabled": 1},
+        fields=["name", "item_name", "has_variants", "variant_of"],
+        order_by="item_name asc",
+    )
+    products = [p for p in products if not p.variant_of]
+    for p in products:
+        p.pop("variant_of", None)
+
+    courses = []
+    if item_meta.has_field("custom_unlocks_lms_course"):
+        courses = frappe.get_all(
+            "Item",
+            filters={"custom_unlocks_lms_course": ["is", "set"], "disabled": 0},
+            fields=["name", "item_name"],
+            order_by="item_name asc",
+        )
+        for row in courses:
+            row["has_variants"] = 0
+            row["item_name"] = f"Course: {row.item_name}"
+
+    return products + courses
+
+
+@frappe.whitelist()
 def get_coupons():
     _ensure_store_access()
 
