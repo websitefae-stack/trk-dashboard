@@ -282,15 +282,11 @@ def _build_evidence(person_doc, role="coach"):
 		"dbs_expiry_date": dbs_expiry_date,
 		"dbs_update_service_text": update_service_status,
 		"safeguarding_training_text": training_text,
-		# "mention... qualifications... for which you have also verified. If
-		# she is also a member of a professional association that would
-		# also be good to put on" - school feedback on a letter. Self-
-		# reported by the coach/session worker on their own profile
-		# (profile.py's editable_fields), only ever shown once a
-		# franchisor has ticked qualifications_verified
-		# (profile.set_qualifications_verified) - never an unverified
-		# self-report on an official document.
-		"qualifications_verified": bool(person_doc.get("qualifications_verified")),
+		# Profile-level defaults only - the request's own qualifications/
+		# professional_association fields (pre-filled from these, editable
+		# per request - see get_request_form_defaults/submit_assurance_
+		# request) are what the letter actually uses; these are only a
+		# fallback for a request submitted before that field existed.
 		"qualifications": person_doc.get("qualifications") or "",
 		"professional_association": person_doc.get("professional_association") or "",
 	}
@@ -461,14 +457,27 @@ def _get_or_create_school(school, new_school_name, new_school_address, new_schoo
 def get_request_form_defaults():
 	"""Coach/Session-Worker-facing: what the request form needs before
 	it can render - the requester's own pulled-in details, the role
-	options, and the default Nature of Work wording."""
+	options, and the default Nature of Work wording.
+
+	qualifications/professional_association are pre-filled from the
+	requester's own profile (profile.py's own editable fields) purely as
+	a starting point - "i dont want to rely just on what is in the
+	profile... the coach can change it if it has changed" - the form lets
+	them edit either before submitting, and submit_assurance_request
+	saves whatever they actually submit onto the request itself.
+	"""
 	ensure_logged_in()
-	_role, _name, display_name = _resolve_current_requester()
+	role, name, display_name = _resolve_current_requester()
+
+	doctype = "Session Worker" if role == "session_worker" else COACH_DOCTYPE
+	person = frappe.db.get_value(doctype, name, ["qualifications", "professional_association"], as_dict=True) or {}
 
 	return {
 		"coach_name": display_name,
 		"role_options": ROLE_OPTIONS,
 		"default_nature_of_work": DEFAULT_NATURE_OF_WORK,
+		"qualifications": person.get("qualifications") or "",
+		"professional_association": person.get("professional_association") or "",
 	}
 
 
@@ -485,6 +494,9 @@ def submit_assurance_request(
 	nature_of_work=None,
 	expected_start_date=None,
 	expected_end_date=None,
+	qualifications=None,
+	professional_association=None,
+	update_profile=None,
 ):
 	ensure_logged_in()
 	requester_role, requester_name, display_name = _resolve_current_requester()
@@ -494,6 +506,9 @@ def submit_assurance_request(
 	role = coalesce_str("role", role)
 	nature_of_work = coalesce_str("nature_of_work", nature_of_work) or DEFAULT_NATURE_OF_WORK
 	expected_start_date = coalesce_str("expected_start_date", expected_start_date)
+	qualifications = coalesce_str("qualifications", qualifications)
+	professional_association = coalesce_str("professional_association", professional_association)
+	update_profile = frappe.utils.cint(update_profile)
 
 	if not school_contact_name:
 		frappe.throw(_("Please enter the school contact's name."))
@@ -526,6 +541,8 @@ def submit_assurance_request(
 	doc.nature_of_work = nature_of_work
 	doc.expected_start_date = expected_start_date
 	doc.expected_end_date = coalesce_str("expected_end_date", expected_end_date) or None
+	doc.qualifications = qualifications
+	doc.professional_association = professional_association
 	doc.workflow_status = "Submitted"
 	doc.employment_history_note = DEFAULT_EMPLOYMENT_HISTORY_NOTE
 	doc.dbs_certificate_level = "Enhanced"
@@ -534,6 +551,22 @@ def submit_assurance_request(
 	doc.letter_template_version = LETTER_TEMPLATE_VERSION
 	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
+
+	# "have it ask save this to your profile so they can update their
+	# profile so it is fixed for every new letter" - opt-in, since most
+	# of the time a one-off change (a role that's only true for this
+	# particular school) shouldn't quietly become every future letter's
+	# new default.
+	if update_profile:
+		try:
+			person_doctype = "Session Worker" if requester_role == "session_worker" else COACH_DOCTYPE
+			frappe.db.set_value(person_doctype, requester_name, {
+				"qualifications": qualifications,
+				"professional_association": professional_association,
+			})
+			frappe.db.commit()
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), f"Safeguarding Letter Profile Update Failed - {doc.name}")
 
 	try:
 		create_trk_notification(
@@ -741,6 +774,8 @@ def get_assurance_request_for_review(name):
 		"nature_of_work": doc.nature_of_work,
 		"expected_start_date": doc.expected_start_date,
 		"expected_end_date": doc.expected_end_date,
+		"qualifications": doc.qualifications,
+		"professional_association": doc.professional_association,
 		"workflow_status": doc.workflow_status,
 		"regulated_activity_assessment": doc.regulated_activity_assessment,
 		"dbs_wording_option": doc.dbs_wording_option,
@@ -949,9 +984,8 @@ def approve_and_sign_assurance_request(name, typed_full_name=None, signature=Non
 		"safeguarding_training_text": evidence["safeguarding_training_text"],
 		"kcsie_part_one_acknowledgement": doc.kcsie_part_one_acknowledgement,
 		"overseas_checks": doc.overseas_checks,
-		"qualifications_verified": evidence["qualifications_verified"],
-		"qualifications": evidence["qualifications"],
-		"professional_association": evidence["professional_association"],
+		"qualifications": doc.qualifications or evidence["qualifications"],
+		"professional_association": doc.professional_association or evidence["professional_association"],
 		"approved_by": doc.approved_by,
 		"approved_at": str(now),
 	}
@@ -1093,9 +1127,14 @@ def _render_letter_html(doc, person_doc, evidence, is_signed):
 		"signatory_role": SIGNATORY_ROLE,
 		"logo_data_uri": _logo_data_uri(),
 		"person_photo_data_uri": _person_photo_data_uri(person_doc),
-		"qualifications_verified": evidence["qualifications_verified"],
-		"qualifications_text": esc(evidence["qualifications"]),
-		"professional_association_text": esc(evidence["professional_association"]),
+		# The request's own fields win - pre-filled from the person's
+		# profile when the request was created (get_request_form_defaults)
+		# but editable per request from there, since "i dont want to rely
+		# just on what is in the profile... the coach can change it if it
+		# has changed". Only falls back to the profile's own current value
+		# for a request submitted before these fields existed on it.
+		"qualifications_text": esc(doc.qualifications or evidence["qualifications"]),
+		"professional_association_text": esc(doc.professional_association or evidence["professional_association"]),
 		"letter_date": frappe.utils.formatdate(nowdate(), "d MMMM yyyy"),
 		"school_label": esc(_client_display_name(doc.school)),
 		"school_address": esc(frappe.db.get_value(CLIENT_DOCTYPE, doc.school, "address") or ""),
@@ -1185,8 +1224,8 @@ LETTER_TEMPLATE = """
   <tr><td class="field">School</td><td>{{ school_label }}</td></tr>
   <tr><td class="field">Intended start date</td><td>{{ frappe.utils.formatdate(expected_start_date, "d MMMM yyyy") if expected_start_date else "" }}</td></tr>
   {% if regulated_activity_assessment %}<tr><td class="field">Regulated activity assessment</td><td>{{ regulated_activity_assessment }}</td></tr>{% endif %}
-  {% if qualifications_verified and qualifications_text %}<tr><td class="field">Qualifications</td><td>{{ qualifications_text }}</td></tr>{% endif %}
-  {% if qualifications_verified and professional_association_text %}<tr><td class="field">Professional association</td><td>{{ professional_association_text }}</td></tr>{% endif %}
+  {% if qualifications_text %}<tr><td class="field">Qualifications</td><td>{{ qualifications_text }}</td></tr>{% endif %}
+  {% if professional_association_text %}<tr><td class="field">Professional association</td><td>{{ professional_association_text }}</td></tr>{% endif %}
 </table>
 
 <h2>2. Safeguarding and Safer Recruitment Checks</h2>
