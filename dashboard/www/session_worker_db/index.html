@@ -36,10 +36,10 @@
       </div>
 
       <div class="dashboard-summary-grid dashboard-summary-grid-billing dashboard-home-summary-grid">
-        <div class="dashboard-summary-card">
+        <a class="dashboard-summary-card dashboard-summary-card-link" href="/session_worker_db/clients">
           <div class="dashboard-summary-label">Clients Allocated</div>
           <div class="dashboard-summary-value" id="swTotalClientsValue">—</div>
-        </div>
+        </a>
 
         <div class="dashboard-summary-card">
           <div class="dashboard-summary-label" id="swOneToOnePreviousLabel">1 on 1 Sessions Previous</div>
@@ -82,56 +82,62 @@
         </div>
       </div>
 
-      <div class="dashboard-card dashboard-birthdays-card" id="dashboardBirthdaysCard" style="display:none;">
-        <div class="dashboard-birthdays-title">🎂 Upcoming Birthdays</div>
-        <div class="dashboard-birthdays-list" id="dashboardBirthdaysList"></div>
-      </div>
+      <div class="dashboard-home-grid">
+        <div class="dashboard-home-grid-col">
+          <div class="dashboard-card dashboard-home-panel">
+            <div class="dashboard-table-header">
+              <div class="dashboard-table-title">Clients Who Owe Money</div>
+            </div>
 
-      <div class="dashboard-card dashboard-home-panel">
-        <div class="dashboard-table-header">
-          <div class="dashboard-table-title">Clients Who Owe Money</div>
-        </div>
+            <div class="dashboard-table-wrap">
+              <table class="dashboard-table">
+                <thead>
+                  <tr>
+                    <th>Client</th>
+                    <th>Due Date</th>
+                    <th class="dashboard-text-right">Outstanding</th>
+                  </tr>
+                </thead>
+                <tbody id="swDashboardClientsOwingTableBody">
+                  <tr><td colspan="3" class="dashboard-empty">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-        <div class="dashboard-table-wrap">
-          <table class="dashboard-table">
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th>Due Date</th>
-                <th class="dashboard-text-right">Outstanding</th>
-              </tr>
-            </thead>
-            <tbody id="swDashboardClientsOwingTableBody">
-              <tr><td colspan="3" class="dashboard-empty">Loading...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+          <div class="dashboard-card dashboard-home-panel">
+            <div class="dashboard-table-header">
+              <div class="dashboard-table-title">Upcoming Appointments</div>
+              <div class="dashboard-table-count">
+                <a class="dashboard-link-btn" href="/session_worker_db/calendar">View Calendar</a>
+              </div>
+            </div>
 
-      <div class="dashboard-card dashboard-home-panel">
-        <div class="dashboard-table-header">
-          <div class="dashboard-table-title">Upcoming Appointments</div>
-          <div class="dashboard-table-count">
-            <a class="dashboard-link-btn" href="/session_worker_db/calendar">View Calendar</a>
+            <div class="dashboard-table-wrap">
+              <table class="dashboard-table dashboard-home-appointments-table">
+                <thead>
+                  <tr>
+                    <th class="dashboard-home-date-col">Date</th>
+                    <th class="dashboard-home-details-col">Appointment Details</th>
+                    <th class="dashboard-home-location-col">Location</th>
+                    <th class="dashboard-text-right dashboard-home-action-col">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="swDashboardUpcomingTableBody">
+                  <tr>
+                    <td colspan="4" class="dashboard-empty">Loading appointments...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
-        <div class="dashboard-table-wrap">
-          <table class="dashboard-table dashboard-home-appointments-table">
-            <thead>
-              <tr>
-                <th class="dashboard-home-date-col">Date</th>
-                <th class="dashboard-home-details-col">Appointment Details</th>
-                <th class="dashboard-home-location-col">Location</th>
-                <th class="dashboard-text-right dashboard-home-action-col">Action</th>
-              </tr>
-            </thead>
-            <tbody id="swDashboardUpcomingTableBody">
-              <tr>
-                <td colspan="4" class="dashboard-empty">Loading appointments...</td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="dashboard-home-grid-col">
+          <div class="dashboard-card dashboard-birthdays-card" id="dashboardBirthdaysCard" style="display:none;">
+            <div class="dashboard-birthdays-title">🎂 Upcoming Birthdays</div>
+            <div class="dashboard-birthdays-list" id="dashboardBirthdaysList"></div>
+          </div>
         </div>
       </div>
 
