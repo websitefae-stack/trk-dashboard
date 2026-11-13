@@ -343,10 +343,15 @@
   var COACH_HIDE_COMPLETED_STORAGE_KEY = "trk_onboarding_show_completed";
 
   function getShowCompletedPreference(storageKey) {
+    // Defaults to showing everything - a stage that's fully done already
+    // collapses itself (see renderStage's <details>/<summary>), so there's
+    // no need to also hide individual completed steps inside stages still
+    // in progress. Only an explicit prior choice (stored "0") hides them.
     try {
-      return window.localStorage.getItem(storageKey) === "1";
+      var stored = window.localStorage.getItem(storageKey);
+      return stored === null ? true : stored === "1";
     } catch (error) {
-      return false;
+      return true;
     }
   }
 
