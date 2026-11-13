@@ -207,6 +207,7 @@
           expected_end_date: el("letterEndDate").value,
           qualifications: el("letterQualifications") ? el("letterQualifications").value : "",
           professional_association: el("letterProfessionalAssociation") ? el("letterProfessionalAssociation").value : "",
+          update_profile: el("letterUpdateProfileCheckbox") && el("letterUpdateProfileCheckbox").checked ? 1 : 0,
         });
 
         hideForm();

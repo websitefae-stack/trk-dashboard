@@ -496,6 +496,7 @@ def submit_assurance_request(
 	expected_end_date=None,
 	qualifications=None,
 	professional_association=None,
+	update_profile=None,
 ):
 	ensure_logged_in()
 	requester_role, requester_name, display_name = _resolve_current_requester()
@@ -507,6 +508,7 @@ def submit_assurance_request(
 	expected_start_date = coalesce_str("expected_start_date", expected_start_date)
 	qualifications = coalesce_str("qualifications", qualifications)
 	professional_association = coalesce_str("professional_association", professional_association)
+	update_profile = frappe.utils.cint(update_profile)
 
 	if not school_contact_name:
 		frappe.throw(_("Please enter the school contact's name."))
@@ -549,6 +551,22 @@ def submit_assurance_request(
 	doc.letter_template_version = LETTER_TEMPLATE_VERSION
 	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
+
+	# "have it ask save this to your profile so they can update their
+	# profile so it is fixed for every new letter" - opt-in, since most
+	# of the time a one-off change (a role that's only true for this
+	# particular school) shouldn't quietly become every future letter's
+	# new default.
+	if update_profile:
+		try:
+			person_doctype = "Session Worker" if requester_role == "session_worker" else COACH_DOCTYPE
+			frappe.db.set_value(person_doctype, requester_name, {
+				"qualifications": qualifications,
+				"professional_association": professional_association,
+			})
+			frappe.db.commit()
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), f"Safeguarding Letter Profile Update Failed - {doc.name}")
 
 	try:
 		create_trk_notification(
