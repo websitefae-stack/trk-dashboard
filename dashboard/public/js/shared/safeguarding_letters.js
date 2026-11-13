@@ -95,6 +95,8 @@
         var defaults = await apiPost(SHARED_API + ".get_request_form_defaults", {});
         el("letterCoachName").value = defaults.coach_name || "";
         el("letterNatureOfWork").value = defaults.default_nature_of_work || "";
+        if (el("letterQualifications")) el("letterQualifications").value = defaults.qualifications || "";
+        if (el("letterProfessionalAssociation")) el("letterProfessionalAssociation").value = defaults.professional_association || "";
 
         var roleSelect = el("letterRole");
         roleSelect.innerHTML = (defaults.role_options || [])
@@ -203,6 +205,8 @@
           nature_of_work: el("letterNatureOfWork").value,
           expected_start_date: el("letterStartDate").value,
           expected_end_date: el("letterEndDate").value,
+          qualifications: el("letterQualifications") ? el("letterQualifications").value : "",
+          professional_association: el("letterProfessionalAssociation") ? el("letterProfessionalAssociation").value : "",
         });
 
         hideForm();
@@ -445,6 +449,8 @@
         ["Nature of Work", data.nature_of_work],
         ["Expected Start Date", formatDate(data.expected_start_date)],
         ["Expected End Date", data.expected_end_date ? formatDate(data.expected_end_date) : "—"],
+        ["Qualifications", data.qualifications],
+        ["Professional Association", data.professional_association],
       ].map(function (pair) {
         return (
           '<div class="dashboard-detail-field"><label>' + escapeHtml(pair[0]) + "</label>" +

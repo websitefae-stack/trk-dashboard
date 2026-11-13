@@ -23,6 +23,8 @@
   "nature_of_work",
   "expected_start_date",
   "expected_end_date",
+  "qualifications",
+  "professional_association",
   "review_section",
   "regulated_activity_assessment",
   "dbs_wording_option",
@@ -179,6 +181,18 @@
    "fieldname": "expected_end_date",
    "fieldtype": "Date",
    "label": "Expected End Date"
+  },
+  {
+   "description": "Pre-filled from your own profile - edit it here if it's changed, just for this letter.",
+   "fieldname": "qualifications",
+   "fieldtype": "Small Text",
+   "label": "Qualifications Held"
+  },
+  {
+   "description": "e.g. a professional body or register you belong to, and your membership number if relevant.",
+   "fieldname": "professional_association",
+   "fieldtype": "Data",
+   "label": "Professional Association / Membership"
   },
   {
    "fieldname": "review_section",

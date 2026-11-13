@@ -183,7 +183,7 @@
               <div class="dashboard-detail-field dashboard-detail-field-full">
                 <h3>Qualifications &amp; Professional Association</h3>
                 <p class="dashboard-page-subtitle">
-                  Used on safeguarding assurance letters once a franchisor has checked and confirmed them below.
+                  The default these pre-fill with on a new Safeguarding Assurance Letter request - update it here any time, or on the letter request itself if it's only changed for one particular letter.
                 </p>
               </div>
 
@@ -196,20 +196,6 @@
                 <label>Professional Association / Membership</label>
                 <input class="dashboard-input js-profile-editable" name="professional_association" value="{{ profile_doc.professional_association or '' }}" readonly>
               </div>
-
-              {% if coach_is_view_mode or session_worker_is_view_mode %}
-                <div class="dashboard-detail-field dashboard-detail-field-full">
-                  <label>
-                    <input type="checkbox" id="qualificationsVerifiedCheckbox" {% if profile_doc.qualifications_verified %}checked{% endif %}>
-                    Checked and confirmed by franchisor
-                  </label>
-                  <p class="dashboard-field-hint">Only tick this once you've actually checked the qualifications/professional association above - this is what the safeguarding letter checks before including either.</p>
-                  <span class="dashboard-help" id="qualificationsVerifiedMessage"></span>
-                </div>
-              {% endif %}
-
-              <input type="hidden" id="qualificationsPersonName" value="{{ profile_doc.name }}">
-              <input type="hidden" id="qualificationsPersonRole" value="{{ profile_role }}">
 
               {% if profile_role in ["coach", "franchisor"] %}
               <div class="dashboard-detail-field dashboard-detail-field-full">

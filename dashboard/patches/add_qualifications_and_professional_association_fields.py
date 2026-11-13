@@ -1,14 +1,16 @@
 """
 School feedback on a safeguarding letter: "mention in the letter that
-she holds relevant qualifications (and detail of what they are) for
-which you have also verified. If she is also a member of a
-professional association that would also be good to put on." - adds
-the fields behind that, self-reported by the coach/session worker on
-their own profile, with a separate qualifications_verified flag only
-the franchisor can set (see profile.set_qualifications_verified) -
-the letter only ever includes qualifications/professional association
-once that's ticked, never an unverified self-report on an official
-document.
+she holds relevant qualifications (and detail of what they are)... If
+she is also a member of a professional association that would also be
+good to put on." - adds the fields behind that, self-reported by the
+coach/session worker on their own profile. These are only ever the
+*default* value a new letter request pre-fills from (see
+safeguarding_letters.get_request_form_defaults) - the requester can
+change either for that specific request if something's changed since
+their profile was last updated, same as every other judgement-call
+field on the request (dbs_wording_option, childrens_barred_list_check,
+etc.), and Ashley's own existing review/approve-and-sign step is what
+actually puts them on the letter, not a separate verified flag here.
 """
 
 import frappe
@@ -19,7 +21,7 @@ QUALIFICATION_FIELDS = [
 		"fieldname": "qualifications",
 		"fieldtype": "Small Text",
 		"label": "Qualifications Held",
-		"description": "Relevant qualifications for this role - shown on safeguarding assurance letters once verified below.",
+		"description": "Relevant qualifications for this role - the default a new safeguarding letter request pre-fills from, editable per request.",
 		"module": "Dashboard",
 	},
 	{
@@ -28,14 +30,6 @@ QUALIFICATION_FIELDS = [
 		"label": "Professional Association / Membership",
 		"description": "e.g. a professional body or register this person belongs to, and their membership number if relevant.",
 		"insert_after": "qualifications",
-		"module": "Dashboard",
-	},
-	{
-		"fieldname": "qualifications_verified",
-		"fieldtype": "Check",
-		"label": "Qualifications & Professional Association Verified",
-		"description": "Franchisor-only - ticked once the qualifications/professional association above have actually been checked. Safeguarding letters never include either field until this is ticked.",
-		"insert_after": "professional_association",
 		"module": "Dashboard",
 	},
 ]

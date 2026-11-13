@@ -1197,43 +1197,6 @@ def delete_my_recognition(role, row_name=None):
     return {"ok": 1, "recognitions": get_coach_recognitions(profile_doc.name)}
 
 
-@frappe.whitelist()
-def set_qualifications_verified(role=None, person=None, verified=None):
-    """
-    Franchisor-only tick confirming the qualifications/professional
-    association the coach/session worker entered on their own profile
-    have actually been checked - safeguarding_letters.py only ever
-    includes either on a letter once this is set, never an unverified
-    self-report on an official document ("mention... qualifications...
-    for which you have also verified" - school feedback on a
-    safeguarding letter).
-    """
-    from dashboard.api.shared.permissions import (
-        ensure_franchisor_can_access_coach,
-        ensure_franchisor_can_access_session_worker,
-    )
-
-    role = (role or "").strip()
-    person = (person or "").strip()
-
-    if not person:
-        frappe.throw(_("Person is required."))
-
-    if role == "session_worker":
-        profile_doc = ensure_franchisor_can_access_session_worker(person)
-    else:
-        profile_doc = ensure_franchisor_can_access_coach(person)
-
-    if not profile_doc.meta.has_field("qualifications_verified"):
-        frappe.throw(_("Qualifications verification isn't set up on this site yet."))
-
-    profile_doc.qualifications_verified = 1 if frappe.utils.cint(verified) else 0
-    profile_doc.save(ignore_permissions=True)
-    frappe.db.commit()
-
-    return {"ok": 1, "qualifications_verified": profile_doc.qualifications_verified}
-
-
 def coach_has_secret_key(coach_name):
     """
     Checks whether a Stripe secret key is already stored for this Coach
