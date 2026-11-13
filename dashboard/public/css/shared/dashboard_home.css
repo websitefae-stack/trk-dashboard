@@ -235,15 +235,6 @@
   display: block;
 }
 
-/* Same pale accent .dashboard-revenue-period already uses for the
-   Previous/Current period boxes inside Revenue/Fees on the coach/
-   franchisor dashboard - applied to the Session Worker dashboard's own
-   Previous/Current stat tiles (1-on-1, Group, Workshop, Travel), which
-   are the same shape (a period-pair comparison) even though the
-   numbers themselves are sessions/miles, not money. */
-.dashboard-summary-card-tinted {
-  background: #F2F8F8;
-}
 
 .dashboard-summary-card-link:hover {
   text-decoration: none;
