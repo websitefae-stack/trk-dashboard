@@ -121,6 +121,7 @@ after_migrate = [
     "dashboard.patches.disable_unused_razorpay_scheduled_jobs.execute",
     "dashboard.patches.backfill_coach_store_order_checkouts.execute",
     "dashboard.patches.add_qualifications_and_professional_association_fields.execute",
+    "dashboard.patches.add_school_client_meeting_to_session_type_options.execute",
 ]
 
 # Keep appointments Private (Frappe's own permission model then restricts
