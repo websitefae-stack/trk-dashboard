@@ -34,7 +34,7 @@ def execute():
 	# itself already uses before ever setting it.
 	has_custom_coach = invoice_meta.has_field("custom_coach")
 
-	fields = ["name", "customer", "currency", "creation"]
+	fields = ["name", "customer", "currency", "creation", "owner"]
 	if has_custom_coach:
 		fields.append("custom_coach")
 
@@ -67,12 +67,58 @@ def execute():
 		):
 			coach_info[row.name] = row
 
+	# Fallback identity for a site with no custom_coach field at all
+	# (confirmed live: a migrate crashed on it - has_custom_coach above)
+	# or where it's just blank on a particular invoice - create_coach_
+	# store_order always runs under the actual coach's own logged-in
+	# session (never impersonated), so Sales Invoice.owner is a
+	# reliable stand-in. Without this, every invoice on such a site hit
+	# "" for both coach_name and coach_email, which Webshop Checkout
+	# then rejected outright (email is mandatory) - the same one
+	# invoice failing the same way on every single migrate since,
+	# logged forever (confirmed live: 934 occurrences of this exact
+	# failure for one invoice, since after_migrate hooks rerun every
+	# deploy, not just once like a logged patch).
+	owner_coach_by_login = {}
+	owners = {inv.owner for inv in invoices if inv.owner and inv.owner != "Administrator"}
+	if owners:
+		for row in frappe.get_all(
+			"Coach",
+			filters=[
+				["Coach", "user", "in", list(owners)],
+				"or",
+				["Coach", "coach_email", "in", list(owners)],
+			],
+			fields=["name", "coach_name", "user", "coach_email"],
+		):
+			if row.get("user"):
+				owner_coach_by_login[row["user"]] = row
+			if row.get("coach_email"):
+				owner_coach_by_login[row["coach_email"]] = row
+
 	created = 0
 	for inv in invoices:
 		coach_name = inv.get("custom_coach") if has_custom_coach else None
 		coach = coach_info.get(coach_name) or {}
+
+		if not coach and inv.owner:
+			coach = owner_coach_by_login.get(inv.owner) or {}
+			coach_name = coach.get("name") or coach_name
+
 		coach_display_name = coach.get("coach_name") or coach_name or inv.customer
-		coach_email = coach.get("user") or coach.get("coach_email") or ""
+		# inv.owner itself is always set on any inserted document (never
+		# blank) and is a real login email whenever it isn't the
+		# Administrator account, so this is the last resort that
+		# actually guarantees Webshop Checkout's mandatory email field
+		# is never left empty.
+		coach_email = coach.get("user") or coach.get("coach_email") or inv.owner or ""
+
+		if not coach_email:
+			frappe.log_error(
+				f"No owner/coach email at all for {inv.name} - skipped, Webshop Checkout requires one.",
+				"Coach Store Order Checkout Backfill Skipped",
+			)
+			continue
 
 		items = frappe.get_all(
 			"Sales Invoice Item",
