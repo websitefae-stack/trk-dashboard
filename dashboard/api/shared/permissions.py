@@ -65,34 +65,62 @@ def get_current_coach():
 
 def is_current_user_coach():
     """
-    Boolean, never throws (unlike get_current_coach_name) - for places
-    that just need to know whether to show something coach-specific,
-    e.g. the topbar's Coach Store link, not to actually load the Coach
-    record.
+    Boolean, genuinely never throws (unlike get_current_coach_name) - for
+    places that just need to know whether to show something coach-
+    specific, e.g. the topbar's Coach Store link, not to actually load
+    the Coach record.
+
+    Called directly from Jinja (shared_topbar.html, via hooks.py's jinja
+    methods) - an uncaught exception here doesn't just fail to show the
+    Store link, it throws mid-render of that whole included template,
+    which can blank out everything else in it too (Client Portal, the
+    notification bell - neither gated on this at all). has_field guards
+    + a catch-all below make sure a missing field on this particular
+    site's Coach doctype (confirmed elsewhere this field list isn't
+    guaranteed - see is_session_worker_user in resilient_domains, same
+    reasoning) can never take the rest of the topbar down with it.
     """
     user = frappe.session.user
     if not user or user == "Guest":
         return False
-    return bool(
-        frappe.db.exists(COACH_DOCTYPE, {"user": user})
-        or frappe.db.exists(COACH_DOCTYPE, {"coach_email": user})
-    )
+
+    try:
+        if not frappe.db.exists("DocType", COACH_DOCTYPE):
+            return False
+
+        meta = frappe.get_meta(COACH_DOCTYPE)
+        for fieldname in ["user", "coach_email"]:
+            if meta.has_field(fieldname) and frappe.db.exists(COACH_DOCTYPE, {fieldname: user}):
+                return True
+        return False
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "is_current_user_coach failed")
+        return False
 
 
 def is_current_user_session_worker():
     """
-    Boolean, never throws - mirrors is_current_user_coach() above, for
-    places that just need to know whether to show something session-
-    worker-specific (e.g. the topbar's Store link), not to actually load
-    the Session Worker record.
+    Boolean, genuinely never throws - mirrors is_current_user_coach()
+    above, including why (same Jinja call site, same risk of a missing
+    field on this site's Session Worker doctype blanking the whole
+    topbar, not just the Store link).
     """
     user = frappe.session.user
     if not user or user == "Guest":
         return False
-    return bool(
-        frappe.db.exists(SESSION_WORKER_DOCTYPE, {"user": user})
-        or frappe.db.exists(SESSION_WORKER_DOCTYPE, {"sw_email": user})
-    )
+
+    try:
+        if not frappe.db.exists("DocType", SESSION_WORKER_DOCTYPE):
+            return False
+
+        meta = frappe.get_meta(SESSION_WORKER_DOCTYPE)
+        for fieldname in ["user", "sw_email"]:
+            if meta.has_field(fieldname) and frappe.db.exists(SESSION_WORKER_DOCTYPE, {fieldname: user}):
+                return True
+        return False
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "is_current_user_session_worker failed")
+        return False
 
 
 def get_current_session_worker_name(optional=False):
