@@ -731,8 +731,11 @@
       return;
     }
 
-    if (!message) {
-      if (statusMessage) statusMessage.textContent = "Enter a message.";
+    const fileInput = el("notificationFile");
+    const hasFile = !!(fileInput && fileInput.files && fileInput.files.length);
+
+    if (!message && !hasFile) {
+      if (statusMessage) statusMessage.textContent = "Enter a message or attach a file.";
       return;
     }
 

@@ -1890,8 +1890,13 @@ def reply_to_notification(name=None, message=None, attachment=None):
     if not name:
         frappe.throw(_("Notification not found."))
 
-    if not message:
-        frappe.throw(_("Please enter a reply."))
+    if not message and not attachment:
+        frappe.throw(_("Please enter a reply or attach a file."))
+
+    # message is mandatory on Dashboard Conversation Message - an
+    # attachment-only reply still needs some text to satisfy that, so it
+    # gets a placeholder rather than being blocked.
+    message = message or _("📎 Attachment")
 
     doc = ensure_notification_access(name)
 
@@ -2232,8 +2237,13 @@ def send_dashboard_notification(
     if not recipient_users:
         frappe.throw(_("Please select at least one recipient."))
 
-    if not message:
-        frappe.throw(_("Please enter a message."))
+    if not message and not attachment:
+        frappe.throw(_("Please enter a message or attach a file."))
+
+    # message is mandatory on both Dashboard Conversation and Dashboard
+    # Conversation Message - an attachment-only send still needs some text
+    # to satisfy that, so it gets a placeholder rather than being blocked.
+    message = message or _("📎 Attachment")
 
     allowed_users = _allowed_recipient_user_set()
     invalid_users = [user for user in recipient_users if user not in allowed_users]
