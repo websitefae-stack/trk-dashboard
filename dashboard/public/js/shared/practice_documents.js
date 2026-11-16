@@ -172,12 +172,21 @@
   }
 
   function renderTypeSection(documentType, rows) {
+    // .dashboard-table enforces a 980px min-width (tables.css) - without
+    // the standard .dashboard-table-wrap around it (every other table in
+    // this app has one), a narrower container just clips whatever
+    // doesn't fit instead of scrolling it into view. Confirmed live:
+    // Status and Action (including the "Open" button a session worker
+    // needs to actually view and sign off a policy) were invisible on
+    // Francesca's own Documents page with no way to reach them at all.
     var body = rows.length
       ? (
-          '<table class="dashboard-table dashboard-doc-list-table">' +
-            "<thead><tr><th>Document</th><th>Due Date</th><th>Status</th><th class=\"dashboard-text-right\">Action</th></tr></thead>" +
-            "<tbody>" + rows.map(renderDocumentRow).join("") + "</tbody>" +
-          "</table>"
+          '<div class="dashboard-table-wrap">' +
+            '<table class="dashboard-table dashboard-doc-list-table">' +
+              "<thead><tr><th>Document</th><th>Due Date</th><th>Status</th><th class=\"dashboard-text-right\">Action</th></tr></thead>" +
+              "<tbody>" + rows.map(renderDocumentRow).join("") + "</tbody>" +
+            "</table>" +
+          "</div>"
         )
       : '<div class="dashboard-empty">No ' + escapeHtml(documentType).toLowerCase() + ' documents assigned.</div>';
 
@@ -245,10 +254,12 @@
     wrap.innerHTML = rows.length
       ? (
           '<div class="dashboard-card">' +
-            '<table class="dashboard-table dashboard-doc-list-table">' +
-              "<thead><tr><th>Document</th><th>Due Date</th><th>Status</th><th class=\"dashboard-text-right\">Action</th></tr></thead>" +
-              "<tbody>" + rows.map(renderDocumentRow).join("") + "</tbody>" +
-            "</table>" +
+            '<div class="dashboard-table-wrap">' +
+              '<table class="dashboard-table dashboard-doc-list-table">' +
+                "<thead><tr><th>Document</th><th>Due Date</th><th>Status</th><th class=\"dashboard-text-right\">Action</th></tr></thead>" +
+                "<tbody>" + rows.map(renderDocumentRow).join("") + "</tbody>" +
+              "</table>" +
+            "</div>" +
           "</div>"
         )
       : '<div class="dashboard-empty">No documents match your search.</div>';

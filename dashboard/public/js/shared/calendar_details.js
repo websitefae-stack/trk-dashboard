@@ -19,7 +19,8 @@
     "Company Session": 45,
     "Event / Stall": 180,
     "Holiday": 0,
-    "Personal": 60
+    "Personal": 60,
+    "School/Client Meeting": 60
   };
 
   const state = {

@@ -555,14 +555,16 @@
 
     const textarea = el("notificationReplyText");
     const message = textarea ? textarea.value.trim() : "";
+    const replyFileInput = el("notificationReplyFile");
+    const hasFile = !!(replyFileInput && replyFileInput.files && replyFileInput.files.length);
 
     if (!state.notificationName) {
       alert("Notification not found.");
       return;
     }
 
-    if (!message) {
-      alert("Please enter a reply.");
+    if (!message && !hasFile) {
+      alert("Please enter a reply or attach a file.");
       return;
     }
 

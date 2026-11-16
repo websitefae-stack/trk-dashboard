@@ -28,7 +28,7 @@ WORKER_PREFIX = "__worker__:"
 
 FREE_TRAVEL_MILES_ONE_WAY = 10
 TRAVEL_EXCLUDED_SESSION_TYPES = ["Parent Check-In"]
-CLIENT_SESSION_TYPES = ["Therapy Session", "Parent Check-In"]
+CLIENT_SESSION_TYPES = ["Therapy Session", "Parent Check-In", "School/Client Meeting"]
 NON_CLIENT_TYPES = ["Initial Consultation", "Internal Training", "School Visit", "Company Meeting", "School Session", "Company Session", "Event / Stall", "Leadership Day", "Holiday", "Personal"]
 # Every appointment type except Holiday and Initial Consultation. Holiday
 # isn't a single start time to begin with - it's already its own
@@ -37,8 +37,17 @@ NON_CLIENT_TYPES = ["Initial Consultation", "Internal Training", "School Visit",
 # meet-and-greet by nature, not something that repeats.
 _RECURRING_EXCLUDED_TYPES = ("Holiday", "Initial Consultation")
 RECURRING_ALLOWED_TYPES = CLIENT_SESSION_TYPES + [t for t in NON_CLIENT_TYPES if t not in _RECURRING_EXCLUDED_TYPES]
-SCHOOL_LINKED_TYPES = ("School Visit", "Company Meeting", "School Session", "Company Session", "Leadership Day")
+SCHOOL_LINKED_TYPES = ("School Visit", "Company Meeting", "School Session", "Company Session", "Leadership Day", "School/Client Meeting")
 PACK_LINKED_SCHOOL_TYPES = ("School Session", "Company Session")
+# School/Client Meeting is deliberately NOT here - it's a meeting with
+# both a school/company AND a real client present, but never billed or
+# deducted from either side's session pack (Ashley's own call - "booked
+# as needed"). It's in CLIENT_SESSION_TYPES above (so custom_client gets
+# the actual client, same as Therapy Session) and in SCHOOL_LINKED_TYPES
+# (so custom_visit_client gets the school/company too) - being excluded
+# from PACK_LINKED_SCHOOL_TYPES above means the school/company never
+# overwrites custom_client, so the Package Booking Validation server
+# script never runs a balance check on it either.
 
 
 def _require_logged_in_user():

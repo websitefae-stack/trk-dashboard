@@ -44,6 +44,7 @@
     "Therapy Session", "Parent Check-In",
     "Internal Training", "School Visit", "Company Meeting",
     "School Session", "Company Session", "Event / Stall", "Personal",
+    "School/Client Meeting",
   ];
 
   const COACH_ME_VALUE = "__coach_me__";
@@ -65,7 +66,8 @@
     "Company Session": 45,
     "Event / Stall": 180,
     "Holiday": 0,
-    "Personal": 60
+    "Personal": 60,
+    "School/Client Meeting": 60
   };
 
   // Only these keep a fixed, type-driven duration when editing an existing
@@ -75,9 +77,9 @@
   // vary from the standard slot.
   const FIXED_DURATION_EDIT_TYPES = ["Parent Check-In", "Initial Consultation"];
 
-  const CLIENT_REQUIRED_TYPES = ["Therapy Session", "Parent Check-In"];
+  const CLIENT_REQUIRED_TYPES = ["Therapy Session", "Parent Check-In", "School/Client Meeting"];
   const NON_CLIENT_TITLE_TYPES = ["Internal Training", "Event / Stall", "Personal"];
-  const SCHOOL_LINKED_TYPES = ["School Visit", "Company Meeting", "School Session", "Company Session"];
+  const SCHOOL_LINKED_TYPES = ["School Visit", "Company Meeting", "School Session", "Company Session", "School/Client Meeting"];
 
   const DEFAULT_BILLING_BY_TYPE = {
     "Therapy Session": "One to One",
@@ -90,7 +92,11 @@
     "Company Session": "One to One",
     "Event / Stall": "Non-Billable",
     "Holiday": "Non-Billable",
-    "Personal": "Non-Billable"
+    "Personal": "Non-Billable",
+    // Deliberately Non-Billable - a meeting with a school/company AND a
+    // client, but never part of either side's session pack (Ashley's
+    // own call - "booked as needed").
+    "School/Client Meeting": "Non-Billable"
   };
 
   const TYPE_STYLES = {
@@ -103,6 +109,7 @@
     "Company Meeting":    { background: "#FF8438", border: "#CC5200", textColor: "#FFFFFF" },
     "School Session":     { background: "#1FA37A", border: "#127A5A", textColor: "#FFFFFF" },
     "Company Session":    { background: "#B85C1F", border: "#8A4415", textColor: "#FFFFFF" },
+    "School/Client Meeting": { background: "#3D7A99", border: "#255A75", textColor: "#FFFFFF" },
     "Holiday":            { background: "#2C9A48", border: "#1A6830", textColor: "#FFFFFF" },
     "Personal":           { background: "#D5DA39", border: "#A0A500", textColor: "#2B2D00" },
     "General":            { background: "#00A19E", border: "#007A78", textColor: "#FFFFFF" }

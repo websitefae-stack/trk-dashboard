@@ -35,7 +35,13 @@ from dashboard.dashboard.doctype.webshop_payment_settings.webshop_payment_settin
 from dashboard.api.shared.email_templates import plain_text_to_email_html, wrap_branded_email_html
 from dashboard.api.shared.mail_throttle import send_email
 from dashboard.api.shared.item_access import _get_coach_login, COACH_ONLY_PRICE_LIST
-from dashboard.api.shared.invoices import _get_bank_account_gl_account, _get_current_coach, _coach_label
+from dashboard.api.shared.invoices import (
+    _get_bank_account_gl_account,
+    _get_current_coach,
+    _coach_label,
+    _get_current_session_worker,
+    _session_worker_label,
+)
 from dashboard.api.shared.store_products import _get_coach_price
 from dashboard.api.shared.store_shipping import (
     item_weight_grams,
@@ -66,6 +72,20 @@ def _is_current_user_coach():
     if not user or user == "Guest":
         return False
     return bool(frappe.db.exists("Coach", {"user": user}) or frappe.db.exists("Coach", {"coach_email": user}))
+
+
+def _is_current_user_session_worker():
+    """
+    Same as _is_current_user_coach() above, but for Session Workers -
+    they buy at the same price list/visibility tier as a coach (there's
+    no separate session worker price list), just never brand-gated (see
+    _get_purchasable_item's own use of this - no Session Worker
+    equivalent of Coach Brand Access exists).
+    """
+    user = frappe.session.user
+    if not user or user == "Guest":
+        return False
+    return bool(frappe.db.exists("Session Worker", {"user": user}) or frappe.db.exists("Session Worker", {"sw_email": user}))
 
 
 # Item.custom_brand_kid/teen/people/school (the dashboard app's own
@@ -313,21 +333,24 @@ def _get_purchasable_item(item_code, company):
     if item_doc.disabled:
         frappe.throw(_("This item is not available for online purchase."))
 
-    is_coach = _is_current_user_coach()
+    is_coach = _is_current_user_coach() or _is_current_user_session_worker()
 
     # "Coach Only" items simply aren't available for anyone else to buy -
     # same wording as the "not shown on site" case above, doesn't hint
-    # that a coach-only version exists.
+    # that a coach-only version exists. Session workers buy at this same
+    # tier (see _is_current_user_session_worker's own docstring).
     if (item_doc.get("custom_item_visibility") or "Everyone") == "Coach Only" and not is_coach:
         frappe.throw(_("This item is not available for online purchase."))
 
     # Branded clothing is only ever purchasable by a coach who operates
     # at least one brand it's printed with - see _coach_can_buy_item()'s
     # own docstring. Same generic wording as every gate above,
-    # deliberately not naming which brand is missing.
+    # deliberately not naming which brand is missing. A session worker
+    # (no Coach record, so coach is None below) isn't brand-gated at all
+    # - no Session Worker equivalent of Coach Brand Access exists.
     if is_coach:
         coach = _get_current_coach()
-        if not _coach_can_buy_item(item_doc, _get_coach_brands(coach.get("name") if coach else None)):
+        if coach and not _coach_can_buy_item(item_doc, _get_coach_brands(coach.get("name"))):
             frappe.throw(_("This item is not available for online purchase."))
 
     price_list = item_default.get("default_price_list")
@@ -916,15 +939,21 @@ def create_coach_store_order(items=None, delivery_method=None):
     rather than erroring.
 
     Deliberately NOT allow_guest - a Guest is already rejected by the
-    framework before this even runs, and _get_current_coach() below
-    additionally rejects any other logged-in user (e.g. a client_portal
-    login) that isn't actually a Coach - only a real coach's own session
-    can ever place an order here.
+    framework before this even runs, and the coach/session-worker lookup
+    below additionally rejects any other logged-in user (e.g. a
+    client_portal login) that isn't actually either of those - only a
+    real coach or session worker's own session can ever place an order
+    here. Session workers buy at the same coach price/visibility tier
+    (see _get_purchasable_item), just never get a Coach-specific field
+    set (custom_coach, custom_client via Coach.custom_own_client, the
+    Webshop Checkout's own "coach" Link) - there's no Session Worker
+    equivalent doctype to link those to.
     """
     coach = _get_current_coach()
+    session_worker = None if coach else _get_current_session_worker()
 
-    if not coach:
-        frappe.throw(_("Only a coach can place an order here."), frappe.PermissionError)
+    if not coach and not session_worker:
+        frappe.throw(_("Only a coach or session worker can place an order here."), frappe.PermissionError)
 
     settings = get_settings()
 
@@ -941,7 +970,7 @@ def create_coach_store_order(items=None, delivery_method=None):
         delivery_method = "Collection"
 
     coach_email = frappe.session.user
-    coach_display_name = _coach_label(coach) or coach_email
+    coach_display_name = (_coach_label(coach) if coach else _session_worker_label(session_worker)) or coach_email
 
     customer_name = _get_or_create_customer_for_contact(coach_email, coach_display_name)
 
@@ -961,7 +990,7 @@ def create_coach_store_order(items=None, delivery_method=None):
         invoice.rounding_adjustment = 0
         invoice.base_rounding_adjustment = 0
 
-    if invoice.meta.has_field("custom_coach"):
+    if coach and invoice.meta.has_field("custom_coach"):
         invoice.custom_coach = coach.get("name")
     if invoice.meta.has_field("custom_delivery_method"):
         invoice.custom_delivery_method = delivery_method
@@ -970,8 +999,10 @@ def create_coach_store_order(items=None, delivery_method=None):
     # when one's been set up for them - see make_sales_invoice_custom_
     # client_optional.py's own docstring for why custom_client is never
     # required: a coach with nothing linked here still places this order
-    # exactly as before, just with custom_client left blank.
-    if invoice.meta.has_field("custom_client") and frappe.get_meta("Coach").has_field("custom_own_client"):
+    # exactly as before, just with custom_client left blank. No Session
+    # Worker equivalent of custom_own_client exists, so a session worker
+    # buyer always leaves custom_client blank here.
+    if coach and invoice.meta.has_field("custom_client") and frappe.get_meta("Coach").has_field("custom_own_client"):
         own_client = frappe.db.get_value("Coach", coach.get("name"), "custom_own_client")
         if own_client:
             invoice.custom_client = own_client
@@ -1055,7 +1086,14 @@ def create_coach_store_order(items=None, delivery_method=None):
         checkout = frappe.new_doc("Webshop Checkout")
         checkout.full_name = coach_display_name
         checkout.email = coach_email
-        checkout.coach = coach.get("name")
+        # Webshop Checkout's "coach" field links to the Coach doctype
+        # specifically - left blank for a session worker buyer (no
+        # Session Worker equivalent to link it to); email/full_name
+        # above already identify them, same fallback the Coach Store
+        # Order Checkout Backfill patch relies on for an owner-resolved
+        # order with no linkable coach either.
+        if coach:
+            checkout.coach = coach.get("name")
         checkout.status = "Paid"
         if checkout.meta.has_field("invoice"):
             checkout.invoice = invoice.name
@@ -1085,12 +1123,12 @@ def create_coach_store_order(items=None, delivery_method=None):
         # look like a failed order to the coach placing it.
         frappe.log_error(frappe.get_traceback(), f"Coach Store Order Confirmation Email Failed - {invoice.name}")
 
-    _notify_coach_store_order(invoice, coach, coach_email, coach_display_name, delivery_method)
+    _notify_coach_store_order(invoice, coach, coach_email, coach_display_name, delivery_method, session_worker=session_worker)
 
     return {"ok": 1, "invoice": invoice.name}
 
 
-def _notify_coach_store_order(invoice, coach, coach_email, coach_display_name, delivery_method):
+def _notify_coach_store_order(invoice, coach, coach_email, coach_display_name, delivery_method, session_worker=None):
     """
     In-app notifications alongside the email above - the coach sees their
     own order confirmed in their notifications, and every franchisor
@@ -1107,7 +1145,8 @@ def _notify_coach_store_order(invoice, coach, coach_email, coach_display_name, d
             message=f"Your Coach Store order has been placed - invoice {invoice.name}.",
             reference_doctype="Sales Invoice",
             reference_name=invoice.name,
-            coach=coach.get("name"),
+            coach=coach.get("name") if coach else None,
+            session_worker=session_worker.get("name") if session_worker else None,
         )
     except Exception:
         frappe.log_error(frappe.get_traceback(), f"Coach Store Order Notification (Coach) Failed - {invoice.name}")

@@ -197,6 +197,56 @@ def _coach_label(coach):
     return full or coach.get("full_name") or coach.get("name") or ""
 
 
+def _get_current_session_worker():
+    """
+    Mirrors _get_current_coach() above, for Session Worker - used
+    wherever a buyer/actor can be either a Coach or a Session Worker
+    (e.g. the Coach Store, now open to both) and needs the same
+    defensive, has_field-guarded identity lookup.
+    """
+    user = _require_logged_in_user()
+
+    if not _has_doctype("Session Worker"):
+        return None
+
+    meta = frappe.get_meta("Session Worker")
+    fields = ["name"]
+
+    for fieldname in [
+        "sw_name",
+        "session_worker_name",
+        "full_name",
+        "employee_name",
+        "user_full_name",
+        "title",
+        "user",
+        "sw_email",
+    ]:
+        if meta.has_field(fieldname) and fieldname not in fields:
+            fields.append(fieldname)
+
+    login_fields = ["user", "sw_email"]
+
+    for fieldname in login_fields:
+        if meta.has_field(fieldname):
+            row = frappe.db.get_value("Session Worker", {fieldname: user}, fields, as_dict=True)
+            if row:
+                return row
+
+    return None
+
+
+def _session_worker_label(worker):
+    if not worker:
+        return ""
+
+    for fieldname in ["sw_name", "session_worker_name", "full_name", "employee_name", "user_full_name", "title"]:
+        if worker.get(fieldname):
+            return worker.get(fieldname)
+
+    return worker.get("name") or ""
+
+
 def _coach_label_from_name(coach_name):
     if not coach_name:
         return ""
@@ -646,7 +696,7 @@ def _current_user_can_allocate_payment(invoice_name):
         return True
 
     invoice = frappe.db.get_value(
-        "Sales Invoice", invoice_name, ["custom_client", "owner"], as_dict=True
+        "Sales Invoice", invoice_name, ["custom_client", "owner", "custom_created_by_coach"], as_dict=True
     )
     if not invoice:
         return False
@@ -675,6 +725,23 @@ def _current_user_can_allocate_payment(invoice_name):
     current_coach_name = _get_current_coach_name()
     if current_coach_name and frappe.db.get_value("Coach", current_coach_name, "linked_client") == client:
         return False
+
+    # "the invoice was done under sjs name" - a Client Transfer Fee
+    # invoice is raised by client_transfers.py while whoever's actually
+    # processing the transfer (franchisor/office) is logged in, not the
+    # transferring coach it's actually owed to - owner alone is wrong
+    # here, it's always whoever's session ran the insert, not who the
+    # invoice is attributed to. custom_created_by_coach is set
+    # explicitly to the transferring coach for exactly this invoice
+    # type (and, generically, to whichever coach raised an ordinary
+    # invoice through this app's own create flow - see
+    # _set_invoice_header_fields) - checked here as a second, coach-
+    # identity-aware path to the same allocate-payment permission,
+    # never on its own for a coach store purchase invoice (which never
+    # sets this field at all), so this can't reopen the bug the owner
+    # check above already exists to close.
+    if current_coach_name and invoice.get("custom_created_by_coach") == current_coach_name:
+        return True
 
     return invoice.get("owner") == frappe.session.user
 
