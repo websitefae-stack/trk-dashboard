@@ -36,7 +36,7 @@
                title="Check the Coach Store - what coaches see and buy at their own price">
                 Coach Store
             </a>
-            {% elif is_current_user_coach() %}
+            {% elif is_current_user_coach() or is_current_user_session_worker() %}
             <a href="/coach-store"
                target="_blank"
                rel="noopener noreferrer"

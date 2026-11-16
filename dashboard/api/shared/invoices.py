@@ -197,6 +197,56 @@ def _coach_label(coach):
     return full or coach.get("full_name") or coach.get("name") or ""
 
 
+def _get_current_session_worker():
+    """
+    Mirrors _get_current_coach() above, for Session Worker - used
+    wherever a buyer/actor can be either a Coach or a Session Worker
+    (e.g. the Coach Store, now open to both) and needs the same
+    defensive, has_field-guarded identity lookup.
+    """
+    user = _require_logged_in_user()
+
+    if not _has_doctype("Session Worker"):
+        return None
+
+    meta = frappe.get_meta("Session Worker")
+    fields = ["name"]
+
+    for fieldname in [
+        "sw_name",
+        "session_worker_name",
+        "full_name",
+        "employee_name",
+        "user_full_name",
+        "title",
+        "user",
+        "sw_email",
+    ]:
+        if meta.has_field(fieldname) and fieldname not in fields:
+            fields.append(fieldname)
+
+    login_fields = ["user", "sw_email"]
+
+    for fieldname in login_fields:
+        if meta.has_field(fieldname):
+            row = frappe.db.get_value("Session Worker", {fieldname: user}, fields, as_dict=True)
+            if row:
+                return row
+
+    return None
+
+
+def _session_worker_label(worker):
+    if not worker:
+        return ""
+
+    for fieldname in ["sw_name", "session_worker_name", "full_name", "employee_name", "user_full_name", "title"]:
+        if worker.get(fieldname):
+            return worker.get(fieldname)
+
+    return worker.get("name") or ""
+
+
 def _coach_label_from_name(coach_name):
     if not coach_name:
         return ""

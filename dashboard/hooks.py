@@ -49,6 +49,7 @@ jinja = {
     "methods": [
         "dashboard.api.shared.permissions.is_franchisor_user",
         "dashboard.api.shared.permissions.is_current_user_coach",
+        "dashboard.api.shared.permissions.is_current_user_session_worker",
     ],
 }
 

@@ -79,6 +79,22 @@ def is_current_user_coach():
     )
 
 
+def is_current_user_session_worker():
+    """
+    Boolean, never throws - mirrors is_current_user_coach() above, for
+    places that just need to know whether to show something session-
+    worker-specific (e.g. the topbar's Store link), not to actually load
+    the Session Worker record.
+    """
+    user = frappe.session.user
+    if not user or user == "Guest":
+        return False
+    return bool(
+        frappe.db.exists(SESSION_WORKER_DOCTYPE, {"user": user})
+        or frappe.db.exists(SESSION_WORKER_DOCTYPE, {"sw_email": user})
+    )
+
+
 def get_current_session_worker_name(optional=False):
     ensure_logged_in()
 
