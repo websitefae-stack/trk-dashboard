@@ -1283,35 +1283,56 @@ def _ensure_brand_requirement(practice_document_name, person_type, person_name, 
 	if not user:
 		return
 
-	# None of document_title/document_code/document_version/document_type/
-	# mandatory/document_file are fetch-from fields on Coach Document
-	# Requirement - without copying them explicitly here, every row this
-	# function creates (Brand-Based Access, for both coaches and session
-	# workers) landed with blanks across the board. document_type blank
-	# meant get_my_documents_by_type had nothing to match against a real
-	# Document Type tab, so it silently bucketed into "Other" (now
-	# fixed) - document_title blank is the next layer of the same bug:
-	# the row shows up in the right tab now, but with no name to read,
-	# exactly "25001", "25002"... with nothing beside them.
-	source = frappe.db.get_value(
-		PRACTICE_DOCUMENT_DOCTYPE, practice_document_name,
-		["document_title", "document_code", "version", "document_type", "mandatory", "document_file"],
-		as_dict=True,
-	) or {}
+	# None of REQUIREMENT_SNAPSHOT_FIELDS' Coach Document Requirement side
+	# are fetch-from fields - without copying them explicitly here, every
+	# row this function creates (Brand-Based Access, for both coaches and
+	# session workers) landed with blanks across the board. document_type
+	# blank meant get_my_documents_by_type had nothing to match against a
+	# real Document Type tab, so it silently bucketed into "Other" (fixed
+	# first) - document_title etc blank was the next layer: the row
+	# showed up in the right tab, but with no name to read, exactly
+	# "25001", "25002"... with nothing beside them (fixed next). Missing
+	# required_action/acknowledgement_declaration/signature_declaration
+	# was a third layer of the exact same bug, just further downstream -
+	# with required_action blank, document_view's Acknowledge/Sign block
+	# never had anything to match against, so session workers (whose
+	# documents come from Brand-Based Access almost exclusively, unlike
+	# coaches who mostly get theirs through Item Access instead - a
+	# different, unaffected code path) never saw it at all ("the session
+	# workers dont have the same sign or acknowledge... it needs to be
+	# the same for all"). Reuses REQUIREMENT_SNAPSHOT_FIELDS - the same
+	# practice_document_field -> requirement_field mapping the "Prepare
+	# coach document requirement" Server Script and
+	# sync_requirement_snapshot_fields() both already use - rather than
+	# hand-listing fields a third time, which is exactly how the first
+	# two layers of this bug happened: each fix only copied the fields
+	# the bug report at hand needed, not the full set this doctype
+	# actually snapshots.
+	practice_meta = frappe.get_meta(PRACTICE_DOCUMENT_DOCTYPE)
+	requirement_meta = frappe.get_meta(COACH_DOCUMENT_REQUIREMENT_DOCTYPE)
+
+	fetch_fields = [
+		practice_field for practice_field in REQUIREMENT_SNAPSHOT_FIELDS
+		if practice_meta.has_field(practice_field)
+	]
+	source = {}
+	if fetch_fields:
+		source = frappe.db.get_value(
+			PRACTICE_DOCUMENT_DOCTYPE, practice_document_name, fetch_fields, as_dict=True,
+		) or {}
 
 	payload = {
 		"doctype": COACH_DOCUMENT_REQUIREMENT_DOCTYPE,
 		"person_type": person_type,
 		"user": user,
 		"practice_document": practice_document_name,
-		"document_title": source.get("document_title"),
-		"document_code": source.get("document_code"),
-		"document_version": source.get("version"),
-		"document_type": source.get("document_type"),
-		"mandatory": source.get("mandatory"),
-		"document_file": source.get("document_file"),
 		granted_field: 1,
 	}
+
+	for practice_field, requirement_field in REQUIREMENT_SNAPSHOT_FIELDS.items():
+		if practice_field in source and requirement_meta.has_field(requirement_field):
+			payload[requirement_field] = source.get(practice_field)
+
 	if person_type == "Coach":
 		payload["coach"] = person_name
 	else:
