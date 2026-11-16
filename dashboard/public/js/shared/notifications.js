@@ -815,6 +815,24 @@
       form.addEventListener("submit", sendNotification);
     }
 
+    const fileInput = el("notificationFile");
+    if (fileInput && fileInput.dataset.notificationsBound !== "1") {
+      fileInput.dataset.notificationsBound = "1";
+
+      // The file isn't actually uploaded until Send is pressed (see
+      // sendNotification/uploadNotificationFile) - without this,
+      // picking a file gave no feedback at all until then.
+      fileInput.addEventListener("change", function () {
+        const help = el("notificationAttachmentHelp");
+        if (!help) return;
+
+        const file = fileInput.files && fileInput.files[0];
+        help.textContent = file
+          ? "Selected: " + file.name + " - will attach when you press Send."
+          : "Optional. Add a file from your computer.";
+      });
+    }
+
     const dueDateClose = el("notifDueDateModalClose");
     const dueDateCancel = el("notifDueDateCancel");
     const dueDateConfirm = el("notifDueDateConfirm");

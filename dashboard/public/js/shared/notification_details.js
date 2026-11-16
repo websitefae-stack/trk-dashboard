@@ -664,6 +664,25 @@
       replyBtn.addEventListener("click", sendReply);
     }
 
+    const replyFileInput = el("notificationReplyFile");
+    if (replyFileInput) {
+      // The file isn't actually uploaded until Comment is pressed (see
+      // sendReply/uploadReplyFile) - without this, picking a file gave
+      // no feedback at all until then, so there was no way to tell a
+      // file had actually been picked (reported: "it is not showing me
+      // that the file was uploaded before i press comment so now i am
+      // not sure if it is there").
+      replyFileInput.addEventListener("change", function () {
+        const help = el("notificationAttachmentHelp");
+        if (!help) return;
+
+        const file = replyFileInput.files && replyFileInput.files[0];
+        help.textContent = file
+          ? "Selected: " + file.name + " - will attach when you press Comment."
+          : "";
+      });
+    }
+
     if (toggleDetailsBtn && detailsMeta) {
       toggleDetailsBtn.addEventListener("click", function () {
         const nowHidden = detailsMeta.classList.toggle("is-hidden");
