@@ -646,7 +646,7 @@ def _current_user_can_allocate_payment(invoice_name):
         return True
 
     invoice = frappe.db.get_value(
-        "Sales Invoice", invoice_name, ["custom_client", "owner"], as_dict=True
+        "Sales Invoice", invoice_name, ["custom_client", "owner", "custom_created_by_coach"], as_dict=True
     )
     if not invoice:
         return False
@@ -675,6 +675,23 @@ def _current_user_can_allocate_payment(invoice_name):
     current_coach_name = _get_current_coach_name()
     if current_coach_name and frappe.db.get_value("Coach", current_coach_name, "linked_client") == client:
         return False
+
+    # "the invoice was done under sjs name" - a Client Transfer Fee
+    # invoice is raised by client_transfers.py while whoever's actually
+    # processing the transfer (franchisor/office) is logged in, not the
+    # transferring coach it's actually owed to - owner alone is wrong
+    # here, it's always whoever's session ran the insert, not who the
+    # invoice is attributed to. custom_created_by_coach is set
+    # explicitly to the transferring coach for exactly this invoice
+    # type (and, generically, to whichever coach raised an ordinary
+    # invoice through this app's own create flow - see
+    # _set_invoice_header_fields) - checked here as a second, coach-
+    # identity-aware path to the same allocate-payment permission,
+    # never on its own for a coach store purchase invoice (which never
+    # sets this field at all), so this can't reopen the bug the owner
+    # check above already exists to close.
+    if current_coach_name and invoice.get("custom_created_by_coach") == current_coach_name:
+        return True
 
     return invoice.get("owner") == frappe.session.user
 
