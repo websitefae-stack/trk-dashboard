@@ -1008,16 +1008,19 @@
 
 /* .dashboard-notif-board always renders all 4 columns (New/In Progress/
    Past Due/Archived - see notifications.js's STATUS_COLUMNS), each with
-   min-width:220px. 4 of those plus gaps need ~920px minimum, so on
-   anything narrower than that the board falls back to its own
-   overflow-x:auto - a side-scroll nobody actually notices, since
-   nothing else on this page scrolls sideways and there's no visible
-   affordance hinting at it (confirmed - "Archived" was simply never
-   found, reported as the page itself being inexplicably wide with no
-   way to scroll). Stacking the columns into one vertical list below
-   this breakpoint removes the side-scroll requirement entirely, same
-   pattern already used for every other list's own mobile layout above. */
-@media (max-width: 1024px) {
+   min-width:220px. 4 of those plus gaps only strictly need ~920px, but
+   below 1440px they get uncomfortably narrow before that point and the
+   board falls back to its own overflow-x:auto - a side-scroll nobody
+   actually notices, since nothing else on this page scrolls sideways
+   and there's no visible affordance hinting at it (confirmed -
+   "Archived" was simply never found, reported as the page itself being
+   inexplicably wide with barely any scroll to speak of). Stacking the
+   columns into one vertical list below this breakpoint removes the
+   side-scroll requirement entirely for any normal laptop/tablet width,
+   same pattern already used for every other list's own mobile layout
+   above - comfortably reading a notification card matters more here
+   than seeing all 4 columns side by side. */
+@media (max-width: 1440px) {
   .dashboard-notif-board {
     flex-direction: column;
     overflow-x: visible;
