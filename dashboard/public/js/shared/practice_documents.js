@@ -534,6 +534,7 @@
 
     var drawing = false;
     var hasStroke = false;
+    var placeholder = el("docSignaturePlaceholder");
 
     function pointerPos(event) {
       var bounds = canvas.getBoundingClientRect();
@@ -544,6 +545,7 @@
     function start(event) {
       drawing = true;
       hasStroke = true;
+      if (placeholder) placeholder.classList.add("is-hidden");
       var pos = pointerPos(event);
       ctx.beginPath();
       ctx.moveTo(pos.x, pos.y);
@@ -574,6 +576,7 @@
       clearBtn.addEventListener("click", function () {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         hasStroke = false;
+        if (placeholder) placeholder.classList.remove("is-hidden");
       });
     }
 

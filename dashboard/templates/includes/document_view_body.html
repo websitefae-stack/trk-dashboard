@@ -55,7 +55,13 @@
 
     <div class="dashboard-doc-signature-pad-wrap">
       <label>Signature</label>
-      <canvas id="docSignaturePad" class="dashboard-doc-signature-pad"></canvas>
+      <div class="dashboard-doc-signature-pad-box">
+        <canvas id="docSignaturePad" class="dashboard-doc-signature-pad"></canvas>
+        <div class="dashboard-doc-signature-placeholder" id="docSignaturePlaceholder">
+          <span class="dashboard-doc-signature-placeholder-icon">&#9998;</span>
+          Sign here with your mouse, trackpad or finger
+        </div>
+      </div>
       <button type="button" class="dashboard-btn dashboard-btn-light dashboard-doc-signature-clear" id="docSignatureClear">Clear Signature</button>
     </div>
 

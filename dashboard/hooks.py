@@ -17,7 +17,7 @@ web_include_css = [
     "/assets/dashboard/css/shared/badges.css",
     "/assets/dashboard/css/shared/details.css",
     "/assets/dashboard/css/shared/notifications.css",
-    "/assets/dashboard/css/shared/practice_documents.css",
+    "/assets/dashboard/css/shared/practice_documents.css?v=1",
     "/assets/dashboard/css/shared/mobile.css",
 ]
 
