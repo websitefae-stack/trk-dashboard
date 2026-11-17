@@ -937,7 +937,7 @@ def _invoice_status_class(status):
     return "dashboard-status-archived"
 
 
-def _normalise_invoice_row(row, client_map, dashboard_type, linked_client_names=None, current_coach_own_linked_client=None):
+def _normalise_invoice_row(row, client_map, dashboard_type, linked_client_names=None, current_coach_own_linked_client=None, current_coach_name=None):
     client_name = row.get("custom_client")
     client_row = client_map.get(client_name) if client_name else None
 
@@ -956,11 +956,23 @@ def _normalise_invoice_row(row, client_map, dashboard_type, linked_client_names=
     client_type = (client_row or {}).get("client_type")
     is_inter_account = client_type == "Franchise" or client_name in (linked_client_names or set())
     is_own_debt = bool(current_coach_own_linked_client) and client_name == current_coach_own_linked_client
-    can_allocate_payment = (
-        not is_inter_account
-        or _is_franchisor_user()
-        or (not is_own_debt and row.get("owner") == frappe.session.user)
-    )
+
+    if not is_inter_account or _is_franchisor_user():
+        can_allocate_payment = True
+    elif is_own_debt:
+        can_allocate_payment = False
+    elif current_coach_name and row.get("custom_created_by_coach") == current_coach_name:
+        # "the invoice was done under sjs name" - same
+        # custom_created_by_coach check _current_user_can_allocate_payment
+        # itself uses for a Client Transfer Fee invoice (raised under
+        # whoever processed the transfer's own session, attributed to the
+        # transferring coach via this field, not "owner") - without this,
+        # the button that function's own permission check would actually
+        # allow never showed in the first place, since this row-level copy
+        # of the same logic had fallen out of sync with it.
+        can_allocate_payment = True
+    else:
+        can_allocate_payment = row.get("owner") == frappe.session.user
 
     return {
         "name": row.get("name"),
@@ -1251,7 +1263,7 @@ def _get_invoices_for_clients(client_rows, dashboard_type, owner_coach_name=None
         else None
     )
     invoices = [
-        _normalise_invoice_row(row, client_map, dashboard_type, linked_client_names, current_coach_own_linked_client)
+        _normalise_invoice_row(row, client_map, dashboard_type, linked_client_names, current_coach_own_linked_client, current_coach_name)
         for row in invoice_rows
     ]
 

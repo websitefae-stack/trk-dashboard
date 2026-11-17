@@ -1,0 +1,31 @@
+<div class="dashboard-card">
+  <div class="dashboard-detail-section-head">
+    <h2 class="dashboard-detail-section-title">Client Portal Access</h2>
+  </div>
+
+  <p class="dashboard-help" style="margin-bottom:16px;">
+    Every client you can see, whether anyone on it has client portal access yet, and when it was granted. Click a client to see every contact's own status and grant or revoke access.
+    {% if dashboard_type != "franchisor" %}
+      Only the franchisor or a client's own primary coach can actually grant/revoke access here - everyone else sees the status read-only.
+    {% endif %}
+  </p>
+
+  <div class="dashboard-detail-actions" style="margin: 0 0 18px;">
+    <button type="button" class="dashboard-btn dashboard-btn-primary" id="runClientPortalAccessReportBtn">Run Report</button>
+  </div>
+
+  <div id="clientPortalAccessEmpty" class="dashboard-empty">Run the report to see results.</div>
+
+  <div class="dashboard-table-wrap" id="clientPortalAccessResults" style="display:none;">
+    <table class="dashboard-table dashboard-table-compact">
+      <thead>
+        <tr>
+          <th>Client</th>
+          <th>Has Portal Access</th>
+          <th>Date Access Given</th>
+        </tr>
+      </thead>
+      <tbody id="clientPortalAccessTableBody"></tbody>
+    </table>
+  </div>
+</div>

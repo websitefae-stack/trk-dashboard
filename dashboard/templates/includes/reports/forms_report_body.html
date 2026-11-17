@@ -6,6 +6,7 @@
     <button type="button" class="dashboard-tab-btn" data-forms-report-tab="resilience_comparison">Student Resilience (Before/After)</button>
     <button type="button" class="dashboard-tab-btn" data-forms-report-tab="stirling_comparison">Children's Wellbeing (Before/After)</button>
     <button type="button" class="dashboard-tab-btn" data-forms-report-tab="packs">Open Session Packs</button>
+    <button type="button" class="dashboard-tab-btn" data-forms-report-tab="client_portal_access">Client Portal Access</button>
     {% if dashboard_type != "session_worker" %}
       <button type="button" class="dashboard-tab-btn" data-forms-report-tab="coach_logs">Coach Logs</button>
     {% endif %}
@@ -233,6 +234,10 @@
 
 <div class="dashboard-tab-panel" data-forms-report-panel="packs" style="display:none;">
   {% include "dashboard/templates/includes/reports/open_packs_report_body.html" %}
+</div>
+
+<div class="dashboard-tab-panel" data-forms-report-panel="client_portal_access" style="display:none;">
+  {% include "dashboard/templates/includes/reports/client_portal_access_report_body.html" %}
 </div>
 
 <div class="dashboard-tab-panel" data-forms-report-panel="coach_logs" style="display:none;">

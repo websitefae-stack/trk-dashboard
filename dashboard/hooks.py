@@ -17,7 +17,7 @@ web_include_css = [
     "/assets/dashboard/css/shared/badges.css",
     "/assets/dashboard/css/shared/details.css",
     "/assets/dashboard/css/shared/notifications.css",
-    "/assets/dashboard/css/shared/practice_documents.css",
+    "/assets/dashboard/css/shared/practice_documents.css?v=1",
     "/assets/dashboard/css/shared/mobile.css",
 ]
 
@@ -119,6 +119,7 @@ after_migrate = [
     "dashboard.patches.backfill_coach_document_requirement_types.execute",
     "dashboard.patches.backfill_coach_document_requirement_details.execute",
     "dashboard.patches.backfill_coach_document_requirement_required_action.execute",
+    "dashboard.patches.add_village_to_coach_brand_access_options.execute",
     "dashboard.patches.disable_unused_razorpay_scheduled_jobs.execute",
     "dashboard.patches.backfill_coach_store_order_checkouts.execute",
     "dashboard.patches.add_qualifications_and_professional_association_fields.execute",
