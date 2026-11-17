@@ -51,6 +51,8 @@ LINK_FIELDS = [
     "is_primary_contact",
     "is_billing_contact",
     "portal_access_enabled",
+    "portal_access_granted_on",
+    "portal_access_notified_on",
     *PERMISSION_FIELDS,
 ]
 
@@ -103,10 +105,13 @@ def get_portal_access_rows(client_name):
     if not frappe.db.exists("DocType", LINK_DOCTYPE):
         return {"rows": [], "relationship_options": RELATIONSHIP_OPTIONS, "can_manage": False}
 
+    link_meta = frappe.get_meta(LINK_DOCTYPE)
+    fetch_fields = [field for field in LINK_FIELDS if link_meta.has_field(field) or field == "name"]
+
     rows = frappe.get_all(
         LINK_DOCTYPE,
         filters={"parenttype": CLIENT_DOCTYPE, "parent": client_name},
-        fields=LINK_FIELDS,
+        fields=fetch_fields,
         order_by="idx asc",
     )
 
@@ -151,6 +156,8 @@ def save_portal_access_row(client_name, contact, data):
             row = existing
             break
 
+    was_enabled = bool(row and row.portal_access_enabled)
+
     if not row:
         row = client.append(LINK_PARENTFIELD, {})
 
@@ -166,6 +173,14 @@ def save_portal_access_row(client_name, contact, data):
     for field in PERMISSION_FIELDS:
         row.set(field, 1 if data.get(field) else 0)
 
+    link_meta = frappe.get_meta(LINK_DOCTYPE)
+
+    # "Date access was given" tracks the most recent off -> on transition,
+    # not every save - editing an already-enabled contact's other
+    # permissions (or re-saving with no real change) must never bump it.
+    if row.portal_access_enabled and not was_enabled and link_meta.has_field("portal_access_granted_on"):
+        row.portal_access_granted_on = frappe.utils.today()
+
     client.save(ignore_permissions=True)
     frappe.db.commit()
 
@@ -176,6 +191,12 @@ def save_portal_access_row(client_name, contact, data):
 
     if data.get("notify_by_email"):
         _send_portal_notification(email, row.contact_name, user_created, client_name)
+
+        # Only recorded once the send above didn't raise - a failed
+        # send (bad mail config, throttled, etc.) must never look like
+        # "they were notified" in the report.
+        if link_meta.has_field("portal_access_notified_on"):
+            frappe.db.set_value(LINK_DOCTYPE, row.name, "portal_access_notified_on", frappe.utils.today())
 
     return {"success": True, "user_created": user_created}
 
