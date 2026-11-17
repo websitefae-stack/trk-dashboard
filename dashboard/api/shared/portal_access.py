@@ -93,6 +93,67 @@ def _ensure_can_manage_portal_access(client_name):
         )
 
 
+def _merge_rows_by_email(rows):
+    """The same real person can end up with more than one Client Contact
+    Link row if they were added as a client contact more than once (e.g.
+    two separate Contact records that both happen to be "Emma", each
+    with their own portal-access row) - shown as-is, that reads as one
+    person being both granted and not granted access at the same time.
+    Collapses every group of rows that share an email address into a
+    single display row (access/permissions = enabled if ANY row in the
+    group is enabled, dates = the latest of the group), and carries every
+    underlying row's name in `row_names` so a Grant/Revoke or permission
+    change made against the merged row can be mirrored onto all of them.
+    """
+
+    groups = {}
+    order = []
+
+    for row in rows:
+        key = (row.get("email_id") or "").strip().lower() or ("name:" + row.get("name"))
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(row)
+
+    merged = []
+
+    for key in order:
+        group = groups[key]
+
+        if len(group) == 1:
+            single = dict(group[0])
+            single["row_names"] = [single["name"]]
+            merged.append(single)
+            continue
+
+        enabled_rows = [row for row in group if row.get("portal_access_enabled")]
+        combined = dict(enabled_rows[0] if enabled_rows else group[0])
+        combined["row_names"] = [row["name"] for row in group]
+        combined["portal_access_enabled"] = 1 if enabled_rows else 0
+        combined["is_primary_contact"] = 1 if any(row.get("is_primary_contact") for row in group) else 0
+        combined["is_billing_contact"] = 1 if any(row.get("is_billing_contact") for row in group) else 0
+
+        for prefer_field in ("contact", "contact_name", "phone", "relationship_type"):
+            if not combined.get(prefer_field):
+                for row in group:
+                    if row.get(prefer_field):
+                        combined[prefer_field] = row.get(prefer_field)
+                        break
+
+        for date_field in ("portal_access_granted_on", "portal_access_notified_on"):
+            dates = [row.get(date_field) for row in group if row.get(date_field)]
+            if dates:
+                combined[date_field] = max(dates)
+
+        for field in PERMISSION_FIELDS:
+            combined[field] = 1 if any(row.get(field) for row in group) else 0
+
+        merged.append(combined)
+
+    return merged
+
+
 @frappe.whitelist()
 def get_portal_access_rows(client_name):
     """Keyed by `contact` docname client-side, so the Client Contacts
@@ -116,18 +177,24 @@ def get_portal_access_rows(client_name):
     )
 
     return {
-        "rows": rows,
+        "rows": _merge_rows_by_email(rows),
         "relationship_options": RELATIONSHIP_OPTIONS,
         "can_manage": _can_manage_portal_access(client_name),
     }
 
 
 @frappe.whitelist()
-def save_portal_access_row(client_name, contact, data):
+def save_portal_access_row(client_name, contact, data, also_row_names=None):
     """`contact` is an existing Contact docname already linked to this
     client via client_contacts. Pass "" only when the person genuinely has
     no Contact record on file - the client_portal app itself falls back to
     matching by email_id alone in that case.
+
+    `also_row_names` is the rest of a `_merge_rows_by_email` group (every
+    other underlying Client Contact Link row name that was merged into
+    this one for display) - their access/permissions/dates are mirrored
+    to match this save, so a duplicate person-row never comes back with
+    the opposite access state right after being changed.
     """
 
     _ensure_can_manage_portal_access(client_name)
@@ -138,7 +205,11 @@ def save_portal_access_row(client_name, contact, data):
     if isinstance(data, str):
         data = frappe.parse_json(data)
 
+    if isinstance(also_row_names, str):
+        also_row_names = frappe.parse_json(also_row_names)
+
     data = data or {}
+    also_row_names = also_row_names or []
     contact = (contact or "").strip()
     email = (data.get("email_id") or "").strip()
 
@@ -181,6 +252,19 @@ def save_portal_access_row(client_name, contact, data):
     if row.portal_access_enabled and not was_enabled and link_meta.has_field("portal_access_granted_on"):
         row.portal_access_granted_on = frappe.utils.today()
 
+    for other in client.get(LINK_PARENTFIELD) or []:
+        if other.name == row.name or other.name not in also_row_names:
+            continue
+
+        other_was_enabled = bool(other.portal_access_enabled)
+        other.portal_access_enabled = row.portal_access_enabled
+
+        for field in PERMISSION_FIELDS:
+            other.set(field, row.get(field))
+
+        if row.portal_access_enabled and not other_was_enabled and link_meta.has_field("portal_access_granted_on"):
+            other.portal_access_granted_on = row.portal_access_granted_on or frappe.utils.today()
+
     client.save(ignore_permissions=True)
     frappe.db.commit()
 
@@ -196,7 +280,11 @@ def save_portal_access_row(client_name, contact, data):
         # send (bad mail config, throttled, etc.) must never look like
         # "they were notified" in the report.
         if link_meta.has_field("portal_access_notified_on"):
-            frappe.db.set_value(LINK_DOCTYPE, row.name, "portal_access_notified_on", frappe.utils.today())
+            notified_on = frappe.utils.today()
+            frappe.db.set_value(LINK_DOCTYPE, row.name, "portal_access_notified_on", notified_on)
+            for other_name in also_row_names:
+                if other_name != row.name:
+                    frappe.db.set_value(LINK_DOCTYPE, other_name, "portal_access_notified_on", notified_on)
 
     return {"success": True, "user_created": user_created}
 
