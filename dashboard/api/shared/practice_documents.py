@@ -48,6 +48,7 @@ PRACTICE_DOCUMENT_BRAND_FIELDS = {
 	"brand_access_people": "People",
 	"brand_access_school": "School",
 	"brand_access_franchise": "Franchise",
+	"brand_access_village": "Village",
 }
 
 # Login fields tried in order to resolve a Session Worker's own sign-in

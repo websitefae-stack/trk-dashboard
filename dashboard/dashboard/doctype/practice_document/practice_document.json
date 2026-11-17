@@ -52,6 +52,7 @@
   "brand_access_column",
   "brand_access_school",
   "brand_access_franchise",
+  "brand_access_village",
   "responsibility_section",
   "document_owner",
   "published_by",
@@ -346,6 +347,12 @@
    "fieldname": "brand_access_franchise",
    "fieldtype": "Check",
    "label": "Franchise / Hub"
+  },
+  {
+   "default": "0",
+   "fieldname": "brand_access_village",
+   "fieldtype": "Check",
+   "label": "TRV"
   },
   {
    "fieldname": "responsibility_section",
