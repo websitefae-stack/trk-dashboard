@@ -61,6 +61,38 @@
     return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   }
 
+  var PERMISSION_FIELDS = [
+    "view_profile",
+    "can_edit_profile",
+    "can_view_appointments",
+    "can_book_appointments",
+    "can_view_invoices",
+    "can_pay_invoices",
+    "can_view_courses_and_products",
+    "can_view_downloads",
+    "view_reports",
+    "can_view_admin_details",
+    "can_monitor_courses",
+    "can_manage_staff_access",
+    "can_view_sensitive_details"
+  ];
+
+  var PERMISSION_LABELS = {
+    view_profile: "View Profile",
+    can_edit_profile: "Edit Profile",
+    can_view_appointments: "View Appointments",
+    can_book_appointments: "Book Appointments",
+    can_view_invoices: "View Invoices",
+    can_pay_invoices: "Pay Invoices",
+    can_view_courses_and_products: "View Courses & Products",
+    can_view_downloads: "View Downloads",
+    view_reports: "View Reports",
+    can_view_admin_details: "View Admin Details",
+    can_monitor_courses: "Monitor Courses",
+    can_manage_staff_access: "Manage Staff Access",
+    can_view_sensitive_details: "View Sensitive Details"
+  };
+
   var state = { rows: [], openClient: "" };
 
   function renderTable() {
@@ -94,6 +126,27 @@
     });
   }
 
+  function permissionGridHtml(row, canManage) {
+    var boxes = PERMISSION_FIELDS.map(function (field) {
+      return (
+        '<label>' +
+          '<input type="checkbox" data-perm-row="' + escapeHtml(row.name || "") + '" ' +
+          'data-perm-field="' + field + '" ' +
+          (row[field] ? "checked " : "") +
+          (canManage ? "" : "disabled ") +
+          '> ' + escapeHtml(PERMISSION_LABELS[field]) +
+        '</label>'
+      );
+    }).join("");
+
+    var saveBtn = canManage
+      ? '<button type="button" class="dashboard-btn dashboard-btn-compact dashboard-btn-light client-portal-access-save-permissions" ' +
+        'data-save-permissions-row="' + escapeHtml(row.name || "") + '">Save Permissions</button>'
+      : "";
+
+    return '<div class="client-portal-access-permission-grid">' + boxes + "</div>" + saveBtn;
+  }
+
   function contactDetailRowHtml(row, canManage) {
     var hasAccess = !!row.portal_access_enabled;
     var actionCell = "—";
@@ -121,6 +174,7 @@
         "<td>" + escapeHtml(row.contact_name || "—") + "</td>" +
         "<td>" + escapeHtml(row.email_id || "—") + "</td>" +
         "<td>" + escapeHtml(row.relationship_type || "—") + "</td>" +
+        "<td>" + permissionGridHtml(row, canManage) + "</td>" +
         "<td>" + (hasAccess ? "Yes" : "No") + "</td>" +
         "<td>" + escapeHtml(formatDate(row.portal_access_granted_on)) + "</td>" +
         "<td>" + escapeHtml(formatDate(row.portal_access_notified_on)) + "</td>" +
@@ -161,9 +215,9 @@
 
       container.innerHTML = askNote +
         '<div class="dashboard-table-wrap">' +
-          '<table class="dashboard-table dashboard-table-compact">' +
+          '<table class="dashboard-table dashboard-table-compact client-portal-access-table">' +
             "<thead><tr>" +
-              "<th>Contact</th><th>Email</th><th>Relationship</th><th>Access</th><th>Granted On</th><th>Notified On</th><th></th>" +
+              "<th>Contact</th><th>Email</th><th>Relationship</th><th>Permissions</th><th>Access</th><th>Granted On</th><th>Notified On</th><th></th>" +
             "</tr></thead>" +
             "<tbody>" + rows.map(function (row) { return contactDetailRowHtml(row, canManage); }).join("") + "</tbody>" +
           "</table>" +
@@ -173,6 +227,13 @@
         button.addEventListener("click", function (event) {
           event.stopPropagation();
           toggleAccess(client, button, rows);
+        });
+      });
+
+      container.querySelectorAll("[data-save-permissions-row]").forEach(function (button) {
+        button.addEventListener("click", function (event) {
+          event.stopPropagation();
+          savePermissions(client, button, rows);
         });
       });
     } catch (error) {
@@ -192,10 +253,13 @@
     button.disabled = true;
     button.textContent = willEnable ? "Granting…" : "Revoking…";
 
+    var otherRowNames = (row.row_names || [row.name]).filter(function (name) { return name !== row.name; });
+
     try {
       await callApi("dashboard.api.shared.portal_access.save_portal_access_row", {
         client_name: client,
         contact: contact || "",
+        also_row_names: JSON.stringify(otherRowNames),
         data: JSON.stringify({
           contact_name: row.contact_name,
           email_id: row.email_id,
@@ -229,6 +293,51 @@
       window.alert(error.message || "Could not update portal access.");
       button.disabled = false;
       button.textContent = willEnable ? "Grant Access" : "Revoke Access";
+    }
+  }
+
+  async function savePermissions(client, button, rows) {
+    var rowName = button.getAttribute("data-save-permissions-row");
+    var row = rows.filter(function (r) { return r.name === rowName; })[0];
+    if (!row) return;
+
+    var cell = button.closest("td");
+    var permissions = {};
+    cell.querySelectorAll("[data-perm-field]").forEach(function (checkbox) {
+      permissions[checkbox.getAttribute("data-perm-field")] = checkbox.checked ? 1 : 0;
+    });
+
+    var otherRowNames = (row.row_names || [row.name]).filter(function (name) { return name !== row.name; });
+
+    button.disabled = true;
+    button.textContent = "Saving…";
+
+    try {
+      await callApi("dashboard.api.shared.portal_access.save_portal_access_row", {
+        client_name: client,
+        contact: row.contact || "",
+        also_row_names: JSON.stringify(otherRowNames),
+        data: JSON.stringify(Object.assign({
+          contact_name: row.contact_name,
+          email_id: row.email_id,
+          phone: row.phone,
+          relationship_type: row.relationship_type,
+          is_primary_contact: row.is_primary_contact,
+          is_billing_contact: row.is_billing_contact,
+          portal_access_enabled: row.portal_access_enabled,
+          notify_by_email: 0
+        }, permissions))
+      });
+
+      button.textContent = "Saved";
+      setTimeout(function () {
+        button.disabled = false;
+        button.textContent = "Save Permissions";
+      }, 1500);
+    } catch (error) {
+      window.alert(error.message || "Could not save permissions.");
+      button.disabled = false;
+      button.textContent = "Save Permissions";
     }
   }
 
