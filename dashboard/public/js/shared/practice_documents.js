@@ -522,19 +522,43 @@
     if (!canvas) return null;
 
     var ctx = canvas.getContext("2d");
-    var rect = canvas.getBoundingClientRect();
-    var ratio = window.devicePixelRatio || 1;
-
-    canvas.width = rect.width * ratio;
-    canvas.height = rect.height * ratio;
-    ctx.scale(ratio, ratio);
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.strokeStyle = "#434B49";
-
     var drawing = false;
     var hasStroke = false;
     var placeholder = el("docSignaturePlaceholder");
+
+    // Sizing the drawing buffer off getBoundingClientRect() right when
+    // the "Sign" section is switched from display:none to block can
+    // read a 0x0 rect if the browser hasn't settled that layout yet -
+    // the canvas then LOOKS the right size (that's CSS, unaffected),
+    // mouse/touch events still fire normally, but every stroke draws
+    // into a buffer with no pixels, so nothing ever becomes visible.
+    // Resizing again on the next frame (and preserving whatever was
+    // already drawn, since changing canvas.width/height clears it)
+    // self-heals that without needing to know why the first read was
+    // wrong on a given browser/device.
+    function resize() {
+      var rect = canvas.getBoundingClientRect();
+      var ratio = window.devicePixelRatio || 1;
+      var width = rect.width || (canvas.parentElement && canvas.parentElement.clientWidth) || 300;
+      var height = rect.height || 160;
+      var snapshot = hasStroke ? canvas.toDataURL("image/png") : null;
+
+      canvas.width = width * ratio;
+      canvas.height = height * ratio;
+      ctx.scale(ratio, ratio);
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "#434B49";
+
+      if (snapshot) {
+        var img = new Image();
+        img.onload = function () { ctx.drawImage(img, 0, 0, width, height); };
+        img.src = snapshot;
+      }
+    }
+
+    resize();
+    if (window.requestAnimationFrame) window.requestAnimationFrame(resize);
 
     function pointerPos(event) {
       var bounds = canvas.getBoundingClientRect();
