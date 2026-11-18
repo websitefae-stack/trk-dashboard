@@ -117,8 +117,30 @@ def _discount_for(coupon, subtotal):
     return round(min(max(amount, 0), subtotal), 2)
 
 
+def _coupon_attempt_rate_limited():
+    # Coupon codes are short, memorable marketing strings, not secrets -
+    # this is a light courtesy cap against a scripted dictionary of
+    # guesses, not a defense a real promo code's secrecy depends on. A
+    # genuine shopper never tries more than a handful of codes.
+    ip = frappe.local.request_ip
+    if not ip:
+        return False
+
+    key = f"coupon_apply_attempts::{ip}"
+    cache = frappe.cache()
+    count = frappe.utils.cint(cache.get_value(key))
+    if count >= 20:
+        return True
+
+    cache.set_value(key, count + 1, expires_in_sec=3600)
+    return False
+
+
 @frappe.whitelist(allow_guest=True)
 def apply_coupon(code=None, cart_items=None):
+    if _coupon_attempt_rate_limited():
+        frappe.throw(_("Too many attempts. Please try again in a little while."))
+
     coupon = _get_valid_coupon(code)
     cart_items = _parse_json_list(cart_items)
     eligible_subtotal = _eligible_subtotal(coupon, cart_items)

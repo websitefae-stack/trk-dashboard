@@ -625,6 +625,27 @@ def create_portal_booking(client=None, coach=None, date=None, time=None, appoint
     return {"ok": True, "event": event.name}
 
 
+def _booking_rate_limited():
+    # This is the one guest endpoint here that actually writes anything
+    # (a real Lead + a real Event on a coach's calendar) - get_available_
+    # slots/get_available_dates are read-only lookups with nothing to
+    # throttle. A scripted loop hammering this could both spam junk
+    # Leads and eat a coach's actual bookable slots; a genuine visitor
+    # never submits this form more than once or twice.
+    ip = frappe.local.request_ip
+    if not ip:
+        return False
+
+    key = f"public_booking_submissions::{ip}"
+    cache = frappe.cache()
+    count = frappe.utils.cint(cache.get_value(key))
+    if count >= 5:
+        return True
+
+    cache.set_value(key, count + 1, expires_in_sec=3600)
+    return False
+
+
 @frappe.whitelist(allow_guest=True)
 def submit_public_booking(
     coach=None,
@@ -655,6 +676,9 @@ def submit_public_booking(
     # only ever trusted against the fixed Select options on Client
     # Lead.source below, never written through as free text.
     source = coalesce_str("source", source)
+
+    if _booking_rate_limited():
+        frappe.throw(_("Too many booking attempts. Please try again in a little while."))
 
     if not coach or not frappe.db.exists("Coach", coach):
         frappe.throw(_("This coach was not found."))

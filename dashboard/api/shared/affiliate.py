@@ -285,6 +285,26 @@ def get_affiliate_coach_links(coach=None):
     frappe.throw(_("A valid coach or session worker is required."))
 
 
+def _click_rate_limited():
+    # A guessed/looped code could otherwise inflate a coach's own click
+    # count for free - cheap to abuse since this never throws or reveals
+    # whether a code is valid. 30/hour per IP comfortably covers a real
+    # visitor (this only ever fires once per genuine pageview landing
+    # with ?aff=) while capping a trivial loop script.
+    ip = frappe.local.request_ip
+    if not ip:
+        return False
+
+    key = f"affiliate_click_submissions::{ip}"
+    cache = frappe.cache()
+    count = frappe.utils.cint(cache.get_value(key))
+    if count >= 30:
+        return True
+
+    cache.set_value(key, count + 1, expires_in_sec=3600)
+    return False
+
+
 @frappe.whitelist(allow_guest=True)
 def record_affiliate_click(code=None, item=None, course=None):
     """
@@ -307,7 +327,7 @@ def record_affiliate_click(code=None, item=None, course=None):
     product.
     """
     code = (code or "").strip()
-    if not code:
+    if not code or _click_rate_limited():
         return {"ok": True}
 
     earner = resolve_affiliate_earner(code)

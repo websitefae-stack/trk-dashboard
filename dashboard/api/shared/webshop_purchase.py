@@ -645,6 +645,25 @@ def get_item_or_variants(item_code=None):
     }
 
 
+def _checkout_rate_limited():
+    # The only guest endpoint in this module that actually writes
+    # anything (a Webshop Checkout doc, plus a real Stripe API call) -
+    # a scripted loop could otherwise spam both for free. A genuine
+    # shopper never submits checkout more than a handful of times.
+    ip = frappe.local.request_ip
+    if not ip:
+        return False
+
+    key = f"webshop_checkout_submissions::{ip}"
+    cache = frappe.cache()
+    count = frappe.utils.cint(cache.get_value(key))
+    if count >= 10:
+        return True
+
+    cache.set_value(key, count + 1, expires_in_sec=3600)
+    return False
+
+
 @frappe.whitelist(allow_guest=True)
 def create_checkout_session(
     items=None,
@@ -674,6 +693,9 @@ def create_checkout_session(
     webhook re-reads the real doc rather than trying to fit a whole cart
     into Stripe's small per-field metadata size limit.
     """
+    if _checkout_rate_limited():
+        frappe.throw(_("Too many checkout attempts. Please try again in a little while."))
+
     settings = get_settings()
 
     if not settings.enabled:

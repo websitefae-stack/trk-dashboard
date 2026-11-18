@@ -308,7 +308,27 @@ def mailerlite_webhook():
     payload_bytes = frappe.request.get_data()
     signature = frappe.get_request_header("X-MailerLite-Signature")
 
-    if signing_secret and not _verify_webhook_signature(payload_bytes, signature, signing_secret):
+    if not signing_secret:
+        # No secret configured means nothing here could ever actually
+        # verify a delivery - used to fall through and trust ANY POST
+        # body unauthenticated, which let anyone silently unsubscribe an
+        # arbitrary email address from every Email Group just by posting
+        # {"event": "unsubscribed", "email": "someone@..."}. Reject
+        # instead of trusting it: if real MailerLite deliveries stop
+        # working, that means the Webhook Signing Secret on MailerLite
+        # Settings doesn't actually match what MailerLite's own webhook
+        # dashboard shows for this endpoint - it needs setting, not
+        # bypassing.
+        frappe.log_error(
+            "MailerLite webhook received with no Webhook Signing Secret configured on MailerLite "
+            "Settings - rejected rather than trusted unauthenticated. Set the secret to match "
+            "MailerLite's dashboard for this webhook.",
+            "MailerLite Webhook Rejected",
+        )
+        frappe.local.response.http_status_code = 400
+        return {"ok": False}
+
+    if not _verify_webhook_signature(payload_bytes, signature, signing_secret):
         frappe.log_error(
             "MailerLite webhook signature verification failed - check Webhook Signing Secret on "
             "MailerLite Settings matches what MailerLite's dashboard shows for this webhook.",
